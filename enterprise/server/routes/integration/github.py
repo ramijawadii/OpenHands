@@ -81,6 +81,9 @@ async def github_events(
 
         # Forward to automation service (fire-and-forget background task)
         if AUTOMATION_EVENT_FORWARDING_ENABLED:
+            logger.info(
+                f'triggering forward_github_event with payload: {payload_data}, installation_id: {installation_id}'
+            )
             background_tasks.add_task(
                 automation_event_service.forward_github_event,
                 payload=payload_data,
