@@ -490,6 +490,10 @@ export function LlmSettingsScreen({
         llm.base_url = getSchemaFieldDefaultValue(schema, "llm.base_url");
         agentSettings.llm = llm;
 
+        if (!isSaasMode) {
+          topLevel.search_api_key = DEFAULT_SETTINGS.search_api_key;
+        }
+
         if (hasAgentField) {
           agentSettings.agent = getSchemaFieldDefaultValue(schema, "agent");
         }

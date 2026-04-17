@@ -731,7 +731,7 @@ describe("LlmSettingsScreen", () => {
     );
   });
 
-  it("preserves hidden search API key state when saving basic view", async () => {
+  it("clears hidden search API key state when saving basic view", async () => {
     let persistedSettings = buildSettingsWithAdvancedToggle({
       llm_model: "openai/gpt-4o",
       search_api_key: "tavily-key",
@@ -783,18 +783,15 @@ describe("LlmSettingsScreen", () => {
     await userEvent.click(screen.getByTestId("save-button"));
 
     await waitFor(() => {
-      expect(saveSettingsSpy).toHaveBeenCalled();
-    });
-
-    const payload = saveSettingsSpy.mock.calls[0][0];
-    expect(payload).not.toHaveProperty("search_api_key");
-    expect(payload).toEqual(
-      expect.objectContaining({
-        agent_settings: expect.objectContaining({
-          llm: expect.objectContaining({ api_key: "test-api-key" }),
+      expect(saveSettingsSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          search_api_key: "",
+          agent_settings: expect.objectContaining({
+            llm: expect.objectContaining({ api_key: "test-api-key" }),
+          }),
         }),
-      }),
-    );
+      );
+    });
 
     await waitFor(() => {
       expect(getSettingsSpy).toHaveBeenCalledTimes(2);
