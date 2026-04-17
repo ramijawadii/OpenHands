@@ -1224,10 +1224,38 @@
     "ca": "Servidors Stdio"
   },
   "SETTINGS$MCP_SEARCH_TITLE": {
-    "en": "Built-in search (Tavily)"
+    "en": "Built-in search (Tavily)",
+    "ja": "Built-in search (Tavily)",
+    "zh-CN": "Built-in search (Tavily)",
+    "zh-TW": "Built-in search (Tavily)",
+    "ko-KR": "Built-in search (Tavily)",
+    "no": "Built-in search (Tavily)",
+    "it": "Built-in search (Tavily)",
+    "pt": "Built-in search (Tavily)",
+    "es": "Built-in search (Tavily)",
+    "ar": "Built-in search (Tavily)",
+    "fr": "Built-in search (Tavily)",
+    "tr": "Built-in search (Tavily)",
+    "de": "Built-in search (Tavily)",
+    "uk": "Built-in search (Tavily)",
+    "ca": "Built-in search (Tavily)"
   },
   "SETTINGS$MCP_SEARCH_DESCRIPTION": {
-    "en": "Configure the Tavily key that OpenHands uses to add its default search MCP server."
+    "en": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "ja": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "zh-CN": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "zh-TW": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "ko-KR": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "no": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "it": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "pt": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "es": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "ar": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "fr": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "tr": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "de": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "uk": "Configure the Tavily key that OpenHands uses to add its default search MCP server.",
+    "ca": "Configure the Tavily key that OpenHands uses to add its default search MCP server."
   },
   "SETTINGS$MCP_API_KEY": {
     "en": "API Key",
