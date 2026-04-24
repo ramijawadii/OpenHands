@@ -4,8 +4,8 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { I18nKey } from "#/i18n/declaration";
 import { transformVSCodeUrl } from "#/utils/vscode-url-helper";
 import { useRuntimeIsReady } from "#/hooks/use-runtime-is-ready";
-import { useBatchAppConversations } from "./use-batch-app-conversations";
-import { useBatchSandboxes } from "./use-batch-sandboxes";
+import { useBatchAppConversations } from "#/hooks/query/use-batch-app-conversations";
+import { useBatchSandboxes } from "#/hooks/query/use-batch-sandboxes";
 
 interface VSCodeUrlResult {
   url: string | null;

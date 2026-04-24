@@ -1,5 +1,5 @@
 import { ConversationTrigger } from "../open-hands.types";
-import { V1SandboxStatus } from "../sandbox-service/sandbox-service.types";
+import { V1SandboxStatus } from "#/api/sandbox-service/sandbox-service.types";
 import { Provider } from "#/types/settings";
 import { SuggestedTask } from "#/utils/types";
 import { V1ExecutionStatus } from "#/types/v1/core";

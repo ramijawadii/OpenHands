@@ -286,6 +286,10 @@ These details may or may not be useful for your current task.
 
 ### Microagents
 
+- Frontend prototype for cross-repo sharing can consume `@openhands/agent-server-gui` directly. In `frontend/tsconfig.json`, `#/*` now falls back from local `src/*` to `node_modules/@openhands/agent-server-gui/src/*`, and `frontend/vite.config.ts` has a matching resolver plugin so local OpenHands-specific modules override shared package modules.
+- For this prototype, most OpenHands route modules are thin wrappers that re-export `@openhands/agent-server-gui/src/routes/*`; OpenHands keeps only backend-specific overrides plus local `src/i18n/{index,translation.json,declaration.ts}` because `npm run make-i18n` reads the local translation file.
+
+
 Microagents are specialized prompts that enhance OpenHands with domain-specific knowledge and task-specific workflows. They are Markdown files that can include frontmatter for configuration.
 
 #### Types:

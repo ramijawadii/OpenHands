@@ -1,10 +1,4 @@
-import { createPermissionGuard } from "#/utils/org/permission-guard";
-import { LlmSettingsScreen } from "./llm-settings";
+import SharedModule from "@openhands/agent-server-gui/src/routes/org-default-llm-settings";
 
-export const clientLoader = createPermissionGuard("view_llm_settings");
-
-function OrgDefaultLlmSettingsScreen() {
-  return <LlmSettingsScreen scope="org" />;
-}
-
-export default OrgDefaultLlmSettingsScreen;
+export * from "@openhands/agent-server-gui/src/routes/org-default-llm-settings";
+export default SharedModule;

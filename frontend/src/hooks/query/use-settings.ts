@@ -5,8 +5,8 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { Settings, SettingsScope, SettingsValue } from "#/types/settings";
 import { organizationService } from "#/api/organization-service/organization-service.api";
 import SettingsService from "#/api/settings-service/settings-service.api";
-import { useIsAuthed } from "./use-is-authed";
-import { useConfig } from "./use-config";
+import { useIsAuthed } from "#/hooks/query/use-is-authed";
+import { useConfig } from "#/hooks/query/use-config";
 import {
   pickFirstBoolean,
   pickFirstNumber,

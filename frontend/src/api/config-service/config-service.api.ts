@@ -4,7 +4,7 @@ import type {
   ProviderPage,
   SearchModelsParams,
   SearchProvidersParams,
-} from "./config-service.types";
+} from "#/api/config-service/config-service.types";
 
 function toSearchParams(
   params: SearchModelsParams | SearchProvidersParams,

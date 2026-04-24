@@ -38,7 +38,8 @@
     "baseUrl": ".",
     "paths": {
       "#/*": [
-        "./src/*"
+        "./src/*",
+        "./node_modules/@openhands/agent-server-gui/src/*"
       ]
     },
     // Vite takes care of building everything, not tsc.

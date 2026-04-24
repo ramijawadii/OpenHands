@@ -4,7 +4,7 @@ import { buildSessionHeaders } from "#/utils/utils";
 import type {
   ConfirmationResponseRequest,
   ConfirmationResponseResponse,
-} from "./event-service.types";
+} from "#/api/event-service/event-service.types";
 import { openHands } from "../open-hands-axios";
 import { OpenHandsEvent } from "#/types/v1/core";
 

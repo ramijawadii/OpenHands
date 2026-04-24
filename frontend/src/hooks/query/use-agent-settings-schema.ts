@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import { useIsOnIntermediatePage } from "#/hooks/use-is-on-intermediate-page";
 import { SettingsSchema } from "#/types/settings";
-import { useIsAuthed } from "./use-is-authed";
+import { useIsAuthed } from "#/hooks/query/use-is-authed";
 
 const useSettingsSchema = (
   type: "agent" | "conversation",

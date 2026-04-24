@@ -10,7 +10,7 @@ import { openHands } from "../open-hands-axios";
 import type {
   PendingMessageResponse,
   QueuePendingMessageRequest,
-} from "./pending-message-service.types";
+} from "#/api/pending-message-service/pending-message-service.types";
 
 class PendingMessageService {
   /**

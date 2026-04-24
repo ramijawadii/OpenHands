@@ -1,11 +1,53 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
+import { existsSync, statSync } from "node:fs";
+import path from "node:path";
 import { defineConfig, loadEnv } from "vite";
 import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
+
+const FRONTEND_SRC_ROOT = path.resolve(__dirname, "src");
+const AGENT_SERVER_GUI_SRC_ROOT = path.resolve(
+  __dirname,
+  "node_modules/@openhands/agent-server-gui/src",
+);
+const MODULE_CANDIDATE_SUFFIXES = [
+  "",
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".json",
+  "/index.ts",
+  "/index.tsx",
+  "/index.js",
+  "/index.jsx",
+  "/index.json",
+];
+
+const resolveSharedFrontendModule = (source: string) => {
+  if (!source.startsWith("#/")) {
+    return null;
+  }
+
+  const [relativePath, query = ""] = source.slice(2).split("?");
+  const querySuffix = query ? `?${query}` : "";
+
+  for (const root of [FRONTEND_SRC_ROOT, AGENT_SERVER_GUI_SRC_ROOT]) {
+    const basePath = path.join(root, relativePath);
+    for (const suffix of MODULE_CANDIDATE_SUFFIXES) {
+      const candidate = `${basePath}${suffix}`;
+      if (existsSync(candidate) && statSync(candidate).isFile()) {
+        return `${candidate}${querySuffix}`;
+      }
+    }
+  }
+
+  return null;
+};
 
 export default defineConfig(({ mode }) => {
   const {
@@ -26,6 +68,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      {
+        name: "agent-server-gui-shared-module-fallback",
+        enforce: "pre",
+        resolveId(source) {
+          return resolveSharedFrontendModule(source);
+        },
+      },
       !process.env.VITEST && reactRouter(),
       viteTsconfigPaths(),
       svgr(),
