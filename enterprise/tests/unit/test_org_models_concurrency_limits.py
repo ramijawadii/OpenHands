@@ -74,8 +74,8 @@ class TestOrgResponseConcurrencyLimits:
 
         assert response.max_concurrent_sandboxes == 8
 
-    def test_org_response_from_org_uses_default_when_none(self):
-        """Test that OrgResponse.from_org uses default when None."""
+    def test_org_response_from_org_uses_personal_default_when_none(self):
+        """Test that OrgResponse.from_org uses 3 for personal orgs when None."""
         mock_org = MagicMock(spec=Org)
         mock_org.id = uuid.uuid4()
         mock_org.name = 'Test Org'
@@ -95,9 +95,36 @@ class TestOrgResponseConcurrencyLimits:
         mock_org.v1_enabled = None
         mock_org.max_concurrent_sandboxes = None
 
+        # Pass user_id matching org.id to simulate personal org
+        response = OrgResponse.from_org(mock_org, user_id=str(mock_org.id))
+
+        assert response.max_concurrent_sandboxes == 3  # personal org default
+
+    def test_org_response_from_org_uses_commercial_default_when_none(self):
+        """Test that OrgResponse.from_org uses 10 for commercial orgs when None."""
+        mock_org = MagicMock(spec=Org)
+        mock_org.id = uuid.uuid4()
+        mock_org.name = 'Test Org'
+        mock_org.contact_name = 'Test Contact'
+        mock_org.contact_email = 'test@example.com'
+        mock_org.conversation_expiration = None
+        mock_org.remote_runtime_resource_factor = None
+        mock_org.billing_margin = None
+        mock_org.enable_proactive_conversation_starters = True
+        mock_org.sandbox_base_container_image = None
+        mock_org.sandbox_runtime_container_image = None
+        mock_org.org_version = 1
+        mock_org.agent_settings = {}
+        mock_org.conversation_settings = {}
+        mock_org.max_budget_per_task = None
+        mock_org.enable_solvability_analysis = None
+        mock_org.v1_enabled = None
+        mock_org.max_concurrent_sandboxes = None
+
+        # No user_id = commercial org
         response = OrgResponse.from_org(mock_org)
 
-        assert response.max_concurrent_sandboxes == 3  # default
+        assert response.max_concurrent_sandboxes == 10  # commercial org default
 
 
 class TestOrgUpdateConcurrencyLimits:
