@@ -3240,7 +3240,14 @@ class TestConcurrencyLimitCheck:
 
         # Arrange
         self.mock_sandbox_service.check_concurrency_limit = AsyncMock(
-            side_effect=ConcurrencyLimitError(limit=3, current=3)
+            side_effect=ConcurrencyLimitError(
+                detail={
+                    'error': 'CONCURRENCY_LIMIT_REACHED',
+                    'message': 'Limit reached',
+                    'limit': 3,
+                    'current': 3,
+                }
+            )
         )
         request = AppConversationStartRequest()  # No sandbox_id
 
@@ -3285,7 +3292,14 @@ class TestConcurrencyLimitCheck:
 
         # Arrange
         self.mock_sandbox_service.check_concurrency_limit = AsyncMock(
-            side_effect=ConcurrencyLimitError(limit=5, current=7)
+            side_effect=ConcurrencyLimitError(
+                detail={
+                    'error': 'CONCURRENCY_LIMIT_REACHED',
+                    'message': 'Limit reached',
+                    'limit': 5,
+                    'current': 7,
+                }
+            )
         )
         request = AppConversationStartRequest()
 
@@ -3305,7 +3319,14 @@ class TestConcurrencyLimitCheck:
 
         # Arrange
         self.mock_sandbox_service.check_concurrency_limit = AsyncMock(
-            side_effect=ConcurrencyLimitError(limit=3, current=3)
+            side_effect=ConcurrencyLimitError(
+                detail={
+                    'error': 'CONCURRENCY_LIMIT_REACHED',
+                    'message': 'Limit reached',
+                    'limit': 3,
+                    'current': 3,
+                }
+            )
         )
         self.mock_user_context.get_user_id = AsyncMock(return_value='test_user')
 
