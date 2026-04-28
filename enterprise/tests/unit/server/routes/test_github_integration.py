@@ -17,16 +17,16 @@ class TestGitHubTokenResponse:
         """GitHubTokenResponse should accept a valid access_token."""
         from server.routes.integration.github import GitHubTokenResponse
 
-        response = GitHubTokenResponse(access_token="ghp_test_token_12345")
-        assert response.access_token == "ghp_test_token_12345"
+        response = GitHubTokenResponse(access_token='ghp_test_token_12345')
+        assert response.access_token == 'ghp_test_token_12345'
 
     def test_github_token_response_model_dump(self):
         """GitHubTokenResponse model_dump should include access_token."""
         from server.routes.integration.github import GitHubTokenResponse
 
-        response = GitHubTokenResponse(access_token="ghp_test_token_12345")
+        response = GitHubTokenResponse(access_token='ghp_test_token_12345')
         data = response.model_dump()
-        assert data["access_token"] == "ghp_test_token_12345"
+        assert data['access_token'] == 'ghp_test_token_12345'
 
 
 class TestGetGitHubToken:
@@ -48,7 +48,7 @@ class TestGetGitHubToken:
         mock_auth.get_provider_tokens = AsyncMock(
             return_value={
                 ProviderType.GITHUB: ProviderToken(
-                    token=SecretStr("ghp_test_token_12345")
+                    token=SecretStr('ghp_test_token_12345')
                 )
             }
         )
@@ -63,20 +63,19 @@ class TestGetGitHubToken:
         )
 
         with patch(
-            "server.routes.integration.github.get_user_auth",
+            'server.routes.integration.github.get_user_auth',
             return_value=mock_saas_user_auth,
         ):
             result = await get_github_token(mock_request)
 
         assert isinstance(result, GitHubTokenResponse)
-        assert result.access_token == "ghp_test_token_12345"
+        assert result.access_token == 'ghp_test_token_12345'
         mock_saas_user_auth.get_provider_tokens.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_get_github_token_no_provider_tokens(self, mock_request):
         """Should raise 404 when user has no provider tokens."""
         from fastapi import HTTPException
-
         from server.routes.integration.github import get_github_token
 
         mock_auth = AsyncMock()
@@ -84,7 +83,7 @@ class TestGetGitHubToken:
 
         with (
             patch(
-                "server.routes.integration.github.get_user_auth",
+                'server.routes.integration.github.get_user_auth',
                 return_value=mock_auth,
             ),
             pytest.raises(HTTPException) as exc_info,
@@ -92,13 +91,12 @@ class TestGetGitHubToken:
             await get_github_token(mock_request)
 
         assert exc_info.value.status_code == 404
-        assert "No provider tokens" in exc_info.value.detail
+        assert 'No provider tokens' in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_get_github_token_no_github_token(self, mock_request):
         """Should raise 404 when user has provider tokens but no GitHub token."""
         from fastapi import HTTPException
-
         from server.routes.integration.github import get_github_token
 
         from openhands.integrations.provider import ProviderToken, ProviderType
@@ -108,14 +106,14 @@ class TestGetGitHubToken:
         mock_auth.get_provider_tokens = AsyncMock(
             return_value={
                 ProviderType.GITLAB: ProviderToken(
-                    token=SecretStr("glpat_test_token_12345")
+                    token=SecretStr('glpat_test_token_12345')
                 )
             }
         )
 
         with (
             patch(
-                "server.routes.integration.github.get_user_auth",
+                'server.routes.integration.github.get_user_auth',
                 return_value=mock_auth,
             ),
             pytest.raises(HTTPException) as exc_info,
@@ -123,13 +121,12 @@ class TestGetGitHubToken:
             await get_github_token(mock_request)
 
         assert exc_info.value.status_code == 404
-        assert "No GitHub token" in exc_info.value.detail
+        assert 'No GitHub token' in exc_info.value.detail
 
     @pytest.mark.asyncio
     async def test_get_github_token_empty_provider_tokens(self, mock_request):
         """Should raise 404 when user has empty provider tokens dict."""
         from fastapi import HTTPException
-
         from server.routes.integration.github import get_github_token
 
         mock_auth = AsyncMock()
@@ -137,7 +134,7 @@ class TestGetGitHubToken:
 
         with (
             patch(
-                "server.routes.integration.github.get_user_auth",
+                'server.routes.integration.github.get_user_auth',
                 return_value=mock_auth,
             ),
             pytest.raises(HTTPException) as exc_info,
@@ -146,4 +143,4 @@ class TestGetGitHubToken:
 
         assert exc_info.value.status_code == 404
         # Empty dict is still not None, so it will check for GitHub token
-        assert "No GitHub token" in exc_info.value.detail
+        assert 'No GitHub token' in exc_info.value.detail
