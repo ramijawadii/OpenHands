@@ -126,6 +126,24 @@ def _agent_kind_to_router_path(agent_kind: str) -> str:
     return 'conversations'
 
 
+def _split_ids_by_kind(
+    conversation_ids: list[str],
+    conversation_kind_by_id: dict[str, str],
+) -> tuple[list[str], list[str]]:
+    """Split conversation IDs into (llm_ids, acp_ids) based on their agent_kind."""
+    llm_ids = [
+        cid
+        for cid in conversation_ids
+        if conversation_kind_by_id.get(cid, 'llm') != 'acp'
+    ]
+    acp_ids = [
+        cid
+        for cid in conversation_ids
+        if conversation_kind_by_id.get(cid, 'llm') == 'acp'
+    ]
+    return llm_ids, acp_ids
+
+
 # Planning agent instruction to prevent "Ready to proceed?" behavior
 PLANNING_AGENT_INSTRUCTION = """<IMPORTANT_PLANNING_BOUNDARIES>
 You are a Planning Agent that can ONLY create plans - you CANNOT execute code or make changes.
@@ -332,9 +350,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             task.agent_server_url = agent_server_url
             yield task
 
-            # Determine if this is an ACP conversation
-            is_acp = isinstance(start_conversation_request, StartACPConversationRequest)
-
             # Start conversation...
             body_json = start_conversation_request.model_dump(
                 mode='json', context={'expose_secrets': True}
@@ -350,6 +365,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 if sandbox.session_api_key
                 else {}
             )
+            is_acp = isinstance(start_conversation_request, StartACPConversationRequest)
             router_path = 'acp/conversations' if is_acp else 'conversations'
             response = await self.httpx_client.post(
                 f'{agent_server_url}/api/{router_path}',
@@ -361,14 +377,11 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             response.raise_for_status()
             if is_acp:
                 info = ACPConversationInfo.model_validate(response.json())
-            else:
-                info = ConversationInfo.model_validate(response.json())
-
-            # Determine display_model and agent_kind
-            agent_kind = 'acp' if is_acp else 'llm'
-            if is_acp and isinstance(start_conversation_request.agent, ACPAgent):
+                agent_kind = 'acp'
                 display_model = start_conversation_request.agent.acp_model
             else:
+                info = ConversationInfo.model_validate(response.json())
+                agent_kind = 'llm'
                 display_model = start_conversation_request.agent.llm.model
 
             # Store info...
@@ -505,17 +518,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         conversation_kind_by_id = conversation_kind_by_id or {}
 
-        # Split by agent kind
-        llm_ids = [
-            cid
-            for cid in conversation_ids
-            if conversation_kind_by_id.get(cid, 'llm') != 'acp'
-        ]
-        acp_ids = [
-            cid
-            for cid in conversation_ids
-            if conversation_kind_by_id.get(cid, 'llm') == 'acp'
-        ]
+        llm_ids, acp_ids = _split_ids_by_kind(conversation_ids, conversation_kind_by_id)
 
         agent_server_url = self._get_agent_server_url(sandbox)
         headers: dict[str, str] = {}
@@ -1500,9 +1503,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         env: dict[str, str] = {}
 
         # Translate LLM API key if present (used by claude-code and gemini-cli)
-        if hasattr(user, 'agent_settings') and isinstance(
-            user.agent_settings, ACPAgentSettings
-        ):
+        if isinstance(user.agent_settings, ACPAgentSettings):
             acp_settings = user.agent_settings
             # Pass through any explicit acp_env overrides from settings
             if acp_settings.acp_env:
