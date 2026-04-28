@@ -1,10 +1,10 @@
 """Add max_concurrent_sandboxes to org and org_member tables.
 
 Adds per-org default and per-user override for concurrent sandbox limits.
-- org.max_concurrent_sandboxes: org-wide default (default 3 for personal workspaces)
+- org.max_concurrent_sandboxes: org-wide default
+  - Personal orgs (org.id == user.id): default 3 (set at user creation time)
+  - Commercial orgs: default 10 (set at org creation time, server_default used for existing)
 - org_member.max_concurrent_sandboxes_override: per-user override (NULL = use org default)
-
-Also sets OpenHands org to have a limit of 10.
 
 Revision ID: 109
 Revises: 108
@@ -24,14 +24,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add max_concurrent_sandboxes to org table with default of 3
+    # Add max_concurrent_sandboxes to org table with default of 10 for commercial orgs
+    # Personal orgs get limit of 3 set explicitly at user creation time
     op.add_column(
         'org',
         sa.Column(
             'max_concurrent_sandboxes',
             sa.Integer(),
             nullable=False,
-            server_default='3',
+            server_default='10',
         ),
     )
 
@@ -45,9 +46,12 @@ def upgrade() -> None:
         ),
     )
 
-    # Set OpenHands org to have a limit of 10
-    # Using raw SQL to update by name since we don't have the org ID
-    op.execute("UPDATE org SET max_concurrent_sandboxes = 10 WHERE name = 'OpenHands'")
+    # Set personal orgs (where org.id exists in user table) to have a limit of 3
+    op.execute("""
+        UPDATE org
+        SET max_concurrent_sandboxes = 3
+        WHERE id IN (SELECT id FROM "user")
+    """)
 
 
 def downgrade() -> None:

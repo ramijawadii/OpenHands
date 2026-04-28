@@ -118,6 +118,7 @@ class OrgService:
             org_version=ORG_SETTINGS_VERSION,
             agent_settings=default_agent_settings,
             conversation_settings=ConversationSettings(),
+            max_concurrent_sandboxes=10,  # Commercial orgs get limit of 10
         )
 
     @staticmethod

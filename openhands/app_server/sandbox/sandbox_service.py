@@ -197,7 +197,7 @@ class SandboxService(ABC):
         Default implementation does nothing (no limits enforced).
         Subclasses can override to implement limit checking.
         """
-        return  # Default: no limits enforced
+        pass  # Default: no limits enforced
 
     async def pause_old_sandboxes(self, max_num_sandboxes: int) -> list[str]:
         """Pause the oldest sandboxes if there are more than max_num_sandboxes running.

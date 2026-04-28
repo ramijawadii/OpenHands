@@ -218,48 +218,17 @@ class RemoteSandboxService(SandboxService):
     async def _get_user_effective_sandbox_limit(self) -> int:
         """Get the effective sandbox limit for the current user.
 
-        Resolution order:
-        1. OrgMember.max_concurrent_sandboxes_override (if not NULL)
-        2. Org.max_concurrent_sandboxes (org default)
-        3. Global fallback (self.max_num_sandboxes)
+        Delegates to UserContext.get_max_concurrent_sandboxes() which handles:
+        1. OrgMember.max_concurrent_sandboxes_override (if not NULL) - enterprise only
+        2. Org.max_concurrent_sandboxes (org default) - enterprise only
+        3. Global fallback (self.max_num_sandboxes) - OSS mode
 
         Returns:
             int: The effective maximum number of concurrent sandboxes
         """
-        user_id = await self.user_context.get_user_id()
-        if not user_id:
-            return self.max_num_sandboxes
-
-        try:
-            # Dynamic import to avoid circular dependencies and allow OSS mode
-            from storage.org_member_store import OrgMemberStore
-            from storage.org_store import OrgStore
-            from storage.user_store import UserStore
-
-            # Get user to find their current org
-            user = await UserStore.get_user_by_id(user_id)
-            if not user or not user.current_org_id:
-                return self.max_num_sandboxes
-
-            org_id = user.current_org_id
-
-            # Check for user-specific override in OrgMember
-            org_member = await OrgMemberStore.get_org_member(org_id, UUID(user_id))
-            if org_member and org_member.max_concurrent_sandboxes_override is not None:
-                return org_member.max_concurrent_sandboxes_override
-
-            # Fall back to org default
-            org = await OrgStore.get_org_by_id(org_id)
-            if org and org.max_concurrent_sandboxes is not None:
-                return org.max_concurrent_sandboxes
-
-        except ImportError:
-            # Enterprise modules not available (OSS mode)
-            pass
-        except Exception as e:
-            _logger.warning(f'Failed to get user sandbox limit: {e}')
-
-        return self.max_num_sandboxes
+        return await self.user_context.get_max_concurrent_sandboxes(
+            self.max_num_sandboxes
+        )
 
     async def _count_user_running_sandboxes(self) -> int:
         """Count the number of running sandboxes for the current user.
@@ -526,7 +495,18 @@ class RemoteSandboxService(SandboxService):
             _logger.info(
                 f'User has reached sandbox limit: {current_count}/{effective_limit}'
             )
-            raise ConcurrencyLimitError(limit=effective_limit, current=current_count)
+            raise ConcurrencyLimitError(
+                detail={
+                    'error': 'CONCURRENCY_LIMIT_REACHED',
+                    'message': (
+                        f'You have reached your limit of {effective_limit} '
+                        'concurrent conversations. Please close an existing '
+                        'conversation to start a new one.'
+                    ),
+                    'limit': effective_limit,
+                    'current': current_count,
+                }
+            )
 
     async def start_sandbox(
         self, sandbox_spec_id: str | None = None, sandbox_id: str | None = None
@@ -545,7 +525,16 @@ class RemoteSandboxService(SandboxService):
                     f'User has reached sandbox limit: {current_count}/{effective_limit}'
                 )
                 raise ConcurrencyLimitError(
-                    limit=effective_limit, current=current_count
+                    detail={
+                        'error': 'CONCURRENCY_LIMIT_REACHED',
+                        'message': (
+                            f'You have reached your limit of {effective_limit} '
+                            'concurrent conversations. Please close an existing '
+                            'conversation to start a new one.'
+                        ),
+                        'limit': effective_limit,
+                        'current': current_count,
+                    }
                 )
 
             # Enforce sandbox limits by cleaning up old sandboxes if approaching limit

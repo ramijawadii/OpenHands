@@ -48,23 +48,8 @@ class ConcurrencyLimitError(OpenHandsError):
 
     def __init__(
         self,
-        limit: int,
-        current: int,
         detail: Any = None,
         headers: dict[str, str] | None = None,
+        status_code: int = status.HTTP_429_TOO_MANY_REQUESTS,
     ):
-        if detail is None:
-            detail = {
-                'error': 'CONCURRENCY_LIMIT_REACHED',
-                'message': (
-                    f'You have reached your limit of {limit} concurrent conversations. '
-                    'Please close an existing conversation to start a new one.'
-                ),
-                'limit': limit,
-                'current': current,
-            }
-        super().__init__(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=detail,
-            headers=headers,
-        )
+        super().__init__(status_code=status_code, detail=detail, headers=headers)
