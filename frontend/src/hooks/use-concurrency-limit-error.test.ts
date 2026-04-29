@@ -7,16 +7,19 @@ import {
 
 describe("isConcurrencyLimitError", () => {
   it("returns true for valid 429 concurrency limit error", () => {
+    // FastAPI wraps HTTPException detail in a "detail" field
     const error = new AxiosError("Too Many Requests", "429", undefined, null, {
       status: 429,
       statusText: "Too Many Requests",
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
       data: {
-        error: "CONCURRENCY_LIMIT_REACHED",
-        message: "You have reached your limit",
-        limit: 3,
-        current: 3,
+        detail: {
+          error: "CONCURRENCY_LIMIT_REACHED",
+          message: "You have reached your limit",
+          limit: 3,
+          current: 3,
+        },
       },
     });
 
@@ -47,10 +50,12 @@ describe("isConcurrencyLimitError", () => {
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
       data: {
-        error: "CONCURRENCY_LIMIT_REACHED",
-        message: "You have reached your limit",
-        limit: 3,
-        current: 3,
+        detail: {
+          error: "CONCURRENCY_LIMIT_REACHED",
+          message: "You have reached your limit",
+          limit: 3,
+          current: 3,
+        },
       },
     });
 
@@ -64,8 +69,10 @@ describe("isConcurrencyLimitError", () => {
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
       data: {
-        error: "RATE_LIMITED",
-        message: "Too many requests",
+        detail: {
+          error: "RATE_LIMITED",
+          message: "Too many requests",
+        },
       },
     });
 
@@ -79,7 +86,9 @@ describe("isConcurrencyLimitError", () => {
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
       data: {
-        message: "Too many requests",
+        detail: {
+          message: "Too many requests",
+        },
       },
     });
 
@@ -106,16 +115,19 @@ describe("isConcurrencyLimitError", () => {
 
 describe("getConcurrencyLimit", () => {
   it("extracts limit from error response", () => {
+    // FastAPI wraps HTTPException detail in a "detail" field
     const error = new AxiosError("Too Many Requests", "429", undefined, null, {
       status: 429,
       statusText: "Too Many Requests",
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
       data: {
-        error: "CONCURRENCY_LIMIT_REACHED" as const,
-        message: "You have reached your limit",
-        limit: 5,
-        current: 5,
+        detail: {
+          error: "CONCURRENCY_LIMIT_REACHED" as const,
+          message: "You have reached your limit",
+          limit: 5,
+          current: 5,
+        },
       },
     });
 
@@ -129,10 +141,12 @@ describe("getConcurrencyLimit", () => {
       headers: new AxiosHeaders(),
       config: { headers: new AxiosHeaders() },
       data: {
-        error: "CONCURRENCY_LIMIT_REACHED" as const,
-        message: "You have reached your limit",
-        limit: undefined as unknown as number,
-        current: 3,
+        detail: {
+          error: "CONCURRENCY_LIMIT_REACHED" as const,
+          message: "You have reached your limit",
+          limit: undefined as unknown as number,
+          current: 3,
+        },
       },
     });
 
@@ -159,6 +173,7 @@ describe("getConcurrencyLimit", () => {
   });
 
   it("extracts different limit values correctly", () => {
+    // FastAPI wraps HTTPException detail in a "detail" field
     const createError = (limit: number) =>
       new AxiosError("Too Many Requests", "429", undefined, null, {
         status: 429,
@@ -166,10 +181,12 @@ describe("getConcurrencyLimit", () => {
         headers: new AxiosHeaders(),
         config: { headers: new AxiosHeaders() },
         data: {
-          error: "CONCURRENCY_LIMIT_REACHED" as const,
-          message: "You have reached your limit",
-          limit,
-          current: limit,
+          detail: {
+            error: "CONCURRENCY_LIMIT_REACHED" as const,
+            message: "You have reached your limit",
+            limit,
+            current: limit,
+          },
         },
       });
 
