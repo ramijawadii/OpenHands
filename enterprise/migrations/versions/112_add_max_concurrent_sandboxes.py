@@ -6,9 +6,9 @@ Adds per-org default and per-user override for concurrent sandbox limits.
   - Commercial orgs: default 10 (set at org creation time, server_default used for existing)
 - org_member.max_concurrent_sandboxes_override: per-user override (NULL = use org default)
 
-Revision ID: 109
-Revises: 108
-Create Date: 2026-04-22
+Revision ID: 112
+Revises: 111
+Create Date: 2026-04-29
 """
 
 from typing import Sequence, Union
@@ -17,8 +17,8 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = '109'
-down_revision: Union[str, None] = '108'
+revision: str = '112'
+down_revision: Union[str, None] = '111'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
