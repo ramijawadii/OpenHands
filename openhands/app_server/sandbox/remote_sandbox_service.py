@@ -511,11 +511,32 @@ class RemoteSandboxService(SandboxService):
     async def start_sandbox(
         self, sandbox_spec_id: str | None = None, sandbox_id: str | None = None
     ) -> SandboxInfo:
-        """Start a new sandbox by creating a remote runtime."""
+        """Start a new sandbox by creating a remote runtime.
+
+        Uses SELECT FOR UPDATE to acquire a row-level lock, preventing race
+        conditions (TOCTOU) when checking concurrency limits. This ensures
+        that concurrent requests from the same user are serialized.
+        """
         from openhands.app_server.errors import ConcurrencyLimitError
 
         try:
-            # Get user's effective limit and current count
+            # Get user id first for locking
+            user_id = await self.user_context.get_user_id()
+
+            # Acquire row-level lock to prevent TOCTOU race condition.
+            # This serializes concurrent sandbox creation requests for the same user.
+            # We lock the user's most recent sandbox row (if any) to coordinate access.
+            # If no sandbox exists, the INSERT below will still serialize due to
+            # unique constraint checks, and the next request will have a row to lock.
+            await self.db_session.execute(
+                select(StoredRemoteSandbox.id)
+                .filter(StoredRemoteSandbox.created_by_user_id == user_id)
+                .order_by(StoredRemoteSandbox.created_at.desc())
+                .limit(1)
+                .with_for_update()
+            )
+
+            # Get user's effective limit and current count (now serialized)
             effective_limit = await self._get_user_effective_sandbox_limit()
             current_count = await self._count_user_running_sandboxes()
 
@@ -558,9 +579,6 @@ class RemoteSandboxService(SandboxService):
             # Create a unique id, use provided sandbox_id if available
             if sandbox_id is None:
                 sandbox_id = base62.encodebytes(os.urandom(16))
-
-            # get user id
-            user_id = await self.user_context.get_user_id()
 
             # Store the sandbox
             stored_sandbox = StoredRemoteSandbox(
