@@ -18,6 +18,7 @@ from openhands.app_server.app_conversation.app_conversation_info_service import 
 )
 from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationInfo,
+    ConversationTrigger,
 )
 from openhands.app_server.config import (
     depends_app_conversation_info_service,
@@ -33,6 +34,7 @@ from openhands.app_server.event_callback.event_callback_models import EventCallb
 from openhands.app_server.event_callback.set_title_callback_processor import (
     SetTitleCallbackProcessor,
 )
+from openhands.app_server.integrations.provider import ProviderType
 from openhands.app_server.sandbox.sandbox_models import SandboxInfo
 from openhands.app_server.services.injector import InjectorState
 from openhands.app_server.services.jwt_service import JwtService
@@ -42,15 +44,13 @@ from openhands.app_server.user.specifiy_user_context import (
     USER_CONTEXT_ATTR,
     SpecifyUserContext,
 )
-from openhands.integrations.provider import ProviderType
+from openhands.app_server.user_auth.default_user_auth import DefaultUserAuth
+from openhands.app_server.user_auth.user_auth import (
+    get_for_user as get_user_auth_for_user,
+)
 from openhands.sdk import ConversationExecutionStatus, Event
 from openhands.sdk.event import ConversationStateUpdateEvent
 from openhands.server.types import AppMode
-from openhands.server.user_auth.default_user_auth import DefaultUserAuth
-from openhands.server.user_auth.user_auth import (
-    get_for_user as get_user_auth_for_user,
-)
-from openhands.storage.data_models.conversation_metadata import ConversationTrigger
 
 router = APIRouter(prefix='/webhooks', tags=['Webhooks'])
 event_service_dependency = depends_event_service()
