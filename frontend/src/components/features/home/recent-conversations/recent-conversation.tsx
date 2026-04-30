@@ -66,14 +66,18 @@ export function RecentConversation({ conversation }: RecentConversationProps) {
           ) : null}
         </div>
         <div className="flex items-center gap-2">
-          {conversation.llm_model && (
+          {(conversation.display_name ?? conversation.llm_model) && (
             <span
               className="max-w-[120px] flex items-center gap-1 overflow-hidden"
-              title={conversation.llm_model}
+              title={
+                conversation.display_name ?? conversation.llm_model ?? undefined
+              }
               data-testid="recent-conversation-llm-model"
             >
               <CircuitIcon width={12} height={12} className="shrink-0" />
-              <span className="truncate">{conversation.llm_model}</span>
+              <span className="truncate">
+                {conversation.display_name ?? conversation.llm_model}
+              </span>
             </span>
           )}
           {(conversation.created_at || conversation.updated_at) && (

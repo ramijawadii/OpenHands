@@ -462,10 +462,12 @@ class V1ConversationService {
     conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<V1RuntimeConversationInfo> {
-    const url = this.buildRuntimeUrl(
-      conversationUrl,
-      `/api/conversations/${conversationId}`,
-    );
+    const url =
+      conversationUrl ??
+      this.buildRuntimeUrl(
+        conversationUrl,
+        `/api/conversations/${conversationId}`,
+      );
     const headers = buildSessionHeaders(sessionApiKey);
 
     const { data } = await axios.get<V1RuntimeConversationInfo>(url, {

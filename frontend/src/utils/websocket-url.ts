@@ -42,7 +42,17 @@ export function extractPathPrefix(
   if (conversationUrl && !conversationUrl.startsWith("/")) {
     try {
       const url = new URL(conversationUrl);
-      const pathBeforeApi = url.pathname.split("/api/conversations")[0] || "";
+      // Match both LLM (/api/conversations) and ACP (/api/acp/conversations) path shapes.
+      // Use includes() to avoid the JS truthiness bug where "".split(x)[0] === "" (falsy)
+      // and falls through to the wrong branch.
+      const acpMarker = "/api/acp/conversations";
+      const llmMarker = "/api/conversations";
+      let pathBeforeApi = "";
+      if (url.pathname.includes(acpMarker)) {
+        pathBeforeApi = url.pathname.slice(0, url.pathname.indexOf(acpMarker));
+      } else if (url.pathname.includes(llmMarker)) {
+        pathBeforeApi = url.pathname.slice(0, url.pathname.indexOf(llmMarker));
+      }
       return pathBeforeApi.replace(/\/$/, ""); // Remove trailing slash
     } catch {
       return "";
@@ -63,6 +73,24 @@ export function buildHttpBaseUrl(
   const pathPrefix = extractPathPrefix(conversationUrl);
   const protocol = window.location.protocol === "https:" ? "https:" : "http:";
   return `${protocol}//${baseHost}${pathPrefix}`;
+}
+
+/**
+ * Builds a conversation-scoped URL by appending a sub-path to the conversation URL.
+ *
+ * conversationUrl already encodes the correct agent-server path for both LLM
+ * (/api/conversations/{id}) and ACP (/api/acp/conversations/{id}).  Using it
+ * as the base avoids hard-coding "/api/conversations/" which breaks ACP.
+ *
+ * @param conversationUrl e.g. "http://localhost:8000/api/acp/conversations/{id}"
+ * @param subPath e.g. "/pause" or "/events/count"
+ */
+export function buildConversationScopedUrl(
+  conversationUrl: string | null | undefined,
+  subPath: string,
+): string | null {
+  if (!conversationUrl) return null;
+  return `${conversationUrl}${subPath}`;
 }
 
 /**

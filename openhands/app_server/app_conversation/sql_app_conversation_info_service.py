@@ -100,6 +100,7 @@ class StoredConversationMetadata(Base):
 
     # LLM model used for the conversation
     llm_model: Mapped[str | None] = mapped_column(String, nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
     agent_kind: Mapped[str | None] = mapped_column(String, nullable=True)
 
     conversation_version: Mapped[str] = mapped_column(
@@ -371,6 +372,7 @@ class SQLAppConversationInfoService(AppConversationInfoService):
             context_window=usage.context_window,
             per_turn_token=usage.per_turn_token,
             llm_model=info.llm_model,
+            display_name=info.display_name,
             agent_kind=info.agent_kind,
             conversation_version='V1',
             sandbox_id=info.sandbox_id,
@@ -560,6 +562,7 @@ class SQLAppConversationInfoService(AppConversationInfoService):
             trigger=ConversationTrigger(stored.trigger) if stored.trigger else None,
             pr_number=stored.pr_number or [],
             llm_model=stored.llm_model,
+            display_name=stored.display_name,
             agent_kind=stored.agent_kind or 'openhands',
             metrics=metrics,
             parent_conversation_id=(

@@ -51,6 +51,9 @@ from openhands.app_server.app_conversation.app_conversation_service_base import 
 from openhands.app_server.app_conversation.app_conversation_start_task_service import (
     AppConversationStartTaskService,
 )
+from openhands.app_server.app_conversation.agent_server_routing import (
+    acp_display_name as _acp_display_name,
+)
 from openhands.app_server.app_conversation.hook_loader import (
     load_hooks_from_agent_server,
 )
@@ -366,7 +369,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 else {}
             )
             is_acp = isinstance(start_conversation_request, StartACPConversationRequest)
-            router_path = 'acp/conversations' if is_acp else 'conversations'
+            router_path = _agent_kind_to_router_path('acp' if is_acp else 'openhands')
             response = await self.httpx_client.post(
                 f'{agent_server_url}/api/{router_path}',
                 json=body_json,
@@ -378,11 +381,15 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             if is_acp:
                 info = ACPConversationInfo.model_validate(response.json())
                 agent_kind = 'acp'
-                display_model = start_conversation_request.agent.acp_model
+                llm_model = None
+                display_name = _acp_display_name(
+                    start_conversation_request.agent.acp_command
+                )
             else:
                 info = ConversationInfo.model_validate(response.json())
                 agent_kind = 'openhands'
-                display_model = start_conversation_request.agent.llm.model
+                llm_model = start_conversation_request.agent.llm.model
+                display_name = None
 
             # Store info...
             user_id = await self.user_context.get_user_id()
@@ -391,7 +398,8 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 title=f'Conversation {info.id.hex[:5]}',
                 sandbox_id=sandbox.id,
                 created_by_user_id=user_id,
-                llm_model=display_model,
+                llm_model=llm_model,
+                display_name=display_name,
                 agent_kind=agent_kind,
                 # Git parameters
                 selected_repository=request.selected_repository,

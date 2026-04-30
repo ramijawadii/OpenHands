@@ -1,6 +1,7 @@
 import React from "react";
 import { useParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { Typography } from "#/ui/typography";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUpdateConversation } from "#/hooks/mutation/use-update-conversation";
 import { useConversationNameContextMenu } from "#/hooks/use-conversation-name-context-menu";
@@ -159,16 +160,27 @@ export function ConversationName() {
           </div>
         )}
 
-        {titleMode !== "edit" && conversation.llm_model && (
-          <span
-            className="text-xs text-[#A3A3A3] max-w-[150px] flex items-center gap-1 overflow-hidden"
-            title={conversation.llm_model}
-            data-testid="conversation-name-llm-model"
-          >
-            <CircuitIcon width={12} height={12} className="shrink-0" />
-            <span className="truncate">{conversation.llm_model}</span>
-          </span>
-        )}
+        {titleMode !== "edit" &&
+          (conversation.display_name ?? conversation.llm_model) && (
+            <Typography.Text
+              className="text-xs text-[#A3A3A3] max-w-[150px] flex items-center gap-1 overflow-hidden"
+              testId="conversation-name-llm-model"
+            >
+              <span
+                className="flex items-center gap-1 overflow-hidden"
+                title={
+                  conversation.display_name ??
+                  conversation.llm_model ??
+                  undefined
+                }
+              >
+                <CircuitIcon width={12} height={12} className="shrink-0" />
+                <Typography.Text className="text-xs text-[#A3A3A3] truncate">
+                  {conversation.display_name ?? conversation.llm_model}
+                </Typography.Text>
+              </span>
+            </Typography.Text>
+          )}
 
         {titleMode !== "edit" && (
           <div className="relative flex items-center">

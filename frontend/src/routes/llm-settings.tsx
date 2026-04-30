@@ -1,6 +1,7 @@
 import React from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import { useAcpGuard } from "#/hooks/use-acp-guard";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
 import { createPermissionGuard } from "#/utils/org/permission-guard";
 import { requireOrgDefaultsRedirect } from "#/utils/org/saas-redirect-to-org-defaults-guard";
@@ -129,6 +130,8 @@ export function LlmSettingsScreen({
     null,
   );
   const hasHydratedInitialPersonalSaasViewRef = React.useRef(false);
+
+  useAcpGuard(scope);
 
   const defaultModel = String(
     (DEFAULT_SETTINGS.agent_settings?.llm as Record<string, unknown>)?.model ??

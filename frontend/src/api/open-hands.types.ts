@@ -81,6 +81,7 @@ export interface Conversation {
   public?: boolean;
   sandbox_id?: string | null;
   llm_model?: string | null;
+  display_name?: string | null;
 }
 
 export interface ResultSet<T> {

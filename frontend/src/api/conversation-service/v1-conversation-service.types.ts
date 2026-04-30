@@ -111,6 +111,8 @@ export interface V1AppConversation {
   trigger: ConversationTrigger | null;
   pr_number: number[];
   llm_model: string | null;
+  display_name?: string | null;
+  agent_kind?: string;
   metrics: V1MetricsSnapshot | null;
   created_at: string;
   updated_at: string;
