@@ -27,7 +27,7 @@ const PRESET_COMMANDS: Record<Exclude<CommandPreset, "custom">, string> = {
   "gemini-cli": "npx -y @google/gemini-cli --acp",
 };
 
-/** Host credential directory each preset relies on for local-login auth. */
+/** Default credential path suggestion for each preset. */
 const PRESET_CREDENTIAL_PATH: Partial<Record<CommandPreset, string>> = {
   "claude-code": "~/.claude",
   codex: "~/.codex",
@@ -58,7 +58,7 @@ function AgentSettingsScreen() {
   const [commandText, setCommandText] = useState("");
   const [selectedPreset, setSelectedPreset] =
     useState<CommandPreset>("claude-code");
-  const [mountCredentials, setMountCredentials] = useState(false);
+  const [credentialPath, setCredentialPath] = useState("");
   const [acpModel, setAcpModel] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
@@ -80,21 +80,17 @@ function AgentSettingsScreen() {
       ];
       const joined = tokens.join(" ");
       setCommandText(joined);
-      const preset = detectPreset(joined);
-      setSelectedPreset(preset);
+      setSelectedPreset(detectPreset(joined));
 
-      const credPaths = settings.acp_credential_paths ?? [];
-      const expectedPath = PRESET_CREDENTIAL_PATH[preset];
-      setMountCredentials(
-        !!expectedPath && credPaths.includes(expectedPath),
-      );
+      const savedPaths = settings.acp_credential_paths;
+      setCredentialPath(savedPaths?.[0] ?? "");
 
       const savedModel = settings.agent_settings?.acp_model;
       setAcpModel(typeof savedModel === "string" ? savedModel : "");
     } else {
       setAgentType("openhands");
       setCommandText("");
-      setMountCredentials(false);
+      setCredentialPath("");
       setAcpModel("");
     }
     setIsDirty(false);
@@ -113,7 +109,6 @@ function AgentSettingsScreen() {
   const isAcp = agentType === "acp";
   const commandTokens = tokenizeCommand(commandText);
   const isAcpInvalid = isAcp && commandTokens.length === 0;
-  const credentialPath = PRESET_CREDENTIAL_PATH[selectedPreset];
 
   const handleSave = () => {
     let agentSettingsDiff: Record<string, unknown>;
@@ -126,8 +121,8 @@ function AgentSettingsScreen() {
         acp_args: [],
         acp_model: acpModel.trim() || null,
       };
-      credentialPaths =
-        mountCredentials && credentialPath ? [credentialPath] : null;
+      const trimmed = credentialPath.trim();
+      credentialPaths = trimmed ? [trimmed] : null;
     } else {
       agentSettingsDiff = {
         agent_kind: "openhands",
@@ -210,8 +205,7 @@ function AgentSettingsScreen() {
               if (preset !== "custom") {
                 setCommandText(PRESET_COMMANDS[preset]);
               }
-              // Reset mount flag when switching presets
-              setMountCredentials(false);
+              setCredentialPath(PRESET_CREDENTIAL_PATH[preset] ?? "");
               setIsDirty(true);
             }}
           />
@@ -231,7 +225,7 @@ function AgentSettingsScreen() {
                 const newPreset = detectPreset(text);
                 if (newPreset !== selectedPreset) {
                   setSelectedPreset(newPreset);
-                  setMountCredentials(false);
+                  setCredentialPath(PRESET_CREDENTIAL_PATH[newPreset] ?? "");
                 }
                 setIsDirty(true);
               }}
@@ -241,32 +235,24 @@ function AgentSettingsScreen() {
             </Typography.Text>
           </div>
 
-          {credentialPath && (
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  data-testid="agent-mount-credentials-checkbox"
-                  type="checkbox"
-                  className="w-4 h-4 accent-[#4465DB] cursor-pointer"
-                  checked={mountCredentials}
-                  onChange={(e) => {
-                    setMountCredentials(e.target.checked);
-                    setIsDirty(true);
-                  }}
-                />
-                <Typography.Text className="text-sm">
-                  {t(I18nKey.SETTINGS$AGENT_MOUNT_CREDENTIALS, {
-                    path: credentialPath,
-                  })}
-                </Typography.Text>
-              </label>
-              <Typography.Text className="text-xs text-[#717888] pl-6">
-                {t(I18nKey.SETTINGS$AGENT_MOUNT_CREDENTIALS_HINT, {
-                  path: credentialPath,
-                })}
-              </Typography.Text>
-            </div>
-          )}
+          <div className="flex flex-col gap-1.5">
+            <SettingsInput
+              testId="agent-credential-path-input"
+              label={t(I18nKey.SETTINGS$AGENT_CREDENTIAL_PATH)}
+              type="text"
+              className="w-full"
+              value={credentialPath}
+              placeholder={PRESET_CREDENTIAL_PATH[selectedPreset] ?? "~/.claude"}
+              showOptionalTag
+              onChange={(value) => {
+                setCredentialPath(value);
+                setIsDirty(true);
+              }}
+            />
+            <Typography.Text className="text-xs text-[#717888]">
+              {t(I18nKey.SETTINGS$AGENT_CREDENTIAL_PATH_HINT)}
+            </Typography.Text>
+          </div>
 
           <div className="flex flex-col gap-1.5">
             <SettingsInput
