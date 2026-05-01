@@ -1049,7 +1049,7 @@ class TestRequireFinancialDataAccess:
         mock_request = _create_mock_request_with_email(user_email='admin@openhands.dev')
 
         with patch(
-            'server.auth.authorization.get_user_auth',
+            'server.email_validation.get_user_auth',
             AsyncMock(return_value=mock_request.state.user_auth),
         ):
             # Act
@@ -1078,7 +1078,7 @@ class TestRequireFinancialDataAccess:
 
         with (
             patch(
-                'server.auth.authorization.get_user_auth',
+                'server.email_validation.get_user_auth',
                 AsyncMock(return_value=mock_request.state.user_auth),
             ),
             patch(
@@ -1112,7 +1112,7 @@ class TestRequireFinancialDataAccess:
 
         with (
             patch(
-                'server.auth.authorization.get_user_auth',
+                'server.email_validation.get_user_auth',
                 AsyncMock(return_value=mock_request.state.user_auth),
             ),
             patch(
@@ -1146,7 +1146,7 @@ class TestRequireFinancialDataAccess:
 
         with (
             patch(
-                'server.auth.authorization.get_user_auth',
+                'server.email_validation.get_user_auth',
                 AsyncMock(return_value=mock_request.state.user_auth),
             ),
             patch(
@@ -1179,7 +1179,7 @@ class TestRequireFinancialDataAccess:
 
         with (
             patch(
-                'server.auth.authorization.get_user_auth',
+                'server.email_validation.get_user_auth',
                 AsyncMock(return_value=mock_request.state.user_auth),
             ),
             patch(
@@ -1283,7 +1283,7 @@ class TestRequireOpenhandsEmailForSandboxLimits:
         mock_request = _create_mock_request_with_email(user_email='admin@openhands.dev')
 
         with patch(
-            'server.auth.authorization.get_user_auth',
+            'server.email_validation.get_user_auth',
             AsyncMock(return_value=mock_request.state.user_auth),
         ):
             # Act & Assert - should not raise
@@ -1304,7 +1304,7 @@ class TestRequireOpenhandsEmailForSandboxLimits:
         mock_request = _create_mock_request_with_email(user_email='user@example.com')
 
         with patch(
-            'server.auth.authorization.get_user_auth',
+            'server.email_validation.get_user_auth',
             AsyncMock(return_value=mock_request.state.user_auth),
         ):
             # Act & Assert
@@ -1329,7 +1329,7 @@ class TestRequireOpenhandsEmailForSandboxLimits:
         mock_request = _create_mock_request_with_email(user_email=None)
 
         with patch(
-            'server.auth.authorization.get_user_auth',
+            'server.email_validation.get_user_auth',
             AsyncMock(return_value=mock_request.state.user_auth),
         ):
             # Act & Assert
@@ -1354,7 +1354,7 @@ class TestRequireOpenhandsEmailForSandboxLimits:
         mock_request = _create_mock_request_with_email(user_email='Admin@OPENHANDS.DEV')
 
         with patch(
-            'server.auth.authorization.get_user_auth',
+            'server.email_validation.get_user_auth',
             AsyncMock(return_value=mock_request.state.user_auth),
         ):
             # Act & Assert - should raise because email check is case-sensitive
