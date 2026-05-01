@@ -40,7 +40,7 @@ from storage.org_member_store import OrgMemberStore
 from storage.role import Role
 from storage.role_store import RoleStore
 
-from openhands.app_server.user_auth import get_user_auth, get_user_id
+from openhands.app_server.user_auth import get_user_id
 from openhands.app_server.utils.logger import openhands_logger as logger
 
 
@@ -378,10 +378,9 @@ async def require_financial_data_access(
             )
 
     # Check if user has @openhands.dev email
-    user_auth = await get_user_auth(request)
-    user_email = await user_auth.get_user_email()
+    from server.email_validation import is_openhands_member
 
-    if user_email and user_email.endswith('@openhands.dev'):
+    if await is_openhands_member(request):
         logger.debug(
             'Financial data access granted via @openhands.dev email',
             extra={'user_id': user_id, 'org_id': str(org_id)},
@@ -422,10 +421,6 @@ async def require_financial_data_access(
     return user_id
 
 
-# Email domain for OpenHands team members
-OPENHANDS_EMAIL_DOMAIN = '@openhands.dev'
-
-
 async def require_openhands_email_for_sandbox_limits(
     request: Request,
     has_sandbox_limit_field: bool,
@@ -443,16 +438,14 @@ async def require_openhands_email_for_sandbox_limits(
     Raises:
         HTTPException: 403 if field is present and user doesn't have @openhands.dev email
     """
+    from server.email_validation import is_openhands_member
+
     if not has_sandbox_limit_field:
         return
 
-    user_auth = await get_user_auth(request)
-    email = await user_auth.get_user_email()
-
-    if not email or not email.endswith(OPENHANDS_EMAIL_DOMAIN):
+    if not await is_openhands_member(request):
         logger.warning(
             'Non-OpenHands user attempted to modify sandbox limits',
-            extra={'email': email},
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
