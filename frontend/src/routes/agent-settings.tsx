@@ -19,11 +19,26 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 export const handle = { hideTitle: true };
 
 type AgentType = "openhands" | "acp";
+type CommandPreset = "claude-code" | "codex" | "gemini-cli" | "custom";
 
-const COMMAND_PLACEHOLDER = "npx -y @agentclientprotocol/claude-agent-acp";
+const PRESET_COMMANDS: Record<Exclude<CommandPreset, "custom">, string> = {
+  "claude-code": "npx -y @agentclientprotocol/claude-agent-acp",
+  codex: "npx -y @zed-industries/codex-acp",
+  "gemini-cli": "npx -y @google/gemini-cli --acp",
+};
+
+const COMMAND_PLACEHOLDER = PRESET_COMMANDS["claude-code"];
 
 function tokenizeCommand(value: string): string[] {
   return value.split(/\s+/).filter(Boolean);
+}
+
+function detectPreset(text: string): CommandPreset {
+  const trimmed = text.trim();
+  for (const [key, cmd] of Object.entries(PRESET_COMMANDS)) {
+    if (trimmed === cmd) return key as CommandPreset;
+  }
+  return "custom";
 }
 
 function AgentSettingsScreen() {
@@ -35,6 +50,7 @@ function AgentSettingsScreen() {
 
   const [agentType, setAgentType] = useState<AgentType>("openhands");
   const [commandText, setCommandText] = useState("");
+  const [selectedPreset, setSelectedPreset] = useState<CommandPreset>("claude-code");
   const [acpModel, setAcpModel] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
@@ -54,7 +70,9 @@ function AgentSettingsScreen() {
           ? acpArgs.filter((v): v is string => typeof v === "string")
           : []),
       ];
-      setCommandText(tokens.join(" "));
+      const joined = tokens.join(" ");
+      setCommandText(joined);
+      setSelectedPreset(detectPreset(joined));
 
       const savedModel = settings.agent_settings?.acp_model;
       setAcpModel(typeof savedModel === "string" ? savedModel : "");
@@ -147,6 +165,28 @@ function AgentSettingsScreen() {
 
       {isAcp && (
         <>
+          <SettingsDropdownInput
+            testId="agent-preset-selector"
+            name="agent-preset"
+            label={t(I18nKey.SETTINGS$AGENT_PRESET)}
+            items={[
+              { key: "claude-code", label: "Claude Code" },
+              { key: "codex", label: "Codex" },
+              { key: "gemini-cli", label: "Gemini CLI" },
+              { key: "custom", label: t(I18nKey.SETTINGS$AGENT_PRESET_CUSTOM) },
+            ]}
+            selectedKey={selectedPreset}
+            onSelectionChange={(key) => {
+              if (!key) return;
+              const preset = key as CommandPreset;
+              setSelectedPreset(preset);
+              if (preset !== "custom") {
+                setCommandText(PRESET_COMMANDS[preset]);
+              }
+              setIsDirty(true);
+            }}
+          />
+
           <div className="flex flex-col gap-2.5">
             <Typography.Text className="text-sm">
               {t(I18nKey.SETTINGS$MCP_COMMAND)}
@@ -157,7 +197,9 @@ function AgentSettingsScreen() {
               value={commandText}
               placeholder={COMMAND_PLACEHOLDER}
               onChange={(e) => {
-                setCommandText(e.target.value);
+                const text = e.target.value;
+                setCommandText(text);
+                setSelectedPreset(detectPreset(text));
                 setIsDirty(true);
               }}
             />
