@@ -603,6 +603,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                     app_conversation_info.agent_kind
                 )
                 conversation_url += f'/api/{router_path}/{app_conversation_info.id.hex}'
+
             session_api_key = sandbox.session_api_key
 
         return AppConversation(
