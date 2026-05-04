@@ -3571,4 +3571,3 @@ class TestBuildAcpStartConversationRequestSecrets:
 
         # acp_env must win; the UI-saved key must NOT overwrite it
         assert request.agent.acp_env.get('ANTHROPIC_API_KEY') == 'sk-explicit-override'
-
