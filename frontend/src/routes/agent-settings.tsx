@@ -10,6 +10,8 @@ import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
 import { useConfig } from "#/hooks/query/use-config";
 import { useSettings } from "#/hooks/query/use-settings";
+import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
+import { SecretsService } from "#/api/secrets-service";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsFieldSchema } from "#/types/settings";
 import { Typography } from "#/ui/typography";
@@ -29,6 +31,7 @@ import type { ACPProviderConfig } from "#/api/option-service/option.types";
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const CUSTOM_PRESET = "custom";
 const EMPTY_ACP_PROVIDERS: ACPProviderConfig[] = [];
+const CLAUDE_CREDENTIALS_SECRET_NAME = "FILE:~/.claude/credentials.json";
 
 function findEnableSubAgentsField(
   fields: SettingsFieldSchema[] | undefined,
@@ -102,7 +105,16 @@ export default function AgentSettingsScreen() {
   const [agentType, setAgentType] = useState<"openhands" | "acp">("openhands");
   const [commandText, setCommandText] = useState("");
   const [acpModel, setAcpModel] = useState("");
+  const [claudeCredentials, setClaudeCredentials] = useState("");
   const [isDirty, setIsDirty] = useState(false);
+
+  const { data: fileSecrets, refetch: refetchFileSecrets } = useSearchSecrets({
+    nameContains: "FILE:",
+    enabled: isAcpEnabled,
+  });
+  const hasClaudeCredentials = fileSecrets?.some(
+    (s) => s.name === CLAUDE_CREDENTIALS_SECRET_NAME,
+  );
 
   // Prevent re-initialising ACP fields on every config refetch; only
   // reinitialise when the server returns a new settings object.
@@ -151,11 +163,33 @@ export default function AgentSettingsScreen() {
   const commandPlaceholder =
     formatCommand(acpProviders[0]?.default_command ?? []) ||
     "npx -y <package-name>";
+  const isClaudeCode = isAcp && selectedPreset === "claude-code";
+  const hasCredentialsToPersist =
+    isClaudeCode && claudeCredentials.trim().length > 0;
   const subAgentsDirty = isSubAgentsEnabled !== initialSubAgentsEnabled;
-  const canSave = isAcp ? isDirty && !isAcpInvalid : isDirty || subAgentsDirty;
+  const canSave = isAcp
+    ? (isDirty || hasCredentialsToPersist) && !isAcpInvalid
+    : isDirty || subAgentsDirty;
 
   // ── Save ─────────────────────────────────────────────────────────────────
-  const handleSave = () => {
+  const handleSave = async () => {
+    // Save Claude credentials first if entered (Claude Code preset only).
+    if (isClaudeCode && claudeCredentials.trim()) {
+      try {
+        await SecretsService.upsertSecret(
+          CLAUDE_CREDENTIALS_SECRET_NAME,
+          claudeCredentials.trim(),
+          "Claude Max OAuth credentials (injected as ~/.claude/credentials.json)",
+        );
+        setClaudeCredentials("");
+        refetchFileSecrets();
+      } catch {
+        displayErrorToast(t(I18nKey.ERROR$GENERIC));
+        return;
+      }
+    }
+
+    if (!isDirty) return;
     let agentSettingsDiff: Record<string, unknown>;
 
     if (isAcp) {
@@ -341,6 +375,38 @@ export default function AgentSettingsScreen() {
                 {t(I18nKey.SETTINGS$AGENT_MODEL_HINT)}
               </Typography.Text>
             </div>
+
+            {isClaudeCode && (
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Typography.Text className="text-sm">
+                    {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_LABEL)}
+                  </Typography.Text>
+                  {hasClaudeCredentials && (
+                    <span
+                      data-testid="claude-credentials-saved-badge"
+                      className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700/50"
+                    >
+                      {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_SAVED)}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  data-testid="claude-credentials-input"
+                  className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[80px] resize-y focus:outline-none focus:border-white"
+                  value={claudeCredentials}
+                  placeholder={t(
+                    I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_PLACEHOLDER,
+                  )}
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(e) => setClaudeCredentials(e.target.value)}
+                />
+                <Typography.Text className="text-xs text-[#717888]">
+                  {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_HINT)}
+                </Typography.Text>
+              </div>
+            )}
           </>
         )}
       </div>
