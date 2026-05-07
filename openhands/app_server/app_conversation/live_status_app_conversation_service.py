@@ -1310,7 +1310,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         # Route ACP agent settings to the ACP-specific builder
         if isinstance(user.agent_settings, ACPAgentSettings):
-            return await self._build_acp_start_conversation_request(
+            acp_request = await self._build_acp_start_conversation_request(
                 sandbox=sandbox,
                 conversation_id=conversation_id,
                 initial_message=initial_message,
@@ -1319,6 +1319,24 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 plugins=plugins,
                 api_secrets=api_secrets,
             )
+            # --- skills (mirrors the LLM skill-loading block below) ----------
+            if remote_workspace:
+                try:
+                    acp_request = acp_request.model_copy(
+                        update={
+                            'agent': await self._load_skills_and_update_agent(
+                                sandbox,
+                                acp_request.agent,
+                                remote_workspace,
+                                selected_repository,
+                                get_project_dir(working_dir, selected_repository),
+                                disabled_skills=user.disabled_skills,
+                            )
+                        }
+                    )
+                except Exception as e:
+                    _logger.warning(f'Failed to load skills: {e}', exc_info=True)
+            return acp_request
 
         project_dir = get_project_dir(working_dir, selected_repository)
         workspace = LocalWorkspace(working_dir=project_dir)
