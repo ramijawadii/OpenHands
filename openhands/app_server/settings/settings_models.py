@@ -80,7 +80,9 @@ class SandboxGroupingStrategy(str, Enum):
 #   inputs, enforce the count cap, and take the per-user lock. Accepting a
 #   raw dict here both bypassed those guards and crashed downstream
 #   serialisation.
-_SETTINGS_UPDATE_IGNORED_FIELDS = frozenset(['secrets_store', 'llm_profiles', 'saved_agent_configs'])
+_SETTINGS_UPDATE_IGNORED_FIELDS = frozenset(
+    ['secrets_store', 'llm_profiles', 'saved_agent_configs']
+)
 
 
 class Settings(BaseModel):
@@ -207,7 +209,9 @@ class Settings(BaseModel):
                 self.saved_agent_configs[current_kind] = self.agent_settings.model_dump(
                     mode='json', context={'expose_secrets': True}
                 )
-                base = dict(self.saved_agent_configs.get(new_kind, {'agent_kind': new_kind}))
+                base = dict(
+                    self.saved_agent_configs.get(new_kind, {'agent_kind': new_kind})
+                )
             else:
                 base = self.agent_settings.model_dump(
                     mode='json', context={'expose_secrets': True}
