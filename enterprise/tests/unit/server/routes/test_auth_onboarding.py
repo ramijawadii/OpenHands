@@ -16,6 +16,7 @@ from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from server.auth.saas_user_auth import SaasUserAuth
 from server.routes.auth import (
+    _build_onboarding_redirect,
     _get_post_auth_redirect,
     _should_redirect_to_onboarding,
     complete_onboarding,
@@ -235,6 +236,129 @@ class TestGetPostAuthRedirect:
         call_args = mock_logger.info.call_args
         assert call_args[0][0] == 'Redirecting user to onboarding'
         assert call_args[1]['extra']['user_id'] == user_id
+
+    @pytest.mark.asyncio
+    async def test_preserves_deep_link_path_as_returnTo(self, mock_user):
+        """Regression: deep-link path is preserved as ``returnTo``.
+
+        When an onboarding-needing user originally requested a deep
+        link (e.g. ``/conversations/abc``), the backend must redirect
+        to ``/onboarding?returnTo=...`` so the frontend
+        ``OnboardingForm`` can restore that destination after the
+        user finishes the form. Without this, deep links clicked
+        while logged out are silently dropped at the onboarding
+        interstitial.
+        """
+        mock_user.onboarding_completed = False
+        user_id = str(mock_user.id)
+
+        with (
+            patch('server.routes.auth.DEPLOYMENT_MODE', 'cloud'),
+            patch(
+                'server.routes.auth.UserStore.get_user_by_id',
+                new_callable=AsyncMock,
+                return_value=mock_user,
+            ),
+        ):
+            result = await _get_post_auth_redirect(
+                user_id,
+                'https://example.com/conversations/abc',
+                'https://example.com',
+            )
+
+        assert result == (
+            'https://example.com/onboarding?returnTo=%2Fconversations%2Fabc'
+        )
+
+    @pytest.mark.asyncio
+    async def test_preserves_query_string_as_returnTo(self, mock_user):
+        """Regression: query-string destinations are preserved fully.
+
+        Destinations like ``/conversations/abc?foo=bar`` must be
+        preserved in the encoded ``returnTo`` rather than truncated.
+        """
+        mock_user.onboarding_completed = False
+        user_id = str(mock_user.id)
+
+        with (
+            patch('server.routes.auth.DEPLOYMENT_MODE', 'cloud'),
+            patch(
+                'server.routes.auth.UserStore.get_user_by_id',
+                new_callable=AsyncMock,
+                return_value=mock_user,
+            ),
+        ):
+            result = await _get_post_auth_redirect(
+                user_id,
+                'https://example.com/conversations/abc?foo=bar',
+                'https://example.com',
+            )
+
+        assert result == (
+            'https://example.com/onboarding'
+            '?returnTo=%2Fconversations%2Fabc%3Ffoo%3Dbar'
+        )
+
+
+# --- Tests for _build_onboarding_redirect ---
+
+
+class TestBuildOnboardingRedirect:
+    """Tests for the ``_build_onboarding_redirect`` helper.
+
+    These exercise the unit directly — the integration coverage
+    through ``_get_post_auth_redirect`` lives in
+    ``TestGetPostAuthRedirect`` above.
+    """
+
+    def test_strips_web_url_prefix_to_relative_path(self):
+        result = _build_onboarding_redirect(
+            'https://example.com/foo/bar', 'https://example.com'
+        )
+        assert result == (
+            'https://example.com/onboarding?returnTo=%2Ffoo%2Fbar'
+        )
+
+    def test_preserves_query_string_in_returnTo(self):
+        result = _build_onboarding_redirect(
+            'https://example.com/foo?bar=baz&qux=1', 'https://example.com'
+        )
+        assert result == (
+            'https://example.com/onboarding'
+            '?returnTo=%2Ffoo%3Fbar%3Dbaz%26qux%3D1'
+        )
+
+    def test_skips_returnTo_for_bare_home_with_trailing_slash(self):
+        # ``https://example.com/`` is the home page; appending a
+        # ``returnTo=%2F`` would be noise since ``/`` is the default
+        # post-onboarding landing page anyway.
+        result = _build_onboarding_redirect(
+            'https://example.com/', 'https://example.com'
+        )
+        assert result == 'https://example.com/onboarding'
+
+    def test_skips_returnTo_for_bare_home_without_trailing_slash(self):
+        result = _build_onboarding_redirect(
+            'https://example.com', 'https://example.com'
+        )
+        assert result == 'https://example.com/onboarding'
+
+    def test_skips_returnTo_when_original_url_is_empty(self):
+        result = _build_onboarding_redirect('', 'https://example.com')
+        assert result == 'https://example.com/onboarding'
+
+    def test_passes_through_absolute_url_when_origin_does_not_match(self):
+        # Defensive: if the original_url doesn't share the deployment
+        # origin, the helper preserves it as-is so the frontend can
+        # decide whether to navigate within the SPA or do a hard
+        # window.location redirect.
+        result = _build_onboarding_redirect(
+            'https://other.example.com/foo', 'https://example.com'
+        )
+        assert result == (
+            'https://example.com/onboarding'
+            '?returnTo=https%3A%2F%2Fother.example.com%2Ffoo'
+        )
 
 
 # --- Tests for /complete_onboarding endpoint ---

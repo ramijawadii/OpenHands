@@ -104,8 +104,17 @@ function OnboardingForm() {
     if (onboardingStatus?.should_complete_onboarding === false) {
       // Honor returnTo if the user already completed onboarding so a
       // stale ``/onboarding`` link still respects their deep-link
-      // destination.
-      navigate(returnTo, { replace: true });
+      // destination. The backend's
+      // ``_build_onboarding_redirect`` always sends a relative path,
+      // but defensively handle absolute URLs (matching the same
+      // pattern in ``useSubmitOnboarding``) so a hand-crafted link
+      // like ``/onboarding?returnTo=https%3A%2F%2F...`` doesn't end
+      // up navigated as an SPA path.
+      if (returnTo.startsWith("http://") || returnTo.startsWith("https://")) {
+        window.location.href = returnTo;
+      } else {
+        navigate(returnTo, { replace: true });
+      }
     }
   }, [
     onboardingStatus?.should_complete_onboarding,
