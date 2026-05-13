@@ -25,6 +25,27 @@ describe("tokenizeCommand", () => {
   it("returns an empty array for whitespace-only input", () => {
     expect(tokenizeCommand("   \n\t  ")).toEqual([]);
   });
+
+  it("treats backslash as literal inside quotes (no escape semantics)", () => {
+    // Inside a single-quoted string both backslash and double-quote are
+    // literal; documents the intentional narrowness of the tokenizer.
+    expect(tokenizeCommand("'a\\b\"c'")).toEqual(['a\\b"c']);
+  });
+
+  it("concatenates adjacent quoted segments into one token", () => {
+    expect(tokenizeCommand(`a"b"'c'`)).toEqual(["abc"]);
+  });
+
+  it("yields an empty-string token for an empty quoted segment", () => {
+    expect(tokenizeCommand('a "" b')).toEqual(["a", "", "b"]);
+  });
+
+  it("leniently absorbs an unterminated quote", () => {
+    expect(tokenizeCommand('cmd "unclosed arg')).toEqual([
+      "cmd",
+      "unclosed arg",
+    ]);
+  });
 });
 
 describe("formatCommand", () => {

@@ -59,18 +59,18 @@ function AgentSettingsScreen() {
   const [acpModel, setAcpModel] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
-  // Track the ``settings`` reference we last initialised the form from.
-  // The form re-initialises when the server returns a new settings object
-  // (e.g. after save, or after an update from another tab) but NOT when
-  // ``acpProviders`` alone changes — otherwise an in-flight ``useConfig``
-  // refetch could wipe in-progress edits.
+  // We re-initialise the form when the server returns a new ``settings``
+  // object (post-save or cross-tab update), but ignore plain ``acpProviders``
+  // refetches — those mustn't wipe in-progress edits.
   const lastInitializedSettingsRef = useRef<unknown>(null);
 
   useEffect(() => {
-    if (!settings) return;
-    // Wait for config to settle so the ACP-path provider lookup sees the
-    // real registry; ``acpProviders`` may legitimately be empty after that.
-    if (isConfigLoading) return;
+    // Need both `settings` and the config-driven `acpProviders` registry
+    // before initialising — the ACP-path provider lookup reads `acpProviders`,
+    // which may legitimately be `[]` once config has loaded but isn't usable
+    // while it's still in flight. The ref guard then ensures we only init
+    // when `settings` itself changes, not on every config refetch.
+    if (!settings || isConfigLoading) return;
     if (lastInitializedSettingsRef.current === settings) return;
 
     lastInitializedSettingsRef.current = settings;
