@@ -16,16 +16,13 @@ from fastapi import Request
 from pydantic import Field, SecretStr, TypeAdapter
 
 from openhands.agent_server.models import (
-    ACPConversationInfo,
     ConversationInfo,
     SendMessageRequest,
-    StartACPConversationRequest,
     StartConversationRequest,
     TextContent,
 )
 from openhands.app_server.app_conversation.agent_server_routing import (
     ACP_SERVER_TAG,
-    agent_kind_to_router_path,
 )
 from openhands.app_server.app_conversation.app_conversation_info_service import (
     AppConversationInfoService,
@@ -121,29 +118,7 @@ from openhands.tools.preset.planning import (
 )
 
 _conversation_info_type_adapter = TypeAdapter(list[ConversationInfo | None])
-_acp_conversation_info_type_adapter = TypeAdapter(list[ACPConversationInfo | None])
 _logger = logging.getLogger(__name__)
-
-
-def _split_ids_by_kind(
-    conversation_ids: list[UUID],
-    conversation_kind_by_id: dict[str, str],
-) -> tuple[list[UUID], list[UUID]]:
-    """Split conversation IDs into (openhands_ids, acp_ids) by agent_kind.
-
-    IDs flow in from ``_get_sandbox_id_to_conversation_ids`` as raw ``UUID``
-    instances. The kind map is keyed by ``str(info.id)`` so the lookup is
-    normalised via ``str(cid)`` — without it, the dict lookup always misses
-    and ACP conversations silently route to the OH endpoint.
-    """
-    openhands_ids: list[UUID] = []
-    acp_ids: list[UUID] = []
-    for cid in conversation_ids:
-        if conversation_kind_by_id.get(str(cid), 'openhands') == 'acp':
-            acp_ids.append(cid)
-        else:
-            openhands_ids.append(cid)
-    return openhands_ids, acp_ids
 
 
 # Planning agent instruction to prevent "Ready to proceed?" behavior
@@ -360,19 +335,21 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 if sandbox.session_api_key
                 else {}
             )
-            is_acp = isinstance(start_conversation_request, StartACPConversationRequest)
-            router_path = 'acp/conversations' if is_acp else 'conversations'
             response = await self.httpx_client.post(
-                f'{agent_server_url}/api/{router_path}',
+                f'{agent_server_url}/api/conversations',
                 json=body_json,
                 headers=headers,
                 timeout=self.sandbox_startup_timeout,
             )
 
             response.raise_for_status()
+            info = ConversationInfo.model_validate(response.json())
+            # Determine kind / llm_model from the request we built (its
+            # ``agent`` is the source of truth here): the response echoes
+            # the same agent back through the AgentBase discriminator.
+            request_agent = start_conversation_request.agent
             tags: dict[str, str] = {}
-            if is_acp:
-                info = ACPConversationInfo.model_validate(response.json())
+            if request_agent.agent_kind == 'acp':
                 llm_model = None
                 agent_kind = 'acp'
                 # Persist the active ACP provider key so the conversation UI
@@ -382,8 +359,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 if isinstance(acp_user.agent_settings, ACPAgentSettings):
                     tags[ACP_SERVER_TAG] = acp_user.agent_settings.acp_server
             else:
-                info = ConversationInfo.model_validate(response.json())
-                llm_model = start_conversation_request.agent.llm.model
+                llm_model = request_agent.llm.model
                 agent_kind = 'openhands'
 
             app_conversation_info = AppConversationInfo(
@@ -453,13 +429,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             app_conversation_infos
         )
 
-        # Build a mapping from conversation id -> agent_kind for routing
-        conversation_kind_by_id: dict[str, str] = {
-            str(info.id): info.agent_kind
-            for info in app_conversation_infos
-            if info is not None
-        }
-
         # Get referenced sandboxes in a single batch operation...
         sandboxes = await self.sandbox_service.batch_get_sandboxes(
             list(sandbox_id_to_conversation_ids)
@@ -471,7 +440,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             self._get_live_conversation_info(
                 sandbox,
                 sandbox_id_to_conversation_ids.get(sandbox.id),
-                conversation_kind_by_id,
             )
             for sandbox in sandboxes
             if sandbox and sandbox.status == SandboxStatus.RUNNING
@@ -507,78 +475,42 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         self,
         sandbox: SandboxInfo,
         conversation_ids: list[UUID],
-        conversation_kind_by_id: dict[str, str] | None = None,
-    ) -> list[ConversationInfo | ACPConversationInfo]:
+    ) -> list[ConversationInfo]:
         """Get agent status for multiple conversations from the Agent Server.
 
-        Splits conversation_ids by agent_kind and fetches from the appropriate
-        endpoint (/api/conversations for LLM, /api/acp/conversations for ACP).
+        Uses the unified ``/api/conversations`` endpoint, which accepts both
+        regular and ACP agents through the ``AgentBase`` discriminated union.
         """
         if not conversation_ids:
             return []
-
-        conversation_kind_by_id = conversation_kind_by_id or {}
-
-        openhands_ids, acp_ids = _split_ids_by_kind(
-            conversation_ids, conversation_kind_by_id
-        )
 
         agent_server_url = self._get_agent_server_url(sandbox)
         headers: dict[str, str] = {}
         if sandbox.session_api_key:
             headers['X-Session-API-Key'] = sandbox.session_api_key
 
-        results: list[ConversationInfo | ACPConversationInfo] = []
-
-        # Fetch OpenHands conversations
-        if openhands_ids:
-            try:
-                url = f'{agent_server_url.rstrip("/")}/api/conversations'
-                response = await self.httpx_client.get(
-                    url,
-                    params={'ids': [str(c) for c in openhands_ids]},
-                    headers=headers,
-                )
-                response.raise_for_status()
-                data = response.json()
-                infos = _conversation_info_type_adapter.validate_python(data)
-                results.extend(c for c in infos if c)
-            except httpx.HTTPStatusError:
-                _logger.warning(
-                    f'Error getting OpenHands conversation status from sandbox {sandbox.id}',
-                    exc_info=True,
-                )
-            except Exception:
-                _logger.exception(
-                    f'Error getting OpenHands conversation status from sandbox {sandbox.id}',
-                    stack_info=True,
-                )
-
-        # Fetch ACP conversations
-        if acp_ids:
-            try:
-                url = f'{agent_server_url.rstrip("/")}/api/acp/conversations'
-                response = await self.httpx_client.get(
-                    url,
-                    params={'ids': [str(c) for c in acp_ids]},
-                    headers=headers,
-                )
-                response.raise_for_status()
-                data = response.json()
-                infos = _acp_conversation_info_type_adapter.validate_python(data)
-                results.extend(c for c in infos if c)
-            except httpx.HTTPStatusError:
-                _logger.warning(
-                    f'Error getting ACP conversation status from sandbox {sandbox.id}',
-                    exc_info=True,
-                )
-            except Exception:
-                _logger.exception(
-                    f'Error getting ACP conversation status from sandbox {sandbox.id}',
-                    stack_info=True,
-                )
-
-        return results
+        try:
+            url = f'{agent_server_url.rstrip("/")}/api/conversations'
+            response = await self.httpx_client.get(
+                url,
+                params={'ids': [str(c) for c in conversation_ids]},
+                headers=headers,
+            )
+            response.raise_for_status()
+            data = response.json()
+            infos = _conversation_info_type_adapter.validate_python(data)
+            return [c for c in infos if c]
+        except httpx.HTTPStatusError:
+            _logger.warning(
+                f'Error getting conversation status from sandbox {sandbox.id}',
+                exc_info=True,
+            )
+        except Exception:
+            _logger.exception(
+                f'Error getting conversation status from sandbox {sandbox.id}',
+                stack_info=True,
+            )
+        return []
 
     def _build_conversation(
         self,
@@ -604,10 +536,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 None,
             )
             if conversation_url:
-                router_path = agent_kind_to_router_path(
-                    app_conversation_info.agent_kind
-                )
-                conversation_url += f'/api/{router_path}/{app_conversation_info.id.hex}'
+                conversation_url += f'/api/conversations/{app_conversation_info.id.hex}'
             session_api_key = sandbox.session_api_key
 
         return AppConversation(
@@ -1282,7 +1211,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         selected_repository: str | None = None,
         plugins: list[PluginSpec] | None = None,
         api_secrets: dict[str, SecretStr] | None = None,
-    ) -> StartConversationRequest | StartACPConversationRequest:
+    ) -> StartConversationRequest:
         """Build a complete StartConversationRequest for a user.
 
         Resolves LLM, MCP, tools, secrets and agent context, then
@@ -1495,8 +1424,8 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         selected_repository: str | None = None,
         plugins: list[PluginSpec] | None = None,
         api_secrets: dict[str, SecretStr] | None = None,
-    ) -> StartACPConversationRequest:
-        """Build a StartACPConversationRequest for ACP agent conversations.
+    ) -> StartConversationRequest:
+        """Build a StartConversationRequest for ACP agent conversations.
 
         Unlike the LLM path, ACP agents run as separate subprocesses; we pass
         credentials via environment variables rather than injecting an LLM object.
@@ -1580,9 +1509,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 'plugins': sdk_plugins,
             }
         )
-        return conv_settings.create_request(
-            StartACPConversationRequest, agent=acp_agent
-        )
+        return conv_settings.create_request(StartConversationRequest, agent=acp_agent)
 
     async def _process_pending_messages(
         self,

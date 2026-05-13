@@ -59,8 +59,10 @@ repos:
             types-Markdown,
             pydantic,
             lxml,
-            "openhands-sdk==1.21.1",
-            "openhands-tools==1.21.1",
+            # SDK pinned to git SHA on main (post v1.22.0) that includes
+            # software-agent-sdk#3227 (unified ACP conversation endpoint).
+            "openhands-sdk @ git+https://github.com/OpenHands/software-agent-sdk.git@fa29ae28c61e13479749a3d303e021032e34766f#subdirectory=openhands-sdk",
+            "openhands-tools @ git+https://github.com/OpenHands/software-agent-sdk.git@fa29ae28c61e13479749a3d303e021032e34766f#subdirectory=openhands-tools",
             "sqlalchemy>=2.0",
           ]
         # To see gaps add `--html-report mypy-report/`

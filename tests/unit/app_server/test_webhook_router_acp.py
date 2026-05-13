@@ -1,8 +1,10 @@
 """Tests for ACP agent discrimination in webhook_router.
 
-Verifies that ACPConversationInfo with an ACPAgent payload is correctly
-discriminated from ConversationInfo with a regular Agent, and that
-``agent_kind`` / ``llm_model`` are populated accordingly.
+Verifies that a ``ConversationInfo`` payload carrying an ``ACPAgent`` is
+correctly discriminated from one carrying a regular ``Agent`` (via the
+``AgentBase`` discriminated union the SDK exposes on the unified
+``/api/conversations`` endpoint), and that ``agent_kind`` / ``llm_model``
+are populated accordingly.
 """
 
 from typing import AsyncGenerator
@@ -13,7 +15,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from openhands.agent_server.models import ACPConversationInfo, ConversationInfo, Success
+from openhands.agent_server.models import ConversationInfo, Success
 from openhands.app_server.app_conversation.app_conversation_models import (
     AppConversationInfo,
 )
@@ -92,10 +94,10 @@ def _make_llm_conversation_info() -> ConversationInfo:
     )
 
 
-def _make_acp_conversation_info(acp_command: list[str]) -> ACPConversationInfo:
-    """Build a real ``ACPConversationInfo`` with a real ``ACPAgent``."""
+def _make_acp_conversation_info(acp_command: list[str]) -> ConversationInfo:
+    """Build a real ``ConversationInfo`` with a real ``ACPAgent`` payload."""
     acp_agent = ACPAgent(acp_command=acp_command)
-    return ACPConversationInfo.model_validate(
+    return ConversationInfo.model_validate(
         {
             'id': str(uuid4()),
             'workspace': {'kind': 'LocalWorkspace', 'working_dir': '/tmp'},
@@ -270,9 +272,9 @@ async def test_acp_conversation_analytics_llm_model_is_null(
 def test_legacy_llm_payload_deserialises_as_agent():
     """A legacy LLM webhook payload still routes to the ``Agent`` branch.
 
-    The webhook signature accepts ``ACPConversationInfo``, which is a
-    Pydantic discriminated union over ``Agent | ACPAgent``. This test
-    proves that an old-style payload (no ACP fields, ``kind='Agent'``)
+    The webhook signature accepts ``ConversationInfo`` whose ``agent`` field
+    is the ``AgentBase`` discriminated union (``Agent | ACPAgent``). This
+    test proves that an old-style payload (no ACP fields, ``kind='Agent'``)
     deserialises into the LLM branch and that ``isinstance(.agent, ACPAgent)``
     correctly returns ``False`` — i.e. the on_conversation_update branch
     that writes ``llm_model`` is selected.
@@ -289,7 +291,7 @@ def test_legacy_llm_payload_deserialises_as_agent():
         'execution_status': 'running',
     }
 
-    parsed = ACPConversationInfo.model_validate(legacy_payload)
+    parsed = ConversationInfo.model_validate(legacy_payload)
 
     assert parsed.agent.kind == 'Agent'
     assert not isinstance(parsed.agent, ACPAgent)

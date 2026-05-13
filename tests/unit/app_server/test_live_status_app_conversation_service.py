@@ -25,7 +25,6 @@ from openhands.app_server.app_conversation.app_conversation_models import (
 )
 from openhands.app_server.app_conversation.live_status_app_conversation_service import (
     LiveStatusAppConversationService,
-    _split_ids_by_kind,
 )
 from openhands.app_server.integrations.provider import ProviderToken, ProviderType
 from openhands.app_server.integrations.service_types import SuggestedTask, TaskType
@@ -3069,12 +3068,15 @@ class TestLoadHooksFromWorkspace:
 class TestAgentKindConversationUrl:
     """Regression tests for conversation_url / live-status route dispatch.
 
-    ``/api/conversations`` for LLM, ``/api/acp/conversations`` for ACP.
-    Getting this wrong makes ACP conversations look stuck on "Loading"
+    Both LLM and ACP conversations are served by the unified
+    ``/api/conversations`` endpoint (the SDK's ``AgentBase`` discriminated
+    union accepts both ``Agent`` and ``ACPAgent`` payloads on that route).
+    Getting this wrong would make ACP conversations look stuck on "Loading"
     because the frontend polls the wrong route and 404s.
     """
 
-    def test_build_conversation_url_llm(self):
+    @pytest.mark.parametrize('agent_kind', ['openhands', 'acp'])
+    def test_build_conversation_url_uses_unified_path(self, agent_kind):
         from uuid import UUID
 
         from openhands.app_server.app_conversation.app_conversation_models import (
@@ -3096,7 +3098,7 @@ class TestAgentKindConversationUrl:
             id=UUID('11111111-1111-1111-1111-111111111111'),
             created_by_user_id=None,
             sandbox_id='sandbox-a',
-            agent_kind='openhands',
+            agent_kind=agent_kind,
         )
         sandbox = SandboxInfo(
             id='sandbox-a',
@@ -3113,69 +3115,6 @@ class TestAgentKindConversationUrl:
         assert result.conversation_url == (
             'http://localhost:8000/api/conversations/11111111111111111111111111111111'
         )
-
-    def test_build_conversation_url_acp(self):
-        from uuid import UUID
-
-        from openhands.app_server.app_conversation.app_conversation_models import (
-            AppConversationInfo,
-        )
-        from openhands.app_server.sandbox.sandbox_models import (
-            AGENT_SERVER,
-            ExposedUrl,
-            SandboxInfo,
-            SandboxStatus,
-        )
-
-        service = LiveStatusAppConversationService.__new__(
-            LiveStatusAppConversationService
-        )
-
-        info = AppConversationInfo(
-            id=UUID('22222222-2222-2222-2222-222222222222'),
-            created_by_user_id=None,
-            sandbox_id='sandbox-a',
-            agent_kind='acp',
-        )
-        sandbox = SandboxInfo(
-            id='sandbox-a',
-            created_by_user_id=None,
-            sandbox_spec_id='spec',
-            status=SandboxStatus.RUNNING,
-            session_api_key='sk',
-            exposed_urls=[
-                ExposedUrl(name=AGENT_SERVER, url='http://localhost:8000', port=8000),
-            ],
-        )
-        result = service._build_conversation(info, sandbox, None)
-        assert result is not None
-        assert result.conversation_url == (
-            'http://localhost:8000/api/acp/conversations/'
-            '22222222222222222222222222222222'
-        )
-
-    def test_agent_kind_to_router_path_known_kinds(self):
-        """``'openhands'`` routes to standard conversations; ``'acp'`` to ACP."""
-        from openhands.app_server.app_conversation.agent_server_routing import (
-            agent_kind_to_router_path,
-        )
-
-        assert agent_kind_to_router_path('openhands') == 'conversations'
-        assert agent_kind_to_router_path('acp') == 'acp/conversations'
-
-    def test_agent_kind_to_router_path_unknown_falls_back(self):
-        """Any value that is not 'acp' routes to 'conversations'.
-
-        This includes the legacy ``'llm'`` value that the old default emitted
-        before the rename, so rows stored with ``agent_kind='llm'`` continue to
-        route correctly without a migration.
-        """
-        from openhands.app_server.app_conversation.agent_server_routing import (
-            agent_kind_to_router_path,
-        )
-
-        assert agent_kind_to_router_path('llm') == 'conversations'
-        assert agent_kind_to_router_path('future-variant') == 'conversations'
 
 
 class TestBuildAcpStartConversationRequestSecrets:
@@ -3410,32 +3349,3 @@ class TestBuildAcpStartConversationRequestSecrets:
         request = await self._call_build(service, user, tmp_path)
 
         assert request.agent.acp_env.get('GH_TOKEN') == 'explicit-token'
-
-
-class TestSplitIdsByKind:
-    """``_split_ids_by_kind`` routes ACP vs OpenHands conversation IDs.
-
-    The kind map is keyed by ``str(info.id)`` (see ``_build_app_conversations``)
-    but the IDs flowing in from ``_get_sandbox_id_to_conversation_ids`` are raw
-    ``UUID`` instances. A naive ``dict.get(cid)`` would always miss and silently
-    route ACP conversations to ``/api/conversations``.
-    """
-
-    def test_uuid_ids_against_string_keyed_map_routes_correctly(self):
-        oh_id = uuid4()
-        acp_id = uuid4()
-        kind_map = {str(oh_id): 'openhands', str(acp_id): 'acp'}
-
-        openhands_ids, acp_ids = _split_ids_by_kind([oh_id, acp_id], kind_map)
-
-        assert openhands_ids == [oh_id]
-        assert acp_ids == [acp_id]
-
-    def test_unknown_id_defaults_to_openhands(self):
-        unknown = uuid4()
-        openhands_ids, acp_ids = _split_ids_by_kind([unknown], {})
-        assert openhands_ids == [unknown]
-        assert acp_ids == []
-
-    def test_empty_input(self):
-        assert _split_ids_by_kind([], {}) == ([], [])

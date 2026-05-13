@@ -478,17 +478,18 @@ class V1ConversationService {
     conversationUrl: string | null | undefined,
     sessionApiKey?: string | null,
   ): Promise<V1RuntimeConversationInfo> {
-    // The agent-server provides a full ``conversationUrl`` whose path is
-    // either ``/api/conversations/{id}`` (OH) or
-    // ``/api/acp/conversations/{id}`` (ACP). We must preserve it verbatim
-    // because the two prefixes route to different agent-server endpoints.
-    // If the URL is missing or malformed we fall back to the default
-    // ``/api/conversations/{id}`` path derived from ``window.location``.
+    // The agent-server provides a full ``conversationUrl`` with a
+    // ``/api/conversations/{id}`` path (the SDK unified the LLM and ACP
+    // endpoints onto this single route). We still preserve the URL's path
+    // verbatim because a proxy deployment may add a prefix (e.g.
+    // ``/runtime/55313/api/conversations/...``). If the URL is missing or
+    // malformed we fall back to the default path derived from
+    // ``window.location``.
     //
     // Either way we route through ``buildRuntimeUrl`` so its
     // ``extractBaseHost`` rewrites localhost/127.0.0.1 to the browser's
     // hostname when accessed from a non-local browser (proxy/external host
-    // deployments). Without this, an ACP conversation_url containing
+    // deployments). Without this, a conversation_url containing
     // ``localhost`` is unreachable from anywhere but the host machine.
     let path = `/api/conversations/${conversationId}`;
     if (conversationUrl) {
