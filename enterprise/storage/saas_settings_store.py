@@ -310,6 +310,60 @@ class SaasSettingsStore(SettingsStore):
 
             await session.commit()
 
+    async def store_profiles(self, item: Settings) -> None:
+        """Persist only the user's LLM profiles and their personal LLM override.
+
+        Unlike :meth:`store`, this method **never** touches org-level
+        defaults or other org members. It updates:
+
+        1. ``user.llm_profiles`` — the saved profiles dict + active flag.
+        2. The current ``org_member.agent_settings_diff["llm"]`` — so the
+           user's personal LLM matches the activated profile without
+           changing org defaults.
+
+        Profile endpoints must call this instead of ``store()`` to avoid
+        the "activate my profile → overwrite org defaults for everyone"
+        bug.
+        """
+        async with a_session_maker() as session:
+            if not item:
+                return
+
+            result = await session.execute(
+                select(User)
+                .options(joinedload(User.org_members))
+                .filter(User.id == uuid.UUID(self.user_id))
+            )
+            user = result.scalars().first()
+            if not user:
+                logger.error(f'store_profiles: user not found for {self.user_id}')
+                return
+
+            # Persist profiles on the User row (EncryptedJSON column).
+            user.llm_profiles = item.llm_profiles.model_dump(
+                mode='json', context={'expose_secrets': True}
+            )
+
+            # Update only *this* member's personal LLM override so the
+            # activated profile takes effect for this user without touching
+            # the org-level defaults.
+            org_id = self._resolve_org_id(user)
+            org_member: OrgMember | None = None
+            for om in user.org_members:
+                if om.org_id == org_id:
+                    org_member = om
+                    break
+
+            if org_member is not None:
+                llm_dump = item.agent_settings.llm.model_dump(
+                    mode='json', context={'expose_secrets': True}
+                )
+                member_diff = dict(org_member.agent_settings_diff)
+                member_diff['llm'] = llm_dump
+                org_member.agent_settings_diff = member_diff
+
+            await session.commit()
+
     @classmethod
     async def get_instance(  # type: ignore[override]
         cls,

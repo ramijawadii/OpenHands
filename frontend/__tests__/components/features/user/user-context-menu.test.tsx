@@ -393,9 +393,10 @@ describe("UserContextMenu", () => {
       renderUserContextMenu({ type: "member", onClose: vi.fn, onOpenInviteModal: vi.fn });
 
       await waitFor(() => {
+        // Both personal LLM (profiles) and org-defaults LLM are shown in SaaS
         expect(
-          screen.getByText("COMMON$LANGUAGE_MODEL_LLM"),
-        ).toBeInTheDocument();
+          screen.getAllByText("COMMON$LANGUAGE_MODEL_LLM").length,
+        ).toBeGreaterThanOrEqual(1);
       });
     });
   });

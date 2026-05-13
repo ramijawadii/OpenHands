@@ -826,9 +826,10 @@ describe("Settings Screen", () => {
       expect(
         within(navbar).getByText("Application", { exact: false }),
       ).toBeInTheDocument();
+      // Both personal LLM (profiles) and org-defaults LLM are visible in SaaS
       expect(
-        within(navbar).getByText("LLM", { exact: false }),
-      ).toBeInTheDocument();
+        within(navbar).getAllByText("LLM", { exact: false }).length,
+      ).toBeGreaterThanOrEqual(1);
     });
 
     it("should hide integrations page in OSS mode when hide_integrations_page is true", async () => {

@@ -517,7 +517,7 @@ async def save_profile(
         # Without this, overwriting the active profile leaves
         # agent_settings.llm stale — active would lie about what's running.
         settings.reconcile_active_profile()
-        await settings_store.store(settings)
+        await settings_store.store_profiles(settings)
 
     return ProfileMutationResponse(name=name, message=f"Profile '{name}' saved")
 
@@ -535,7 +535,7 @@ async def delete_profile(
     async with _user_profile_locks[_profile_lock_key(user_id)]:
         settings = await settings_store.load()
         if settings is not None and settings.delete_profile(name):
-            await settings_store.store(settings)
+            await settings_store.store_profiles(settings)
 
     return ProfileMutationResponse(name=name, message=f"Profile '{name}' deleted")
 
@@ -569,7 +569,7 @@ async def activate_profile(
             ) from exc
 
         _post_merge_llm_fixups(settings)
-        await settings_store.store(settings)
+        await settings_store.store_profiles(settings)
 
     return ActivateProfileResponse(
         name=name,
@@ -608,7 +608,7 @@ async def rename_profile(
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT, detail=str(exc)
             ) from exc
-        await settings_store.store(settings)
+        await settings_store.store_profiles(settings)
 
     return ProfileMutationResponse(
         name=request.new_name,

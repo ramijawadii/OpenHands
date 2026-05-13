@@ -77,13 +77,15 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
     );
   }
 
-  const PERSONAL_LLM_PATHS = new Set([
-    "/settings",
+  // Personal condenser/verification pages don't have profiles yet, so
+  // hide them in SaaS mode. The personal LLM page ("/settings") is kept
+  // because it hosts the user's LLM Profiles manager.
+  const HIDDEN_PERSONAL_PATHS_SAAS = new Set([
     "/settings/condenser",
     "/settings/verification",
   ]);
   if (isSaasMode) {
-    items = items.filter((item) => !PERSONAL_LLM_PATHS.has(item.to));
+    items = items.filter((item) => !HIDDEN_PERSONAL_PATHS_SAAS.has(item.to));
   }
 
   // For OSS mode or non-SaaS, return flat list without sections

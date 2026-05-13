@@ -113,9 +113,11 @@ describe("useSettingsNavItems", () => {
       expect(findItemByPath(result.current, "/settings/billing")).toBeUndefined();
       expect(findItemByPath(result.current, "/settings/org")).toBeUndefined();
       expect(findItemByPath(result.current, "/settings/org-members")).toBeUndefined();
-      // Personal LLM/Condenser/Verification routes are hidden in SaaS;
-      // members see the org-defaults equivalents (read-only on the page itself).
-      expect(findItemByPath(result.current, "/settings")).toBeUndefined();
+      // Personal LLM page ("/settings") is visible in SaaS for LLM Profiles;
+      // condenser/verification personal routes stay hidden.
+      expect(findItemByPath(result.current, "/settings")).toBeDefined();
+      expect(findItemByPath(result.current, "/settings/condenser")).toBeUndefined();
+      expect(findItemByPath(result.current, "/settings/verification")).toBeUndefined();
       expect(
         findItemByPath(result.current, "/settings/org-defaults"),
       ).toBeDefined();
@@ -379,11 +381,11 @@ describe("useSettingsNavItems", () => {
         expect(
           findItemByPath(result.current, "/settings/integrations"),
         ).toBeUndefined();
-        // Personal LLM is hidden in SaaS; the org-defaults equivalent
-        // shows up instead (an org is selected in this test's setup).
+        // Personal LLM is visible in SaaS (LLM Profiles); org-defaults
+        // is also present since an org is selected in this test's setup.
         expect(
           findItemByPath(result.current, "/settings"),
-        ).toBeUndefined();
+        ).toBeDefined();
         expect(
           findItemByPath(result.current, "/settings/org-defaults"),
         ).toBeDefined();
@@ -414,10 +416,10 @@ describe("useSettingsNavItems", () => {
         expect(
           findItemByPath(result.current, "/settings/integrations"),
         ).toBeDefined();
-        // Personal LLM is hidden in SaaS; users see /settings/org-defaults instead.
+        // Personal LLM is visible in SaaS (LLM Profiles).
         expect(
           findItemByPath(result.current, "/settings"),
-        ).toBeUndefined();
+        ).toBeDefined();
         expect(
           findItemByPath(result.current, "/settings/org-defaults"),
         ).toBeDefined();
@@ -448,7 +450,7 @@ describe("useSettingsNavItems", () => {
       });
     });
 
-    it("hides personal LLM/Condenser/Verification when org-defaults versions are visible (team-org admin)", async () => {
+    it("hides personal Condenser/Verification when org-defaults versions are visible, but keeps personal LLM for profiles (team-org admin)", async () => {
       mockConfig("saas");
       mockOrgTypeAndAccess.isTeamOrg = true;
       mockOrgTypeAndAccess.isPersonalOrg = false;
@@ -468,7 +470,9 @@ describe("useSettingsNavItems", () => {
           findItemByPath(result.current, "/settings/org-defaults/verification"),
         ).toBeDefined();
 
-        expect(findItemByPath(result.current, "/settings")).toBeUndefined();
+        // Personal LLM page stays visible (LLM Profiles); condenser and
+        // verification personal pages are hidden in SaaS.
+        expect(findItemByPath(result.current, "/settings")).toBeDefined();
         expect(
           findItemByPath(result.current, "/settings/condenser"),
         ).toBeUndefined();
@@ -478,7 +482,7 @@ describe("useSettingsNavItems", () => {
       });
     });
 
-    it("hides personal LLM/Condenser/Verification for any user in a non-personal org (team-org member)", async () => {
+    it("hides personal Condenser/Verification for any user in a non-personal org, keeps personal LLM for profiles (team-org member)", async () => {
       mockConfig("saas");
       mockOrgTypeAndAccess.isTeamOrg = true;
       mockOrgTypeAndAccess.isPersonalOrg = false;
@@ -491,7 +495,8 @@ describe("useSettingsNavItems", () => {
         expect(
           findItemByPath(result.current, "/settings/user"),
         ).toBeDefined();
-        expect(findItemByPath(result.current, "/settings")).toBeUndefined();
+        // Personal LLM page visible for LLM Profiles
+        expect(findItemByPath(result.current, "/settings")).toBeDefined();
         expect(
           findItemByPath(result.current, "/settings/condenser"),
         ).toBeUndefined();

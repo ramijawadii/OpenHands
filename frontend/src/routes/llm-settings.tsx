@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { FaChevronLeft } from "react-icons/fa6";
 import { ModelSelector } from "#/components/shared/modals/settings/model-selector";
 import { createPermissionGuard } from "#/utils/org/permission-guard";
-import { requireOrgDefaultsRedirect } from "#/utils/org/saas-redirect-to-org-defaults-guard";
 import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema";
 import { useSettings } from "#/hooks/query/use-settings";
 import { SettingsInput } from "#/components/features/settings/settings-input";
@@ -540,15 +539,13 @@ export function LlmSettingsScreen({
   );
 }
 
-const orgDefaultsRedirectGuard = requireOrgDefaultsRedirect(
-  "/settings/org-defaults",
-);
 const llmPermissionGuard = createPermissionGuard("view_llm_settings");
 
-export const clientLoader = async (args: { request: Request }) => {
-  const blocked = await orgDefaultsRedirectGuard(args);
-  if (blocked) return blocked;
-  return llmPermissionGuard(args);
-};
+// The personal LLM settings page ("/settings") hosts the LLM Profiles
+// manager, so SaaS users must be able to reach it. We no longer redirect
+// to org-defaults; the org-defaults page is still accessible via its own
+// route ("/settings/org-defaults").
+export const clientLoader = async (args: { request: Request }) =>
+  llmPermissionGuard(args);
 
 export default LlmSettingsScreen;

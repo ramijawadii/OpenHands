@@ -27,6 +27,17 @@ class SettingsStore(ABC):
     async def store(self, settings: Settings) -> None:
         """Store session init data."""
 
+    async def store_profiles(self, settings: Settings) -> None:
+        """Persist only the user's LLM profiles and (optionally) their
+        personal LLM override.
+
+        The default implementation delegates to :meth:`store`, which is
+        correct for single-user stores (OSS / file-based). Multi-tenant
+        stores (SaaS) **must** override this so that profile changes do
+        not propagate to organisation defaults or other org members.
+        """
+        await self.store(settings)
+
     @classmethod
     @abstractmethod
     async def get_instance(cls, user_id: str | None) -> SettingsStore:
