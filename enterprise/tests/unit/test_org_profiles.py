@@ -115,7 +115,9 @@ class TestSaveProfileRequest:
 
     def test_with_llm(self):
         """Test save request with LLM config."""
-        request = SaveProfileRequest(include_secrets=False, llm=StrictLLM(model='gpt-4'))
+        request = SaveProfileRequest(
+            include_secrets=False, llm=StrictLLM(model='gpt-4')
+        )
         assert request.include_secrets is False
         assert request.llm is not None
         assert request.llm.model == 'gpt-4'
