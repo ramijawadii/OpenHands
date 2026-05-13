@@ -15,6 +15,7 @@ import {
   displaySuccessToast,
 } from "#/utils/custom-toast-handlers";
 import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message";
+import { formatCommand, tokenizeCommand } from "#/utils/shell-tokenize";
 import type { ACPProviderConfig } from "#/api/option-service/option.types";
 
 export const handle = { hideTitle: true };
@@ -23,14 +24,6 @@ type AgentType = "openhands" | "acp";
 const CUSTOM_PRESET = "custom";
 const EMPTY_ACP_PROVIDERS: ACPProviderConfig[] = [];
 const COMMAND_PLACEHOLDER_FALLBACK = "npx -y <package-name>";
-
-function tokenizeCommand(value: string): string[] {
-  return value.split(/\s+/).filter(Boolean);
-}
-
-function formatCommand(command: string[]): string {
-  return command.join(" ");
-}
 
 /** Coerce a possibly-undefined ``unknown`` to ``string[]`` by keeping
  *  only string entries; non-arrays and non-string entries are discarded. */
