@@ -25,14 +25,6 @@ export type SettingsNavRenderedItem =
   | { type: "header"; text: I18nKey }
   | { type: "divider" };
 
-// "/settings" is the LLM settings index route (see routes.ts).
-// Condenser and MCP are managed by the ACP server itself.
-const ACP_DISABLED_PATHS = new Set<string>([
-  "/settings",
-  "/settings/condenser",
-  "/settings/mcp",
-]);
-
 // Section header text mapping
 const SECTION_HEADERS: Partial<Record<SettingsNavSection, I18nKey>> = {
   org: I18nKey.SETTINGS$ORG_SETTINGS_HEADER,
@@ -116,7 +108,7 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   const buildRenderedItem = (
     item: SettingsNavItem,
   ): SettingsNavRenderedItem => {
-    if (isAcpAgent && ACP_DISABLED_PATHS.has(item.to)) {
+    if (isAcpAgent && item.disabledByAcp) {
       return {
         type: "item",
         item,

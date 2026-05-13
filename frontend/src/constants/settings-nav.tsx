@@ -24,6 +24,13 @@ export interface SettingsNavItem {
   section?: SettingsNavSection;
   // When true, this item is only shown if the `enable_acp` feature flag is on.
   acpGated?: boolean;
+  // When true, this item is greyed out (and its route redirects to
+  // ``/settings/agent``) while the personal-scope active agent is ACP.
+  // The ACP sub-agent manages its own LLM / condenser / MCP, so these
+  // OpenHands-side surfaces have no useful content. Drives both the
+  // navigation disable in ``use-settings-nav-items.ts`` and the
+  // server-side redirect in ``routes/settings.tsx`` from one source.
+  disabledByAcp?: boolean;
 }
 
 export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
@@ -69,12 +76,14 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings",
     text: "COMMON$LANGUAGE_MODEL_LLM",
     section: "personal",
+    disabledByAcp: true,
   },
   {
     icon: <MemoryIcon width={22} height={22} />,
     to: "/settings/condenser",
     text: "SETTINGS$NAV_CONDENSER",
     section: "personal",
+    disabledByAcp: true,
   },
   {
     icon: <LockIcon width={22} height={22} />,
@@ -99,6 +108,7 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/mcp",
     text: "SETTINGS$NAV_MCP",
     section: "personal",
+    disabledByAcp: true,
   },
   {
     icon: <UserIcon width={22} height={22} />,
@@ -143,11 +153,13 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     icon: <CircuitIcon width={22} height={22} />,
     to: "/settings",
     text: "SETTINGS$NAV_LLM",
+    disabledByAcp: true,
   },
   {
     icon: <MemoryIcon width={22} height={22} />,
     to: "/settings/condenser",
     text: "SETTINGS$NAV_CONDENSER",
+    disabledByAcp: true,
   },
   {
     icon: <LockIcon width={22} height={22} />,
@@ -158,6 +170,7 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     icon: <ServerProcessIcon width={22} height={22} />,
     to: "/settings/mcp",
     text: "SETTINGS$NAV_MCP",
+    disabledByAcp: true,
   },
   {
     icon: <LightbulbIcon width={22} height={22} />,

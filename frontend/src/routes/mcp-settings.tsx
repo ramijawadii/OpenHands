@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { AxiosError } from "axios";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "#/hooks/query/use-settings";
-import { useAcpGuardIfPersonal } from "#/hooks/use-acp-guard";
 import { useConfig } from "#/hooks/query/use-config";
 import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { useDeleteMcpServer } from "#/hooks/mutation/use-delete-mcp-server";
@@ -50,8 +49,6 @@ function MCPSettingsScreen() {
   const { data: config } = useConfig();
   const { mutate: saveSettings, isPending: isSavingSearchApiKey } =
     useSaveSettings();
-
-  useAcpGuardIfPersonal("personal");
 
   const { mutate: deleteMcpServer } = useDeleteMcpServer();
   const { mutate: addMcpServer } = useAddMcpServer();
