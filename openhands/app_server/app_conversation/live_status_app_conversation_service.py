@@ -1457,7 +1457,9 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         # Pass agent explicitly — it has server-only overrides (system
         # prompts, LLM metadata, skills) applied after create_agent().
-        return conv_settings.create_request(StartConversationRequest, agent=agent)
+        return conv_settings.create_request(
+            StartConversationRequest, agent=agent, user_id=user.id
+        )
 
     @staticmethod
     def _acp_provider_env(user: UserInfo) -> dict[str, str]:
@@ -1617,6 +1619,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             secrets=secrets,
             plugins=sdk_plugins,
             agent=acp_agent,
+            user_id=user.id,
         )
 
     async def _process_pending_messages(
