@@ -16,7 +16,6 @@ export default [
     route("settings", "routes/settings.tsx", [
       index("routes/llm-settings.tsx"),
       route("agent", "routes/agent-settings.tsx"),
-      route("acp", "routes/acp-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
       route("org-defaults", "routes/org-default-llm-settings.tsx"),

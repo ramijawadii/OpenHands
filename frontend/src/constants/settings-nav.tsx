@@ -23,10 +23,8 @@ export interface SettingsNavItem {
   to: string;
   text: string;
   section?: SettingsNavSection;
-  // When true, this item is only shown if the `enable_acp` feature flag is on.
-  acpGated?: boolean;
   // When true, this item is greyed out (and its route redirects to
-  // ``/settings/acp``) while the personal-scope active agent is ACP.
+  // ``/settings/agent``) while the personal-scope active agent is ACP.
   // The ACP sub-agent manages its own LLM / condenser / MCP, so these
   // OpenHands-side surfaces have no useful content. Drives both the
   // navigation disable in ``use-settings-nav-items.ts`` and the
@@ -66,18 +64,10 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
     section: "org",
   },
   {
-    icon: <CircuitIcon width={22} height={22} />,
-    to: "/settings/acp",
-    text: "SETTINGS$AGENT_TYPE_ACP",
-    section: "personal",
-    acpGated: true,
-  },
-  {
     icon: <RobotIcon width={22} height={22} />,
     to: "/settings/agent",
     text: "SETTINGS$AGENT",
     section: "personal",
-    disabledByAcp: true,
   },
   {
     icon: <CircuitIcon width={22} height={22} />,
@@ -152,16 +142,9 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
 
 export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   {
-    icon: <CircuitIcon width={22} height={22} />,
-    to: "/settings/acp",
-    text: "SETTINGS$AGENT_TYPE_ACP",
-    acpGated: true,
-  },
-  {
     icon: <RobotIcon width={22} height={22} />,
     to: "/settings/agent",
     text: "SETTINGS$AGENT",
-    disabledByAcp: true,
   },
   {
     icon: <CircuitIcon width={22} height={22} />,

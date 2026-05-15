@@ -132,7 +132,7 @@ describe("useSettingsNavItems", () => {
       // OSS mode should return items matching OSS_NAV_ITEMS paths,
       // minus any items hidden behind a feature flag that's off by default.
       const navItems = getNavItems(result.current);
-      const ossPaths = OSS_NAV_ITEMS.filter((item) => !item.acpGated).map(
+      const ossPaths = OSS_NAV_ITEMS.map(
         (item) => item.to,
       );
       const resultPaths = navItems.map((item) =>

@@ -54,7 +54,6 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
   const isSaasMode = config?.app_mode === "saas";
   const featureFlags = config?.feature_flags;
   const isAdminOrOwner = userRole === "admin" || userRole === "owner";
-  const isAcpEnabled = !!featureFlags?.enable_acp;
   const isAcpAgent = settings?.agent_settings?.agent_kind === "acp";
   const acpServerName = isAcpAgent
     ? (config?.acp_providers?.find(
@@ -66,11 +65,6 @@ export function useSettingsNavItems(): SettingsNavRenderedItem[] {
 
   // First apply feature flag-based hiding
   items = items.filter((item) => !isSettingsPageHidden(item.to, featureFlags));
-
-  // Hide ACP-gated items when the ACP feature flag is off
-  if (!isAcpEnabled) {
-    items = items.filter((item) => !item.acpGated);
-  }
 
   // Hide billing when billing is not accessible OR when in team org
   if (shouldHideBilling || isTeamOrg) {

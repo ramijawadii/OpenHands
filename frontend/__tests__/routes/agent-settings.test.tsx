@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import userEvent from "@testing-library/user-event";
 
-import AgentSettingsScreen from "#/routes/acp-settings";
+import AgentSettingsScreen from "#/routes/agent-settings";
 import SettingsService from "#/api/settings-service/settings-service.api";
 import OptionService from "#/api/option-service/option-service.api";
 import type { ACPProviderConfig } from "#/api/option-service/option.types";
