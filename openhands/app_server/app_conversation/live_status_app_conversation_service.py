@@ -1424,6 +1424,30 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
     )
 
     @staticmethod
+    def _extract_claude_oauth_token(blob: str) -> str | None:
+        """Pull the access token out of a pasted Claude Max credentials blob.
+
+        Accepts both shapes the UI lets users paste: the macOS Keychain export
+        (``{"claudeAiOauth": {"accessToken": ..., ...}}``) and the flat Linux
+        ``~/.claude/credentials.json`` format (``{"access_token": ..., ...}``).
+        """
+        try:
+            parsed = json.loads(blob)
+        except (TypeError, ValueError):
+            return None
+        if not isinstance(parsed, dict):
+            return None
+        oauth = parsed.get('claudeAiOauth')
+        if isinstance(oauth, dict):
+            token = oauth.get('accessToken')
+            if isinstance(token, str) and token.strip():
+                return token.strip()
+        token = parsed.get('access_token')
+        if isinstance(token, str) and token.strip():
+            return token.strip()
+        return None
+
+    @staticmethod
     def _validate_relative_path(relative: str, secret_name: str) -> str | None:
         """Validate a path component extracted from a FILE: secret name.
 
@@ -1525,6 +1549,25 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                     env_var,
                     group_dir,
                 )
+
+                # The Claude Code binary authenticates via the
+                # CLAUDE_CODE_OAUTH_TOKEN env var, not via credentials.json
+                # in CLAUDE_CONFIG_DIR (which holds non-auth config state).
+                # Extract the access token from the pasted blob (macOS
+                # Keychain wrapper or flat Linux file format) and inject it.
+                if file_path == '~/.claude/credentials.json':
+                    token = (
+                        LiveStatusAppConversationService._extract_claude_oauth_token(
+                            value
+                        )
+                    )
+                    if token and 'CLAUDE_CODE_OAUTH_TOKEN' not in extra_env:
+                        extra_env['CLAUDE_CODE_OAUTH_TOKEN'] = token
+                        _logger.info(
+                            'FILE: secret %r: also injecting CLAUDE_CODE_OAUTH_TOKEN',
+                            secret_name,
+                        )
+
                 matched = True
                 break
 
