@@ -77,6 +77,7 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
     to: "/settings/agent",
     text: "SETTINGS$AGENT",
     section: "personal",
+    disabledByAcp: true,
   },
   {
     icon: <CircuitIcon width={22} height={22} />,
@@ -160,6 +161,7 @@ export const OSS_NAV_ITEMS: SettingsNavItem[] = [
     icon: <RobotIcon width={22} height={22} />,
     to: "/settings/agent",
     text: "SETTINGS$AGENT",
+    disabledByAcp: true,
   },
   {
     icon: <CircuitIcon width={22} height={22} />,
