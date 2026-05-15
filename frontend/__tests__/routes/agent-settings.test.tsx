@@ -280,7 +280,7 @@ describe("AgentSettingsScreen — minimal generic ACP UX", () => {
   });
 });
 
-describe("AgentSettingsScreen — Claude Max credentials", () => {
+describe("AgentSettingsScreen — subscription auth info panels", () => {
   const acpClaudeCodeSettings = {
     ...MOCK_DEFAULT_USER_SETTINGS,
     agent_settings: {
@@ -292,178 +292,6 @@ describe("AgentSettingsScreen — Claude Max credentials", () => {
       acp_model: null,
     },
   };
-
-  beforeEach(() => {
-    vi.spyOn(OptionService, "getConfig").mockResolvedValue(baseConfig);
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      acpClaudeCodeSettings,
-    );
-    // Default: no Claude credential secret saved
-    vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
-      items: [],
-      next_page_id: null,
-    });
-  });
-
-  it("shows credentials field only for the Claude Code preset", async () => {
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("claude-credentials-input"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("hides credentials field for non-Claude-Code presets", async () => {
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue({
-      ...MOCK_DEFAULT_USER_SETTINGS,
-      agent_settings: {
-        agent_kind: "acp",
-        acp_server: "custom",
-        acp_command: ["npx", "-y", "@zed-industries/codex-acp"],
-        acp_args: [],
-        acp_env: {},
-        acp_model: null,
-      },
-    });
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("agent-command-input")).toBeInTheDocument();
-    });
-    expect(
-      screen.queryByTestId("claude-credentials-input"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows saved badge when the OAuth-token secret exists", async () => {
-    vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
-      items: [
-        {
-          name: "CLAUDE_CODE_OAUTH_TOKEN",
-          description: "Claude Max credentials",
-        },
-      ],
-      next_page_id: null,
-    });
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("claude-credentials-saved-badge"),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("extracts the access token and saves CLAUDE_CODE_OAUTH_TOKEN (flat format)", async () => {
-    const upsertSpy = vi
-      .spyOn(SecretsService, "upsertSecret")
-      .mockResolvedValue(true);
-    const saveSpy = vi
-      .spyOn(SettingsService, "saveSettings")
-      .mockResolvedValue(true);
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("claude-credentials-input")).toBeInTheDocument();
-    });
-
-    const credentialsInput = screen.getByTestId("claude-credentials-input");
-    // fireEvent.change avoids userEvent's special-character interpretation of {}
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(credentialsInput, {
-      target: { value: '{"access_token":"tok"}' },
-    });
-    await userEvent.click(screen.getByTestId("agent-save-button"));
-
-    await waitFor(() => {
-      expect(upsertSpy).toHaveBeenCalledWith(
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "tok",
-        expect.any(String),
-      );
-    });
-    expect(saveSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("extracts the access token from the macOS Keychain wrapper format", async () => {
-    const upsertSpy = vi
-      .spyOn(SecretsService, "upsertSecret")
-      .mockResolvedValue(true);
-    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("claude-credentials-input")).toBeInTheDocument();
-    });
-
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(screen.getByTestId("claude-credentials-input"), {
-      target: {
-        value: '{"claudeAiOauth":{"accessToken":"keychain-tok"}}',
-      },
-    });
-    await userEvent.click(screen.getByTestId("agent-save-button"));
-
-    await waitFor(() => {
-      expect(upsertSpy).toHaveBeenCalledWith(
-        "CLAUDE_CODE_OAUTH_TOKEN",
-        "keychain-tok",
-        expect.any(String),
-      );
-    });
-  });
-
-  it("rejects credentials that are not valid JSON", async () => {
-    const upsertSpy = vi
-      .spyOn(SecretsService, "upsertSecret")
-      .mockResolvedValue(true);
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("claude-credentials-input")).toBeInTheDocument();
-    });
-
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(screen.getByTestId("claude-credentials-input"), {
-      target: { value: "not-json" },
-    });
-    await userEvent.click(screen.getByTestId("agent-save-button"));
-
-    await waitFor(() => {
-      expect(upsertSpy).not.toHaveBeenCalled();
-    });
-  });
-
-  it("does not call upsertSecret when credentials field is empty", async () => {
-    const upsertSpy = vi
-      .spyOn(SecretsService, "upsertSecret")
-      .mockResolvedValue(true);
-    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(screen.getByTestId("agent-command-input")).toBeInTheDocument();
-    });
-
-    // Mark as dirty without touching credentials
-    await userEvent.clear(screen.getByTestId("agent-model-input"));
-    await userEvent.click(screen.getByTestId("agent-save-button"));
-
-    await waitFor(() => {
-      expect(upsertSpy).not.toHaveBeenCalled();
-    });
-  });
-});
-
-describe("AgentSettingsScreen — Codex credentials", () => {
   const acpCodexSettings = {
     ...MOCK_DEFAULT_USER_SETTINGS,
     agent_settings: {
@@ -478,97 +306,102 @@ describe("AgentSettingsScreen — Codex credentials", () => {
 
   beforeEach(() => {
     vi.spyOn(OptionService, "getConfig").mockResolvedValue(baseConfig);
-    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(acpCodexSettings);
     vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
       items: [],
       next_page_id: null,
     });
   });
 
-  it("shows the codex credentials field for the Codex preset", async () => {
+  it("shows the Claude info panel under the Claude Code preset", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      acpClaudeCodeSettings,
+    );
     renderAgentSettings();
     await waitFor(() => {
       expect(
-        screen.getByTestId("codex-credentials-input"),
+        screen.getByTestId("claude-subscription-info"),
       ).toBeInTheDocument();
     });
+    // The info panel surfaces the magic secret name the user must create.
+    const panel = screen.getByTestId("claude-subscription-info");
+    expect(panel).toHaveTextContent("CLAUDE_CODE_OAUTH_TOKEN");
+    // No info panel from the other preset.
     expect(
-      screen.queryByTestId("claude-credentials-input"),
+      screen.queryByTestId("codex-subscription-info"),
     ).not.toBeInTheDocument();
   });
 
-  it("shows saved badge when the Codex auth.json secret exists", async () => {
+  it("shows the Codex info panel under the Codex preset", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      acpCodexSettings,
+    );
+    renderAgentSettings();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("codex-subscription-info"),
+      ).toBeInTheDocument();
+    });
+    const panel = screen.getByTestId("codex-subscription-info");
+    expect(panel).toHaveTextContent("CODEX_AUTH_JSON");
+    expect(
+      screen.queryByTestId("claude-subscription-info"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the 'detected' badge when the Claude OAuth secret is set", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      acpClaudeCodeSettings,
+    );
     vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
       items: [
         {
-          name: "FILE:~/.codex/auth.json",
-          description: "Codex credentials",
+          name: "CLAUDE_CODE_OAUTH_TOKEN",
+          description: "Claude Max OAuth access token",
         },
       ],
       next_page_id: null,
     });
-
     renderAgentSettings();
-
     await waitFor(() => {
       expect(
-        screen.getByTestId("codex-credentials-saved-badge"),
+        screen.getByTestId("claude-subscription-info-detected"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("claude-subscription-info-missing"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows 'missing' badge when the Codex auth secret is not set", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      acpCodexSettings,
+    );
+    renderAgentSettings();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("codex-subscription-info-missing"),
       ).toBeInTheDocument();
     });
   });
 
-  it("saves the pasted blob verbatim as FILE:~/.codex/auth.json", async () => {
-    const upsertSpy = vi
-      .spyOn(SecretsService, "upsertSecret")
-      .mockResolvedValue(true);
-    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
-
+  it("shows the 'detected' badge when the Codex auth secret is set", async () => {
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
+      acpCodexSettings,
+    );
+    vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
+      items: [
+        {
+          name: "CODEX_AUTH_JSON",
+          description: "Codex ChatGPT auth.json",
+        },
+      ],
+      next_page_id: null,
+    });
     renderAgentSettings();
-
     await waitFor(() => {
       expect(
-        screen.getByTestId("codex-credentials-input"),
+        screen.getByTestId("codex-subscription-info-detected"),
       ).toBeInTheDocument();
-    });
-
-    const blob =
-      '{"auth_mode":"chatgpt","tokens":{"id_token":"abc"},"last_refresh":"2025-01-01"}';
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(screen.getByTestId("codex-credentials-input"), {
-      target: { value: blob },
-    });
-    await userEvent.click(screen.getByTestId("agent-save-button"));
-
-    await waitFor(() => {
-      expect(upsertSpy).toHaveBeenCalledWith(
-        "FILE:~/.codex/auth.json",
-        blob,
-        expect.any(String),
-      );
-    });
-  });
-
-  it("rejects a paste that doesn't look like a Codex auth.json", async () => {
-    const upsertSpy = vi
-      .spyOn(SecretsService, "upsertSecret")
-      .mockResolvedValue(true);
-
-    renderAgentSettings();
-
-    await waitFor(() => {
-      expect(
-        screen.getByTestId("codex-credentials-input"),
-      ).toBeInTheDocument();
-    });
-
-    const { fireEvent } = await import("@testing-library/react");
-    fireEvent.change(screen.getByTestId("codex-credentials-input"), {
-      target: { value: '{"random":"object"}' },
-    });
-    await userEvent.click(screen.getByTestId("agent-save-button"));
-
-    await waitFor(() => {
-      expect(upsertSpy).not.toHaveBeenCalled();
     });
   });
 });

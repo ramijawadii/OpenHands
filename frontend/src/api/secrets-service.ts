@@ -1,4 +1,3 @@
-import { isAxiosError } from "axios";
 import { openHands } from "./open-hands-axios";
 import {
   CustomSecret,
@@ -70,39 +69,18 @@ export class SecretsService {
     return status === 201;
   }
 
-  /**
-   * Create or replace a secret. If a secret with the given name already exists
-   * it is deleted first, then recreated with the new value.
-   */
-  static async upsertSecret(name: string, value: string, description?: string) {
-    try {
-      return await SecretsService.createSecret(name, value, description);
-    } catch (err) {
-      if (isAxiosError(err) && err.response?.status === 400) {
-        await SecretsService.deleteSecret(name);
-        return SecretsService.createSecret(name, value, description);
-      }
-      throw err;
-    }
-  }
-
   static async updateSecret(id: string, name: string, description?: string) {
     const secret: CustomSecretWithoutValue = {
       name,
       description,
     };
 
-    const { status } = await openHands.put(
-      `/api/v1/secrets/${encodeURIComponent(id)}`,
-      secret,
-    );
+    const { status } = await openHands.put(`/api/v1/secrets/${id}`, secret);
     return status === 200;
   }
 
   static async deleteSecret(id: string) {
-    const { status } = await openHands.delete<boolean>(
-      `/api/v1/secrets/${encodeURIComponent(id)}`,
-    );
+    const { status } = await openHands.delete<boolean>(`/api/v1/secrets/${id}`);
     return status === 200;
   }
 

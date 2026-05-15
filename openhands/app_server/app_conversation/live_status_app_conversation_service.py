@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
 import tempfile
 import zipfile
 from collections import defaultdict
@@ -1414,88 +1413,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         return request
 
-    # The Codex CLI authenticates ChatGPT-subscription users via OAuth tokens
-    # stored in ``$CODEX_HOME/auth.json`` (defaulting to ``~/.codex/auth.json``).
-    # Unlike Claude Code there is no env-var equivalent — codex insists on a
-    # writable file. Users paste the contents of their local file as a secret
-    # named ``CODEX_AUTH_JSON_SECRET_NAME`` and the backend writes it into a
-    # per-conversation temp directory before spawning the ACP subprocess.
-    #
-    # API-key Codex users do **not** need this: ``OPENAI_API_KEY`` flows through
-    # the standard secrets/env-var path and codex auto-generates an api-key
-    # ``auth.json`` from it at startup.
-    CODEX_AUTH_JSON_SECRET_NAME = 'FILE:~/.codex/auth.json'
-
-    @staticmethod
-    def _acp_file_secrets_base_dir() -> str:
-        """Base directory under which per-conversation ACP credential files live.
-
-        Defaults to ``tempfile.gettempdir()``, which works when the backend and
-        the ACP subprocess share a filesystem (process mode, or a single
-        all-in-one container). Deployments that run the agent-server in a
-        separate container/pod (e.g. the Docker sandbox) should set
-        ``OH_ACP_FILE_SECRETS_DIR`` to a path that is bind-mounted into the
-        agent container at the same path so both sides resolve the file
-        identically.
-        """
-        override = os.environ.get('OH_ACP_FILE_SECRETS_DIR')
-        if override:
-            return override
-        return tempfile.gettempdir()
-
-    @classmethod
-    def _inject_codex_auth(
-        cls, secrets: dict, conversation_id: UUID
-    ) -> tuple[dict, dict[str, str]]:
-        """Materialise a pasted Codex ``auth.json`` into a file on disk.
-
-        Returns ``(remaining_secrets, extra_env)``. The Codex auth secret is
-        removed from ``remaining_secrets`` so it is never exported as a plain
-        env var via ``AgentContext`` (the value is a JSON blob, not a token).
-        ``extra_env`` contains ``CODEX_HOME`` pointing at the directory that
-        now holds ``auth.json``.
-        """
-        secret_name = cls.CODEX_AUTH_JSON_SECRET_NAME
-        if secret_name not in secrets:
-            return secrets, {}
-
-        from openhands.sdk.secret import SecretSource
-
-        source = secrets[secret_name]
-        value = source.get_value() if isinstance(source, SecretSource) else str(source)
-        remaining = {k: v for k, v in secrets.items() if k != secret_name}
-        if not value:
-            _logger.warning(
-                'Codex auth secret %r is empty; skipping injection', secret_name
-            )
-            return remaining, {}
-
-        base_root = cls._acp_file_secrets_base_dir()
-        os.makedirs(base_root, mode=0o700, exist_ok=True)
-        codex_home = os.path.join(base_root, f'oh-acp-{conversation_id.hex}', 'codex')
-        os.makedirs(codex_home, mode=0o700, exist_ok=True)
-        auth_path = os.path.join(codex_home, 'auth.json')
-        with open(auth_path, 'w') as fh:
-            fh.write(value)
-        os.chmod(auth_path, 0o600)
-        _logger.info(
-            'Codex auth secret written to %r; injecting CODEX_HOME=%r',
-            auth_path,
-            codex_home,
-        )
-        return remaining, {'CODEX_HOME': codex_home}
-
-    @classmethod
-    def _cleanup_acp_temp_dir(cls, conversation_id: UUID) -> None:
-        """Remove the per-conversation ACP credential temp directory."""
-        base_tmp = os.path.join(
-            cls._acp_file_secrets_base_dir(),
-            f'oh-acp-{conversation_id.hex}',
-        )
-        if os.path.isdir(base_tmp):
-            shutil.rmtree(base_tmp, ignore_errors=True)
-            _logger.info('Cleaned up ACP temp dir for conversation %s', conversation_id)
-
     @staticmethod
     def _acp_provider_env(user: UserInfo) -> dict[str, str]:
         """Translate UI-saved LLM API key into the provider-native env var."""
@@ -1621,21 +1538,16 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         acp_settings = user.agent_settings  # already verified to be ACPAgentSettings
         assert isinstance(acp_settings, ACPAgentSettings)
 
-        # Codex ChatGPT-subscription users paste their ~/.codex/auth.json as a
-        # secret; materialise it into a per-conversation temp dir and expose
-        # CODEX_HOME. The secret is dropped from ``secrets`` so it is not also
-        # exported as a plain env var to the subprocess.
-        secrets, codex_env = self._inject_codex_auth(secrets, conversation_id)
-
         # Merge provider env vars (LLM-profile API key → provider-native var)
-        # with the user-configured acp_env and any codex-auth-derived env.
-        # User secrets named like ``CLAUDE_CODE_OAUTH_TOKEN`` / ``OPENAI_API_KEY``
-        # flow through ``AgentContext.secrets`` below and are exported by the
-        # SDK as env vars on the ACP subprocess. Priority (highest → lowest):
-        # user secrets > acp_env > codex_env > provider_env.
+        # with the user-configured acp_env. User secrets named like
+        # ``CLAUDE_CODE_OAUTH_TOKEN``, ``OPENAI_API_KEY``, ``CODEX_AUTH_JSON``,
+        # ``GOOGLE_APPLICATION_CREDENTIALS_JSON`` flow through
+        # ``AgentContext.secrets`` and are handled by ``ACPAgent`` itself
+        # (plain values become env vars; reserved names get materialised as
+        # files via the SDK's file-secret registry). Priority (highest →
+        # lowest): user secrets > acp_env > provider_env.
         merged_env: dict[str, str] = {
             **self._acp_provider_env(user),
-            **codex_env,
             **dict(acp_settings.acp_env or {}),
         }
 
@@ -1944,10 +1856,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             # Delete from database using the conversation info from app_conversation
             # AppConversation extends AppConversationInfo, so we can use it directly
             result = await self._delete_from_database(app_conversation)
-
-            # Clean up any per-conversation ACP credential files (no-op if
-            # none were ever written — e.g. non-Codex-subscription conversations).
-            self._cleanup_acp_temp_dir(conversation_id)
 
             return result
 

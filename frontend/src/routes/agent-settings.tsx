@@ -11,7 +11,6 @@ import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema"
 import { useConfig } from "#/hooks/query/use-config";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
-import { useUpsertSecret } from "#/hooks/mutation/use-upsert-secret";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsFieldSchema } from "#/types/settings";
 import { Typography } from "#/ui/typography";
@@ -31,59 +30,14 @@ import type { ACPProviderConfig } from "#/api/option-service/option.types";
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const CUSTOM_PRESET = "custom";
 const EMPTY_ACP_PROVIDERS: ACPProviderConfig[] = [];
-const CLAUDE_CREDENTIALS_SECRET_NAME = "CLAUDE_CODE_OAUTH_TOKEN";
-// Codex (ChatGPT subscription) needs a writable auth.json — there is no env
-// var equivalent. The backend materialises this secret into a file under
-// $CODEX_HOME before spawning the ACP subprocess. API-key Codex users
-// don't need this; OPENAI_API_KEY alone is sufficient.
-const CODEX_CREDENTIALS_SECRET_NAME = "FILE:~/.codex/auth.json";
 
-/**
- * Pull the OAuth access token out of a pasted Claude Max credentials blob.
- *
- * Accepts both shapes the UI lets users paste: the macOS Keychain export
- * (``{"claudeAiOauth": {"accessToken": ...}}``) and the flat Linux
- * ``~/.claude/credentials.json`` format (``{"access_token": ...}``). Returns
- * the trimmed token string, or null if no usable token was found.
- */
-function extractClaudeOauthToken(blob: string): string | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(blob);
-  } catch {
-    return null;
-  }
-  if (!parsed || typeof parsed !== "object") return null;
-  const root = parsed as Record<string, unknown>;
-  const oauth = root.claudeAiOauth;
-  if (oauth && typeof oauth === "object") {
-    const token = (oauth as Record<string, unknown>).accessToken;
-    if (typeof token === "string" && token.trim()) return token.trim();
-  }
-  const flat = root.access_token;
-  if (typeof flat === "string" && flat.trim()) return flat.trim();
-  return null;
-}
-
-/**
- * Sanity-check a pasted Codex ``auth.json``. Codex's file shape varies
- * across releases — older builds embed ``OPENAI_API_KEY`` directly, newer
- * builds carry ``tokens`` for ChatGPT-subscription OAuth, and both modes
- * use ``auth_mode``. We don't try to validate the full schema; we just
- * confirm the paste is parseable JSON with at least one expected field so
- * we catch obvious paste mistakes before saving.
- */
-function isLikelyCodexAuthJson(blob: string): boolean {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(blob);
-  } catch {
-    return false;
-  }
-  if (!parsed || typeof parsed !== "object") return false;
-  const root = parsed as Record<string, unknown>;
-  return "tokens" in root || "OPENAI_API_KEY" in root || "auth_mode" in root;
-}
+// Reserved secret names the SDK's ACPAgent recognises. Plain values become
+// env vars on the spawned subprocess. The two file-secret names are written
+// to disk before spawn and their controlling env vars are set automatically
+// by the SDK — see ``_FILE_SECRETS`` in
+// ``openhands.sdk.agent.acp_agent`` and OpenHands/software-agent-sdk#3269.
+const CLAUDE_OAUTH_SECRET_NAME = "CLAUDE_CODE_OAUTH_TOKEN";
+const CODEX_AUTH_SECRET_NAME = "CODEX_AUTH_JSON";
 
 function findEnableSubAgentsField(
   fields: SettingsFieldSchema[] | undefined,
@@ -118,12 +72,86 @@ function detectPreset(
   return CUSTOM_PRESET;
 }
 
+interface SubscriptionAuthInfoProps {
+  testId: string;
+  title: string;
+  instructions: string;
+  secretName: string;
+  secretIsSet: boolean;
+  detectedLabel: string;
+  notDetectedLabel: string;
+  extractCommands: string[];
+}
+
+/**
+ * Static info panel shown under each ACP preset that supports subscription
+ * auth. Tells the user what magic secret name to create in Settings →
+ * Secrets, surfaces a detected/not-detected indicator so they know the
+ * secret is in place, and lists copy-pasteable commands for extracting
+ * the credential on macOS / Linux.
+ */
+function SubscriptionAuthInfo({
+  testId,
+  title,
+  instructions,
+  secretName,
+  secretIsSet,
+  detectedLabel,
+  notDetectedLabel,
+  extractCommands,
+}: SubscriptionAuthInfoProps) {
+  return (
+    <div
+      data-testid={testId}
+      className="flex flex-col gap-2.5 rounded-sm border border-[#3a3f4b] bg-[#1a1d24] p-3"
+    >
+      <div className="flex items-center gap-2">
+        <Typography.Text className="text-sm font-medium">
+          {title}
+        </Typography.Text>
+        {secretIsSet ? (
+          <span
+            data-testid={`${testId}-detected`}
+            className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700/50"
+          >
+            {detectedLabel}
+          </span>
+        ) : (
+          <span
+            data-testid={`${testId}-missing`}
+            className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-300 border border-yellow-700/50"
+          >
+            {notDetectedLabel}
+          </span>
+        )}
+      </div>
+      <Typography.Paragraph className="text-xs text-[#A3A3A3] leading-5">
+        {instructions}
+      </Typography.Paragraph>
+      <code className="bg-[#0f1117] text-[#E0E0E0] rounded px-2 py-1 font-mono text-xs block">
+        {secretName}
+      </code>
+      {extractCommands.length > 0 && (
+        <div className="flex flex-col gap-1">
+          {extractCommands.map((cmd) => (
+            <code
+              key={cmd}
+              className="bg-[#0f1117] text-[#A3A3A3] rounded px-2 py-1 font-mono text-xs block"
+            >
+              {cmd}
+            </code>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const clientLoader = createPermissionGuard("view_llm_settings");
 
 export default function AgentSettingsScreen() {
   const { t } = useTranslation();
   const { mutate: saveSettings, isPending } = useSaveSettings();
-  const { mutateAsync: upsertSecret } = useUpsertSecret();
   const { data: settings, isLoading: isSettingsLoading } = useSettings();
   const { data: config, isLoading: isConfigLoading } = useConfig();
   const { data: schema, isLoading: isSchemaLoading } = useAgentSettingsSchema(
@@ -158,26 +186,25 @@ export default function AgentSettingsScreen() {
   const [agentType, setAgentType] = useState<"openhands" | "acp">("openhands");
   const [commandText, setCommandText] = useState("");
   const [acpModel, setAcpModel] = useState("");
-  const [claudeCredentials, setClaudeCredentials] = useState("");
-  const [codexCredentials, setCodexCredentials] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
-  const { data: claudeSecrets, refetch: refetchClaudeSecrets } =
-    useSearchSecrets({
-      nameContains: CLAUDE_CREDENTIALS_SECRET_NAME,
-      enabled: isAcpEnabled,
-    });
-  const { data: codexSecrets, refetch: refetchCodexSecrets } = useSearchSecrets(
-    {
-      nameContains: CODEX_CREDENTIALS_SECRET_NAME,
-      enabled: isAcpEnabled,
-    },
+  // Detect whether the user has saved the magic subscription-auth secrets.
+  // The values are never read here — we only surface a "found" indicator
+  // next to the per-preset instructions so users know whether their secret
+  // is in place. The SDK reads them at conversation-start time.
+  const { data: claudeSecrets } = useSearchSecrets({
+    nameContains: CLAUDE_OAUTH_SECRET_NAME,
+    enabled: isAcpEnabled,
+  });
+  const { data: codexSecrets } = useSearchSecrets({
+    nameContains: CODEX_AUTH_SECRET_NAME,
+    enabled: isAcpEnabled,
+  });
+  const hasClaudeOauthSecret = claudeSecrets?.some(
+    (s) => s.name === CLAUDE_OAUTH_SECRET_NAME,
   );
-  const hasClaudeCredentials = claudeSecrets?.some(
-    (s) => s.name === CLAUDE_CREDENTIALS_SECRET_NAME,
-  );
-  const hasCodexCredentials = codexSecrets?.some(
-    (s) => s.name === CODEX_CREDENTIALS_SECRET_NAME,
+  const hasCodexAuthSecret = codexSecrets?.some(
+    (s) => s.name === CODEX_AUTH_SECRET_NAME,
   );
 
   // Prevent re-initialising ACP fields on every config refetch; only
@@ -229,67 +256,12 @@ export default function AgentSettingsScreen() {
     "npx -y <package-name>";
   const isClaudeCode = isAcp && selectedPreset === "claude-code";
   const isCodex = isAcp && selectedPreset === "codex";
-  const hasCredentialsToPersist =
-    (isClaudeCode && claudeCredentials.trim().length > 0) ||
-    (isCodex && codexCredentials.trim().length > 0);
   const subAgentsDirty = isSubAgentsEnabled !== initialSubAgentsEnabled;
-  const canSave = isAcp
-    ? (isDirty || hasCredentialsToPersist) && !isAcpInvalid
-    : isDirty || subAgentsDirty;
+  const canSave = isAcp ? isDirty && !isAcpInvalid : isDirty || subAgentsDirty;
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    let credentialsSaved = false;
-    // Save Claude credentials first if entered (Claude Code preset only).
-    if (isClaudeCode && claudeCredentials.trim()) {
-      const token = extractClaudeOauthToken(claudeCredentials.trim());
-      if (!token) {
-        displayErrorToast(t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_INVALID));
-        return;
-      }
-
-      try {
-        await upsertSecret({
-          name: CLAUDE_CREDENTIALS_SECRET_NAME,
-          value: token,
-          description:
-            "Claude Max OAuth access token (exported as CLAUDE_CODE_OAUTH_TOKEN on the ACP subprocess)",
-        });
-        setClaudeCredentials("");
-        refetchClaudeSecrets();
-        credentialsSaved = true;
-      } catch {
-        displayErrorToast(t(I18nKey.ERROR$GENERIC));
-        return;
-      }
-    }
-
-    // Save Codex credentials if entered (Codex preset only). Unlike Claude
-    // we store the JSON blob verbatim — the backend writes it to a file
-    // before spawning codex, since codex authenticates via auth.json rather
-    // than an env var.
-    if (isCodex && codexCredentials.trim()) {
-      if (!isLikelyCodexAuthJson(codexCredentials.trim())) {
-        displayErrorToast(t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_INVALID));
-        return;
-      }
-      try {
-        await upsertSecret({
-          name: CODEX_CREDENTIALS_SECRET_NAME,
-          value: codexCredentials.trim(),
-          description:
-            "Codex ChatGPT auth.json (materialised at $CODEX_HOME/auth.json on the ACP subprocess)",
-        });
-        setCodexCredentials("");
-        refetchCodexSecrets();
-        credentialsSaved = true;
-      } catch {
-        displayErrorToast(t(I18nKey.ERROR$GENERIC));
-        return;
-      }
-    }
-
-    if (!isDirty && !credentialsSaved) return;
+    if (!isDirty) return;
     let agentSettingsDiff: Record<string, unknown>;
 
     if (isAcp) {
@@ -477,80 +449,40 @@ export default function AgentSettingsScreen() {
             </div>
 
             {isClaudeCode && (
-              <div className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-2">
-                  <Typography.Text className="text-sm">
-                    {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_LABEL)}
-                  </Typography.Text>
-                  {hasClaudeCredentials && (
-                    <span
-                      data-testid="claude-credentials-saved-badge"
-                      className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700/50"
-                    >
-                      {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_SAVED)}
-                    </span>
-                  )}
-                </div>
-                <textarea
-                  data-testid="claude-credentials-input"
-                  className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[80px] resize-y focus:outline-none focus:border-white"
-                  value={claudeCredentials}
-                  placeholder={t(
-                    I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_PLACEHOLDER,
-                  )}
-                  autoComplete="off"
-                  spellCheck={false}
-                  onChange={(e) => setClaudeCredentials(e.target.value)}
-                />
-                <div className="text-xs text-[#717888] flex flex-col gap-1">
-                  <span>
-                    {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_HINT)}
-                  </span>
-                  <code className="bg-[#1a1a1a] text-[#A3A3A3] rounded px-2 py-1 font-mono block">
-                    {`macOS: ${t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_CMD_MACOS)}`}
-                  </code>
-                  <code className="bg-[#1a1a1a] text-[#A3A3A3] rounded px-2 py-1 font-mono block">
-                    {`Linux: ${t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_CMD_LINUX)}`}
-                  </code>
-                </div>
-              </div>
+              <SubscriptionAuthInfo
+                testId="claude-subscription-info"
+                title={t(I18nKey.SETTINGS$AGENT_AUTH_SUBSCRIPTION_TITLE)}
+                instructions={t(
+                  I18nKey.SETTINGS$AGENT_CLAUDE_AUTH_INSTRUCTIONS,
+                )}
+                secretName={CLAUDE_OAUTH_SECRET_NAME}
+                secretIsSet={!!hasClaudeOauthSecret}
+                detectedLabel={t(I18nKey.SETTINGS$AGENT_AUTH_SECRET_DETECTED)}
+                notDetectedLabel={t(
+                  I18nKey.SETTINGS$AGENT_AUTH_SECRET_NOT_DETECTED,
+                )}
+                extractCommands={[
+                  `macOS: ${t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_CMD_MACOS)}`,
+                  `Linux: ${t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_CMD_LINUX)}`,
+                ]}
+              />
             )}
 
             {isCodex && (
-              <div className="flex flex-col gap-2.5">
-                <div className="flex items-center gap-2">
-                  <Typography.Text className="text-sm">
-                    {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_LABEL)}
-                  </Typography.Text>
-                  {hasCodexCredentials && (
-                    <span
-                      data-testid="codex-credentials-saved-badge"
-                      className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700/50"
-                    >
-                      {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_SAVED)}
-                    </span>
-                  )}
-                </div>
-                <textarea
-                  data-testid="codex-credentials-input"
-                  className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[80px] resize-y focus:outline-none focus:border-white"
-                  value={codexCredentials}
-                  placeholder={t(
-                    I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_PLACEHOLDER,
-                  )}
-                  autoComplete="off"
-                  spellCheck={false}
-                  onChange={(e) => setCodexCredentials(e.target.value)}
-                />
-                <div className="text-xs text-[#717888] flex flex-col gap-1">
-                  <span>
-                    {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_HINT)}
-                  </span>
-                  <code className="bg-[#1a1a1a] text-[#A3A3A3] rounded px-2 py-1 font-mono block">
-                    {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_CMD)}
-                  </code>
-                </div>
-              </div>
+              <SubscriptionAuthInfo
+                testId="codex-subscription-info"
+                title={t(I18nKey.SETTINGS$AGENT_AUTH_SUBSCRIPTION_TITLE)}
+                instructions={t(I18nKey.SETTINGS$AGENT_CODEX_AUTH_INSTRUCTIONS)}
+                secretName={CODEX_AUTH_SECRET_NAME}
+                secretIsSet={!!hasCodexAuthSecret}
+                detectedLabel={t(I18nKey.SETTINGS$AGENT_AUTH_SECRET_DETECTED)}
+                notDetectedLabel={t(
+                  I18nKey.SETTINGS$AGENT_AUTH_SECRET_NOT_DETECTED,
+                )}
+                extractCommands={[
+                  t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_CMD),
+                ]}
+              />
             )}
           </>
         )}
