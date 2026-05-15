@@ -21,9 +21,6 @@ from openhands.agent_server.models import (
     StartConversationRequest,
     TextContent,
 )
-from openhands.app_server.app_conversation.agent_server_routing import (
-    ACP_SERVER_TAG,
-)
 from openhands.app_server.app_conversation.app_conversation_info_service import (
     AppConversationInfoService,
 )
@@ -359,7 +356,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 # the SDK registry without keeping a per-conversation column.
                 acp_user = await self.user_context.get_user_info()
                 if isinstance(acp_user.agent_settings, ACPAgentSettings):
-                    tags[ACP_SERVER_TAG] = acp_user.agent_settings.acp_server
+                    tags['acp_server'] = acp_user.agent_settings.acp_server
             else:
                 llm_model = request_agent.llm.model
                 agent_kind = 'openhands'
@@ -1254,23 +1251,15 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 plugins=plugins,
                 api_secrets=api_secrets,
             )
-            # --- skills (mirrors the LLM skill-loading block below) ----------
             if remote_workspace:
-                try:
-                    acp_request = acp_request.model_copy(
-                        update={
-                            'agent': await self._load_skills_and_update_agent(
-                                sandbox,
-                                acp_request.agent,
-                                remote_workspace,
-                                selected_repository,
-                                get_project_dir(working_dir, selected_repository),
-                                disabled_skills=user.disabled_skills,
-                            )
-                        }
-                    )
-                except Exception as e:
-                    _logger.warning(f'Failed to load skills: {e}', exc_info=True)
+                acp_request = await self._load_skills_onto_request(
+                    acp_request,
+                    sandbox,
+                    remote_workspace,
+                    selected_repository,
+                    get_project_dir(working_dir, selected_repository),
+                    user.disabled_skills,
+                )
             return acp_request
 
         project_dir = get_project_dir(working_dir, selected_repository)
@@ -1358,21 +1347,9 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             agent, agent_type, mcp_config, conversation_id, user.id
         )
 
-        # --- skills + hooks (require remote workspace) ----------------------
+        # --- hooks (require remote workspace; must precede request build) -----
         hook_config: HookConfig | None = None
         if remote_workspace:
-            try:
-                agent = await self._load_skills_and_update_agent(
-                    sandbox,
-                    agent,
-                    remote_workspace,
-                    selected_repository,
-                    project_dir,
-                    disabled_skills=user.disabled_skills,
-                )
-            except Exception as e:
-                _logger.warning(f'Failed to load skills: {e}', exc_info=True)
-
             try:
                 _logger.debug(
                     f'Attempting to load hooks from workspace: '
@@ -1420,7 +1397,49 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         # Pass agent explicitly — it has server-only overrides (system
         # prompts, LLM metadata, skills) applied after create_agent().
-        return conv_settings.create_request(StartConversationRequest, agent=agent)
+        request = conv_settings.create_request(StartConversationRequest, agent=agent)
+
+        # --- skills (require remote workspace) ------------------------------
+        if remote_workspace:
+            request = await self._load_skills_onto_request(
+                request,
+                sandbox,
+                remote_workspace,
+                selected_repository,
+                project_dir,
+                user.disabled_skills,
+            )
+
+        return request
+
+    async def _load_skills_onto_request(
+        self,
+        request: StartConversationRequest,
+        sandbox: SandboxInfo,
+        remote_workspace: AsyncRemoteWorkspace,
+        selected_repository: str | None,
+        project_dir: str,
+        disabled_skills: list[str] | None,
+    ) -> StartConversationRequest:
+        """Load workspace skills onto a conversation request's agent.
+
+        Used by both the LLM and ACP arms of
+        ``_build_start_conversation_request_for_user`` so that skill-loading
+        semantics only need to change in one place.
+        """
+        try:
+            updated_agent = await self._load_skills_and_update_agent(
+                sandbox,
+                request.agent,
+                remote_workspace,
+                selected_repository,
+                project_dir,
+                disabled_skills=disabled_skills,
+            )
+            return request.model_copy(update={'agent': updated_agent})
+        except Exception as e:
+            _logger.warning(f'Failed to load skills: {e}', exc_info=True)
+            return request
 
     async def _build_acp_start_conversation_request(
         self,
