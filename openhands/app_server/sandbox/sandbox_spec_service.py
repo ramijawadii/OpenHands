@@ -12,11 +12,8 @@ from openhands.app_server.services.injector import Injector
 from openhands.sdk.utils.models import DiscriminatedUnionMixin
 
 # The version of the agent server to use for deployments.
-# Typically this will be the same as the values from the pyproject.toml.
-# Pinned to the agent-server build for SDK commit fa29ae28 (post v1.22.0)
-# that includes software-agent-sdk#3227 (unified ACP conversation endpoint).
-# Bump to a tagged release once one is published that contains the merge.
-AGENT_SERVER_IMAGE = 'ghcr.io/openhands/agent-server:fa29ae2-python'
+# Typically this will be the same as the values from the pyproject.toml
+AGENT_SERVER_IMAGE = 'ghcr.io/openhands/agent-server:1.22.1-python'
 
 
 class SandboxSpecService(ABC):
