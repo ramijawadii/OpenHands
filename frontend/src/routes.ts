@@ -15,6 +15,8 @@ export default [
     route("launch", "routes/launch.tsx"),
     route("settings", "routes/settings.tsx", [
       index("routes/llm-settings.tsx"),
+      route("agent", "routes/agent-settings.tsx"),
+      route("acp", "routes/acp-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("verification", "routes/verification-settings.tsx"),
       route("org-defaults", "routes/org-default-llm-settings.tsx"),
@@ -27,7 +29,6 @@ export default [
         "routes/org-default-verification-settings.tsx",
       ),
       route("mcp", "routes/mcp-settings.tsx"),
-      route("agent", "routes/agent-settings.tsx"),
       route("skills", "routes/skills-settings.tsx"),
       route("user", "routes/user-settings.tsx"),
       route("integrations", "routes/git-settings.tsx"),

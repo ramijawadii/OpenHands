@@ -44,11 +44,11 @@ from openhands.app_server.user.user_context import UserContext
 from openhands.sdk import Agent, Event
 from openhands.sdk.llm import LLM
 from openhands.sdk.secret import LookupSecret, StaticSecret
-from openhands.sdk.settings import AgentSettings, ConversationSettings
+from openhands.sdk.settings import ConversationSettings, OpenHandsAgentSettings
 from openhands.sdk.workspace.remote.async_remote_workspace import AsyncRemoteWorkspace
 
 
-def _build_test_user_agent_settings(user: SimpleNamespace) -> AgentSettings:
+def _build_test_user_agent_settings(user: SimpleNamespace) -> OpenHandsAgentSettings:
     llm_vals: dict = {}
     model = getattr(user, 'llm_model', '') or ''
     llm_vals['model'] = model
@@ -72,7 +72,7 @@ def _build_test_user_agent_settings(user: SimpleNamespace) -> AgentSettings:
 
 class _TestUserInfo(SimpleNamespace):
     @property
-    def agent_settings(self) -> AgentSettings:
+    def agent_settings(self) -> OpenHandsAgentSettings:
         override = getattr(self, '_agent_settings_override', None)
         if override is not None:
             return override
@@ -93,7 +93,7 @@ class _TestUserInfo(SimpleNamespace):
             kwargs['max_iterations'] = max_iter
         return ConversationSettings(**kwargs)
 
-    def to_agent_settings(self) -> AgentSettings:
+    def to_agent_settings(self) -> OpenHandsAgentSettings:
         return self.agent_settings
 
 
@@ -931,13 +931,29 @@ class TestLiveStatusAppConversationService:
         )
 
     @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.get_registered_agent_definitions'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.register_builtins_agents'
+    )
+    @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',
         return_value=[],
     )
     @pytest.mark.asyncio
-    async def test_build_request_passes_enable_sub_agents_true(self, mock_tools):
-        """get_default_tools receives enable_sub_agents=True when the user setting is on."""
+    async def test_build_request_passes_enable_sub_agents_true(
+        self, mock_tools, mock_register_builtins, mock_get_agent_definitions
+    ):
+        """Built-in sub-agents are registered when the user setting is on."""
         from openhands.sdk.settings import OpenHandsAgentSettings
+        from openhands.sdk.subagent.schema import AgentDefinition
+
+        agent_definition = AgentDefinition(
+            name='general-purpose',
+            description='General-purpose subagent',
+            tools=['terminal'],
+        )
+        mock_get_agent_definitions.return_value = [agent_definition]
 
         agent_settings = OpenHandsAgentSettings(
             llm={'model': 'gpt-4', 'api_key': 'test-key'},
@@ -950,7 +966,7 @@ class TestLiveStatusAppConversationService:
         self.service._setup_secrets_for_git_providers = AsyncMock(return_value={})
         self.service._configure_llm_and_mcp = AsyncMock(return_value=(real_llm, {}))
 
-        await self.service._build_start_conversation_request_for_user(
+        result = await self.service._build_start_conversation_request_for_user(
             sandbox=self.mock_sandbox,
             conversation_id=uuid4(),
             initial_message=None,
@@ -960,15 +976,26 @@ class TestLiveStatusAppConversationService:
             remote_workspace=None,
         )
 
+        mock_register_builtins.assert_called_once_with(enable_browser=True)
+        mock_get_agent_definitions.assert_called_once_with()
         mock_tools.assert_called_once_with(enable_browser=True, enable_sub_agents=True)
+        assert result.agent_definitions == [agent_definition]
 
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.get_registered_agent_definitions'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.live_status_app_conversation_service.register_builtins_agents'
+    )
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',
         return_value=[],
     )
     @pytest.mark.asyncio
-    async def test_build_request_passes_enable_sub_agents_false(self, mock_tools):
-        """get_default_tools receives enable_sub_agents=False when the user setting is off."""
+    async def test_build_request_passes_enable_sub_agents_false(
+        self, mock_tools, mock_register_builtins, mock_get_agent_definitions
+    ):
+        """Built-in sub-agents are registered but not forwarded when disabled."""
         from openhands.sdk.settings import OpenHandsAgentSettings
 
         agent_settings = OpenHandsAgentSettings(
@@ -982,7 +1009,7 @@ class TestLiveStatusAppConversationService:
         self.service._setup_secrets_for_git_providers = AsyncMock(return_value={})
         self.service._configure_llm_and_mcp = AsyncMock(return_value=(real_llm, {}))
 
-        await self.service._build_start_conversation_request_for_user(
+        result = await self.service._build_start_conversation_request_for_user(
             sandbox=self.mock_sandbox,
             conversation_id=uuid4(),
             initial_message=None,
@@ -992,7 +1019,10 @@ class TestLiveStatusAppConversationService:
             remote_workspace=None,
         )
 
+        mock_register_builtins.assert_called_once_with(enable_browser=True)
+        mock_get_agent_definitions.assert_not_called()
         mock_tools.assert_called_once_with(enable_browser=True, enable_sub_agents=False)
+        assert result.agent_definitions == []
 
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',

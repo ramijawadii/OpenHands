@@ -102,7 +102,7 @@ export const clientLoader = async ({ request }: Route.ClientLoaderArgs) => {
           staleTime: 1000 * 60 * 5,
         });
         if (personalSettings?.agent_settings?.agent_kind === "acp") {
-          return redirect("/settings/agent");
+          return redirect("/settings/acp");
         }
       } catch {
         // Settings unfetchable (unauthed, no org, network) — let the
