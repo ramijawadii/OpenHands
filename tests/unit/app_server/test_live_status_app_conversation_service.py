@@ -750,6 +750,50 @@ class TestLiveStatusAppConversationService:
         # Assert
         assert path == '/workspace/project/agents-tmp-config/PLAN.md'
 
+
+    def test_build_observability_context_includes_repository(self):
+        conversation_id = uuid4()
+
+        metadata, tags = self.service._build_observability_context(
+            conversation_id,
+            agent_kind='openhands',
+            selected_repository='OpenHands/software-agent-sdk',
+            selected_branch='main',
+            git_provider=ProviderType.GITHUB,
+        )
+
+        assert metadata == {
+            'app': 'openhands',
+            'conversation_id': str(conversation_id),
+            'agent_kind': 'openhands',
+            'repo_name': 'OpenHands/software-agent-sdk',
+            'selected_branch': 'main',
+            'git_provider': 'github',
+        }
+        assert 'repo:OpenHands/software-agent-sdk' in tags
+        assert 'git_provider:github' in tags
+
+    def test_apply_server_overrides_adds_repo_metadata(self):
+        llm = LLM(model='openhands/gpt-4', api_key='k', usage_id='agent')
+        agent = Agent(llm=llm, tools=[])
+
+        updated = self.service._apply_server_agent_overrides(
+            agent,
+            AgentType.DEFAULT,
+            {},
+            uuid4(),
+            'user-1',
+            repo_name='OpenHands/software-agent-sdk',
+            git_provider=ProviderType.GITHUB,
+            selected_branch='main',
+        )
+
+        metadata = updated.llm.litellm_extra_body['metadata']
+        assert metadata['repo_name'] == 'OpenHands/software-agent-sdk'
+        assert metadata['git_provider'] == 'github'
+        assert metadata['selected_branch'] == 'main'
+        assert 'repo:OpenHands/software-agent-sdk' in metadata['tags']
+
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_default_tools',
         return_value=[],

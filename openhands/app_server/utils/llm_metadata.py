@@ -30,6 +30,9 @@ def get_llm_metadata(
     llm_type: str,
     conversation_id: UUID | str | None = None,
     user_id: str | None = None,
+    repo_name: str | None = None,
+    git_provider: str | None = None,
+    selected_branch: str | None = None,
 ) -> dict[str, Any]:
     """Generate LLM metadata for OpenHands V1 conversations.
 
@@ -40,6 +43,9 @@ def get_llm_metadata(
         llm_type: Type of LLM usage (e.g., 'agent', 'condenser', 'planning_condenser')
         conversation_id: Optional conversation identifier
         user_id: Optional user identifier
+        repo_name: Optional selected repository name
+        git_provider: Optional git provider identifier
+        selected_branch: Optional selected branch name
 
     Returns:
         Dictionary containing metadata for LLM initialization
@@ -69,5 +75,14 @@ def get_llm_metadata(
 
     if user_id is not None:
         metadata['trace_user_id'] = user_id
+
+    if repo_name:
+        metadata['repo_name'] = repo_name
+        metadata['tags'].append(f'repo:{repo_name}')
+    if git_provider:
+        metadata['git_provider'] = git_provider
+        metadata['tags'].append(f'git_provider:{git_provider}')
+    if selected_branch:
+        metadata['selected_branch'] = selected_branch
 
     return metadata
