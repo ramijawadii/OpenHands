@@ -174,6 +174,7 @@ export default function AgentSettingsScreen() {
 
   // ── Save ─────────────────────────────────────────────────────────────────
   const handleSave = async () => {
+    let credentialsSaved = false;
     // Save Claude credentials first if entered (Claude Code preset only).
     if (isClaudeCode && claudeCredentials.trim()) {
       try {
@@ -206,13 +207,14 @@ export default function AgentSettingsScreen() {
         });
         setClaudeCredentials("");
         refetchFileSecrets();
+        credentialsSaved = true;
       } catch {
         displayErrorToast(t(I18nKey.ERROR$GENERIC));
         return;
       }
     }
 
-    if (!isDirty) return;
+    if (!isDirty && !credentialsSaved) return;
     let agentSettingsDiff: Record<string, unknown>;
 
     if (isAcp) {
