@@ -382,6 +382,33 @@ def config_from_env() -> AppServerConfig:
                         )
                 if mounts:
                     docker_sandbox_kwargs['mounts'] = mounts
+
+            # Some ACP providers need credential files written to disk where
+            # the subprocess can see them (e.g. Codex reads
+            # ``$CODEX_HOME/auth.json``). When the agent-server runs in a
+            # separate container, the backend's host temp dir is invisible.
+            # ``OH_ACP_FILE_SECRETS_DIR``, if set, names a host directory we
+            # bind-mount 1:1 into the agent container so both sides resolve
+            # paths identically; the service-side helper writes credential
+            # files under that root. In single-process / single-container
+            # deployments this is unset and ``tempfile.gettempdir()`` is fine.
+            acp_file_secrets_dir = os.getenv('OH_ACP_FILE_SECRETS_DIR')
+            if acp_file_secrets_dir:
+                from openhands.app_server.sandbox.docker_sandbox_service import (
+                    VolumeMount,
+                )
+
+                os.makedirs(acp_file_secrets_dir, exist_ok=True)
+                existing_mounts = list(docker_sandbox_kwargs.get('mounts', []))
+                existing_mounts.append(
+                    VolumeMount(
+                        host_path=acp_file_secrets_dir,
+                        container_path=acp_file_secrets_dir,
+                        mode='rw',
+                    )
+                )
+                docker_sandbox_kwargs['mounts'] = existing_mounts
+
             config.sandbox = DockerSandboxServiceInjector(**docker_sandbox_kwargs)
 
     if config.sandbox_spec is None:

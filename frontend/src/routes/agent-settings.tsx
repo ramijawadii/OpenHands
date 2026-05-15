@@ -32,6 +32,11 @@ const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const CUSTOM_PRESET = "custom";
 const EMPTY_ACP_PROVIDERS: ACPProviderConfig[] = [];
 const CLAUDE_CREDENTIALS_SECRET_NAME = "CLAUDE_CODE_OAUTH_TOKEN";
+// Codex (ChatGPT subscription) needs a writable auth.json — there is no env
+// var equivalent. The backend materialises this secret into a file under
+// $CODEX_HOME before spawning the ACP subprocess. API-key Codex users
+// don't need this; OPENAI_API_KEY alone is sufficient.
+const CODEX_CREDENTIALS_SECRET_NAME = "FILE:~/.codex/auth.json";
 
 /**
  * Pull the OAuth access token out of a pasted Claude Max credentials blob.
@@ -58,6 +63,26 @@ function extractClaudeOauthToken(blob: string): string | null {
   const flat = root.access_token;
   if (typeof flat === "string" && flat.trim()) return flat.trim();
   return null;
+}
+
+/**
+ * Sanity-check a pasted Codex ``auth.json``. Codex's file shape varies
+ * across releases — older builds embed ``OPENAI_API_KEY`` directly, newer
+ * builds carry ``tokens`` for ChatGPT-subscription OAuth, and both modes
+ * use ``auth_mode``. We don't try to validate the full schema; we just
+ * confirm the paste is parseable JSON with at least one expected field so
+ * we catch obvious paste mistakes before saving.
+ */
+function isLikelyCodexAuthJson(blob: string): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(blob);
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== "object") return false;
+  const root = parsed as Record<string, unknown>;
+  return "tokens" in root || "OPENAI_API_KEY" in root || "auth_mode" in root;
 }
 
 function findEnableSubAgentsField(
@@ -134,15 +159,25 @@ export default function AgentSettingsScreen() {
   const [commandText, setCommandText] = useState("");
   const [acpModel, setAcpModel] = useState("");
   const [claudeCredentials, setClaudeCredentials] = useState("");
+  const [codexCredentials, setCodexCredentials] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
-  const { data: credentialSecrets, refetch: refetchCredentialSecrets } =
+  const { data: claudeSecrets, refetch: refetchClaudeSecrets } =
     useSearchSecrets({
       nameContains: CLAUDE_CREDENTIALS_SECRET_NAME,
       enabled: isAcpEnabled,
     });
-  const hasClaudeCredentials = credentialSecrets?.some(
+  const { data: codexSecrets, refetch: refetchCodexSecrets } = useSearchSecrets(
+    {
+      nameContains: CODEX_CREDENTIALS_SECRET_NAME,
+      enabled: isAcpEnabled,
+    },
+  );
+  const hasClaudeCredentials = claudeSecrets?.some(
     (s) => s.name === CLAUDE_CREDENTIALS_SECRET_NAME,
+  );
+  const hasCodexCredentials = codexSecrets?.some(
+    (s) => s.name === CODEX_CREDENTIALS_SECRET_NAME,
   );
 
   // Prevent re-initialising ACP fields on every config refetch; only
@@ -193,8 +228,10 @@ export default function AgentSettingsScreen() {
     formatCommand(acpProviders[0]?.default_command ?? []) ||
     "npx -y <package-name>";
   const isClaudeCode = isAcp && selectedPreset === "claude-code";
+  const isCodex = isAcp && selectedPreset === "codex";
   const hasCredentialsToPersist =
-    isClaudeCode && claudeCredentials.trim().length > 0;
+    (isClaudeCode && claudeCredentials.trim().length > 0) ||
+    (isCodex && codexCredentials.trim().length > 0);
   const subAgentsDirty = isSubAgentsEnabled !== initialSubAgentsEnabled;
   const canSave = isAcp
     ? (isDirty || hasCredentialsToPersist) && !isAcpInvalid
@@ -219,7 +256,32 @@ export default function AgentSettingsScreen() {
             "Claude Max OAuth access token (exported as CLAUDE_CODE_OAUTH_TOKEN on the ACP subprocess)",
         });
         setClaudeCredentials("");
-        refetchCredentialSecrets();
+        refetchClaudeSecrets();
+        credentialsSaved = true;
+      } catch {
+        displayErrorToast(t(I18nKey.ERROR$GENERIC));
+        return;
+      }
+    }
+
+    // Save Codex credentials if entered (Codex preset only). Unlike Claude
+    // we store the JSON blob verbatim — the backend writes it to a file
+    // before spawning codex, since codex authenticates via auth.json rather
+    // than an env var.
+    if (isCodex && codexCredentials.trim()) {
+      if (!isLikelyCodexAuthJson(codexCredentials.trim())) {
+        displayErrorToast(t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_INVALID));
+        return;
+      }
+      try {
+        await upsertSecret({
+          name: CODEX_CREDENTIALS_SECRET_NAME,
+          value: codexCredentials.trim(),
+          description:
+            "Codex ChatGPT auth.json (materialised at $CODEX_HOME/auth.json on the ACP subprocess)",
+        });
+        setCodexCredentials("");
+        refetchCodexSecrets();
         credentialsSaved = true;
       } catch {
         displayErrorToast(t(I18nKey.ERROR$GENERIC));
@@ -449,6 +511,43 @@ export default function AgentSettingsScreen() {
                   </code>
                   <code className="bg-[#1a1a1a] text-[#A3A3A3] rounded px-2 py-1 font-mono block">
                     {`Linux: ${t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_CMD_LINUX)}`}
+                  </code>
+                </div>
+              </div>
+            )}
+
+            {isCodex && (
+              <div className="flex flex-col gap-2.5">
+                <div className="flex items-center gap-2">
+                  <Typography.Text className="text-sm">
+                    {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_LABEL)}
+                  </Typography.Text>
+                  {hasCodexCredentials && (
+                    <span
+                      data-testid="codex-credentials-saved-badge"
+                      className="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400 border border-green-700/50"
+                    >
+                      {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_SAVED)}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  data-testid="codex-credentials-input"
+                  className="bg-tertiary border border-[#717888] rounded-sm p-2 text-sm font-mono text-white placeholder:italic placeholder:text-[#717888] min-h-[80px] resize-y focus:outline-none focus:border-white"
+                  value={codexCredentials}
+                  placeholder={t(
+                    I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_PLACEHOLDER,
+                  )}
+                  autoComplete="off"
+                  spellCheck={false}
+                  onChange={(e) => setCodexCredentials(e.target.value)}
+                />
+                <div className="text-xs text-[#717888] flex flex-col gap-1">
+                  <span>
+                    {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_HINT)}
+                  </span>
+                  <code className="bg-[#1a1a1a] text-[#A3A3A3] rounded px-2 py-1 font-mono block">
+                    {t(I18nKey.SETTINGS$AGENT_CODEX_CREDENTIALS_CMD)}
                   </code>
                 </div>
               </div>

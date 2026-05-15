@@ -462,3 +462,113 @@ describe("AgentSettingsScreen — Claude Max credentials", () => {
     });
   });
 });
+
+describe("AgentSettingsScreen — Codex credentials", () => {
+  const acpCodexSettings = {
+    ...MOCK_DEFAULT_USER_SETTINGS,
+    agent_settings: {
+      agent_kind: "acp",
+      acp_server: "custom",
+      acp_command: ["npx", "-y", "@zed-industries/codex-acp"],
+      acp_args: [],
+      acp_env: {},
+      acp_model: null,
+    },
+  };
+
+  beforeEach(() => {
+    vi.spyOn(OptionService, "getConfig").mockResolvedValue(baseConfig);
+    vi.spyOn(SettingsService, "getSettings").mockResolvedValue(acpCodexSettings);
+    vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
+      items: [],
+      next_page_id: null,
+    });
+  });
+
+  it("shows the codex credentials field for the Codex preset", async () => {
+    renderAgentSettings();
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("codex-credentials-input"),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("claude-credentials-input"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows saved badge when the Codex auth.json secret exists", async () => {
+    vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
+      items: [
+        {
+          name: "FILE:~/.codex/auth.json",
+          description: "Codex credentials",
+        },
+      ],
+      next_page_id: null,
+    });
+
+    renderAgentSettings();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("codex-credentials-saved-badge"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("saves the pasted blob verbatim as FILE:~/.codex/auth.json", async () => {
+    const upsertSpy = vi
+      .spyOn(SecretsService, "upsertSecret")
+      .mockResolvedValue(true);
+    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+
+    renderAgentSettings();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("codex-credentials-input"),
+      ).toBeInTheDocument();
+    });
+
+    const blob =
+      '{"auth_mode":"chatgpt","tokens":{"id_token":"abc"},"last_refresh":"2025-01-01"}';
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByTestId("codex-credentials-input"), {
+      target: { value: blob },
+    });
+    await userEvent.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(upsertSpy).toHaveBeenCalledWith(
+        "FILE:~/.codex/auth.json",
+        blob,
+        expect.any(String),
+      );
+    });
+  });
+
+  it("rejects a paste that doesn't look like a Codex auth.json", async () => {
+    const upsertSpy = vi
+      .spyOn(SecretsService, "upsertSecret")
+      .mockResolvedValue(true);
+
+    renderAgentSettings();
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("codex-credentials-input"),
+      ).toBeInTheDocument();
+    });
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByTestId("codex-credentials-input"), {
+      target: { value: '{"random":"object"}' },
+    });
+    await userEvent.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(upsertSpy).not.toHaveBeenCalled();
+    });
+  });
+});
