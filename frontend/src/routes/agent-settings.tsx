@@ -426,7 +426,9 @@ export default function AgentSettingsScreen() {
                   onChange={(e) => setClaudeCredentials(e.target.value)}
                 />
                 <div className="text-xs text-[#717888] flex flex-col gap-1">
-                  <span>{t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_HINT)}</span>
+                  <span>
+                    {t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_HINT)}
+                  </span>
                   <code className="bg-[#1a1a1a] text-[#A3A3A3] rounded px-2 py-1 font-mono block">
                     {`macOS: ${t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_CMD_MACOS)}`}
                   </code>
