@@ -298,7 +298,7 @@ describe("AgentSettingsScreen — Claude Max credentials", () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
       acpClaudeCodeSettings,
     );
-    // Default: no FILE: secrets saved
+    // Default: no Claude credential secret saved
     vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
       items: [],
       next_page_id: null,
@@ -338,11 +338,11 @@ describe("AgentSettingsScreen — Claude Max credentials", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows saved badge when FILE: credential secret exists", async () => {
+  it("shows saved badge when the OAuth-token secret exists", async () => {
     vi.spyOn(SecretsService, "searchSecrets").mockResolvedValue({
       items: [
         {
-          name: "FILE:~/.claude/credentials.json",
+          name: "CLAUDE_CODE_OAUTH_TOKEN",
           description: "Claude Max credentials",
         },
       ],
@@ -358,7 +358,7 @@ describe("AgentSettingsScreen — Claude Max credentials", () => {
     });
   });
 
-  it("calls upsertSecret and saveSettings when credentials are entered", async () => {
+  it("extracts the access token and saves CLAUDE_CODE_OAUTH_TOKEN (flat format)", async () => {
     const upsertSpy = vi
       .spyOn(SecretsService, "upsertSecret")
       .mockResolvedValue(true);
@@ -382,12 +382,41 @@ describe("AgentSettingsScreen — Claude Max credentials", () => {
 
     await waitFor(() => {
       expect(upsertSpy).toHaveBeenCalledWith(
-        "FILE:~/.claude/credentials.json",
-        '{"access_token":"tok"}',
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "tok",
         expect.any(String),
       );
     });
     expect(saveSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("extracts the access token from the macOS Keychain wrapper format", async () => {
+    const upsertSpy = vi
+      .spyOn(SecretsService, "upsertSecret")
+      .mockResolvedValue(true);
+    vi.spyOn(SettingsService, "saveSettings").mockResolvedValue(true);
+
+    renderAgentSettings();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("claude-credentials-input")).toBeInTheDocument();
+    });
+
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByTestId("claude-credentials-input"), {
+      target: {
+        value: '{"claudeAiOauth":{"accessToken":"keychain-tok"}}',
+      },
+    });
+    await userEvent.click(screen.getByTestId("agent-save-button"));
+
+    await waitFor(() => {
+      expect(upsertSpy).toHaveBeenCalledWith(
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "keychain-tok",
+        expect.any(String),
+      );
+    });
   });
 
   it("rejects credentials that are not valid JSON", async () => {

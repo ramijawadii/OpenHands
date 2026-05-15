@@ -31,7 +31,34 @@ import type { ACPProviderConfig } from "#/api/option-service/option.types";
 const ENABLE_SUB_AGENTS_FIELD_KEY = "enable_sub_agents";
 const CUSTOM_PRESET = "custom";
 const EMPTY_ACP_PROVIDERS: ACPProviderConfig[] = [];
-const CLAUDE_CREDENTIALS_SECRET_NAME = "FILE:~/.claude/credentials.json";
+const CLAUDE_CREDENTIALS_SECRET_NAME = "CLAUDE_CODE_OAUTH_TOKEN";
+
+/**
+ * Pull the OAuth access token out of a pasted Claude Max credentials blob.
+ *
+ * Accepts both shapes the UI lets users paste: the macOS Keychain export
+ * (``{"claudeAiOauth": {"accessToken": ...}}``) and the flat Linux
+ * ``~/.claude/credentials.json`` format (``{"access_token": ...}``). Returns
+ * the trimmed token string, or null if no usable token was found.
+ */
+function extractClaudeOauthToken(blob: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(blob);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object") return null;
+  const root = parsed as Record<string, unknown>;
+  const oauth = root.claudeAiOauth;
+  if (oauth && typeof oauth === "object") {
+    const token = (oauth as Record<string, unknown>).accessToken;
+    if (typeof token === "string" && token.trim()) return token.trim();
+  }
+  const flat = root.access_token;
+  if (typeof flat === "string" && flat.trim()) return flat.trim();
+  return null;
+}
 
 function findEnableSubAgentsField(
   fields: SettingsFieldSchema[] | undefined,
@@ -109,11 +136,12 @@ export default function AgentSettingsScreen() {
   const [claudeCredentials, setClaudeCredentials] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
-  const { data: fileSecrets, refetch: refetchFileSecrets } = useSearchSecrets({
-    nameContains: "FILE:",
-    enabled: isAcpEnabled,
-  });
-  const hasClaudeCredentials = fileSecrets?.some(
+  const { data: credentialSecrets, refetch: refetchCredentialSecrets } =
+    useSearchSecrets({
+      nameContains: CLAUDE_CREDENTIALS_SECRET_NAME,
+      enabled: isAcpEnabled,
+    });
+  const hasClaudeCredentials = credentialSecrets?.some(
     (s) => s.name === CLAUDE_CREDENTIALS_SECRET_NAME,
   );
 
@@ -177,23 +205,8 @@ export default function AgentSettingsScreen() {
     let credentialsSaved = false;
     // Save Claude credentials first if entered (Claude Code preset only).
     if (isClaudeCode && claudeCredentials.trim()) {
-      try {
-        const parsed = JSON.parse(claudeCredentials.trim());
-        // Accept macOS Keychain format {"claudeAiOauth":{accessToken,refreshToken,...}}
-        // and the flat file format {"access_token","refresh_token",...}
-        const oauth = parsed?.claudeAiOauth;
-        const hasToken =
-          oauth?.accessToken ||
-          oauth?.refreshToken ||
-          parsed.access_token ||
-          parsed.refresh_token;
-        if (!hasToken) {
-          displayErrorToast(
-            t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_INVALID),
-          );
-          return;
-        }
-      } catch {
+      const token = extractClaudeOauthToken(claudeCredentials.trim());
+      if (!token) {
         displayErrorToast(t(I18nKey.SETTINGS$AGENT_CLAUDE_CREDENTIALS_INVALID));
         return;
       }
@@ -201,12 +214,12 @@ export default function AgentSettingsScreen() {
       try {
         await upsertSecret({
           name: CLAUDE_CREDENTIALS_SECRET_NAME,
-          value: claudeCredentials.trim(),
+          value: token,
           description:
-            "Claude Max OAuth credentials (injected as ~/.claude/credentials.json)",
+            "Claude Max OAuth access token (exported as CLAUDE_CODE_OAUTH_TOKEN on the ACP subprocess)",
         });
         setClaudeCredentials("");
-        refetchFileSecrets();
+        refetchCredentialSecrets();
         credentialsSaved = true;
       } catch {
         displayErrorToast(t(I18nKey.ERROR$GENERIC));

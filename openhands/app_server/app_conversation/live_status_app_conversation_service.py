@@ -2,8 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import shutil
-import stat
 import tempfile
 import zipfile
 from collections import defaultdict
@@ -1415,180 +1413,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
         return request
 
-    # FILE: secret naming convention and path→env-var handlers.
-    # Each entry is (path_prefix, env_var_name, temp_subdir_name).
-    _FILE_SECRET_PREFIX = 'FILE:'
-    _FILE_PATH_HANDLERS: tuple[tuple[str, str, str], ...] = (
-        # ~/.claude/* → CLAUDE_CONFIG_DIR for OAuth credential-file auth.
-        ('~/.claude/', 'CLAUDE_CONFIG_DIR', 'claude-config'),
-    )
-
-    @staticmethod
-    def _extract_claude_oauth_token(blob: str) -> str | None:
-        """Pull the access token out of a pasted Claude Max credentials blob.
-
-        Accepts both shapes the UI lets users paste: the macOS Keychain export
-        (``{"claudeAiOauth": {"accessToken": ..., ...}}``) and the flat Linux
-        ``~/.claude/credentials.json`` format (``{"access_token": ..., ...}``).
-        """
-        try:
-            parsed = json.loads(blob)
-        except (TypeError, ValueError):
-            return None
-        if not isinstance(parsed, dict):
-            return None
-        oauth = parsed.get('claudeAiOauth')
-        if isinstance(oauth, dict):
-            token = oauth.get('accessToken')
-            if isinstance(token, str) and token.strip():
-                return token.strip()
-        token = parsed.get('access_token')
-        if isinstance(token, str) and token.strip():
-            return token.strip()
-        return None
-
-    @staticmethod
-    def _validate_relative_path(relative: str, secret_name: str) -> str | None:
-        """Validate a path component extracted from a FILE: secret name.
-
-        Guards against path traversal attacks (e.g. ``../../etc/passwd``).
-        Returns the normalised relative path on success, or ``None`` if unsafe.
-        """
-        normalized = os.path.normpath(relative)
-        if (
-            os.path.isabs(normalized)
-            or normalized.startswith('..')
-            or normalized == '.'
-        ):
-            _logger.warning(
-                'FILE: secret %r contains an unsafe path component %r; ignoring',
-                secret_name,
-                relative,
-            )
-            return None
-        return normalized
-
-    @staticmethod
-    def _inject_file_secrets(
-        secrets: dict,
-        conversation_id: UUID,
-    ) -> tuple[dict, dict[str, str]]:
-        """Extract FILE:-prefixed secrets, write them to temp files, return env vars.
-
-        Returns (regular_secrets, extra_env) where FILE: entries are removed from
-        regular_secrets and extra_env contains the injected directory env vars
-        (e.g. CLAUDE_CONFIG_DIR). Conflict suppression (e.g. stripping
-        ANTHROPIC_API_KEY when CLAUDE_CONFIG_DIR is set) is handled by
-        ACPAgent._start_acp_server via _ENV_CONFLICT_MAP (SDK ≥ 1.22.1).
-        """
-        prefix = LiveStatusAppConversationService._FILE_SECRET_PREFIX
-        handlers = LiveStatusAppConversationService._FILE_PATH_HANDLERS
-
-        file_secrets = {k: v for k, v in secrets.items() if k.startswith(prefix)}
-        if not file_secrets:
-            return secrets, {}
-
-        regular_secrets = {k: v for k, v in secrets.items() if not k.startswith(prefix)}
-        extra_env: dict[str, str] = {}
-
-        base_tmp = os.path.join(
-            tempfile.gettempdir(),
-            f'oh-acp-{conversation_id.hex}',
-        )
-        os.makedirs(base_tmp, mode=0o700, exist_ok=True)
-
-        from openhands.sdk.secret import SecretSource
-
-        for secret_name, secret_source in file_secrets.items():
-            file_path = secret_name[len(prefix) :]
-
-            value = (
-                secret_source.get_value()
-                if isinstance(secret_source, SecretSource)
-                else str(secret_source)
-            )
-            if not value:
-                _logger.warning(
-                    'FILE: secret %r has an empty value; skipping', secret_name
-                )
-                continue
-
-            matched = False
-            for path_prefix, env_var, subdir_name in handlers:
-                if not file_path.startswith(path_prefix):
-                    continue
-
-                relative = file_path[len(path_prefix) :]
-                safe_relative = (
-                    LiveStatusAppConversationService._validate_relative_path(
-                        relative, secret_name
-                    )
-                )
-                if safe_relative is None:
-                    matched = True
-                    break
-
-                group_dir = os.path.join(base_tmp, subdir_name)
-                os.makedirs(group_dir, mode=0o700, exist_ok=True)
-
-                target = os.path.join(group_dir, safe_relative)
-                target_dir = os.path.dirname(target)
-                if target_dir and target_dir != group_dir:
-                    os.makedirs(target_dir, mode=0o700, exist_ok=True)
-
-                with open(target, 'w') as fh:
-                    fh.write(value)
-                os.chmod(target, stat.S_IRUSR | stat.S_IWUSR)
-
-                if env_var not in extra_env:
-                    extra_env[env_var] = group_dir
-                _logger.info(
-                    'FILE: secret %r written to %r; injecting %s=%r',
-                    secret_name,
-                    target,
-                    env_var,
-                    group_dir,
-                )
-
-                # The Claude Code binary authenticates via the
-                # CLAUDE_CODE_OAUTH_TOKEN env var, not via credentials.json
-                # in CLAUDE_CONFIG_DIR (which holds non-auth config state).
-                # Extract the access token from the pasted blob (macOS
-                # Keychain wrapper or flat Linux file format) and inject it.
-                if file_path == '~/.claude/credentials.json':
-                    token = (
-                        LiveStatusAppConversationService._extract_claude_oauth_token(
-                            value
-                        )
-                    )
-                    if token and 'CLAUDE_CODE_OAUTH_TOKEN' not in extra_env:
-                        extra_env['CLAUDE_CODE_OAUTH_TOKEN'] = token
-                        _logger.info(
-                            'FILE: secret %r: also injecting CLAUDE_CODE_OAUTH_TOKEN',
-                            secret_name,
-                        )
-
-                matched = True
-                break
-
-            if not matched:
-                _logger.warning(
-                    'FILE: secret %r has no configured handler; ignoring', secret_name
-                )
-
-        return regular_secrets, extra_env
-
-    @staticmethod
-    def _cleanup_acp_temp_dir(conversation_id: UUID) -> None:
-        """Remove the per-conversation ACP credential temp directory."""
-        base_tmp = os.path.join(
-            tempfile.gettempdir(),
-            f'oh-acp-{conversation_id.hex}',
-        )
-        if os.path.isdir(base_tmp):
-            shutil.rmtree(base_tmp, ignore_errors=True)
-            _logger.info('Cleaned up ACP temp dir for conversation %s', conversation_id)
-
     @staticmethod
     def _acp_provider_env(user: UserInfo) -> dict[str, str]:
         """Translate UI-saved LLM API key into the provider-native env var."""
@@ -1714,18 +1538,13 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         acp_settings = user.agent_settings  # already verified to be ACPAgentSettings
         assert isinstance(acp_settings, ACPAgentSettings)
 
-        # Extract FILE:-prefixed secrets: write them to temp files and collect
-        # resulting env vars (e.g. CLAUDE_CONFIG_DIR). FILE: secrets are removed
-        # from `secrets` so they aren't injected as plain env vars via AgentContext.
-        secrets, file_env = self._inject_file_secrets(secrets, conversation_id)
-
-        # Merge provider env vars (API keys) and FILE: env vars into acp_env.
-        # Priority (highest → lowest): acp_env > provider_env > file_env.
-        # Conflict suppression (e.g. stripping ANTHROPIC_API_KEY when
-        # CLAUDE_CONFIG_DIR is set) is handled inside ACPAgent._start_acp_server
-        # via _ENV_CONFLICT_MAP (SDK ≥ 1.22.1).
+        # Merge provider env vars (LLM-profile API key → provider-native var)
+        # with the user-configured acp_env. User secrets named like
+        # ``CLAUDE_CODE_OAUTH_TOKEN`` / ``OPENAI_API_KEY`` flow through
+        # ``AgentContext.secrets`` below and are exported by the SDK as env
+        # vars on the ACP subprocess. Priority: user secrets > acp_env >
+        # provider_env.
         merged_env: dict[str, str] = {
-            **file_env,
             **self._acp_provider_env(user),
             **dict(acp_settings.acp_env or {}),
         }
@@ -2035,9 +1854,6 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             # Delete from database using the conversation info from app_conversation
             # AppConversation extends AppConversationInfo, so we can use it directly
             result = await self._delete_from_database(app_conversation)
-
-            # Clean up ACP credential temp files (no-op if none were created).
-            self._cleanup_acp_temp_dir(conversation_id)
 
             return result
 
