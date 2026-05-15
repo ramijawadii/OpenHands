@@ -11,7 +11,7 @@ import { useAgentSettingsSchema } from "#/hooks/query/use-agent-settings-schema"
 import { useConfig } from "#/hooks/query/use-config";
 import { useSettings } from "#/hooks/query/use-settings";
 import { useSearchSecrets } from "#/hooks/query/use-get-secrets";
-import { SecretsService } from "#/api/secrets-service";
+import { useUpsertSecret } from "#/hooks/mutation/use-upsert-secret";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsFieldSchema } from "#/types/settings";
 import { Typography } from "#/ui/typography";
@@ -71,6 +71,7 @@ export const clientLoader = createPermissionGuard("view_llm_settings");
 export default function AgentSettingsScreen() {
   const { t } = useTranslation();
   const { mutate: saveSettings, isPending } = useSaveSettings();
+  const { mutateAsync: upsertSecret } = useUpsertSecret();
   const { data: settings, isLoading: isSettingsLoading } = useSettings();
   const { data: config, isLoading: isConfigLoading } = useConfig();
   const { data: schema, isLoading: isSchemaLoading } = useAgentSettingsSchema(
@@ -197,11 +198,12 @@ export default function AgentSettingsScreen() {
       }
 
       try {
-        await SecretsService.upsertSecret(
-          CLAUDE_CREDENTIALS_SECRET_NAME,
-          claudeCredentials.trim(),
-          "Claude Max OAuth credentials (injected as ~/.claude/credentials.json)",
-        );
+        await upsertSecret({
+          name: CLAUDE_CREDENTIALS_SECRET_NAME,
+          value: claudeCredentials.trim(),
+          description:
+            "Claude Max OAuth credentials (injected as ~/.claude/credentials.json)",
+        });
         setClaudeCredentials("");
         refetchFileSecrets();
       } catch {
