@@ -347,7 +347,7 @@ export default function AgentSettingsScreen() {
 
       <div className="sticky bottom-0 bg-base py-4">
         <BrandButton
-          testId="save-button"
+          testId="agent-save-button"
           type="button"
           variant="primary"
           isDisabled={isPending || !canSave}
