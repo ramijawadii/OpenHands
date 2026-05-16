@@ -2,9 +2,6 @@ import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
-from contextlib import asynccontextmanager
-
-from openhands.app_server.utils.circuit_breaker import CircuitOpenError, agent_server_breaker
 
 import httpx
 
@@ -50,25 +47,14 @@ class SandboxService(ABC):
     ) -> SandboxInfo | None:
         """Get a single sandbox by session API key. Return None if the sandbox was not found."""
 
-    # Semaphore shared across all batch_get_sandboxes calls per instance
-    _BATCH_CONCURRENCY = 32
-
     async def batch_get_sandboxes(
         self, sandbox_ids: list[str]
     ) -> list[SandboxInfo | None]:
-        """Get a batch of sandboxes, returning None for any which were not found.
-
-        Bounded to _BATCH_CONCURRENCY concurrent lookups to prevent connection-pool
-        exhaustion when called with thousands of IDs.
-        """
-        sem = asyncio.Semaphore(self._BATCH_CONCURRENCY)
-
-        async def _get(sid: str) -> SandboxInfo | None:
-            async with sem:
-                return await self.get_sandbox(sid)
-
-        results = await asyncio.gather(*[_get(sid) for sid in sandbox_ids])
-        return list(results)
+        """Get a batch of sandboxes, returning None for any which were not found."""
+        results = await asyncio.gather(
+            *[self.get_sandbox(sandbox_id) for sandbox_id in sandbox_ids]
+        )
+        return results
 
     @abstractmethod
     async def start_sandbox(
@@ -139,50 +125,27 @@ class SandboxService(ABC):
         raise SandboxError(f'Sandbox failed to start within {timeout}s: {sandbox_id}')
 
     async def _check_agent_server_alive(
-        self,
-        sandbox: SandboxInfo,
-        httpx_client: httpx.AsyncClient,
-        *,
-        warn_after_attempts: int = 3,
-        _attempt_counts: dict | None = None,
+        self, sandbox: SandboxInfo, httpx_client: httpx.AsyncClient
     ) -> bool:
         """Check if the agent server is responding to health checks.
-
-        Logs at DEBUG level for the first ``warn_after_attempts`` failures,
-        then escalates to WARNING so ops tooling can alert.
 
         Args:
             sandbox: The sandbox info containing exposed URLs
             httpx_client: HTTP client to make the health check request
-            warn_after_attempts: Consecutive failures before WARNING is emitted
 
         Returns:
             True if agent server is alive, False otherwise
         """
         url = None
         try:
-            async with agent_server_breaker:
-                agent_server_url = self._get_agent_server_url(sandbox)
-                url = f'{agent_server_url.rstrip("/")}/alive'
-                response = await httpx_client.get(url, timeout=5.0)
-                if not response.is_success:
-                    raise RuntimeError(f'HTTP {response.status_code}')
-                return True
-        except CircuitOpenError as exc:
-            _logger.warning('Agent server circuit OPEN for sandbox %s: %s', sandbox.id, exc)
-            return False
+            agent_server_url = self._get_agent_server_url(sandbox)
+            url = f'{agent_server_url.rstrip("/")}/alive'
+            response = await httpx_client.get(url, timeout=5.0)
+            return response.is_success
         except Exception as exc:
-            if _attempt_counts is not None:
-                count = _attempt_counts.get(sandbox.id, 0) + 1
-                _attempt_counts[sandbox.id] = count
-            else:
-                count = 1
-            log_fn = _logger.warning if count >= warn_after_attempts else _logger.debug
-            log_fn(
-                'Agent server health check failed for sandbox %s%s: %s',
-                sandbox.id,
-                f' at {url}' if url else '',
-                exc,
+            _logger.debug(
+                f'Agent server health check failed for sandbox {sandbox.id}'
+                f'{f" at {url}" if url else ""}: {exc}'
             )
             return False
 
@@ -259,17 +222,9 @@ class SandboxService(ABC):
                 success = await self.pause_sandbox(sandbox.id)
                 if success:
                     paused_sandbox_ids.append(sandbox.id)
-                else:
-                    _logger.warning(
-                        'pause_old_sandboxes: pause_sandbox returned False for %s',
-                        sandbox.id,
-                    )
             except Exception:
-                _logger.warning(
-                    'pause_old_sandboxes: failed to pause sandbox %s',
-                    sandbox.id,
-                    exc_info=True,
-                )
+                # Continue trying to pause other sandboxes even if one fails
+                pass
 
         return paused_sandbox_ids
 

@@ -1,14 +1,10 @@
 import asyncio
-import atexit
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Coroutine, Iterable
 
 GENERAL_TIMEOUT: int = 15
-# Bounded pool: 32 workers cap prevents thread-count explosions under load.
-# wait=False on shutdown lets the process exit without blocking on hung threads.
-EXECUTOR = ThreadPoolExecutor(max_workers=32, thread_name_prefix='oh-async')
-atexit.register(EXECUTOR.shutdown, wait=False)
+EXECUTOR = ThreadPoolExecutor()
 
 
 async def call_sync_from_async(fn: Callable, *args, **kwargs):
@@ -63,37 +59,15 @@ async def call_coro_in_bg_thread(
     await call_sync_from_async(call_async_from_sync, corofn, timeout, *args, **kwargs)
 
 
-# Maximum concurrent tasks spawned by wait_all / batch helpers.
-# Prevents event-loop saturation and connection-pool exhaustion at scale.
-_CONCURRENCY_LIMIT = 64
-_GATHER_SEM: asyncio.Semaphore | None = None
-
-
-def _gather_semaphore() -> asyncio.Semaphore:
-    """Lazily create the semaphore in the running event loop."""
-    global _GATHER_SEM
-    if _GATHER_SEM is None:
-        _GATHER_SEM = asyncio.Semaphore(_CONCURRENCY_LIMIT)
-    return _GATHER_SEM
-
-
 async def wait_all(
     iterable: Iterable[Coroutine], timeout: int = GENERAL_TIMEOUT
 ) -> list:
-    """Shorthand for waiting for all the coroutines in the iterable given in parallel.
-
-    Bounded by _CONCURRENCY_LIMIT concurrent tasks to prevent event-loop
-    saturation under large batch requests.
+    """Shorthand for waiting for all the coroutines in the iterable given in parallel. Creates
+    a task for each coroutine.
     Returns a list of results in the original order. If any single task raised an exception, this is raised.
     If multiple tasks raised exceptions, an AsyncException is raised containing all exceptions.
     """
-    sem = _gather_semaphore()
-
-    async def _bounded(coro: Coroutine):
-        async with sem:
-            return await coro
-
-    tasks = [asyncio.create_task(_bounded(c)) for c in iterable]
+    tasks = [asyncio.create_task(c) for c in iterable]
     if not tasks:
         return []
     _, pending = await asyncio.wait(tasks, timeout=timeout)

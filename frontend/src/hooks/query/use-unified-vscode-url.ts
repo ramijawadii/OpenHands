@@ -63,7 +63,6 @@ export const useUnifiedVSCodeUrl = () => {
       };
     },
     enabled: runtimeIsReady && !!conversationId && !!sandboxesQuery.data,
-    staleTime: 1000 * 60 * 5,
     refetchOnMount: true,
     retry: 3,
   });
