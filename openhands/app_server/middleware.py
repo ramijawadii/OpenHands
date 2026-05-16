@@ -78,20 +78,33 @@ class InMemoryRateLimiter:
     seconds: int
     sleep_seconds: int
 
+    # Hosts inactive longer than this are evicted from memory (prevents unbounded growth).
+    _EVICT_AFTER_SECONDS: int = 300
+
     def __init__(self, requests: int = 2, seconds: int = 1, sleep_seconds: int = 1):
         self.requests = requests
         self.seconds = seconds
         self.sleep_seconds = sleep_seconds
         self.history = defaultdict(list)
-        self.sleep_seconds = sleep_seconds
+        self._last_eviction = datetime.now()
 
     def _clean_old_requests(self, key: str) -> None:
         now = datetime.now()
         cutoff = now - timedelta(seconds=self.seconds)
         self.history[key] = [ts for ts in self.history[key] if ts > cutoff]
+        # Evict stale host entries periodically to prevent unbounded dict growth
+        if (now - self._last_eviction).total_seconds() > self._EVICT_AFTER_SECONDS:
+            stale_cutoff = now - timedelta(seconds=self._EVICT_AFTER_SECONDS)
+            stale_keys = [
+                k for k, timestamps in self.history.items()
+                if not timestamps or max(timestamps) < stale_cutoff
+            ]
+            for stale in stale_keys:
+                del self.history[stale]
+            self._last_eviction = now
 
     async def __call__(self, request: Request) -> bool:
-        key = request.client.host
+        key = request.client.host if request.client else 'unknown'
         now = datetime.now()
 
         self._clean_old_requests(key)

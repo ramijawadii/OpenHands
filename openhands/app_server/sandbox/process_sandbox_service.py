@@ -25,6 +25,7 @@ from openhands.agent_server.utils import utc_now
 from openhands.app_server.errors import SandboxError
 from openhands.app_server.sandbox.sandbox_models import (
     AGENT_SERVER,
+    VSCODE,
     ExposedUrl,
     SandboxInfo,
     SandboxPage,
@@ -49,6 +50,7 @@ class ProcessInfo(BaseModel):
 
     pid: int
     port: int
+    vscode_port: int
     user_id: str | None
     working_dir: str
     session_api_key: str
@@ -58,8 +60,9 @@ class ProcessInfo(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-# Global store
+# Global store — guarded by _processes_lock for concurrent access safety
 _processes: dict[str, ProcessInfo] = {}
+_processes_lock: asyncio.Lock = asyncio.Lock()
 
 
 @dataclass
@@ -109,6 +112,7 @@ class ProcessSandboxService(SandboxService):
         self,
         sandbox_id: str,
         port: int,
+        vscode_port: int,
         working_dir: str,
         session_api_key: str,
         sandbox_spec: SandboxSpecInfo,
@@ -119,6 +123,7 @@ class ProcessSandboxService(SandboxService):
         env = os.environ.copy()
         env.update(sandbox_spec.initial_env)
         env['SESSION_API_KEY'] = session_api_key
+        env['OH_VSCODE_PORT'] = str(vscode_port)
 
         # Prepare command arguments
         cmd = [
@@ -157,21 +162,26 @@ class ProcessSandboxService(SandboxService):
             raise SandboxError(f'Failed to start agent process: {e}')
 
     async def _wait_for_server_ready(self, port: int, timeout: int = 30) -> bool:
-        """Wait for the agent server to be ready."""
+        """Wait for the agent server to be ready using exponential backoff."""
+        url = replace_localhost_hostname_for_docker(f'http://localhost:{port}/alive')
         start_time = time.time()
+        attempt = 0
         while time.time() - start_time < timeout:
             try:
-                url = replace_localhost_hostname_for_docker(
-                    f'http://localhost:{port}/alive'
-                )
                 response = await self.httpx_client.get(url, timeout=5.0)
-                if response.status_code == 200:
-                    data = response.json()
-                    if data.get('status') == 'ok':
-                        return True
-            except Exception:
-                pass
-            await asyncio.sleep(1)
+                if response.status_code == 200 and response.json().get('status') == 'ok':
+                    return True
+            except Exception as exc:
+                elapsed = time.time() - start_time
+                _logger.debug(
+                    'Health check attempt %d failed for port %d (%.1fs elapsed): %s',
+                    attempt + 1, port, elapsed, exc,
+                )
+            # Exponential backoff: 0.5s, 1s, 2s, 4s … capped at 5s
+            sleep = min(0.5 * (2 ** attempt), 5.0)
+            remaining = timeout - (time.time() - start_time)
+            await asyncio.sleep(min(sleep, max(remaining, 0)))
+            attempt += 1
         return False
 
     def _get_process_status(self, process_info: ProcessInfo) -> SandboxStatus:
@@ -214,6 +224,15 @@ class ProcessSandboxService(SandboxService):
                             url=f'http://localhost:{process_info.port}',
                             port=process_info.port,
                         ),
+                        ExposedUrl(
+                            name=VSCODE,
+                            url=(
+                                f'http://localhost:{process_info.vscode_port}'
+                                f'?tkn={process_info.session_api_key}'
+                                f'&folder=%2Fworkspace%2Fproject'
+                            ),
+                            port=process_info.vscode_port,
+                        ),
                     ]
                     session_api_key = process_info.session_api_key
                 else:
@@ -237,8 +256,9 @@ class ProcessSandboxService(SandboxService):
         limit: int = 100,
     ) -> SandboxPage:
         """Search for sandboxes."""
-        # Get all process infos
-        all_processes = list(_processes.items())
+        # Snapshot under lock so concurrent start/delete doesn't corrupt iteration
+        async with _processes_lock:
+            all_processes = list(_processes.items())
 
         # Sort by creation time (newest first)
         all_processes.sort(key=lambda x: x[1].created_at, reverse=True)
@@ -269,7 +289,8 @@ class ProcessSandboxService(SandboxService):
 
     async def get_sandbox(self, sandbox_id: str) -> SandboxInfo | None:
         """Get a single sandbox."""
-        process_info = _processes.get(sandbox_id)
+        async with _processes_lock:
+            process_info = _processes.get(sandbox_id)
         if process_info is None:
             return None
 
@@ -279,8 +300,9 @@ class ProcessSandboxService(SandboxService):
         self, session_api_key: str
     ) -> SandboxInfo | None:
         """Get a single sandbox by session API key."""
-        # Search through all processes to find one with matching session_api_key
-        for sandbox_id, process_info in _processes.items():
+        async with _processes_lock:
+            snapshot = list(_processes.items())
+        for sandbox_id, process_info in snapshot:
             if process_info.session_api_key == session_api_key:
                 return await self._process_to_sandbox_info(sandbox_id, process_info)
 
@@ -307,8 +329,9 @@ class ProcessSandboxService(SandboxService):
             sandbox_id = base62.encodebytes(os.urandom(16))
         session_api_key = base62.encodebytes(os.urandom(32))
 
-        # Find available port
+        # Find available ports (agent server + VSCode)
         port = self._find_unused_port()
+        vscode_port = self._find_unused_port()
 
         # Create sandbox directory
         working_dir = self._create_sandbox_directory(sandbox_id)
@@ -317,6 +340,7 @@ class ProcessSandboxService(SandboxService):
         process = await self._start_agent_process(
             sandbox_id=sandbox_id,
             port=port,
+            vscode_port=vscode_port,
             working_dir=working_dir,
             session_api_key=session_api_key,
             sandbox_spec=sandbox_spec,
@@ -326,13 +350,15 @@ class ProcessSandboxService(SandboxService):
         process_info = ProcessInfo(
             pid=process.pid,
             port=port,
+            vscode_port=vscode_port,
             user_id=self.user_id,
             working_dir=working_dir,
             session_api_key=session_api_key,
             created_at=utc_now(),
             sandbox_spec_id=sandbox_spec.id,
         )
-        _processes[sandbox_id] = process_info
+        async with _processes_lock:
+            _processes[sandbox_id] = process_info
 
         # Wait for server to be ready
         if not await self._wait_for_server_ready(port):
@@ -344,7 +370,8 @@ class ProcessSandboxService(SandboxService):
 
     async def resume_sandbox(self, sandbox_id: str) -> bool:
         """Resume a paused sandbox."""
-        process_info = _processes.get(sandbox_id)
+        async with _processes_lock:
+            process_info = _processes.get(sandbox_id)
         if process_info is None:
             return False
 
@@ -358,7 +385,8 @@ class ProcessSandboxService(SandboxService):
 
     async def pause_sandbox(self, sandbox_id: str) -> bool:
         """Pause a running sandbox."""
-        process_info = _processes.get(sandbox_id)
+        async with _processes_lock:
+            process_info = _processes.get(sandbox_id)
         if process_info is None:
             return False
 
@@ -372,7 +400,8 @@ class ProcessSandboxService(SandboxService):
 
     async def delete_sandbox(self, sandbox_id: str) -> bool:
         """Delete a sandbox."""
-        process_info = _processes.get(sandbox_id)
+        async with _processes_lock:
+            process_info = _processes.get(sandbox_id)
         if process_info is None:
             return False
 
@@ -395,17 +424,15 @@ class ProcessSandboxService(SandboxService):
             if os.path.exists(process_info.working_dir):
                 shutil.rmtree(process_info.working_dir, ignore_errors=True)
 
-            # Remove from our tracking
-            del _processes[sandbox_id]
-
-            return True
-
         except (psutil.NoSuchProcess, psutil.AccessDenied, OSError) as e:
-            _logger.warning(f'Error deleting sandbox {sandbox_id}: {e}')
-            # Still remove from tracking even if cleanup failed
-            if sandbox_id in _processes:
-                del _processes[sandbox_id]
-            return True
+            _logger.warning(f'Error deleting sandbox process {sandbox_id}: {e}')
+
+        finally:
+            # Always remove from tracking regardless of cleanup outcome
+            async with _processes_lock:
+                _processes.pop(sandbox_id, None)
+
+        return True
 
 
 class ProcessSandboxServiceInjector(SandboxServiceInjector):
