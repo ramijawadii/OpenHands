@@ -73,8 +73,8 @@ function getMermaid(cb: (m: MermaidModule) => void): void {
           primaryBorderColor: "#4b4b9f",
           lineColor: "#6366f1",
           secondaryColor: "#252050",
-          tertiaryColor: "#0f0f1a",
-          background: "#0f0f1a",
+          tertiaryColor: "#181818",
+          background: "#181818",
           mainBkg: "#1e1b4b",
           nodeBorder: "#4b4b9f",
           clusterBkg: "#13132a",
@@ -139,7 +139,7 @@ function MermaidBlock({ code, onError, onSuccess }: MermaidBlockProps) {
     <div className="my-4 rounded-lg overflow-hidden border border-[#2d2d5e]">
       <div
         ref={ref}
-        className="bg-[#0f0f1a] flex justify-center items-center p-4 min-h-[80px]"
+        className="bg-[#181818] flex justify-center items-center p-4 min-h-[80px]"
       />
       {err && (
         <div className="px-4 py-2 bg-[#1a0a0a] border-t border-red-900/50 text-red-400 text-xs font-mono">
@@ -438,7 +438,7 @@ function DiagramsTab() {
 
   if (isEmpty) {
     return (
-      <div className="flex flex-col items-center justify-center w-full h-full gap-4 bg-[#0f0f1a] text-[#8D95A9]">
+      <div className="flex flex-col items-center justify-center w-full h-full gap-4 bg-[#181818] text-[#8D95A9]">
         <svg
           className="w-16 h-16 opacity-25"
           fill="none"
@@ -463,9 +463,9 @@ function DiagramsTab() {
   // ── Main render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col w-full h-full bg-[#0f0f1a] overflow-hidden">
+    <div className="flex flex-col w-full h-full bg-[#181818] overflow-hidden">
       {/* ── Toolbar ── */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1e1e3f] flex-shrink-0 bg-[#0d0d1f]">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#1e1e3f] flex-shrink-0 bg-[#181818]">
         {manifest && manifest.diagrams.length > 0 && (
           <div className="flex items-center gap-1.5 flex-1 min-w-0">
             <span className="text-[10px] font-medium text-[#4b5563] uppercase tracking-widest flex-shrink-0 select-none">
@@ -570,7 +570,7 @@ function DiagramsTab() {
       {/* ── Content area ── */}
       {isMdFile ? (
         // T1: Markdown page renderer — Notion-like dark prose
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-8 py-6 bg-[#0f0f1a]">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-8 py-6 bg-[#181818]">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
             components={{
@@ -706,7 +706,7 @@ function DiagramsTab() {
         <>
           <div
             ref={canvasRef}
-            className="flex-1 overflow-hidden relative select-none bg-[#0f0f1a]"
+            className="flex-1 overflow-hidden relative select-none bg-[#181818]"
             style={{ cursor: isDragging ? "grabbing" : "grab" }}
             onMouseDown={handleMouseDown}
             onMouseMove={handleMouseMove}
@@ -731,13 +731,13 @@ function DiagramsTab() {
           {/* T8: Source view with Copy code button */}
           {pageContent && (
             <details className="flex-shrink-0 border-t border-[#1e1e3f] group">
-              <summary className="px-3 py-2 text-xs text-[#4b5563] cursor-pointer select-none hover:text-white list-none flex items-center gap-1.5 bg-[#0d0d1f] hover:bg-[#13132a] transition-colors">
+              <summary className="px-3 py-2 text-xs text-[#4b5563] cursor-pointer select-none hover:text-white list-none flex items-center gap-1.5 bg-[#181818] hover:bg-[#13132a] transition-colors">
                 <span className="group-open:rotate-90 transition-transform inline-block text-[10px]">
                   ▶
                 </span>
                 View source (.mmd)
               </summary>
-              <div className="relative bg-[#0d0d1f] border-t border-[#1e1e3f]">
+              <div className="relative bg-[#181818] border-t border-[#1e1e3f]">
                 <button
                   type="button"
                   onClick={copySource}
