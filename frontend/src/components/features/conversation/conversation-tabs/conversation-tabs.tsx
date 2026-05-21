@@ -3,8 +3,6 @@ import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import JupyterIcon from "#/icons/jupyter.svg?react";
 import TerminalIcon from "#/icons/terminal.svg?react";
-import GlobeIcon from "#/icons/globe.svg?react";
-import ServerIcon from "#/icons/server.svg?react";
 import GitChanges from "#/icons/git_changes.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
 import DiagramsIcon from "#/icons/diagrams.svg?react";
@@ -117,25 +115,11 @@ export function ConversationTabs() {
       tooltipAriaLabel: t(I18nKey.COMMON$JUPYTER),
     },
     {
-      isActive: isTabActive("served"),
-      icon: ServerIcon,
-      onClick: () => onTabSelected("served"),
-      tooltipContent: t(I18nKey.COMMON$APP),
-      tooltipAriaLabel: t(I18nKey.COMMON$APP),
-    },
-    {
-      isActive: isTabActive("browser"),
-      icon: GlobeIcon,
-      onClick: () => onTabSelected("browser"),
-      tooltipContent: t(I18nKey.COMMON$BROWSER),
-      tooltipAriaLabel: t(I18nKey.COMMON$BROWSER),
-    },
-    {
       isActive: isTabActive("diagrams"),
       icon: DiagramsIcon,
       onClick: () => onTabSelected("diagrams"),
-      tooltipContent: "Diagrams",
-      tooltipAriaLabel: "Diagrams",
+      tooltipContent: "Pages",
+      tooltipAriaLabel: "Pages",
     },
   ];
 

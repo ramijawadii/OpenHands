@@ -1,3 +1,4 @@
+/* eslint-disable i18next/no-literal-string */
 import { lazy, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { ConversationLoading } from "../../conversation-loading";
@@ -11,9 +12,7 @@ import { useConversationStore } from "#/state/conversation-store";
 
 // Lazy load all tab components
 const EditorTab = lazy(() => import("#/routes/changes-tab"));
-const BrowserTab = lazy(() => import("#/routes/browser-tab"));
 const JupyterTab = lazy(() => import("#/routes/jupyter-tab"));
-const ServedTab = lazy(() => import("#/routes/served-tab"));
 const VSCodeTab = lazy(() => import("#/routes/vscode-tab"));
 const DiagramsTab = lazy(() => import("#/routes/diagrams-tab"));
 
@@ -22,70 +21,30 @@ export function ConversationTabContent() {
 
   const { t } = useTranslation();
 
-  // Determine which tab is active based on the current path
   const isEditorActive = selectedTab === "editor";
-  const isBrowserActive = selectedTab === "browser";
   const isJupyterActive = selectedTab === "jupyter";
-  const isServedActive = selectedTab === "served";
   const isVSCodeActive = selectedTab === "vscode";
   const isTerminalActive = selectedTab === "terminal";
   const isDiagramsActive = selectedTab === "diagrams";
 
-  // Define tab configurations
   const tabs = [
     { key: "editor", component: EditorTab, isActive: isEditorActive },
-    {
-      key: "browser",
-      component: BrowserTab,
-      isActive: isBrowserActive,
-    },
-    {
-      key: "jupyter",
-      component: JupyterTab,
-      isActive: isJupyterActive,
-    },
-    { key: "served", component: ServedTab, isActive: isServedActive },
+    { key: "jupyter", component: JupyterTab, isActive: isJupyterActive },
     { key: "vscode", component: VSCodeTab, isActive: isVSCodeActive },
-    {
-      key: "terminal",
-      component: Terminal,
-      isActive: isTerminalActive,
-    },
-    {
-      key: "diagrams",
-      component: DiagramsTab,
-      isActive: isDiagramsActive,
-    },
+    { key: "terminal", component: Terminal, isActive: isTerminalActive },
+    { key: "diagrams", component: DiagramsTab, isActive: isDiagramsActive },
   ];
 
   const conversationTabTitle = useMemo(() => {
-    if (isEditorActive) {
-      return t(I18nKey.COMMON$CHANGES);
-    }
-    if (isBrowserActive) {
-      return t(I18nKey.COMMON$BROWSER);
-    }
-    if (isJupyterActive) {
-      return t(I18nKey.COMMON$JUPYTER);
-    }
-    if (isServedActive) {
-      return t(I18nKey.COMMON$APP);
-    }
-    if (isVSCodeActive) {
-      return t(I18nKey.COMMON$CODE);
-    }
-    if (isTerminalActive) {
-      return t(I18nKey.COMMON$TERMINAL);
-    }
-    if (isDiagramsActive) {
-      return "Diagrams";
-    }
+    if (isEditorActive) return t(I18nKey.COMMON$CHANGES);
+    if (isJupyterActive) return t(I18nKey.COMMON$JUPYTER);
+    if (isVSCodeActive) return t(I18nKey.COMMON$CODE);
+    if (isTerminalActive) return t(I18nKey.COMMON$TERMINAL);
+    if (isDiagramsActive) return "Pages";
     return "";
   }, [
     isEditorActive,
-    isBrowserActive,
     isJupyterActive,
-    isServedActive,
     isVSCodeActive,
     isTerminalActive,
     isDiagramsActive,

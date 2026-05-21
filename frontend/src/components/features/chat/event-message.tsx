@@ -24,6 +24,7 @@ import {
   ObservationPairEventMessage,
   GenericEventMessageWrapper,
 } from "./event-message-components";
+import type { ConversationTab } from "#/state/conversation-store";
 
 interface EventMessageProps {
   event: OpenHandsAction | OpenHandsObservation;
@@ -38,6 +39,7 @@ interface EventMessageProps {
     onClick: () => void;
     tooltip?: string;
   }>;
+  toolBadges?: ConversationTab[];
   isInLast10Actions: boolean;
 }
 
@@ -51,6 +53,7 @@ export function EventMessage({
   microagentConversationId,
   microagentPRUrl,
   actions,
+  toolBadges,
   isInLast10Actions,
 }: EventMessageProps) {
   const shouldShowConfirmationButtons =
@@ -105,6 +108,7 @@ export function EventMessage({
       <UserAssistantEventMessage
         event={event}
         shouldShowConfirmationButtons={shouldShowConfirmationButtons}
+        toolBadges={toolBadges}
         {...commonProps}
       />
     );

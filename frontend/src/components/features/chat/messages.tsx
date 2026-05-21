@@ -9,6 +9,7 @@ import {
   isOpenHandsEvent,
   isAgentStateChangeObservation,
   isFinishAction,
+  isAssistantMessage,
 } from "#/types/core/guards";
 import { EventMessage } from "./event-message";
 import { ChatMessage } from "./chat-message";
@@ -24,6 +25,32 @@ import {
 import { AgentState } from "#/types/agent-state";
 import { getFirstPRUrl } from "#/utils/parse-pr-url";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
+import type { ConversationTab } from "#/state/conversation-store";
+import type { IPythonAction } from "#/types/core/actions";
+
+function computeToolBadges(
+  msgs: (OpenHandsAction | OpenHandsObservation)[],
+  msgIndex: number,
+): ConversationTab[] {
+  const tabs = new Set<ConversationTab>();
+  let i = msgIndex - 1;
+  while (i >= 0) {
+    const evt = msgs[i];
+    if (isAssistantMessage(evt)) break;
+    if (isOpenHandsAction(evt) && evt.source === "agent") {
+      if (evt.action === "run") {
+        tabs.add("terminal");
+      } else if (evt.action === "run_ipython") {
+        const code = (evt as IPythonAction).args.code ?? "";
+        tabs.add(code.includes("_safe_diagram") ? "diagrams" : "jupyter");
+      } else if (evt.action === "write" || evt.action === "edit") {
+        tabs.add("editor");
+      }
+    }
+    i -= 1;
+  }
+  return [...tabs];
+}
 
 const isErrorEvent = (evt: unknown): evt is { error: true; message: string } =>
   typeof evt === "object" &&
@@ -249,6 +276,11 @@ export const Messages: React.FC<MessagesProps> = React.memo(
                       tooltip: t("MICROAGENT$ADD_TO_MEMORY"),
                     },
                   ]
+                : undefined
+            }
+            toolBadges={
+              isAssistantMessage(message)
+                ? computeToolBadges(messages, index)
                 : undefined
             }
             isInLast10Actions={messages.length - 1 - index < 10}
