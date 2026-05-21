@@ -7,6 +7,7 @@ import GlobeIcon from "#/icons/globe.svg?react";
 import ServerIcon from "#/icons/server.svg?react";
 import GitChanges from "#/icons/git_changes.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
+import DiagramsIcon from "#/icons/diagrams.svg?react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
@@ -128,6 +129,13 @@ export function ConversationTabs() {
       onClick: () => onTabSelected("browser"),
       tooltipContent: t(I18nKey.COMMON$BROWSER),
       tooltipAriaLabel: t(I18nKey.COMMON$BROWSER),
+    },
+    {
+      isActive: isTabActive("diagrams"),
+      icon: DiagramsIcon,
+      onClick: () => onTabSelected("diagrams"),
+      tooltipContent: "Diagrams",
+      tooltipAriaLabel: "Diagrams",
     },
   ];
 

@@ -7,7 +7,8 @@ export type ConversationTab =
   | "jupyter"
   | "served"
   | "vscode"
-  | "terminal";
+  | "terminal"
+  | "diagrams";
 
 export interface IMessageToSend {
   text: string;

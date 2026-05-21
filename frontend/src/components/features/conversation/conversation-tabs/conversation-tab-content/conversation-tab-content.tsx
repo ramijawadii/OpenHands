@@ -15,6 +15,7 @@ const BrowserTab = lazy(() => import("#/routes/browser-tab"));
 const JupyterTab = lazy(() => import("#/routes/jupyter-tab"));
 const ServedTab = lazy(() => import("#/routes/served-tab"));
 const VSCodeTab = lazy(() => import("#/routes/vscode-tab"));
+const DiagramsTab = lazy(() => import("#/routes/diagrams-tab"));
 
 export function ConversationTabContent() {
   const { selectedTab, shouldShownAgentLoading } = useConversationStore();
@@ -28,6 +29,7 @@ export function ConversationTabContent() {
   const isServedActive = selectedTab === "served";
   const isVSCodeActive = selectedTab === "vscode";
   const isTerminalActive = selectedTab === "terminal";
+  const isDiagramsActive = selectedTab === "diagrams";
 
   // Define tab configurations
   const tabs = [
@@ -48,6 +50,11 @@ export function ConversationTabContent() {
       key: "terminal",
       component: Terminal,
       isActive: isTerminalActive,
+    },
+    {
+      key: "diagrams",
+      component: DiagramsTab,
+      isActive: isDiagramsActive,
     },
   ];
 
@@ -70,6 +77,9 @@ export function ConversationTabContent() {
     if (isTerminalActive) {
       return t(I18nKey.COMMON$TERMINAL);
     }
+    if (isDiagramsActive) {
+      return "Diagrams";
+    }
     return "";
   }, [
     isEditorActive,
@@ -78,6 +88,7 @@ export function ConversationTabContent() {
     isServedActive,
     isVSCodeActive,
     isTerminalActive,
+    isDiagramsActive,
   ]);
 
   if (shouldShownAgentLoading) {
