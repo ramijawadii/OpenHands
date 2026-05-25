@@ -3,8 +3,7 @@ import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
 import { ContextMenu } from "#/ui/context-menu";
 import { I18nKey } from "#/i18n/declaration";
 import { ConversationStatus } from "#/types/conversation-status";
-import StopCircleIcon from "#/icons/stop-circle.svg?react";
-import PlayCircleIcon from "#/icons/play-circle.svg?react";
+import { StopCircle, PlayCircle } from "lucide-react";
 import { ServerStatusContextMenuIconText } from "./server-status-context-menu-icon-text";
 
 interface ServerStatusContextMenuProps {
@@ -36,7 +35,7 @@ export function ServerStatusContextMenu({
     >
       {conversationStatus === "RUNNING" && onStopServer && (
         <ServerStatusContextMenuIconText
-          icon={<StopCircleIcon width={18} height={18} />}
+          icon={<StopCircle size={18} />}
           text={t(I18nKey.COMMON$STOP_RUNTIME)}
           onClick={onStopServer}
           testId="stop-server-button"
@@ -45,7 +44,7 @@ export function ServerStatusContextMenu({
 
       {conversationStatus === "STOPPED" && onStartServer && (
         <ServerStatusContextMenuIconText
-          icon={<PlayCircleIcon width={18} height={18} />}
+          icon={<PlayCircle size={18} />}
           text={t(I18nKey.COMMON$START_RUNTIME)}
           onClick={onStartServer}
           testId="start-server-button"

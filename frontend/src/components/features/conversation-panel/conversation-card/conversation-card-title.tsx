@@ -40,8 +40,12 @@ export function ConversationCardTitle({
   return (
     <p
       data-testid="conversation-card-title"
-      className="text-xs leading-6 font-semibold bg-transparent truncate overflow-hidden"
+      className="text-sm font-normal bg-transparent whitespace-nowrap overflow-hidden flex-1 min-w-0 text-[var(--cg-text-nav)]"
       title={title}
+      style={{
+        maskImage: "linear-gradient(to right, black 78%, transparent 95%)",
+        WebkitMaskImage: "linear-gradient(to right, black 78%, transparent 95%)",
+      }}
     >
       {title}
     </p>

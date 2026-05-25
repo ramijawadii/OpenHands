@@ -47,7 +47,7 @@ function getEntryPoint(
 export function ChatInterface() {
   const { setMessageToSend } = useConversationStore();
   const { errorMessage } = useErrorMessageStore();
-  const { send, isLoadingMessages, parsedEvents } = useWsClient();
+  const { send, isLoadingMessages, parsedEvents, streamingContent } = useWsClient();
   const { setOptimisticUserMessage, getOptimisticUserMessage } =
     useOptimisticUserMessageStore();
   const { t } = useTranslation();
@@ -196,6 +196,7 @@ export function ChatInterface() {
               isAwaitingUserConfirmation={
                 curAgentState === AgentState.AWAITING_USER_CONFIRMATION
               }
+              streamingContent={streamingContent}
             />
           )}
         </div>

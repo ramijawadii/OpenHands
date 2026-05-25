@@ -1,4 +1,4 @@
-import { IoLockClosed } from "react-icons/io5";
+import { Lock } from "lucide-react";
 import { Tooltip } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
@@ -21,7 +21,7 @@ export function SecurityLock() {
         className="mr-2 cursor-pointer hover:opacity-80 transition-all"
         aria-label={t(I18nKey.SETTINGS$TITLE)}
       >
-        <IoLockClosed size={20} />
+        <Lock size={20} />
       </Link>
     </Tooltip>
   );

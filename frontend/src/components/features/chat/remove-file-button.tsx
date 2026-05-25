@@ -1,4 +1,4 @@
-import CloseIcon from "#/icons/u-close.svg?react";
+import { X } from "lucide-react";
 import { cn, isMobileDevice } from "#/utils/utils";
 
 interface RemoveFileButtonProps {
@@ -17,7 +17,7 @@ export function RemoveFileButton({ onClick }: RemoveFileButtonProps) {
         isMobile && "opacity-100",
       )}
     >
-      <CloseIcon width={10} height={10} color="#ffffff" />
+      <X size={10} color="#ffffff" />
     </button>
   );
 }

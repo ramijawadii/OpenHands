@@ -5,6 +5,7 @@ import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 import PuzzlePieceIcon from "#/icons/u-puzzle-piece.svg?react";
 import UserIcon from "#/icons/user.svg?react";
+import { Building2 } from "lucide-react";
 
 export interface SettingsNavItem {
   icon: React.ReactElement;
@@ -13,6 +14,11 @@ export interface SettingsNavItem {
 }
 
 export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
+  {
+    icon: <Building2 size={22} />,
+    to: "/settings/org",
+    text: "Organization",
+  },
   {
     icon: <UserIcon width={22} height={22} />,
     to: "/settings/user",
@@ -56,6 +62,11 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
 ];
 
 export const OSS_NAV_ITEMS: SettingsNavItem[] = [
+  {
+    icon: <Building2 size={22} />,
+    to: "/settings/org",
+    text: "Organization",
+  },
   {
     icon: <CircuitIcon width={22} height={22} />,
     to: "/settings",

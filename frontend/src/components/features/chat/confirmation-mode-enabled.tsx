@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Tooltip } from "@heroui/react";
 import { I18nKey } from "#/i18n/declaration";
-import LockIcon from "#/icons/lock.svg?react";
+import { Lock } from "lucide-react";
 import { useSettings } from "#/hooks/query/use-settings";
 
 function ConfirmationModeEnabled() {
@@ -20,7 +20,7 @@ function ConfirmationModeEnabled() {
       className="bg-white text-black hover:bg-transparent"
     >
       <div className="flex items-center justify-center w-[26px] h-[26px] rounded-lg bg-[#25272D]">
-        <LockIcon width={15} height={15} />
+        <Lock size={15} />
       </div>
     </Tooltip>
   );

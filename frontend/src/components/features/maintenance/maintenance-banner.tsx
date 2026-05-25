@@ -2,8 +2,7 @@ import { useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useMemo } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { FaTriangleExclamation } from "react-icons/fa6";
-import CloseIcon from "#/icons/close.svg?react";
+import { AlertTriangle, X } from "lucide-react";
 import { cn } from "#/utils/utils";
 
 interface MaintenanceBannerProps {
@@ -87,7 +86,7 @@ export function MaintenanceBanner({ startTime }: MaintenanceBannerProps) {
     >
       <div className="flex items-center">
         <div className="flex-shrink-0">
-          <FaTriangleExclamation className="text-white align-middle" />
+          <AlertTriangle className="text-white align-middle" />
         </div>
         <div className="ml-3">
           <p className="text-sm font-medium">
@@ -104,7 +103,7 @@ export function MaintenanceBanner({ startTime }: MaintenanceBannerProps) {
           "bg-[#0D0F11] rounded-full w-5 h-5 flex items-center justify-center cursor-pointer",
         )}
       >
-        <CloseIcon />
+        <X />
       </button>
     </div>
   );

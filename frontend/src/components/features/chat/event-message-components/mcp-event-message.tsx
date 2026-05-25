@@ -1,4 +1,5 @@
 import React from "react";
+import { Zap } from "lucide-react";
 import { OpenHandsObservation } from "#/types/core/observations";
 import { isMcpObservation } from "#/types/core/guards";
 import { GenericEventMessage } from "../generic-event-message";
@@ -26,6 +27,7 @@ export function McpEventMessage({
         title={getEventContent(event).title}
         details={<MCPObservationContent event={event} />}
         success={getObservationResult(event)}
+        icon={Zap}
       />
       {shouldShowConfirmationButtons && <ConfirmationButtons />}
     </div>

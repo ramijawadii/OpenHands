@@ -1,6 +1,4 @@
-import { FaClock } from "react-icons/fa";
-import CheckCircle from "#/icons/check-circle-solid.svg?react";
-import XCircle from "#/icons/x-circle-solid.svg?react";
+import { Clock, CheckCircle2, XCircle } from "lucide-react";
 import { ObservationResultStatus } from "./event-content-helpers/get-observation-result";
 
 interface SuccessIndicatorProps {
@@ -11,9 +9,9 @@ export function SuccessIndicator({ status }: SuccessIndicatorProps) {
   return (
     <span className="flex-shrink-0">
       {status === "success" && (
-        <CheckCircle
+        <CheckCircle2
           data-testid="status-icon"
-          className="h-4 w-4 ml-2 inline fill-success"
+          className="h-4 w-4 ml-2 inline fill-transparent text-[#22c55e]"
         />
       )}
 
@@ -25,7 +23,7 @@ export function SuccessIndicator({ status }: SuccessIndicatorProps) {
       )}
 
       {status === "timeout" && (
-        <FaClock
+        <Clock
           data-testid="status-icon"
           className="h-4 w-4 ml-2 inline fill-yellow-500"
         />

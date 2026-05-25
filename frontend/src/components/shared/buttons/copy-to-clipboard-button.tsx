@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
-import CheckmarkIcon from "#/icons/checkmark.svg?react";
-import CopyIcon from "#/icons/copy.svg?react";
+import { Check, Copy } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 
 interface CopyToClipboardButtonProps {
@@ -29,8 +28,8 @@ export function CopyToClipboardButton({
       )}
       className="button-base p-1 cursor-pointer"
     >
-      {mode === "copy" && <CopyIcon width={15} height={15} />}
-      {mode === "copied" && <CheckmarkIcon width={15} height={15} />}
+      {mode === "copy" && <Copy size={15} />}
+      {mode === "copied" && <Check size={15} />}
     </button>
   );
 }

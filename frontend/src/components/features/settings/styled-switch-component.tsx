@@ -19,7 +19,7 @@ export function StyledSwitchComponent({
       <div
         className={cn(
           "w-3 h-3 rounded-xl",
-          isToggled ? "bg-base-secondary" : "bg-tertiary-light",
+          isToggled ? "bg-white" : "bg-tertiary-light",
         )}
       />
     </div>

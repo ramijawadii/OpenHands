@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import posthog from "posthog-js";
-import ArrowDownIcon from "#/icons/u-arrow-down.svg?react";
+import { ArrowDown } from "lucide-react";
 import { cn, getGitPullPrompt } from "#/utils/utils";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useUserProviders } from "#/hooks/use-user-providers";
@@ -40,10 +40,10 @@ export function GitControlBarPullButton({
       )}
     >
       <div className="w-3 h-3 flex items-center justify-center">
-        <ArrowDownIcon width={12} height={12} color="white" />
+        <ArrowDown size={12} color="var(--cg-text-nav)" />
       </div>
       <div
-        className="font-normal text-white text-sm leading-5 max-w-[76px] truncate"
+        className="font-normal text-[var(--cg-text-nav)] text-sm leading-5 max-w-[76px] truncate"
         title={t(I18nKey.COMMON$PULL)}
       >
         {t(I18nKey.COMMON$PULL)}

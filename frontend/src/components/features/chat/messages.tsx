@@ -13,6 +13,7 @@ import {
 } from "#/types/core/guards";
 import { EventMessage } from "./event-message";
 import { ChatMessage } from "./chat-message";
+import { StreamingMessage } from "./streaming-message";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { LaunchMicroagentModal } from "./microagent/launch-microagent-modal";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
@@ -42,7 +43,11 @@ function computeToolBadges(
         tabs.add("terminal");
       } else if (evt.action === "run_ipython") {
         const code = (evt as IPythonAction).args.code ?? "";
-        tabs.add(code.includes("_safe_diagram") ? "diagrams" : "jupyter");
+        tabs.add(
+          (code.includes("_safe_diagram") || code.includes("_safe_page"))
+            ? "diagrams"
+            : "jupyter",
+        );
       } else if (evt.action === "write" || evt.action === "edit") {
         tabs.add("editor");
       }
@@ -66,10 +71,11 @@ const isAgentStatusError = (evt: unknown): boolean =>
 interface MessagesProps {
   messages: (OpenHandsAction | OpenHandsObservation)[];
   isAwaitingUserConfirmation: boolean;
+  streamingContent?: string | null;
 }
 
 export const Messages: React.FC<MessagesProps> = React.memo(
-  ({ messages, isAwaitingUserConfirmation }) => {
+  ({ messages, isAwaitingUserConfirmation, streamingContent }) => {
     const {
       createConversationAndSubscribe,
       isPending,
@@ -267,7 +273,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
                 ? [
                     {
                       icon: (
-                        <MemoryIcon className="w-[14px] h-[14px] text-white" />
+                        <MemoryIcon className="w-[14px] h-[14px] text-[var(--cg-text-nav)]" />
                       ),
                       onClick: () => {
                         setSelectedEventId(message.id);
@@ -286,6 +292,10 @@ export const Messages: React.FC<MessagesProps> = React.memo(
             isInLast10Actions={messages.length - 1 - index < 10}
           />
         ))}
+
+        {streamingContent && !isAssistantMessage(messages[messages.length - 1] as never) && (
+          <StreamingMessage content={streamingContent} />
+        )}
 
         {optimisticUserMessage && (
           <ChatMessage type="user" message={optimisticUserMessage} />
@@ -309,11 +319,8 @@ export const Messages: React.FC<MessagesProps> = React.memo(
     );
   },
   (prevProps, nextProps) => {
-    // Prevent re-renders if messages are the same length
-    if (prevProps.messages.length !== nextProps.messages.length) {
-      return false;
-    }
-
+    if (prevProps.messages.length !== nextProps.messages.length) return false;
+    if (prevProps.streamingContent !== nextProps.streamingContent) return false;
     return true;
   },
 );

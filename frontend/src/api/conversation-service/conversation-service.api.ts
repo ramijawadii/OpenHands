@@ -395,6 +395,20 @@ class ConversationService {
     return data.code;
   }
 
+  static async getFileBinary(conversationId: string, path: string): Promise<ArrayBuffer | null> {
+    const url = `${this.getConversationUrl(conversationId)}/select-file-binary`;
+    try {
+      const { data } = await openHands.get<ArrayBuffer>(url, {
+        params: { file: path },
+        headers: this.getConversationHeaders(),
+        responseType: "arraybuffer",
+      });
+      return data;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Upload multiple files to the workspace
    * @param conversationId ID of the conversation

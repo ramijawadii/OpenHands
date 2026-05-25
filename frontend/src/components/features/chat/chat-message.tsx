@@ -1,15 +1,11 @@
 import React from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { code } from "../markdown/code";
+import { BarChart2 } from "lucide-react";
 import { cn } from "#/utils/utils";
-import { ul, ol } from "../markdown/list";
+import { MarkdownRenderer } from "../markdown/MarkdownRenderer";
 import { CopyToClipboardButton } from "#/components/shared/buttons/copy-to-clipboard-button";
-import { anchor } from "../markdown/anchor";
 import { OpenHandsSourceType } from "#/types/core/base";
-import { paragraph } from "../markdown/paragraph";
 import { TooltipButton } from "#/components/shared/buttons/tooltip-button";
+import { useConversationStore } from "#/state/conversation-store";
 
 interface ChatMessageProps {
   type: OpenHandsSourceType;
@@ -21,6 +17,61 @@ interface ChatMessageProps {
   }>;
 }
 
+function MermaidBlock({ code }: { code: string }) {
+  const { setSelectedTab, setHasRightPanelToggled } = useConversationStore();
+
+  return (
+    <div style={{ position: "relative", marginBottom: "8px" }}>
+      <pre
+        style={{
+          background: "var(--cg-input-bg)",
+          border: "1px solid var(--cg-border)",
+          borderRadius: "8px",
+          padding: "12px 14px",
+          fontSize: "12px",
+          color: "var(--cg-text-nav)",
+          overflowX: "auto",
+          whiteSpace: "pre",
+          fontFamily: "monospace",
+        }}
+      >
+        {code}
+      </pre>
+      <button
+        type="button"
+        onClick={() => {
+          setSelectedTab("diagrams");
+          setHasRightPanelToggled(true);
+        }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          marginTop: "6px",
+          padding: "5px 12px",
+          background: "var(--cg-workspace-bg-hover)",
+          border: "1px solid var(--cg-border)",
+          borderRadius: "6px",
+          color: "var(--cg-text-nav)",
+          fontSize: "12px",
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.color = "var(--cg-text-primary)";
+          (e.currentTarget as HTMLButtonElement).style.background = "var(--cg-workspace-bg)";
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.color = "var(--cg-text-nav)";
+          (e.currentTarget as HTMLButtonElement).style.background = "var(--cg-workspace-bg-hover)";
+        }}
+      >
+        <BarChart2 size={13} />
+        View Diagram
+      </button>
+    </div>
+  );
+}
+
 export function ChatMessage({
   type,
   message,
@@ -29,6 +80,14 @@ export function ChatMessage({
 }: React.PropsWithChildren<ChatMessageProps>) {
   const [isHovering, setIsHovering] = React.useState(false);
   const [isCopy, setIsCopy] = React.useState(false);
+
+  const mermaidCodeRenderer = React.useCallback(
+    ({ language, code }: { language: string; code: string; inline: boolean }) => {
+      if (language !== "mermaid") return null;
+      return <MermaidBlock key={code} code={code} />;
+    },
+    [],
+  );
 
   const handleCopyToClipboard = async () => {
     await navigator.clipboard.writeText(message);
@@ -57,9 +116,14 @@ export function ChatMessage({
       className={cn(
         "rounded-xl relative w-fit max-w-full last:mb-4",
         "flex flex-col gap-2",
-        type === "user" && " p-4 bg-tertiary self-end",
-        type === "agent" && "mt-6 w-full max-w-full bg-transparent",
+        type === "user" && "p-4 self-end",
+        type === "agent" && "mt-6 w-full max-w-full",
       )}
+      style={
+        type === "user"
+          ? { backgroundColor: "var(--cg-input-bg)" }
+          : {}
+      }
     >
       <div
         className={cn(
@@ -106,25 +170,13 @@ export function ChatMessage({
         />
       </div>
 
-      <div
-        className="text-sm"
-        style={{
-          whiteSpace: "normal",
-          wordBreak: "break-word",
-        }}
-      >
-        <Markdown
-          components={{
-            code,
-            ul,
-            ol,
-            a: anchor,
-            p: paragraph,
-          }}
-          remarkPlugins={[remarkGfm, remarkBreaks]}
-        >
-          {message}
-        </Markdown>
+      <div style={{ wordBreak: "break-word" }}>
+        <MarkdownRenderer
+          content={message}
+          className="md-vscode--chat"
+          breaks
+          codeRenderer={mermaidCodeRenderer}
+        />
       </div>
       {children}
     </article>

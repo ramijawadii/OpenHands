@@ -4,7 +4,7 @@ import { Provider } from "#/types/settings";
 import { I18nKey } from "#/i18n/declaration";
 import { GitProviderIcon } from "#/components/shared/git-provider-icon";
 import { GitExternalLinkIcon } from "./git-external-link-icon";
-import RepoForkedIcon from "#/icons/repo-forked.svg?react";
+import { GitFork } from "lucide-react";
 
 interface GitControlBarRepoButtonProps {
   selectedRepository: string | null | undefined;
@@ -46,11 +46,11 @@ export function GitControlBarRepoButton({
             className="w-3 h-3 inline-flex"
           />
         ) : (
-          <RepoForkedIcon width={12} height={12} color="white" />
+          <GitFork size={12} color="var(--cg-text-nav)" />
         )}
       </div>
       <div
-        className="font-normal text-white text-sm leading-5 truncate flex-1 min-w-0"
+        className="font-normal text-[var(--cg-text-nav)] text-sm leading-5 truncate flex-1 min-w-0"
         title={buttonText}
       >
         {buttonText}

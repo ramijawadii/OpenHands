@@ -13,8 +13,10 @@ import { MicroagentsModal } from "../conversation-panel/microagents-modal";
 import { ConfirmDeleteModal } from "../conversation-panel/confirm-delete-modal";
 import { ConfirmStopModal } from "../conversation-panel/confirm-stop-modal";
 import { MetricsModal } from "./metrics-modal/metrics-modal";
+import useMetricsStore from "#/stores/metrics-store";
 
 export function ConversationName() {
+  const { isMetricsModalOpen, closeMetricsModal } = useMetricsStore();
   const { t } = useTranslation();
   const { conversationId } = useParams<{ conversationId: string }>();
   const { data: conversation } = useActiveConversation();
@@ -181,8 +183,11 @@ export function ConversationName() {
 
       {/* Metrics Modal */}
       <MetricsModal
-        isOpen={metricsModalVisible}
-        onOpenChange={setMetricsModalVisible}
+        isOpen={metricsModalVisible || isMetricsModalOpen}
+        onOpenChange={(open) => {
+          setMetricsModalVisible(open);
+          if (!open) closeMetricsModal();
+        }}
       />
 
       {/* System Message Modal */}

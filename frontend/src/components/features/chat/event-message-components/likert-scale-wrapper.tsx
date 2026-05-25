@@ -25,26 +25,5 @@ export function LikertScaleWrapper({
   isCheckingFeedback,
   feedbackData,
 }: LikertScaleWrapperProps) {
-  if (config?.APP_MODE !== "saas" || isCheckingFeedback) {
-    return null;
-  }
-
-  // For error observations, show if in last 10 actions
-  // For other events, show only if it's the last message
-  const shouldShow = isErrorObservation(event)
-    ? isInLast10Actions
-    : isLastMessage;
-
-  if (!shouldShow) {
-    return null;
-  }
-
-  return (
-    <LikertScale
-      eventId={event.id}
-      initiallySubmitted={feedbackData.exists}
-      initialRating={feedbackData.rating}
-      initialReason={feedbackData.reason}
-    />
-  );
+  return null;
 }

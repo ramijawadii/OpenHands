@@ -10,7 +10,7 @@ import { hasAdvancedSettingsSet } from "#/utils/has-advanced-settings-set";
 import { useSaveSettings } from "#/hooks/mutation/use-save-settings";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { TooltipButton } from "#/components/shared/buttons/tooltip-button";
-import QuestionCircleIcon from "#/icons/question-circle.svg?react";
+import { HelpCircle } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { SettingsInput } from "#/components/features/settings/settings-input";
 import { HelpLink } from "#/ui/help-link";
@@ -706,7 +706,7 @@ function LlmSettingsScreen() {
               ariaLabel={t(I18nKey.SETTINGS$CONFIRMATION_MODE)}
               className="text-[#9099AC] hover:text-white cursor-help"
             >
-              <QuestionCircleIcon width={16} height={16} />
+              <HelpCircle size={16} />
             </TooltipButton>
           </div>
 

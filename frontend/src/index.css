@@ -14,6 +14,110 @@
   --border-editor-sidebar: #3c3c4a;
   background-color: var(--base) !important;
   --bg-neutral-muted: #afb8c133;
+
+  /* ── CloudGuard theme tokens — dark (default) ───────────────────────── */
+  --cg-bg-page: hsl(60deg, 1.64%, 11.96%);
+  --cg-bg-primary-sidebar: #171716;
+  --cg-bg-sidebar: rgb(31, 31, 30);
+  --cg-bg-card: #1f1f1e;
+  --cg-bg-hover: #0d0d0c;
+  --cg-bg-active: #0a0a0a;
+  --cg-bg-badge: rgba(43, 43, 41, 0.6);
+  --cg-text-primary: #f7f7f2;
+  --cg-text-nav: #bfbdb4;
+  --cg-text-muted: #968f85;
+  --cg-border: rgba(222, 220, 206, 0.15);
+  --cg-border-card: #565656;
+  --cg-accent: #2d86d4;
+  --cg-accent-purple: #9B87F5;
+  --cg-accent-bg: rgba(45, 134, 212, 0.10);
+  --cg-accent-bg-strong: rgba(45, 134, 212, 0.18);
+  --cg-accent-purple-bg: rgba(155, 135, 245, 0.19);
+  --cg-workspace-bg: rgba(43, 43, 41, 0.45);
+  --cg-workspace-bg-hover: rgba(43, 43, 41, 0.70);
+  --cg-workspace-dropdown-bg: #1c1c1a;
+  --cg-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --cg-btn-cta-bg: #f7f7f2;
+  --cg-btn-cta-text: #1a1a18;
+  --cg-btn-cta-hover: #e8e8e4;
+  --cg-border-subtle: rgba(222, 220, 206, 0.07);
+  --cg-border-strong: rgba(222, 220, 206, 0.25);
+  --cg-toggle-off: rgba(222, 220, 206, 0.2);
+  --cg-input-bg: rgba(43, 43, 41, 0.35);
+  --cg-input-border: rgba(222, 220, 206, 0.15);
+  --cg-overlay: rgba(0, 0, 0, 0.65);
+  --cg-danger: #e05252;
+  --cg-danger-border: rgba(224, 82, 82, 0.35);
+  --cg-danger-bg: rgba(224, 82, 82, 0.08);
+  /* Code/JSON blocks always stay dark regardless of theme */
+  --cg-code-bg: #1a1a19;
+}
+
+[data-theme="light"] {
+  --cg-bg-page: hsl(48deg, 33.3%, 97.1%);
+  --cg-bg-primary-sidebar: hsl(53deg, 28.6%, 94.5%);
+  --cg-bg-sidebar: hsl(53deg, 28.6%, 94.5%);
+  --cg-bg-card: #ffffff;
+  --cg-bg-hover: hsl(50deg, 20.7%, 91%);
+  --cg-bg-active: hsl(50deg, 20.7%, 88.6%);
+  --cg-bg-badge: rgba(200, 190, 170, 0.4);
+  --cg-text-primary: hsl(0deg, 0%, 7%);
+  --cg-text-nav: hsl(60deg, 2.5%, 23.3%);
+  --cg-text-muted: hsl(51deg, 3.1%, 43.7%);
+  --cg-border: rgba(30, 20, 10, 0.12);
+  --cg-border-card: rgba(30, 20, 10, 0.2);
+  --cg-accent: hsl(210deg, 70.9%, 51.6%);
+  --cg-accent-purple: hsl(262deg, 83.3%, 63.9%);
+  --cg-accent-bg: rgba(45, 134, 212, 0.08);
+  --cg-accent-bg-strong: rgba(45, 134, 212, 0.15);
+  --cg-accent-purple-bg: rgba(130, 90, 230, 0.12);
+  --cg-workspace-bg: rgba(200, 190, 170, 0.4);
+  --cg-workspace-bg-hover: rgba(200, 190, 170, 0.6);
+  --cg-workspace-dropdown-bg: hsl(53deg, 28.6%, 90%);
+  --cg-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.15);
+  --cg-btn-cta-bg: hsl(0deg, 0%, 7%);
+  --cg-btn-cta-text: hsl(0deg, 0%, 100%);
+  --cg-btn-cta-hover: hsl(0deg, 0%, 15%);
+  --cg-border-subtle: rgba(30, 20, 10, 0.07);
+  --cg-border-strong: rgba(30, 20, 10, 0.25);
+  --cg-toggle-off: rgba(30, 20, 10, 0.15);
+  --cg-input-bg: rgba(200, 190, 170, 0.25);
+  --cg-input-border: rgba(30, 20, 10, 0.15);
+  --cg-overlay: rgba(0, 0, 0, 0.35);
+  --cg-danger: #c94040;
+  --cg-danger-border: rgba(201, 64, 64, 0.3);
+  --cg-danger-bg: rgba(201, 64, 64, 0.06);
+  /* Override Tailwind color-base so bg-base class picks up light background */
+  --color-base: hsl(48deg, 33.3%, 97.1%);
+}
+
+/* Light mode: text-white becomes readable dark text.
+   Exceptions: elements that carry their own colored/dark background keep white text. */
+[data-theme="light"] .text-white {
+  color: var(--cg-text-primary);
+}
+[data-theme="light"] .bg-tertiary .text-white,
+[data-theme="light"] .bg-tertiary.text-white,
+[data-theme="light"] .bg-danger .text-white,
+[data-theme="light"] .bg-danger.text-white,
+[data-theme="light"] .bg-red-600 .text-white,
+[data-theme="light"] .bg-red-600.text-white,
+[data-theme="light"] .bg-red-500 .text-white,
+[data-theme="light"] .bg-red-500.text-white { color: #ffffff; }
+
+/* CloudGuard sidebar scrollbar */
+.cg-sidebar-nav::-webkit-scrollbar {
+  width: 4px;
+}
+.cg-sidebar-nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cg-sidebar-nav::-webkit-scrollbar-thumb {
+  background: var(--cg-border);
+  border-radius: 2px;
+}
+.cg-sidebar-nav::-webkit-scrollbar-thumb:hover {
+  background: var(--cg-text-muted);
 }
 
 body {

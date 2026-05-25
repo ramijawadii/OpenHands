@@ -1,4 +1,4 @@
-import PauseIcon from "#/icons/pause.svg?react";
+import { Pause } from "lucide-react";
 
 export interface ChatStopButtonProps {
   handleStop: () => void;
@@ -12,7 +12,7 @@ export function ChatStopButton({ handleStop }: ChatStopButtonProps) {
       data-testid="stop-button"
       className="cursor-pointer"
     >
-      <PauseIcon className="block max-w-none w-4 h-4" />
+      <Pause size={16} className="block" />
     </button>
   );
 }

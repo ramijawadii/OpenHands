@@ -15,6 +15,7 @@ interface BaseModalProps {
   title: string;
   contentClassName?: string;
   bodyClassName?: string;
+  modalClassName?: string;
   isDismissable?: boolean;
   subtitle?: string;
   actions?: Action[];
@@ -28,6 +29,7 @@ export function BaseModal({
   title,
   contentClassName = "max-w-[30rem] p-[40px]",
   bodyClassName = "px-0 py-[20px]",
+  modalClassName,
   isDismissable = true,
   subtitle = undefined,
   actions = [],
@@ -43,7 +45,7 @@ export function BaseModal({
       backdrop="blur"
       hideCloseButton
       size="sm"
-      className="bg-base-secondary rounded-lg"
+      className={`bg-base-secondary rounded-lg${modalClassName ? ` ${modalClassName}` : ""}`}
     >
       <ModalContent className={contentClassName}>
         {(closeModal) => (

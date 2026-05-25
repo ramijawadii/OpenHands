@@ -3,7 +3,12 @@ import { ConversationStatus } from "#/types/conversation-status";
 import { DragOver } from "../drag-over";
 import { UploadedFiles } from "../uploaded-files";
 import { ChatInputRow } from "./chat-input-row";
-import { ChatInputActions } from "./chat-input-actions";
+import { ChatCmdMenu } from "./chat-cmd-menu";
+import { ChatSkillMenu } from "./chat-skill-menu";
+import { ServerStatus } from "#/components/features/controls/server-status";
+import { AgentStatus } from "#/components/features/controls/agent-status";
+import { ChatModeButton } from "./chat-mode-menu";
+import { filterSkills, type Skill } from "#/data/skill-registry";
 
 interface ChatInputContainerProps {
   chatContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -50,16 +55,129 @@ export function ChatInputContainer({
   onBlur,
   onStop,
 }: ChatInputContainerProps) {
+  const [showCmdMenu, setShowCmdMenu] = React.useState(false);
+  const [slashQuery, setSlashQuery] = React.useState<string | null>(null);
+  const [slashIndex, setSlashIndex] = React.useState(0);
+
+  // Close cmd menu on click outside the container
+  React.useEffect(() => {
+    if (!showCmdMenu) return;
+    const handle = (e: MouseEvent) => {
+      if (
+        chatContainerRef.current &&
+        !chatContainerRef.current.contains(e.target as Node)
+      ) {
+        setShowCmdMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    return () => document.removeEventListener("mousedown", handle);
+  }, [showCmdMenu, chatContainerRef]);
+
+  const selectSkill = React.useCallback(
+    (skill: Skill) => {
+      const el = chatInputRef.current;
+      if (!el) return;
+      el.focus();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      document.execCommand("insertText", false, skill.prompt);
+      setSlashQuery(null);
+    },
+    [chatInputRef],
+  );
+
+  // Detect `/` at start of input to open skill menu (hide once user types a space after the command)
+  const handleInputWithSlash = React.useCallback(() => {
+    const text = chatInputRef.current?.textContent ?? "";
+    const afterSlash = text.slice(1);
+    if (text.startsWith("/") && !afterSlash.includes(" ")) {
+      setSlashQuery(afterSlash);
+      setSlashIndex(0);
+    } else {
+      setSlashQuery(null);
+    }
+    onInput();
+  }, [onInput, chatInputRef]);
+
+  // Keyboard navigation for skill menu — must be after selectSkill
+  const handleKeyDownWithSlash = React.useCallback(
+    (e: React.KeyboardEvent) => {
+      if (slashQuery !== null) {
+        const skills = filterSkills(slashQuery);
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setSlashIndex((i) => (i + 1) % Math.max(skills.length, 1));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setSlashIndex((i) =>
+            i <= 0 ? Math.max(skills.length - 1, 0) : i - 1,
+          );
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setSlashQuery(null);
+          return;
+        }
+        if (e.key === "Enter" && skills.length > 0) {
+          e.preventDefault();
+          selectSkill(skills[slashIndex % skills.length]);
+          return;
+        }
+      }
+      onKeyDown(e);
+    },
+    [slashQuery, slashIndex, onKeyDown, selectSkill],
+  );
+
   return (
     <div
       ref={chatContainerRef}
-      className="bg-[#25272D] box-border content-stretch flex flex-col items-start justify-center p-4 pt-3 relative rounded-[15px] w-full"
+      className="relative box-border content-stretch flex flex-col items-start justify-center p-4 pt-3 w-full"
+      style={{
+        background: "var(--cg-bg-primary-sidebar)",
+        borderRadius: "15px",
+        border: "1px solid var(--cg-border)",
+      }}
       onDragOver={(e) => onDragOver(e, disabled)}
       onDragLeave={(e) => onDragLeave(e, disabled)}
       onDrop={(e) => onDrop(e, disabled)}
     >
-      {/* Drag Over UI */}
+      {/* Drag overlay */}
       {isDragOver && <DragOver />}
+
+      {/* Cmd menu — floats above the container, full width */}
+      {showCmdMenu && !slashQuery && (
+        <ChatCmdMenu
+          chatInputRef={chatInputRef}
+          handleFileIconClick={() => handleFileIconClick(disabled)}
+          onClose={() => setShowCmdMenu(false)}
+        />
+      )}
+
+      {/* Skill menu — shown when input starts with "/" */}
+      {slashQuery !== null && (
+        <ChatSkillMenu
+          query={slashQuery}
+          activeIndex={slashIndex}
+          onSelect={selectSkill}
+          onClose={() => setSlashQuery(null)}
+          onIndexChange={setSlashIndex}
+        />
+      )}
+
+      {/* Top row: server status top-right */}
+      <div className="flex justify-end w-full mb-1.5">
+        <ServerStatus conversationStatus={conversationStatus} />
+      </div>
 
       <UploadedFiles />
 
@@ -70,19 +188,22 @@ export function ChatInputContainer({
         buttonClassName={buttonClassName}
         handleFileIconClick={handleFileIconClick}
         handleSubmit={handleSubmit}
-        onInput={onInput}
+        onInput={handleInputWithSlash}
         onPaste={onPaste}
-        onKeyDown={onKeyDown}
+        onKeyDown={handleKeyDownWithSlash}
         onFocus={onFocus}
         onBlur={onBlur}
-      />
-
-      <ChatInputActions
-        conversationStatus={conversationStatus}
-        disabled={disabled}
-        handleStop={handleStop}
-        handleResumeAgent={handleResumeAgent}
-        onStop={onStop}
+        showCmdMenu={showCmdMenu}
+        onToggleCmdMenu={() => setShowCmdMenu((v) => !v)}
+        modeSlot={<ChatModeButton />}
+        agentStatusSlot={
+          <AgentStatus
+            className="ml-1"
+            handleStop={() => handleStop(onStop)}
+            handleResumeAgent={handleResumeAgent}
+            disabled={disabled}
+          />
+        }
       />
     </div>
   );

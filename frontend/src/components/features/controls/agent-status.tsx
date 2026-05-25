@@ -6,12 +6,11 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { getStatusCode } from "#/utils/status";
 import { ChatStopButton } from "../chat/chat-stop-button";
 import { AgentState } from "#/types/agent-state";
-import ClockIcon from "#/icons/u-clock-three.svg?react";
+import { Clock, AlertCircle } from "lucide-react";
 import { ChatResumeAgentButton } from "../chat/chat-play-button";
 import { cn } from "#/utils/utils";
 import { AgentLoading } from "./agent-loading";
 import { useConversationStore } from "#/state/conversation-store";
-import CircleErrorIcon from "#/icons/circle-error.svg?react";
 import { useAgentStore } from "#/stores/agent-store";
 
 export interface AgentStatusProps {
@@ -83,11 +82,11 @@ export function AgentStatus({
             disabled={disabled}
           />
         )}
-        {shouldShownAgentError && <CircleErrorIcon className="w-4 h-4" />}
+        {shouldShownAgentError && <AlertCircle className="w-4 h-4" />}
         {!shouldShownAgentLoading &&
           !shouldShownAgentStop &&
           !shouldShownAgentResume &&
-          !shouldShownAgentError && <ClockIcon className="w-4 h-4" />}
+          !shouldShownAgentError && <Clock className="w-4 h-4" />}
       </div>
     </div>
   );

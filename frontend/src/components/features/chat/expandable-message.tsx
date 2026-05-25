@@ -6,10 +6,7 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import { useConfig } from "#/hooks/query/use-config";
 import { I18nKey } from "#/i18n/declaration";
-import ArrowDown from "#/icons/angle-down-solid.svg?react";
-import ArrowUp from "#/icons/angle-up-solid.svg?react";
-import CheckCircle from "#/icons/check-circle-solid.svg?react";
-import XCircle from "#/icons/x-circle-solid.svg?react";
+import { ChevronDown, ChevronUp, CheckCircle2, XCircle } from "lucide-react";
 import { OpenHandsAction } from "#/types/core/actions";
 import { OpenHandsObservation } from "#/types/core/observations";
 import { cn } from "#/utils/utils";
@@ -127,16 +124,23 @@ export function ExpandableMessage({
   return (
     <div
       className={cn(
-        "flex gap-2 items-center justify-start border-l-2 pl-2 my-2 py-2",
-        type === "error" ? "border-danger" : "border-neutral-300",
+        "flex gap-2 items-center justify-start border-l pl-2 my-1 py-2",
       )}
+      style={{
+        borderColor:
+          type === "error" ? undefined : "var(--cg-border)",
+        borderLeftColor:
+          type === "error" ? "var(--color-danger)" : "var(--cg-border)",
+        background: "var(--cg-input-bg)",
+        borderRadius: "0 6px 6px 0",
+      }}
     >
       <div className="text-sm w-full">
         <div className="flex flex-row justify-between items-center w-full">
           <span
             className={cn(
               "font-bold",
-              type === "error" ? "text-danger" : "text-neutral-300",
+              type === "error" ? "text-danger" : "text-[var(--cg-text-nav)]",
             )}
           >
             {translationId && i18n.exists(translationId) ? (
@@ -158,17 +162,17 @@ export function ExpandableMessage({
               className="cursor-pointer text-left"
             >
               {showDetails ? (
-                <ArrowUp
+                <ChevronUp
                   className={cn(
                     "h-4 w-4 ml-2 inline",
-                    type === "error" ? "fill-danger" : "fill-neutral-300",
+                    type === "error" ? "fill-danger" : "fill-[var(--cg-text-nav)]",
                   )}
                 />
               ) : (
-                <ArrowDown
+                <ChevronDown
                   className={cn(
                     "h-4 w-4 ml-2 inline",
-                    type === "error" ? "fill-danger" : "fill-neutral-300",
+                    type === "error" ? "fill-danger" : "fill-[var(--cg-text-nav)]",
                   )}
                 />
               )}
@@ -177,7 +181,7 @@ export function ExpandableMessage({
           {type === "action" && success !== undefined && (
             <span className="flex-shrink-0">
               {success ? (
-                <CheckCircle
+                <CheckCircle2
                   data-testid="status-icon"
                   className={cn(statusIconClasses, "fill-success")}
                 />

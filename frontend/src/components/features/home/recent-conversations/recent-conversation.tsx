@@ -23,13 +23,13 @@ export function RecentConversation({ conversation }: RecentConversationProps) {
     <Link to={`/conversations/${conversation.conversation_id}`}>
       <button
         type="button"
-        className="flex flex-col gap-1 p-[14px] cursor-pointer w-full rounded-lg hover:bg-[#5C5D62] transition-all duration-300 text-left"
+        className="flex flex-col gap-1 p-[14px] cursor-pointer w-full rounded-lg hover:bg-[var(--cg-bg-hover)] transition-all duration-300 text-left"
       >
         <div className="flex items-center gap-2 pl-1">
           <ConversationStatusIndicator
             conversationStatus={conversation.status}
           />
-          <span className="text-xs text-white leading-6 font-normal">
+          <span className="text-xs text-[var(--cg-text-nav)] leading-6 font-normal">
             {conversation.title}
           </span>
         </div>

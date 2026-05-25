@@ -22,6 +22,7 @@ export function MetricsModal({ isOpen, onOpenChange }: MetricsModalProps) {
       onOpenChange={onOpenChange}
       title={t(I18nKey.CONVERSATION$METRICS_INFO)}
       testID="metrics-modal"
+      modalClassName="!bg-[var(--cg-bg-page)]"
     >
       <div className="space-y-4">
         {(metrics?.cost !== null || metrics?.usage !== null) && (

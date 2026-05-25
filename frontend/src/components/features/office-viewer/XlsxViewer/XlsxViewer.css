@@ -1,0 +1,277 @@
+/* XlsxViewer — VSCode Dark Modern / Excel-style grid */
+.xlsx-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #1e1e1e;
+  color: #cccccc;
+  font-family: 'Consolas', 'Cascadia Code', monospace;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+/* ── Sheet tab strip ── */
+.xlsx-tabs {
+  display: flex;
+  align-items: flex-end;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
+  overflow-x: auto;
+  padding: 0 4px;
+}
+.xlsx-tab {
+  padding: 5px 14px 4px;
+  cursor: pointer;
+  color: #858585;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  white-space: nowrap;
+  border-top: 2px solid transparent;
+  transition: color 0.1s;
+}
+.xlsx-tab:hover { color: #cccccc; }
+.xlsx-tab.active {
+  color: #cccccc;
+  background: #1e1e1e;
+  border-top-color: #569cd6;
+}
+
+/* ── Formula bar ── */
+.xlsx-formulabar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: #252526;
+  border-bottom: 1px solid #3c3c3c;
+  flex-shrink: 0;
+}
+.xlsx-cell-addr {
+  width: 56px;
+  padding: 2px 6px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 2px;
+  color: #cccccc;
+  font-size: 12px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.xlsx-formulabar-fx { color: #858585; font-size: 12px; flex-shrink: 0; }
+.xlsx-formula-value {
+  flex: 1;
+  padding: 2px 6px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 2px;
+  color: #cccccc;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Grid area ── */
+.xlsx-grid-area {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.xlsx-cap-banner {
+  padding: 4px 10px;
+  background: #3a3200;
+  color: #f0c040;
+  font-size: 11px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #5a4e00;
+}
+
+/* ── Table ── */
+.xlsx-table {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* Corner cell */
+.xlsx-corner {
+  position: sticky;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  background: #252526;
+  width: 40px;
+  min-width: 40px;
+  height: 22px;
+  border-right: 1px solid #555;
+  border-bottom: 1px solid #555;
+}
+
+/* Column header row */
+.xlsx-col-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #252526;
+  color: #858585;
+  text-align: center;
+  font-size: 11px;
+  height: 22px;
+  border-bottom: 1px solid #555;
+  border-right: 1px solid #3c3c3c;
+  padding: 0 4px;
+  user-select: none;
+}
+
+/* Row number cell */
+.xlsx-row-num {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #252526;
+  color: #858585;
+  text-align: center;
+  font-size: 11px;
+  width: 40px;
+  min-width: 40px;
+  height: 22px;
+  border-right: 1px solid #555;
+  border-bottom: 1px solid #3c3c3c;
+  padding: 0 4px;
+  user-select: none;
+}
+
+/* Data cell — white background like Excel default */
+.xlsx-cell {
+  border: 1px solid #d0d0d0;
+  padding: 2px 8px;
+  height: 22px;
+  min-width: 60px;
+  color: #000000;
+  background: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  cursor: cell;
+}
+.xlsx-cell:hover { background: #f0f4ff; }
+.xlsx-cell.selected { outline: 2px solid #217346; outline-offset: -2px; background: #e8f0fe; }
+
+/* Type-based coloring */
+.xlsx-num  { text-align: right; color: #1a6b3f; }
+.xlsx-bool { text-align: center; color: #0563c1; }
+.xlsx-err  { text-align: center; color: #c0392b; }
+.xlsx-formula { color: #5c4a1e; text-align: right; }
+
+/* ── Status bar ── */
+.xlsx-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px;
+  height: 22px;
+  background: #007acc;
+  color: #ffffff;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+.xlsx-status-right { display: flex; gap: 16px; }
+
+/* ── Empty state ── */
+.xlsx-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: #858585;
+  font-size: 13px;
+}
+
+/* ── Multi-cell drag selection highlight ── */
+.xlsx-cell.xlsx-range-selected {
+  background: #cce5ff;
+  outline: 1px solid #4a90d9;
+  outline-offset: -1px;
+}
+.xlsx-cell.xlsx-range-selected:hover {
+  background: #b8d8f8;
+}
+
+/* ── Ask about this popup ── */
+.xlsx-ask-popup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #1e1e1e;
+  border: 1px solid #3c3c3c;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  white-space: nowrap;
+  font-size: 12px;
+  color: #cccccc;
+  pointer-events: all;
+}
+.xlsx-ask-range {
+  color: #858585;
+  font-family: 'Consolas', monospace;
+  font-size: 11px;
+}
+.xlsx-ask-btn {
+  padding: 3px 10px;
+  background: #0e639c;
+  color: #ffffff;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+.xlsx-ask-btn:hover { background: #1177bb; }
+.xlsx-ask-dismiss {
+  background: transparent;
+  border: none;
+  color: #858585;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+}
+.xlsx-ask-dismiss:hover { color: #cccccc; }
+
+/* ── Right-click context menu ── */
+.xlsx-context-menu {
+  min-width: 180px;
+  background: #252526;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  padding: 4px 0;
+  font-size: 12px;
+  color: #cccccc;
+}
+.xlsx-ctx-range {
+  padding: 4px 12px 6px;
+  font-family: 'Consolas', monospace;
+  font-size: 11px;
+  color: #858585;
+  border-bottom: 1px solid #3c3c3c;
+  margin-bottom: 2px;
+}
+.xlsx-ctx-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 12px;
+  background: transparent;
+  border: none;
+  color: #cccccc;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.1s;
+}
+.xlsx-ctx-item:hover { background: #094771; color: #ffffff; }

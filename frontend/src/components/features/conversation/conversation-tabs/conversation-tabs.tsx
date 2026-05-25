@@ -1,11 +1,9 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import JupyterIcon from "#/icons/jupyter.svg?react";
+import { StickyNote, FileTerminal, GitMerge } from "lucide-react";
 import TerminalIcon from "#/icons/terminal.svg?react";
-import GitChanges from "#/icons/git_changes.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
-import DiagramsIcon from "#/icons/diagrams.svg?react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
@@ -87,18 +85,11 @@ export function ConversationTabs() {
 
   const tabs = [
     {
-      isActive: isTabActive("editor"),
-      icon: GitChanges,
-      onClick: () => onTabSelected("editor"),
-      tooltipContent: t(I18nKey.COMMON$CHANGES),
-      tooltipAriaLabel: t(I18nKey.COMMON$CHANGES),
-    },
-    {
-      isActive: isTabActive("vscode"),
-      icon: VSCodeIcon,
-      onClick: () => onTabSelected("vscode"),
-      tooltipContent: <VSCodeTooltipContent />,
-      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
+      isActive: isTabActive("diagrams"),
+      icon: StickyNote,
+      onClick: () => onTabSelected("diagrams"),
+      tooltipContent: "Artifact",
+      tooltipAriaLabel: "Artifact",
     },
     {
       isActive: isTabActive("terminal"),
@@ -108,18 +99,25 @@ export function ConversationTabs() {
       tooltipAriaLabel: t(I18nKey.COMMON$TERMINAL),
     },
     {
+      isActive: isTabActive("vscode"),
+      icon: VSCodeIcon,
+      onClick: () => onTabSelected("vscode"),
+      tooltipContent: <VSCodeTooltipContent />,
+      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
+    },
+    {
       isActive: isTabActive("jupyter"),
-      icon: JupyterIcon,
+      icon: FileTerminal,
       onClick: () => onTabSelected("jupyter"),
       tooltipContent: t(I18nKey.COMMON$JUPYTER),
       tooltipAriaLabel: t(I18nKey.COMMON$JUPYTER),
     },
     {
-      isActive: isTabActive("diagrams"),
-      icon: DiagramsIcon,
-      onClick: () => onTabSelected("diagrams"),
-      tooltipContent: "Pages",
-      tooltipAriaLabel: "Pages",
+      isActive: isTabActive("editor"),
+      icon: GitMerge,
+      onClick: () => onTabSelected("editor"),
+      tooltipContent: t(I18nKey.COMMON$CHANGES),
+      tooltipAriaLabel: t(I18nKey.COMMON$CHANGES),
     },
   ];
 

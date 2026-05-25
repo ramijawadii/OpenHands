@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "#/utils/utils";
 
 const contextMenuVariants = cva(
-  "absolute bg-tertiary rounded-[6px] text-white overflow-hidden z-50 context-menu-box-shadow",
+  "absolute bg-[var(--cg-bg-page)] border border-[var(--cg-border)] rounded-[6px] text-[var(--cg-text-primary)] overflow-hidden z-50 context-menu-box-shadow",
   {
     variants: {
       size: {

@@ -1,12 +1,11 @@
 import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { FaCircleInfo } from "react-icons/fa6";
+import { Info, X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { BrandButton } from "../settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { useMicroagentManagementStore } from "#/state/microagent-management-store";
-import XIcon from "#/icons/x.svg?react";
 import { cn, extractRepositoryInfo } from "#/utils/utils";
 import { BadgeInput } from "#/components/shared/inputs/badge-input";
 import { MicroagentFormData } from "#/types/microagent-management";
@@ -114,11 +113,11 @@ export function MicroagentManagementUpsertMicroagentModal({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FaCircleInfo className="text-primary" />
+                <Info className="text-primary" />
               </a>
             </div>
             <button type="button" onClick={onCancel} className="cursor-pointer">
-              <XIcon width={24} height={24} color="#F9FBFE" />
+              <X size={24} color="#F9FBFE" />
             </button>
           </div>
           <span className="text-white text-sm font-normal">
@@ -160,7 +159,7 @@ export function MicroagentManagementUpsertMicroagentModal({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FaCircleInfo className="text-primary" />
+                <Info className="text-primary" />
               </a>
             </div>
             <BadgeInput

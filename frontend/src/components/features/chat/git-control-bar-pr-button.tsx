@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import posthog from "posthog-js";
-import PRIcon from "#/icons/u-pr.svg?react";
+import { GitPullRequest } from "lucide-react";
 import { cn, getCreatePRPrompt } from "#/utils/utils";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { I18nKey } from "#/i18n/declaration";
@@ -42,10 +42,10 @@ export function GitControlBarPrButton({
       )}
     >
       <div className="w-3 h-3 flex items-center justify-center">
-        <PRIcon width={12} height={12} color="white" />
+        <GitPullRequest size={12} color="var(--cg-text-nav)" />
       </div>
       <div
-        className="font-normal text-white text-sm leading-5 max-w-[126px] truncate"
+        className="font-normal text-[var(--cg-text-nav)] text-sm leading-5 max-w-[126px] truncate"
         title={t(I18nKey.COMMON$PULL_REQUEST)}
       >
         {t(I18nKey.COMMON$PULL_REQUEST)}

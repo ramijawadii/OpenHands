@@ -15,6 +15,9 @@ interface MetricsState {
 
 interface MetricsStore extends MetricsState {
   setMetrics: (metrics: MetricsState) => void;
+  isMetricsModalOpen: boolean;
+  openMetricsModal: () => void;
+  closeMetricsModal: () => void;
 }
 
 const useMetricsStore = create<MetricsStore>((set) => ({
@@ -22,6 +25,9 @@ const useMetricsStore = create<MetricsStore>((set) => ({
   max_budget_per_task: null,
   usage: null,
   setMetrics: (metrics) => set(metrics),
+  isMetricsModalOpen: false,
+  openMetricsModal: () => set({ isMetricsModalOpen: true }),
+  closeMetricsModal: () => set({ isMetricsModalOpen: false }),
 }));
 
 export default useMetricsStore;

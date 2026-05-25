@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import BranchIcon from "#/icons/u-code-branch.svg?react";
+import { GitBranch } from "lucide-react";
 import { constructBranchUrl, cn } from "#/utils/utils";
 import { Provider } from "#/types/settings";
 import { I18nKey } from "#/i18n/declaration";
@@ -38,10 +38,10 @@ export function GitControlBarBranchButton({
       )}
     >
       <div className="w-3 h-3 flex items-center justify-center flex-shrink-0">
-        <BranchIcon width={12} height={12} color="white" />
+        <GitBranch size={12} color="var(--cg-text-nav)" />
       </div>
       <div
-        className="font-normal text-white text-sm leading-5 truncate"
+        className="font-normal text-[var(--cg-text-nav)] text-sm leading-5 truncate"
         title={buttonText}
       >
         {buttonText}

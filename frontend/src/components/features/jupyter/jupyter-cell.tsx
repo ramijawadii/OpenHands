@@ -16,7 +16,14 @@ export function JupyterCell({ cell }: JupyterCellProps) {
   }, [cell.content, cell.imageUrls]);
 
   if (cell.type === "input") {
-    return <JupytrerCellInput code={cell.content} />;
+    return (
+      <JupytrerCellInput
+        code={cell.content}
+        executionState={cell.executionState}
+        executionCount={cell.executionCount}
+        executionStart={cell.executionStart}
+      />
+    );
   }
 
   return <JupyterCellOutput lines={lines} />;

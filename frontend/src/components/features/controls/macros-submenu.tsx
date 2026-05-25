@@ -3,10 +3,7 @@ import { ContextMenu } from "#/ui/context-menu";
 import { ContextMenuListItem } from "../context-menu/context-menu-list-item";
 import { ToolsContextMenuIconText } from "./tools-context-menu-icon-text";
 
-import TachometerFastIcon from "#/icons/tachometer-fast.svg?react";
-import PrStatusIcon from "#/icons/pr-status.svg?react";
-import DocumentIcon from "#/icons/document.svg?react";
-import WaterIcon from "#/icons/u-water.svg?react";
+import { Gauge, GitPullRequest, FileText, Waves } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { useConversationStore } from "#/state/conversation-store";
 import { REPO_SUGGESTIONS } from "#/utils/suggestions/repo-suggestions";
@@ -48,7 +45,7 @@ export function MacrosSubmenu({ onClose }: MacrosSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<TachometerFastIcon width={16} height={16} />}
+          icon={<Gauge size={16} />}
           text={t(I18nKey.INCREASE_TEST_COVERAGE)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />
@@ -60,7 +57,7 @@ export function MacrosSubmenu({ onClose }: MacrosSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<DocumentIcon width={16} height={16} />}
+          icon={<FileText size={16} />}
           text={t(I18nKey.FIX_README)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />
@@ -72,7 +69,7 @@ export function MacrosSubmenu({ onClose }: MacrosSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<PrStatusIcon width={16} height={16} />}
+          icon={<GitPullRequest size={16} />}
           text={t(I18nKey.AUTO_MERGE_PRS)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />
@@ -84,7 +81,7 @@ export function MacrosSubmenu({ onClose }: MacrosSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<WaterIcon width={16} height={16} />}
+          icon={<Waves size={16} />}
           text={t(I18nKey.CLEAN_DEPENDENCIES)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />

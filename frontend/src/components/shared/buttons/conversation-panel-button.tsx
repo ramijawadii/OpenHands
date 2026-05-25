@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
-import ListIcon from "#/icons/list.svg?react";
+import { List } from "lucide-react";
 import { TooltipButton } from "./tooltip-button";
 import { cn } from "#/utils/utils";
 
@@ -25,9 +25,8 @@ export function ConversationPanelButton({
       onClick={onClick}
       disabled={disabled}
     >
-      <ListIcon
-        width={24}
-        height={24}
+      <List
+        size={24}
         className={cn(
           "cursor-pointer",
           isOpen ? "text-white" : "text-[#B1B9D3]",

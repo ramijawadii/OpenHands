@@ -1,4 +1,4 @@
-import LoadingSpinnerOuter from "#/icons/loading-outer.svg?react";
+import { Loader2 } from "lucide-react";
 import { cn } from "#/utils/utils";
 
 interface LoadingSpinnerProps {
@@ -10,14 +10,8 @@ export function LoadingSpinner({ size }: LoadingSpinnerProps) {
     size === "small" ? "w-[25px] h-[25px]" : "w-[50px] h-[50px]";
 
   return (
-    <div data-testid="loading-spinner" className={cn("relative", sizeStyle)}>
-      <div
-        className={cn(
-          "rounded-full border-4 border-[#525252] absolute",
-          sizeStyle,
-        )}
-      />
-      <LoadingSpinnerOuter className={cn("absolute animate-spin", sizeStyle)} />
+    <div data-testid="loading-spinner" className={cn("relative flex items-center justify-center", sizeStyle)}>
+      <Loader2 className={cn("animate-spin", sizeStyle)} />
     </div>
   );
 }

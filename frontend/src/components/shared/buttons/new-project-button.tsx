@@ -2,7 +2,7 @@ import { useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { I18nKey } from "#/i18n/declaration";
 import { TooltipButton } from "./tooltip-button";
-import PlusIcon from "#/icons/u-plus.svg?react";
+import { Plus } from "lucide-react";
 
 interface NewProjectButtonProps {
   disabled?: boolean;
@@ -23,10 +23,9 @@ export function NewProjectButton({ disabled = false }: NewProjectButtonProps) {
       testId="new-project-button"
       disabled={disabled}
     >
-      <PlusIcon
-        width={24}
-        height={24}
-        color={pathname === "/" ? "#ffffff" : "#B1B9D3"}
+      <Plus
+        size={24}
+        color={pathname === "/" ? "var(--cg-text-primary)" : "var(--cg-text-nav)"}
       />
     </TooltipButton>
   );

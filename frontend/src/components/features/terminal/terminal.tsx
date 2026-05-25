@@ -13,17 +13,17 @@ function Terminal() {
   const ref = useTerminal();
 
   return (
-    <div className="h-full flex flex-col rounded-xl">
+    <div className="h-full flex flex-col bg-[#181818]">
       {isRuntimeInactive && <WaitingForRuntimeMessage className="pt-16" />}
 
-      <div className="flex-1 min-h-0 p-4">
-        <div
-          ref={ref}
-          className={cn(
-            "w-full h-full",
-            isRuntimeInactive ? "p-0 w-0 h-0 opacity-0 overflow-hidden" : "",
-          )}
-        />
+
+      <div
+        className={cn(
+          "flex-1 min-h-0 p-3",
+          isRuntimeInactive && "hidden",
+        )}
+      >
+        <div ref={ref} className="w-full h-full" />
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import { GenericEventMessage } from "../generic-event-message";
 import { ConfirmationButtons } from "#/components/shared/buttons/confirmation-buttons";
 import { getEventContent } from "../event-content-helpers/get-event-content";
 import { getObservationResult } from "../event-content-helpers/get-observation-result";
+import { getEventIcon } from "../event-content-helpers/event-type-icon";
 
 const hasThoughtProperty = (
   obj: Record<string, unknown>,
@@ -21,6 +22,9 @@ export function GenericEventMessageWrapper({
   event,
   shouldShowConfirmationButtons,
 }: GenericEventMessageWrapperProps) {
+  const Icon = getEventIcon(event);
+  const content = getEventContent(event);
+
   return (
     <div>
       {isOpenHandsAction(event) &&
@@ -30,13 +34,14 @@ export function GenericEventMessageWrapper({
         )}
 
       <GenericEventMessage
-        title={getEventContent(event).title}
-        details={getEventContent(event).details}
+        title={content.title}
+        details={content.details}
         success={
           isOpenHandsObservation(event)
             ? getObservationResult(event)
             : undefined
         }
+        icon={Icon}
       />
 
       {shouldShowConfirmationButtons && <ConfirmationButtons />}

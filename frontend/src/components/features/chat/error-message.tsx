@@ -5,8 +5,7 @@ import remarkBreaks from "remark-breaks";
 import { useTranslation } from "react-i18next";
 import { code } from "../markdown/code";
 import { ol, ul } from "../markdown/list";
-import ArrowDown from "#/icons/angle-down-solid.svg?react";
-import ArrowUp from "#/icons/angle-up-solid.svg?react";
+import { ChevronDown, ChevronUp, XCircle } from "lucide-react";
 import i18n from "#/i18n";
 
 interface ErrorMessageProps {
@@ -24,18 +23,19 @@ export function ErrorMessage({ errorId, defaultMessage }: ErrorMessageProps) {
     : "CHAT_INTERFACE$AGENT_ERROR_MESSAGE";
 
   return (
-    <div className="flex flex-col gap-2 border-l-2 pl-2 my-2 py-2 border-danger text-sm w-full">
-      <div className="font-bold text-danger">
-        {t(errorKey)}
+    <div className="flex flex-col gap-2 my-2 py-1 text-sm w-full text-[var(--cg-text-primary)]">
+      <div className="flex items-center gap-1.5 text-danger">
+        <XCircle className="h-4 w-4 fill-transparent text-danger shrink-0" />
+        <span className="font-medium">{t(errorKey)}</span>
         <button
           type="button"
           onClick={() => setShowDetails((prev) => !prev)}
           className="cursor-pointer text-left"
         >
           {showDetails ? (
-            <ArrowUp className="h-4 w-4 ml-2 inline fill-danger" />
+            <ChevronUp className="h-4 w-4 inline text-danger" />
           ) : (
-            <ArrowDown className="h-4 w-4 ml-2 inline fill-danger" />
+            <ChevronDown className="h-4 w-4 inline text-danger" />
           )}
         </button>
       </div>

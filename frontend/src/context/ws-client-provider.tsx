@@ -20,6 +20,7 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { OpenHandsObservation } from "#/types/core/observations";
 import {
   isAgentStateChangeObservation,
+  isAssistantMessage,
   isErrorObservation,
   isOpenHandsAction,
   isOpenHandsObservation,
@@ -56,14 +57,6 @@ const isFileEditAction = (
 const isCommandAction = (event: OpenHandsParsedEvent): event is CommandAction =>
   "action" in event && event.action === "run";
 
-const isAssistantMessage = (
-  event: OpenHandsParsedEvent,
-): event is AssistantMessageAction =>
-  "source" in event &&
-  "type" in event &&
-  event.source === "agent" &&
-  event.type === "message";
-
 const isMessageAction = (
   event: OpenHandsParsedEvent,
 ): event is UserMessageAction | AssistantMessageAction =>
@@ -75,6 +68,7 @@ interface UseWsClient {
   events: Record<string, unknown>[];
   parsedEvents: (OpenHandsAction | OpenHandsObservation)[];
   send: (event: Record<string, unknown>) => void;
+  streamingContent: string | null;
 }
 
 const WsClientContext = React.createContext<UseWsClient>({
@@ -85,6 +79,7 @@ const WsClientContext = React.createContext<UseWsClient>({
   send: () => {
     throw new Error("not connected");
   },
+  streamingContent: null,
 });
 
 interface WsClientProviderProps {
@@ -141,6 +136,7 @@ export function WsClientProvider({
   const [parsedEvents, setParsedEvents] = React.useState<
     (OpenHandsAction | OpenHandsObservation)[]
   >([]);
+  const [streamingContent, setStreamingContent] = React.useState<string | null>(null);
   const lastEventRef = React.useRef<Record<string, unknown> | null>(null);
   const { providers } = useUserProviders();
 
@@ -203,6 +199,11 @@ export function WsClientProvider({
 
       if (isUserMessage(event)) {
         removeOptimisticUserMessage();
+      }
+
+      // A complete assistant message arriving means the stream is done.
+      if (isAssistantMessage(event)) {
+        setStreamingContent(null);
       }
 
       if (isMessageAction(event)) {
@@ -289,6 +290,7 @@ export function WsClientProvider({
     // reset events when conversationId changes
     setEvents([]);
     setParsedEvents([]);
+    setStreamingContent(null);
     setWebSocketStatus("CONNECTING");
   }, [conversationId]);
 
@@ -359,8 +361,15 @@ export function WsClientProvider({
       query,
     });
 
+    const handleStreamChunk = (data: { content: string }) => {
+      if (typeof data.content === "string") {
+        setStreamingContent((prev) => (prev ?? "") + data.content);
+      }
+    };
+
     sio.on("connect", handleConnect);
     sio.on("oh_event", handleMessage);
+    sio.on("oh_stream_chunk", handleStreamChunk);
     sio.on("connect_error", handleError);
     sio.on("connect_failed", handleError);
     sio.on("disconnect", handleDisconnect);
@@ -370,6 +379,7 @@ export function WsClientProvider({
     return () => {
       sio.off("connect", handleConnect);
       sio.off("oh_event", handleMessage);
+      sio.off("oh_stream_chunk", handleStreamChunk);
       sio.off("connect_error", handleError);
       sio.off("connect_failed", handleError);
       sio.off("disconnect", handleDisconnect);
@@ -400,12 +410,14 @@ export function WsClientProvider({
       events,
       parsedEvents,
       send,
+      streamingContent,
     }),
     [
       webSocketStatus,
       messageRateHandler.isUnderThreshold,
       events,
       parsedEvents,
+      streamingContent,
     ],
   );
 

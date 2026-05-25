@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import posthog from "posthog-js";
-import ArrowUpIcon from "#/icons/u-arrow-up.svg?react";
+import { ArrowUp } from "lucide-react";
 import { cn, getGitPushPrompt } from "#/utils/utils";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { I18nKey } from "#/i18n/declaration";
@@ -42,10 +42,10 @@ export function GitControlBarPushButton({
       )}
     >
       <div className="w-3 h-3 flex items-center justify-center">
-        <ArrowUpIcon width={12} height={12} color="white" />
+        <ArrowUp size={12} color="var(--cg-text-nav)" />
       </div>
       <div
-        className="font-normal text-white text-sm leading-5 max-w-[77px] truncate"
+        className="font-normal text-[var(--cg-text-nav)] text-sm leading-5 max-w-[77px] truncate"
         title={t(I18nKey.COMMON$PUSH)}
       >
         {t(I18nKey.COMMON$PUSH)}

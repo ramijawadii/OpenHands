@@ -1,4 +1,4 @@
-import PaperclipIcon from "#/icons/paper-clip.svg?react";
+import { Paperclip } from "lucide-react";
 import { cn } from "#/utils/utils";
 
 export interface ChatAddFileButtonProps {
@@ -21,8 +21,9 @@ export function ChatAddFileButton({
       data-testid="paperclip-icon"
       onClick={handleFileIconClick}
     >
-      <PaperclipIcon
-        className="block max-w-none w-[13px] h-[25px]"
+      <Paperclip
+        size={13}
+        className="block max-w-none"
         color={disabled ? "#959CB2" : "white"}
       />
     </button>

@@ -9,11 +9,18 @@
   preferredstrategy: "pseudoelements";
 }
 
+/* Light mode markdown overrides */
+[data-theme="light"] .markdown-body code {
+  background-color: rgba(30, 20, 10, 0.06);
+  border-color: rgba(30, 20, 10, 0.15);
+  color: hsl(0deg, 0%, 15%);
+}
+
 /* OLD TAILWIND STYLES */
 @theme {
-  --color-primary: #c9b974;
-  --color-logo: #cfb755;
-  --color-base: #0d0f11;
+  --color-primary: #ffffff;
+  --color-logo: #ffffff;
+  --color-base: hsl(60deg 1.64% 11.96%);
   --color-base-secondary: #24272e;
   --color-danger: #e76a5e;
   --color-success: #a5e75e;
@@ -212,34 +219,34 @@
 }
 
 .loader {
-  background: #c9b974;
+  background: #ffffff;
   animation: l5 1s infinite linear alternate;
 }
 
 @keyframes l5 {
   0% {
     box-shadow:
-      20px 0 #c9b974,
-      -20px 0 rgba(201, 185, 116, 0.1);
-    background: #c9b974;
+      20px 0 #ffffff,
+      -20px 0 rgba(255, 255, 255, 0.1);
+    background: #ffffff;
   }
   33% {
     box-shadow:
-      20px 0 #c9b974,
-      -20px 0 rgba(201, 185, 116, 0.1);
-    background: rgba(201, 185, 116, 0.1);
+      20px 0 #ffffff,
+      -20px 0 rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.1);
   }
   66% {
     box-shadow:
-      20px 0 rgba(201, 185, 116, 0.1),
-      -20px 0 #c9b974;
-    background: rgba(201, 185, 116, 0.1);
+      20px 0 rgba(255, 255, 255, 0.1),
+      -20px 0 #ffffff;
+    background: rgba(255, 255, 255, 0.1);
   }
   100% {
     box-shadow:
-      20px 0 rgba(201, 185, 116, 0.1),
-      -20px 0 #c9b974;
-    background: #c9b974;
+      20px 0 rgba(255, 255, 255, 0.1),
+      -20px 0 #ffffff;
+    background: #ffffff;
   }
 }
 

@@ -12,10 +12,7 @@ import {
 } from "#/utils/utils";
 import { useConversationStore } from "#/state/conversation-store";
 
-import ArrowUpIcon from "#/icons/u-arrow-up.svg?react";
-import ArrowDownIcon from "#/icons/u-arrow-down.svg?react";
-import PrIcon from "#/icons/u-pr.svg?react";
-import CodeBranchIcon from "#/icons/u-code-branch.svg?react";
+import { ArrowUp, ArrowDown, GitPullRequest, GitBranch } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { CONTEXT_MENU_ICON_TEXT_CLASSNAME } from "#/utils/constants";
 
@@ -63,7 +60,7 @@ export function GitToolsSubmenu({ onClose }: GitToolsSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<ArrowDownIcon width={16} height={16} />}
+          icon={<ArrowDown size={16} />}
           text={t(I18nKey.COMMON$GIT_PULL)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />
@@ -75,7 +72,7 @@ export function GitToolsSubmenu({ onClose }: GitToolsSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<ArrowUpIcon width={16} height={16} />}
+          icon={<ArrowUp size={16} />}
           text={t(I18nKey.COMMON$GIT_PUSH)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />
@@ -87,7 +84,7 @@ export function GitToolsSubmenu({ onClose }: GitToolsSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<PrIcon width={16} height={16} />}
+          icon={<GitPullRequest size={16} />}
           text={t(I18nKey.COMMON$CREATE_PR)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />
@@ -99,7 +96,7 @@ export function GitToolsSubmenu({ onClose }: GitToolsSubmenuProps) {
         className={contextMenuListItemClassName}
       >
         <ToolsContextMenuIconText
-          icon={<CodeBranchIcon width={16} height={16} />}
+          icon={<GitBranch size={16} />}
           text={t(I18nKey.COMMON$CREATE_NEW_BRANCH)}
           className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
         />

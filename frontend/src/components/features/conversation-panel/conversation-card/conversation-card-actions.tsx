@@ -28,7 +28,7 @@ export function ConversationCardActions({
   showOptions,
 }: ConversationCardActionsProps) {
   return (
-    <div className="group">
+    <div className="relative">
       <button
         data-testid="ellipsis-button"
         type="button"
@@ -37,18 +37,11 @@ export function ConversationCardActions({
           event.stopPropagation();
           onContextMenuToggle(!contextMenuOpen);
         }}
-        className="cursor-pointer w-6 h-6 flex flex-row items-center justify-center translate-x-2.5"
+        className="cursor-pointer w-6 h-6 flex flex-row items-center justify-center"
       >
         <EllipsisIcon />
       </button>
-      <div
-        className={cn(
-          // Show on hover (desktop) or when explicitly opened (click/touch)
-          "relative opacity-0 invisible group-hover:opacity-100 group-hover:visible",
-          // Override hover styles when explicitly opened via click
-          contextMenuOpen && "opacity-100 visible",
-        )}
-      >
+      {contextMenuOpen && (
         <ConversationCardContextMenu
           onClose={() => onContextMenuToggle(false)}
           onDelete={onDelete}
@@ -59,7 +52,7 @@ export function ConversationCardActions({
           }
           position="bottom"
         />
-      </div>
+      )}
     </div>
   );
 }

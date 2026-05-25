@@ -1,5 +1,5 @@
 import { cn } from "#/utils/utils";
-import CloseIcon from "#/icons/close.svg?react";
+import { X } from "lucide-react";
 
 interface RemoveButtonProps {
   onClick: () => void;
@@ -16,7 +16,7 @@ export function RemoveButton({ onClick, className }: RemoveButtonProps) {
         className,
       )}
     >
-      <CloseIcon width={18} height={18} />
+      <X size={18} />
     </button>
   );
 }

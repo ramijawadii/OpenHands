@@ -1,6 +1,5 @@
-import { FaBitbucket, FaGithub, FaGitlab, FaUserShield } from "react-icons/fa6";
-import { FaCodeBranch } from "react-icons/fa";
-import { IconType } from "react-icons/lib";
+import { FaBitbucket, FaGithub, FaGitlab } from "react-icons/fa6";
+import { ShieldCheck, GitBranch, LucideIcon } from "lucide-react";
 import { RepositorySelection } from "#/api/open-hands.types";
 import { Provider } from "#/types/settings";
 
@@ -8,11 +7,11 @@ interface ConversationRepoLinkProps {
   selectedRepository: RepositorySelection;
 }
 
-const providerIcon: Record<Provider, IconType> = {
+const providerIcon: Record<Provider, LucideIcon | React.ComponentType<{ size?: number; className?: string }>> = {
   bitbucket: FaBitbucket,
   github: FaGithub,
   gitlab: FaGitlab,
-  enterprise_sso: FaUserShield,
+  enterprise_sso: ShieldCheck,
 };
 
 export function ConversationRepoLink({
@@ -34,7 +33,7 @@ export function ConversationRepoLink({
         </span>
       </div>
       <div className="flex items-center gap-1">
-        <FaCodeBranch size={12} className="text-[#A3A3A3]" />
+        <GitBranch size={12} className="text-[#A3A3A3]" />
 
         <span
           data-testid="conversation-card-selected-branch"

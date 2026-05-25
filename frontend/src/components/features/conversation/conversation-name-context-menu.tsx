@@ -7,14 +7,7 @@ import { ContextMenuListItem } from "../context-menu/context-menu-list-item";
 import { Divider } from "#/ui/divider";
 import { I18nKey } from "#/i18n/declaration";
 
-import EditIcon from "#/icons/u-edit.svg?react";
-import RobotIcon from "#/icons/u-robot.svg?react";
-import ToolsIcon from "#/icons/u-tools.svg?react";
-import FileExportIcon from "#/icons/u-file-export.svg?react";
-import DownloadIcon from "#/icons/u-download.svg?react";
-import CreditCardIcon from "#/icons/u-credit-card.svg?react";
-import CloseIcon from "#/icons/u-close.svg?react";
-import DeleteIcon from "#/icons/u-delete.svg?react";
+import { Pencil, Bot, Wrench, Share2, Download, CreditCard, X, Trash2 } from "lucide-react";
 import { ConversationNameContextMenuIconText } from "./conversation-name-context-menu-icon-text";
 import { CONTEXT_MENU_ICON_TEXT_CLASSNAME } from "#/utils/constants";
 
@@ -76,7 +69,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<EditIcon width={16} height={16} />}
+            icon={<Pencil size={16} />}
             text={t(I18nKey.BUTTON$RENAME)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -92,7 +85,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<RobotIcon width={16} height={16} />}
+            icon={<Bot size={16} />}
             text={t(I18nKey.CONVERSATION$SHOW_MICROAGENTS)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -106,7 +99,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<ToolsIcon width={16} height={16} />}
+            icon={<Wrench size={16} />}
             text={t(I18nKey.BUTTON$SHOW_AGENT_TOOLS_AND_METADATA)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -122,7 +115,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<FileExportIcon width={16} height={16} />}
+            icon={<Share2 size={16} />}
             text={t(I18nKey.BUTTON$EXPORT_CONVERSATION)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -136,7 +129,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<DownloadIcon width={16} height={16} />}
+            icon={<Download size={16} />}
             text={t(I18nKey.BUTTON$DOWNLOAD_VIA_VSCODE)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -152,7 +145,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<CreditCardIcon width={16} height={16} />}
+            icon={<CreditCard size={16} />}
             text={t(I18nKey.BUTTON$DISPLAY_COST)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -166,7 +159,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<CloseIcon width={16} height={16} />}
+            icon={<X size={16} />}
             text={t(I18nKey.COMMON$CLOSE_CONVERSATION_STOP_RUNTIME)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />
@@ -180,7 +173,7 @@ export function ConversationNameContextMenu({
           className={contextMenuListItemClassName}
         >
           <ConversationNameContextMenuIconText
-            icon={<DeleteIcon width={16} height={16} />}
+            icon={<Trash2 size={16} />}
             text={t(I18nKey.COMMON$DELETE_CONVERSATION)}
             className={CONTEXT_MENU_ICON_TEXT_CLASSNAME}
           />

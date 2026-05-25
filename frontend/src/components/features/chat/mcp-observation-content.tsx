@@ -29,11 +29,14 @@ export function MCPObservationContent({ event }: MCPObservationContentProps) {
       {hasArguments && (
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-300">
+            <h3 className="text-sm font-semibold text-[var(--cg-text-nav)]">
               {t("MCP_OBSERVATION$ARGUMENTS")}
             </h3>
           </div>
-          <div className="p-3 bg-gray-900 rounded-md overflow-auto text-gray-300 max-h-[200px] shadow-inner">
+          <div
+            className="p-3 rounded-md overflow-auto max-h-[200px]"
+            style={{ background: "var(--cg-code-bg)", color: "#d9d9d9" }}
+          >
             <ReactJsonView
               name={false}
               src={event.extras.arguments}
@@ -48,11 +51,14 @@ export function MCPObservationContent({ event }: MCPObservationContentProps) {
       {/* Output section */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-300">
+          <h3 className="text-sm font-semibold text-[var(--cg-text-nav)]">
             {t("MCP_OBSERVATION$OUTPUT")}
           </h3>
         </div>
-        <div className="p-3 bg-gray-900 rounded-md overflow-auto text-gray-300 max-h-[300px] shadow-inner">
+        <div
+          className="p-3 rounded-md overflow-auto max-h-[300px]"
+          style={{ background: "var(--cg-code-bg)", color: "#d9d9d9" }}
+        >
           {typeof outputData === "object" && outputData !== null ? (
             <ReactJsonView
               name={false}

@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "#/utils/utils";
 import { BrandBadge } from "../badge";
-import XIcon from "#/icons/x.svg?react";
+import { X } from "lucide-react";
 
 interface BadgeInputProps {
   name?: string;
@@ -57,7 +57,7 @@ export function BadgeInput({
               onClick={() => removeBadge(index)}
               className="cursor-pointer"
             >
-              <XIcon width={14} height={14} color="#000000" />
+              <X size={14} color="#000000" />
             </button>
           </BrandBadge>
         </div>

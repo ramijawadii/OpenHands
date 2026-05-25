@@ -8,7 +8,7 @@ import { ActionTooltip } from "../action-tooltip";
 import { isOpenHandsAction } from "#/types/core/guards";
 import { ActionSecurityRisk } from "#/stores/security-analyzer-store";
 import { RiskAlert } from "#/components/shared/risk-alert";
-import WarningIcon from "#/icons/u-warning.svg?react";
+import { AlertTriangle } from "lucide-react";
 import { useEventMessageStore } from "#/stores/event-message-store";
 
 export function ConfirmationButtons() {
@@ -95,7 +95,7 @@ export function ConfirmationButtons() {
       {isHighRisk && (
         <RiskAlert
           content={t(I18nKey.CHAT_INTERFACE$HIGH_RISK_WARNING)}
-          icon={<WarningIcon width={16} height={16} color="#fff" />}
+          icon={<AlertTriangle size={16} color="#fff" />}
           severity="high"
           title={t(I18nKey.COMMON$HIGH_RISK)}
         />

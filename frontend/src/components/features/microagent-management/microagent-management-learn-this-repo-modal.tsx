@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FaCircleInfo } from "react-icons/fa6";
+import { Info, X } from "lucide-react";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
 import { BrandButton } from "../settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { useMicroagentManagementStore } from "#/state/microagent-management-store";
-import XIcon from "#/icons/x.svg?react";
 import { cn, getRepoMdCreatePrompt } from "#/utils/utils";
 import { LearnThisRepoFormData } from "#/types/microagent-management";
 
@@ -72,7 +71,7 @@ export function MicroagentManagementLearnThisRepoModal({
                 rel="noopener noreferrer"
                 data-testid="modal-info-link"
               >
-                <FaCircleInfo className="text-primary" />
+                <Info className="text-primary" />
               </a>
             </div>
             <button
@@ -81,7 +80,7 @@ export function MicroagentManagementLearnThisRepoModal({
               className="cursor-pointer"
               data-testid="modal-close-button"
             >
-              <XIcon width={24} height={24} color="#F9FBFE" />
+              <X size={24} color="#F9FBFE" />
             </button>
           </div>
           <span

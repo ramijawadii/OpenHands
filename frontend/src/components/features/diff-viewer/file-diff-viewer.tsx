@@ -1,12 +1,10 @@
 import { DiffEditor, Monaco } from "@monaco-editor/react";
 import React from "react";
 import { editor as editor_t } from "monaco-editor";
-import { LuFileDiff, LuFileMinus, LuFilePlus } from "react-icons/lu";
-import { IconType } from "react-icons/lib";
+import { FileDiff, FileMinus, FilePlus, ChevronUp, LucideIcon } from "lucide-react";
 import { GitChangeStatus } from "#/api/open-hands.types";
 import { getLanguageFromPath } from "#/utils/get-language-from-path";
 import { cn } from "#/utils/utils";
-import ChevronUp from "#/icons/chveron-up.svg?react";
 import { useGitDiff } from "#/hooks/query/use-get-diff";
 
 interface LoadingSpinnerProps {
@@ -29,10 +27,10 @@ function LoadingSpinner({ className }: LoadingSpinnerProps) {
   );
 }
 
-const STATUS_MAP: Record<GitChangeStatus, string | IconType> = {
-  A: LuFilePlus,
-  D: LuFileMinus,
-  M: LuFileDiff,
+const STATUS_MAP: Record<GitChangeStatus, string | LucideIcon> = {
+  A: FilePlus,
+  D: FileMinus,
+  M: FileDiff,
   R: "Renamed",
   U: "Untracked",
 };
@@ -138,19 +136,20 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
     <div data-testid="file-diff-viewer-outer" className="w-full flex flex-col">
       <div
         className={cn(
-          "flex justify-between items-center px-2.5 py-3.5 border border-neutral-600 rounded-xl hover:cursor-pointer",
+          "flex justify-between items-center px-2.5 py-3.5 border border-[var(--cg-border-card)] rounded-xl hover:cursor-pointer",
           !isCollapsed && !isLoading && "border-b-0 rounded-b-none",
         )}
         onClick={() => setIsCollapsed((prev) => !prev)}
       >
-        <span className="text-sm w-full text-content flex items-center gap-2">
+        <span className="text-sm w-full text-[var(--cg-text-primary)] flex items-center gap-2">
           {isFetchingData && <LoadingSpinner className="w-5 h-5" />}
           {!isFetchingData && statusIcon}
           <strong className="w-full truncate">{filePath}</strong>
           <button data-testid="collapse" type="button">
             <ChevronUp
+              size={16}
               className={cn(
-                "w-4 h-4 transition-transform",
+                "transition-transform",
                 isCollapsed && "transform rotate-180",
               )}
             />
@@ -159,7 +158,7 @@ export function FileDiffViewer({ path, type }: FileDiffViewerProps) {
       </div>
       {isSuccess && !isCollapsed && (
         <div
-          className="w-full border border-neutral-600 overflow-hidden"
+          className="w-full border border-[var(--cg-border-card)] overflow-hidden"
           style={{ height: `${editorHeight}px` }}
         >
           <DiffEditor

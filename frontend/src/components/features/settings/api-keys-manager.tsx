@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useTranslation, Trans } from "react-i18next";
-import { FaTrash, FaEye, FaEyeSlash, FaCopy } from "react-icons/fa6";
+import { Trash2, Eye, EyeOff, Copy } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
@@ -103,9 +103,9 @@ function LlmApiKeyManager({
                   onClick={() => setShowLlmApiKey(!showLlmApiKey)}
                 >
                   {showLlmApiKey ? (
-                    <FaEyeSlash size={20} />
+                    <EyeOff size={20} />
                   ) : (
-                    <FaEye size={20} />
+                    <Eye size={20} />
                   )}
                 </button>
               )}
@@ -121,7 +121,7 @@ function LlmApiKeyManager({
                   }
                 }}
               >
-                <FaCopy size={20} />
+                <Copy size={20} />
               </button>
             </div>
           </div>
@@ -194,7 +194,7 @@ function ApiKeysTable({ apiKeys, isLoading, onDeleteKey }: ApiKeysTableProps) {
                   aria-label={`Delete ${key.name}`}
                   className="cursor-pointer"
                 >
-                  <FaTrash size={16} />
+                  <Trash2 size={16} />
                 </button>
               </td>
             </tr>

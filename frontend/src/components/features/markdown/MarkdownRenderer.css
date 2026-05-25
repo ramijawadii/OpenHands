@@ -1,0 +1,337 @@
+/* ── VSCode Dark Modern markdown renderer ─────────────────────────────────── */
+/* Token colors from highlight.js vs2015 (Visual Studio 2015 dark theme).    */
+/* All .hljs rules are scoped under .md-vscode to avoid global leakage.       */
+
+/* ── Wrapper ── */
+.md-vscode {
+  background: #1e1e1e;
+  color: #cccccc;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  line-height: 1.65;
+  padding: 24px 32px;
+  max-width: 860px;
+}
+
+/* ── Inline SVG ── */
+.md-vscode svg {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+}
+.md-vscode svg * {
+  box-sizing: content-box;
+}
+
+/* ── Chat variant: transparent background, no padding, full width, theme-aware ── */
+.md-vscode.md-vscode--chat {
+  background: transparent;
+  padding: 0;
+  max-width: 100%;
+  font-size: 14px;
+  color: var(--cg-text-nav);
+}
+.md-vscode.md-vscode--chat h1,
+.md-vscode.md-vscode--chat h2 {
+  color: var(--cg-text-primary);
+  border-bottom-color: var(--cg-border);
+}
+.md-vscode.md-vscode--chat h3 { color: var(--cg-text-primary); }
+.md-vscode.md-vscode--chat h4,
+.md-vscode.md-vscode--chat h5,
+.md-vscode.md-vscode--chat h6 { color: var(--cg-text-nav); }
+.md-vscode.md-vscode--chat strong { color: var(--cg-text-primary); font-weight: 700; }
+.md-vscode.md-vscode--chat em { color: var(--cg-text-nav); }
+.md-vscode.md-vscode--chat del { color: var(--cg-text-muted); }
+.md-vscode.md-vscode--chat :not(pre) > code {
+  background: var(--cg-input-bg);
+  border-color: var(--cg-border);
+  color: var(--cg-text-nav);
+}
+.md-vscode.md-vscode--chat blockquote {
+  border-left-color: var(--cg-border-strong);
+  background: var(--cg-input-bg);
+  color: var(--cg-text-muted);
+}
+.md-vscode.md-vscode--chat hr { border-top-color: var(--cg-border); }
+.md-vscode.md-vscode--chat thead tr th {
+  background: var(--cg-input-bg);
+  border-color: var(--cg-border);
+  color: var(--cg-text-nav);
+}
+.md-vscode.md-vscode--chat tbody tr td { border-color: var(--cg-border); }
+.md-vscode.md-vscode--chat tbody tr:nth-child(even) td { background: var(--cg-input-bg); }
+.md-vscode.md-vscode--chat tbody tr:hover td { background: var(--cg-bg-hover); }
+
+/* ── Headings ── */
+.md-vscode h1,
+.md-vscode h2 {
+  color: #ffffff;
+  font-weight: 700;
+  border-bottom: 1px solid #3c3c3c;
+  padding-bottom: 6px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+}
+.md-vscode h1 { font-size: 22px; }
+.md-vscode h2 { font-size: 17px; }
+.md-vscode h3 {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 14px;
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+.md-vscode h4,
+.md-vscode h5,
+.md-vscode h6 {
+  color: #e0e0e0;
+  font-weight: 600;
+  font-size: 13px;
+  margin-top: 16px;
+  margin-bottom: 6px;
+}
+
+/* ── Paragraph & text ── */
+.md-vscode p { margin: 8px 0; }
+.md-vscode strong { color: #ffffff; font-weight: 700; }
+.md-vscode em { font-style: italic; color: #d4d4d4; }
+.md-vscode del { text-decoration: line-through; color: #858585; }
+
+/* ── Links ── */
+.md-vscode a { color: #3794ff; text-decoration: none; }
+.md-vscode a:hover { text-decoration: underline; }
+
+/* ── Inline code ── */
+.md-vscode-inline-code,
+.md-vscode :not(pre) > code {
+  background: #2d2d2d;
+  border: 0.5px solid #3c3c3c;
+  color: #d4d4d4;
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, "Cascadia Code", monospace;
+  font-size: 12px;
+}
+
+/* ── Code blocks ── */
+.md-vscode pre {
+  background: #1e1e1e;
+  border: 0.5px solid #3c3c3c;
+  border-radius: 4px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+.md-vscode pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, "Cascadia Code", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ── Blockquote ── */
+.md-vscode blockquote {
+  border-left: 3px solid #4d4d4d;
+  background: #252526;
+  padding: 10px 16px;
+  margin: 10px 0;
+  color: #9d9d9d;
+  border-radius: 0 3px 3px 0;
+}
+.md-vscode blockquote p { margin: 0; }
+
+/* ── Lists ── */
+.md-vscode ul,
+.md-vscode ol {
+  padding-left: 20px;
+  margin: 6px 0;
+}
+.md-vscode li { margin: 3px 0; }
+.md-vscode li > ul,
+.md-vscode li > ol { margin: 2px 0; }
+
+/* ── Horizontal rule ── */
+.md-vscode hr {
+  border: none;
+  border-top: 1px solid #3c3c3c;
+  margin: 16px 0;
+}
+
+/* ── Tables ── */
+.md-vscode table {
+  border-collapse: collapse;
+  font-size: 12.5px;
+  border: 1px solid #3c3c3c;
+  border-radius: 4px;
+  overflow: hidden;
+  width: 100%;
+  margin: 10px 0;
+  display: block;
+  overflow-x: auto;
+}
+.md-vscode thead tr th {
+  background: #2d2d2d;
+  color: #cccccc;
+  font-weight: 600;
+  text-align: left;
+  padding: 7px 12px;
+  border-bottom: 1px solid #3c3c3c;
+  border-right: 0.5px solid #3c3c3c;
+  white-space: nowrap;
+}
+.md-vscode thead tr th:last-child { border-right: none; }
+.md-vscode tbody tr td {
+  padding: 6px 12px;
+  border-bottom: 0.5px solid #3c3c3c;
+  border-right: 0.5px solid #3c3c3c;
+  color: #cccccc;
+  vertical-align: top;
+  word-break: break-word;
+}
+.md-vscode tbody tr td:last-child { border-right: none; }
+.md-vscode tbody tr:last-child td { border-bottom: none; }
+.md-vscode tbody tr:nth-child(even) td { background: #252526; }
+.md-vscode tbody tr:hover td { background: #2a2d2e; }
+
+/* ── Task lists (GFM) ── */
+.md-vscode input[type="checkbox"] {
+  accent-color: #3794ff;
+  margin-right: 6px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   highlight.js — VSCode Dark Modern token colors (vs2015 theme)
+   All rules scoped under .md-vscode so they never leak globally.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+.md-vscode .hljs {
+  background: #1e1e1e;
+  color: #dcdcdc;
+}
+
+/* Keywords, control flow, modifiers */
+.md-vscode .hljs-keyword,
+.md-vscode .hljs-literal,
+.md-vscode .hljs-symbol,
+.md-vscode .hljs-name {
+  color: #569cd6;
+}
+
+/* Types and builtins */
+.md-vscode .hljs-built_in,
+.md-vscode .hljs-type {
+  color: #4ec9b0;
+}
+
+/* Numbers and class names */
+.md-vscode .hljs-number,
+.md-vscode .hljs-class {
+  color: #b8d7a3;
+}
+
+/* Strings */
+.md-vscode .hljs-string,
+.md-vscode .hljs-meta .hljs-string {
+  color: #d69d85;
+}
+
+/* Comments */
+.md-vscode .hljs-comment,
+.md-vscode .hljs-quote {
+  color: #57a64a;
+  font-style: italic;
+}
+
+/* Variables and template variables */
+.md-vscode .hljs-variable,
+.md-vscode .hljs-template-variable {
+  color: #bd63c5;
+}
+
+/* Attributes / properties */
+.md-vscode .hljs-attr,
+.md-vscode .hljs-attribute {
+  color: #9cdcfe;
+}
+
+/* Tag selectors and markup */
+.md-vscode .hljs-selector-tag,
+.md-vscode .hljs-selector-id,
+.md-vscode .hljs-selector-class,
+.md-vscode .hljs-selector-attr,
+.md-vscode .hljs-selector-pseudo,
+.md-vscode .hljs-meta,
+.md-vscode .hljs-tag {
+  color: #d7ba7d;
+}
+
+/* Function names */
+.md-vscode .hljs-title,
+.md-vscode .hljs-title.class_,
+.md-vscode .hljs-title.function_ {
+  color: #dcdcaa;
+}
+
+/* Params */
+.md-vscode .hljs-params {
+  color: #9cdcfe;
+}
+
+/* Operators and punctuation */
+.md-vscode .hljs-operator,
+.md-vscode .hljs-punctuation {
+  color: #cccccc;
+}
+
+/* Regex */
+.md-vscode .hljs-regexp { color: #d16969; }
+
+/* Additions and deletions (diff) */
+.md-vscode .hljs-addition {
+  background: #144212;
+  color: #b5cea8;
+}
+.md-vscode .hljs-deletion {
+  background: #600;
+  color: #f48771;
+}
+
+/* Section / formula */
+.md-vscode .hljs-section { color: #569cd6; font-weight: bold; }
+.md-vscode .hljs-formula { color: #9cdcfe; }
+.md-vscode .hljs-strong { font-weight: bold; }
+.md-vscode .hljs-emphasis { font-style: italic; }
+.md-vscode .hljs-link { color: #3794ff; text-decoration: underline; }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Notion-style color spans — agents emit these; rehype-raw passes them through.
+   Mapped to VSCode Dark Modern equivalent highlight colors.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Text colors ── */
+.md-vscode .notion-red    { color: #f48771; }
+.md-vscode .notion-orange { color: #ce9178; }
+.md-vscode .notion-yellow { color: #dcdcaa; }
+.md-vscode .notion-green  { color: #4ec9b0; }
+.md-vscode .notion-blue   { color: #3794ff; }
+.md-vscode .notion-purple { color: #bd63c5; }
+.md-vscode .notion-pink   { color: #d16d9e; }
+.md-vscode .notion-teal   { color: #4ec9b0; }
+.md-vscode .notion-gray, .md-vscode .notion-grey { color: #858585; }
+.md-vscode .notion-brown  { color: #c5a28f; }
+
+/* ── Background highlights ── */
+.md-vscode .notion-red_background    { background: rgba(244,135,113,0.18); border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-orange_background { background: rgba(206,145,120,0.18); border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-yellow_background { background: rgba(220,220,170,0.18); border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-green_background  { background: rgba(78,201,176,0.15);  border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-blue_background   { background: rgba(55,148,255,0.15);  border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-purple_background { background: rgba(189,99,197,0.15);  border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-pink_background   { background: rgba(209,109,158,0.15); border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-teal_background   { background: rgba(78,201,176,0.15);  border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-gray_background,
+.md-vscode .notion-grey_background   { background: rgba(133,133,133,0.15); border-radius: 3px; padding: 1px 3px; }
+.md-vscode .notion-brown_background  { background: rgba(197,162,143,0.15); border-radius: 3px; padding: 1px 3px; }

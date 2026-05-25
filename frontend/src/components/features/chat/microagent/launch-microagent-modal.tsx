@@ -1,5 +1,5 @@
 import React from "react";
-import { FaCircleInfo } from "react-icons/fa6";
+import { Info, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { ModalBody } from "#/components/shared/modals/modal-body";
@@ -7,7 +7,6 @@ import { BrandButton } from "../../settings/brand-button";
 import { SettingsDropdownInput } from "../../settings/settings-dropdown-input";
 import { BadgeInput } from "#/components/shared/inputs/badge-input";
 import { cn } from "#/utils/utils";
-import CloseIcon from "#/icons/close.svg?react";
 import { useMicroagentPrompt } from "#/hooks/query/use-microagent-prompt";
 import { useHandleRuntimeActive } from "#/hooks/use-handle-runtime-active";
 import { LoadingMicroagentBody } from "./loading-microagent-body";
@@ -68,12 +67,12 @@ export function LaunchMicroagentModal({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <FaCircleInfo className="text-primary" />
+                <Info className="text-primary" />
               </a>
             </h2>
 
             <button type="button" onClick={onClose}>
-              <CloseIcon />
+              <X />
             </button>
           </div>
 
@@ -135,7 +134,7 @@ export function LaunchMicroagentModal({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <FaCircleInfo className="text-primary" />
+                  <Info className="text-primary" />
                 </a>
               </div>
               <BadgeInput

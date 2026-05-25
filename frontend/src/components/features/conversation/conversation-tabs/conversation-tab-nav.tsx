@@ -19,16 +19,23 @@ export function ConversationTabNav({
         onClick();
       }}
       className={cn(
-        "p-1 rounded-md cursor-pointer",
-        "text-[#9299AA] bg-[#0D0F11]",
-        isActive && "bg-[#25272D] text-white",
+        "p-2 rounded-lg cursor-pointer transition-colors duration-150",
         isActive
-          ? "hover:text-white hover:bg-tertiary"
-          : "hover:text-white hover:bg-[#0D0F11]",
-        isActive
-          ? "focus-within:text-white focus-within:bg-tertiary"
-          : "focus-within:text-[#9299AA] focus-within:bg-[#0D0F11]",
+          ? "text-[var(--cg-text-primary)]"
+          : "text-[var(--cg-text-nav)]",
       )}
+      style={{
+        backgroundColor: isActive ? "var(--cg-bg-page)" : "var(--cg-workspace-bg-hover)",
+        border: "1px solid var(--cg-border)",
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.backgroundColor = "var(--cg-bg-page)";
+        (e.currentTarget as HTMLButtonElement).style.color = "var(--cg-text-primary)";
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLButtonElement).style.backgroundColor = isActive ? "var(--cg-bg-page)" : "var(--cg-workspace-bg-hover)";
+        (e.currentTarget as HTMLButtonElement).style.color = isActive ? "var(--cg-text-primary)" : "var(--cg-text-nav)";
+      }}
     >
       <Icon className={cn("w-5 h-5 text-inherit")} />
     </button>

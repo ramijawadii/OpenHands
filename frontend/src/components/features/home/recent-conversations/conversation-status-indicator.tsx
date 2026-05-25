@@ -40,7 +40,7 @@ export function ConversationStatusIndicator({
       placement="right"
       showArrow
       className="p-0 border-0 bg-transparent hover:opacity-100"
-      tooltipClassName="bg-[#1a1a1a] text-white text-xs shadow-lg"
+      tooltipClassName="bg-[var(--cg-bg-page)] text-[var(--cg-text-primary)] text-xs shadow-lg"
     >
       <div
         className={cn(

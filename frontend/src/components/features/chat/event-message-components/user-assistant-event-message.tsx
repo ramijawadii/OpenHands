@@ -14,22 +14,23 @@ import {
   useConversationStore,
   type ConversationTab,
 } from "#/state/conversation-store";
-import JupyterIcon from "#/icons/jupyter.svg?react";
-import TerminalIcon from "#/icons/terminal.svg?react";
-import GitChanges from "#/icons/git_changes.svg?react";
-import DiagramsIcon from "#/icons/diagrams.svg?react";
+import { StickyNote, FileTerminal, GitMerge, TerminalSquare, Code2 } from "lucide-react";
 
 // ── Tool badge row ────────────────────────────────────────────────────────────
 
 const TAB_META: Record<
   ConversationTab,
-  { icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; label: string }
+  {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    subtitle: string;
+  }
 > = {
-  terminal: { icon: TerminalIcon, label: "Terminal" },
-  jupyter: { icon: JupyterIcon, label: "Jupyter" },
-  editor: { icon: GitChanges, label: "Changes" },
-  diagrams: { icon: DiagramsIcon, label: "Pages" },
-  vscode: { icon: GitChanges, label: "Code" }, // fallback — vscode icon not used here
+  terminal: { icon: TerminalSquare, label: "Terminal", subtitle: "Shell · Interactive" },
+  jupyter: { icon: FileTerminal, label: "Jupyter Notebook", subtitle: "Python · Interactive" },
+  editor: { icon: GitMerge, label: "Changes", subtitle: "Git · Diff" },
+  diagrams: { icon: StickyNote, label: "Artifact", subtitle: "Document · Pages" },
+  vscode: { icon: Code2, label: "VSCode", subtitle: "Code · Editor" },
 };
 
 function ToolBadgesRow({ tabs }: { tabs: ConversationTab[] }) {
@@ -43,21 +44,39 @@ function ToolBadgesRow({ tabs }: { tabs: ConversationTab[] }) {
   };
 
   return (
-    <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-white/5">
+    <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-white/5">
       {tabs.map((tab) => {
         const meta = TAB_META[tab];
         if (!meta) return null;
         const Icon = meta.icon;
         return (
-          <button
+          <div
             key={tab}
-            type="button"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[var(--cg-border)] cursor-pointer hover:border-[var(--cg-border-strong)] transition-colors"
+            style={{ backgroundColor: "var(--cg-input-bg)" }}
             onClick={() => openTab(tab)}
-            title={`View in ${meta.label}`}
-            className="w-6 h-6 rounded-full bg-[#1e2030] border border-[#3a3d52] flex items-center justify-center hover:bg-[#2d3244] hover:border-[#525670] transition-colors"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && openTab(tab)}
           >
-            <Icon className="w-3.5 h-3.5 text-[#9299AA]" />
-          </button>
+            {/* Icon box */}
+            <div className="w-10 h-10 rounded-lg bg-[var(--cg-bg-badge)] border border-[var(--cg-border)] flex items-center justify-center flex-shrink-0">
+              <Icon className="w-5 h-5 text-[var(--cg-text-muted)]" />
+            </div>
+            {/* Labels */}
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="text-sm font-medium text-[var(--cg-text-primary)] leading-tight">{meta.label}</span>
+              <span className="text-xs text-[var(--cg-text-muted)] leading-tight mt-0.5">{meta.subtitle}</span>
+            </div>
+            {/* Open button */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openTab(tab); }}
+              className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-[var(--cg-border)] text-xs text-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)] hover:border-[var(--cg-border-strong)] hover:bg-[var(--cg-bg-badge)] transition-colors"
+            >
+              Open
+            </button>
+          </div>
         );
       })}
     </div>

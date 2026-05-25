@@ -1,4 +1,4 @@
-import Refresh from "#/icons/refresh.svg?react";
+import { RefreshCw } from "lucide-react";
 
 interface RefreshButtonProps {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
@@ -7,7 +7,7 @@ interface RefreshButtonProps {
 export function RefreshButton({ onClick }: RefreshButtonProps) {
   return (
     <button type="button" onClick={onClick}>
-      <Refresh width={14} height={14} />
+      <RefreshCw size={14} />
     </button>
   );
 }

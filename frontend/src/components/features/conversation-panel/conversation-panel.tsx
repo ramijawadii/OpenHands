@@ -1,6 +1,7 @@
 import React from "react";
 import { NavLink, useParams, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
+import { Search, Star } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
 import { useInfiniteScroll } from "#/hooks/use-infinite-scroll";
@@ -40,6 +41,17 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   const [openContextMenuId, setOpenContextMenuId] = React.useState<
     string | null
   >(null);
+  const [search, setSearch] = React.useState("");
+  const [favorites, setFavorites] = React.useState<Set<string>>(new Set());
+
+  const toggleFavorite = (id: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const {
     data,
@@ -51,7 +63,20 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
   } = usePaginatedConversations();
 
   // Flatten all pages into a single array of conversations
-  const conversations = data?.pages.flatMap((page) => page.results) ?? [];
+  const allConversations = data?.pages.flatMap((page) => page.results) ?? [];
+
+  // Sort favorites first, then filter by search
+  const conversations = React.useMemo(() => {
+    const filtered = search.trim()
+      ? allConversations.filter((c) =>
+          c.title.toLowerCase().includes(search.toLowerCase()),
+        )
+      : allConversations;
+    return [
+      ...filtered.filter((c) => favorites.has(c.conversation_id)),
+      ...filtered.filter((c) => !favorites.has(c.conversation_id)),
+    ];
+  }, [allConversations, search, favorites]);
 
   const { mutate: deleteConversation } = useDeleteConversation();
   const { mutate: stopConversation } = useStopConversation();
@@ -119,9 +144,40 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           scrollContainerRef.current = node;
       }}
       data-testid="conversation-panel"
-      className="w-full md:w-[400px] h-full border border-[#525252] bg-[#25272D] rounded-lg overflow-y-auto absolute custom-scrollbar-always"
+      className="w-full md:w-[400px] h-full rounded-lg overflow-y-auto absolute custom-scrollbar-always"
+      style={{ background: "var(--cg-bg-primary-sidebar)", border: "1px solid var(--cg-border)" }}
     >
-      {isFetching && conversations.length === 0 && (
+      {/* Search bar */}
+      <div
+        className="sticky top-0 z-10 px-3 py-2.5"
+        style={{ background: "var(--cg-bg-primary-sidebar)", borderBottom: "1px solid var(--cg-border)" }}
+      >
+        <div
+          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+          style={{ background: "var(--cg-input-bg)", border: "1px solid var(--cg-border)" }}
+        >
+          <Search size={12} style={{ color: "var(--cg-text-muted)", flexShrink: 0 }} />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search conversations..."
+            className="flex-1 bg-transparent text-[13px] outline-none placeholder-[var(--cg-text-muted)]"
+            style={{ color: "var(--cg-text-nav)" }}
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="text-[var(--cg-text-muted)] hover:text-[var(--cg-text-nav)] cursor-pointer text-xs"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      </div>
+
+      {isFetching && allConversations.length === 0 && (
         <div className="w-full h-full absolute flex justify-center items-center">
           <LoadingSpinner size="small" />
         </div>
@@ -131,42 +187,49 @@ export function ConversationPanel({ onClose }: ConversationPanelProps) {
           <p className="text-danger">{error.message}</p>
         </div>
       )}
-      {!isFetching && conversations?.length === 0 && (
+      {!isFetching && allConversations.length === 0 && (
         <div className="flex flex-col items-center justify-center h-full">
           <p className="text-neutral-400">
             {t(I18nKey.CONVERSATION$NO_CONVERSATIONS)}
           </p>
         </div>
       )}
-      {conversations?.map((project) => (
-        <NavLink
-          key={project.conversation_id}
-          to={`/conversations/${project.conversation_id}`}
-          onClick={onClose}
-        >
-          <ConversationCard
-            onDelete={() => handleDeleteProject(project.conversation_id)}
-            onStop={() => handleStopConversation(project.conversation_id)}
-            onChangeTitle={(title) =>
-              handleConversationTitleChange(project.conversation_id, title)
-            }
-            title={project.title}
-            selectedRepository={{
-              selected_repository: project.selected_repository,
-              selected_branch: project.selected_branch,
-              git_provider: project.git_provider as Provider,
-            }}
-            lastUpdatedAt={project.last_updated_at}
-            createdAt={project.created_at}
-            conversationStatus={project.status}
-            conversationId={project.conversation_id}
-            contextMenuOpen={openContextMenuId === project.conversation_id}
-            onContextMenuToggle={(isOpen) =>
-              setOpenContextMenuId(isOpen ? project.conversation_id : null)
-            }
-          />
-        </NavLink>
-      ))}
+      <div className="flex flex-col gap-px px-2 mt-3 pb-3">
+        {conversations?.map((project) => (
+          <NavLink
+            key={project.conversation_id}
+            to={`/conversations/${project.conversation_id}`}
+            onClick={onClose}
+          >
+            {({ isActive }) => (
+              <ConversationCard
+                isActive={isActive}
+                isFavorite={favorites.has(project.conversation_id)}
+                onToggleFavorite={() => toggleFavorite(project.conversation_id)}
+                onDelete={() => handleDeleteProject(project.conversation_id)}
+                onStop={() => handleStopConversation(project.conversation_id)}
+                onChangeTitle={(title) =>
+                  handleConversationTitleChange(project.conversation_id, title)
+                }
+                title={project.title}
+                selectedRepository={{
+                  selected_repository: project.selected_repository,
+                  selected_branch: project.selected_branch,
+                  git_provider: project.git_provider as Provider,
+                }}
+                lastUpdatedAt={project.last_updated_at}
+                createdAt={project.created_at}
+                conversationStatus={project.status}
+                conversationId={project.conversation_id}
+                contextMenuOpen={openContextMenuId === project.conversation_id}
+                onContextMenuToggle={(isOpen) =>
+                  setOpenContextMenuId(isOpen ? project.conversation_id : null)
+                }
+              />
+            )}
+          </NavLink>
+        ))}
+      </div>
 
       {/* Loading indicator for fetching more conversations */}
       {isFetchingNextPage && (

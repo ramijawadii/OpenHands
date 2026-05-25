@@ -49,14 +49,37 @@ export const useTerminal = () => {
   const createTerminal = () =>
     new Terminal({
       fontFamily: "Menlo, Monaco, 'Courier New', monospace",
-      fontSize: 14,
+      fontSize: 13,
+      lineHeight: 1.5,
       scrollback: 1000,
       scrollSensitivity: 1,
       fastScrollModifier: "alt",
       fastScrollSensitivity: 5,
-      allowTransparency: true,
+      allowTransparency: false,
+      // vscodeDark palette — matches @uiw/codemirror-theme-vscode used in Jupyter cells
       theme: {
-        background: "transparent",
+        background: "#181818",
+        foreground: "#d4d4d4",
+        cursor: "#aeafad",
+        cursorAccent: "#181818",
+        selectionBackground: "#264f78",
+        selectionForeground: "#ffffff",
+        black: "#1e1e1e",
+        red: "#f44747",
+        green: "#6a9955",
+        yellow: "#d7ba7d",
+        blue: "#569cd6",
+        magenta: "#c586c0",
+        cyan: "#4ec9b0",
+        white: "#d4d4d4",
+        brightBlack: "#808080",
+        brightRed: "#f44747",
+        brightGreen: "#b5cea8",
+        brightYellow: "#d7ba7d",
+        brightBlue: "#9cdcfe",
+        brightMagenta: "#c586c0",
+        brightCyan: "#4ec9b0",
+        brightWhite: "#e6e6e6",
       },
     });
 
@@ -121,6 +144,7 @@ export const useTerminal = () => {
 
     if (ref.current) {
       initializeTerminal();
+      terminal.current.writeln("\x1b[32m✓\x1b[0m Connected successfully to inference defense runtime");
       // Render all commands in array
       // This happens when we just switch to Terminal from other tabs
       if (commands.length > 0) {

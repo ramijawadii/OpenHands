@@ -1,4 +1,4 @@
-import PlayIcon from "#/icons/play-solid.svg?react";
+import { Play } from "lucide-react";
 import { cn } from "#/utils/utils";
 
 export interface ChatResumeAgentButtonProps {
@@ -18,7 +18,7 @@ export function ChatResumeAgentButton({
       disabled={disabled}
       className={cn("cursor-pointer", disabled && "cursor-not-allowed")}
     >
-      <PlayIcon className="block max-w-none w-4 h-4" />
+      <Play size={16} className="block" />
     </button>
   );
 }

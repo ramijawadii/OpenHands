@@ -1,11 +1,9 @@
 import React from "react";
-import { FaArrowRotateRight } from "react-icons/fa6";
-import { FaExternalLinkAlt, FaHome } from "react-icons/fa";
+import { RotateCw, ExternalLink, Home, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useActiveHost } from "#/hooks/query/use-active-host";
 import { PathForm } from "#/components/features/served-host/path-form";
 import { I18nKey } from "#/i18n/declaration";
-import ServerProcessIcon from "#/icons/server-process.svg?react";
 
 function ServedApp() {
   const { t } = useTranslation();
@@ -50,7 +48,7 @@ function ServedApp() {
   if (!currentActiveHost) {
     return (
       <div className="flex flex-col items-center justify-center w-full h-full p-10">
-        <ServerProcessIcon width={113} height={113} color="#A1A1A1" />
+        <Server size={113} color="#A1A1A1" />
         <span className="text-[#8D95A9] text-[19px] font-normal leading-5">
           {t(I18nKey.BROWSER$SERVER_MESSAGE)}
         </span>
@@ -66,18 +64,18 @@ function ServedApp() {
           onClick={() => window.open(fullUrl, "_blank")}
           className="text-sm"
         >
-          <FaExternalLinkAlt className="w-4 h-4" />
+          <ExternalLink className="w-4 h-4" />
         </button>
         <button
           type="button"
           onClick={() => setRefreshKey((prev) => prev + 1)}
           className="text-sm"
         >
-          <FaArrowRotateRight className="w-4 h-4" />
+          <RotateCw className="w-4 h-4" />
         </button>
 
         <button type="button" onClick={() => resetUrl()} className="text-sm">
-          <FaHome className="w-4 h-4" />
+          <Home className="w-4 h-4" />
         </button>
         <div className="w-full flex">
           <PathForm

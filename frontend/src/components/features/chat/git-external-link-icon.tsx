@@ -1,4 +1,4 @@
-import LinkExternalIcon from "#/icons/link-external.svg?react";
+import { ExternalLink } from "lucide-react";
 import { cn } from "#/utils/utils";
 
 interface GitExternalLinkIconProps {
@@ -13,7 +13,7 @@ export function GitExternalLinkIcon({ className }: GitExternalLinkIconProps) {
         className,
       )}
     >
-      <LinkExternalIcon width={12} height={12} color="white" />
+      <ExternalLink size={12} color="white" />
     </div>
   );
 }
