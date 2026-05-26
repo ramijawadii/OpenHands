@@ -12,6 +12,15 @@ from openhands.memory.condenser.condenser import (
     RollingCondenser,
     View,
 )
+from openhands.services.compact.compact_pipeline import (
+    BASE_COMPACT_PROMPT,
+    COMPACT_MAX_OUTPUT_TOKENS,
+    MAX_PTL_RETRIES,
+    NO_TOOLS_PREAMBLE,
+    NO_TOOLS_TRAILER,
+    _PTL_MARKERS,
+    _format_compact_summary,
+)
 
 
 class LLMSummarizingCondenser(RollingCondenser):
@@ -52,8 +61,8 @@ class LLMSummarizingCondenser(RollingCondenser):
     def get_condensation(self, view: View) -> Condensation:
         head = view[: self.keep_first]
         target_size = self.max_size // 2
-        # Number of events to keep from the tail -- target size, minus however many
-        # prefix events from the head, minus one for the summarization event
+        # Number of events to keep from the tail — target size minus prefix events
+        # minus one slot for the summarization event itself.
         events_from_tail = target_size - len(head) - 1
 
         summary_event = (
@@ -68,82 +77,59 @@ class LLMSummarizingCondenser(RollingCondenser):
             if not isinstance(event, AgentCondensationObservation):
                 forgotten_events.append(event)
 
-        # Construct prompt for summarization
-        prompt = """You are maintaining a context-aware state summary for an interactive agent.
-You will be given a list of events corresponding to actions taken by the agent, and the most recent previous summary if one exists.
-If the events being summarized contain ANY task-tracking, you MUST include a TASK_TRACKING section to maintain continuity.
-When referencing tasks make sure to preserve exact task IDs and statuses.
+        # Build structured compaction system prompt (NO_TOOLS enforced)
+        system_prompt = f"{NO_TOOLS_PREAMBLE}\n\n{BASE_COMPACT_PROMPT}\n\n{NO_TOOLS_TRAILER}"
 
-Track:
+        # Helper: build the user message text for a given set of forgotten events.
+        def _build_user_text(events: list) -> str:
+            summary_event_content = self._truncate(
+                summary_event.message if summary_event.message else ''
+            )
+            lines = [
+                f'<PREVIOUS SUMMARY>\n{summary_event_content}\n</PREVIOUS SUMMARY>',
+                '',
+            ]
+            for ev in events:
+                lines.append(f'<EVENT id={ev.id}>\n{self._truncate(str(ev))}\n</EVENT>')
+            lines.append('Now summarize the events using the structure above.')
+            return '\n'.join(lines)
 
-USER_CONTEXT: (Preserve essential user requirements, goals, and clarifications in concise form)
+        # PTL retry: on context-length error, drop oldest forgotten event and retry.
+        current_forgotten = list(forgotten_events)
+        last_error: Exception | None = None
+        raw_summary: str | None = None
 
-TASK_TRACKING: {Active tasks, their IDs and statuses - PRESERVE TASK IDs}
+        for attempt in range(MAX_PTL_RETRIES):
+            try:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": _build_user_text(current_forgotten)},
+                ]
+                response = self.llm.completion(
+                    messages=messages,
+                    max_tokens=COMPACT_MAX_OUTPUT_TOKENS,
+                    extra_body={'metadata': self.llm_metadata},
+                )
+                raw_summary = response.choices[0].message.content or ''
+                break
+            except Exception as exc:
+                last_error = exc
+                error_str = str(exc).lower()
+                is_ptl = any(marker in error_str for marker in _PTL_MARKERS)
+                if not is_ptl:
+                    raise
+                if attempt >= MAX_PTL_RETRIES - 1:
+                    break
+                # Drop the oldest forgotten event and retry
+                if len(current_forgotten) > 1:
+                    current_forgotten = current_forgotten[1:]
 
-COMPLETED: (Tasks completed so far, with brief results)
-PENDING: (Tasks that still need to be done)
-CURRENT_STATE: (Current variables, data structures, or relevant state)
+        if raw_summary is None:
+            raise RuntimeError(
+                f"LLMSummarizingCondenser PTL retry exhausted after {MAX_PTL_RETRIES} attempts"
+            ) from last_error
 
-For code-specific tasks, also include:
-CODE_STATE: {File paths, function signatures, data structures}
-TESTS: {Failing cases, error messages, outputs}
-CHANGES: {Code edits, variable updates}
-DEPS: {Dependencies, imports, external calls}
-VERSION_CONTROL_STATUS: {Repository state, current branch, PR status, commit history}
-
-PRIORITIZE:
-1. Adapt tracking format to match the actual task type
-2. Capture key user requirements and goals
-3. Distinguish between completed and pending tasks
-4. Keep all sections concise and relevant
-
-SKIP: Tracking irrelevant details for the current task type
-
-Example formats:
-
-For code tasks:
-USER_CONTEXT: Fix FITS card float representation issue
-COMPLETED: Modified mod_float() in card.py, all tests passing
-PENDING: Create PR, update documentation
-CODE_STATE: mod_float() in card.py updated
-TESTS: test_format() passed
-CHANGES: str(val) replaces f"{val:.16G}"
-DEPS: None modified
-VERSION_CONTROL_STATUS: Branch: fix-float-precision, Latest commit: a1b2c3d
-
-For other tasks:
-USER_CONTEXT: Write 20 haikus based on coin flip results
-COMPLETED: 15 haikus written for results [T,H,T,H,T,H,T,T,H,T,H,T,H,T,H]
-PENDING: 5 more haikus needed
-CURRENT_STATE: Last flip: Heads, Haiku count: 15/20"""
-
-        prompt += '\n\n'
-
-        # Add the previous summary if it exists. We'll always have a summary
-        # event, but the types aren't precise enought to guarantee that it has a
-        # message attribute.
-        summary_event_content = self._truncate(
-            summary_event.message if summary_event.message else ''
-        )
-        prompt += f'<PREVIOUS SUMMARY>\n{summary_event_content}\n</PREVIOUS SUMMARY>\n'
-
-        prompt += '\n\n'
-
-        # Add all events that are being forgotten. We use the string
-        # representation defined by the event, and truncate it if necessary.
-        for forgotten_event in forgotten_events:
-            event_content = self._truncate(str(forgotten_event))
-            prompt += f'<EVENT id={forgotten_event.id}>\n{event_content}\n</EVENT>\n'
-
-        prompt += 'Now summarize the events using the rules above.'
-
-        messages = [Message(role='user', content=[TextContent(text=prompt)])]
-
-        response = self.llm.completion(
-            messages=self.llm.format_messages_for_llm(messages),
-            extra_body={'metadata': self.llm_metadata},
-        )
-        summary = response.choices[0].message.content
+        summary = _format_compact_summary(raw_summary)
 
         self.add_metadata('response', response.model_dump())
         self.add_metadata('metrics', self.llm.metrics.get())

@@ -84,6 +84,9 @@ class LLM(RetryMixin, DebugMixin):
         self.model_info: ModelInfo | None = None
         self._function_calling_active: bool = False
         self.retry_listener = retry_listener
+        # Optional callback for streaming token chunks — set by WebSession after start().
+        # Signature: (delta: str) -> None. Never stored in event log; purely transient.
+        self.stream_callback: Callable[[str], None] | None = None
         if self.config.log_completions:
             if self.config.log_completions_folder is None:
                 raise RuntimeError(
@@ -193,6 +196,9 @@ class LLM(RetryMixin, DebugMixin):
             'temperature' in kwargs and 'top_p' in kwargs
         ):
             kwargs.pop('top_p', None)
+
+        # Store thinking config for latch helpers (Layer 7)
+        self._thinking_config: dict | None = kwargs.get('thinking')
 
         self._completion = partial(
             litellm_completion,
@@ -314,11 +320,8 @@ class LLM(RetryMixin, DebugMixin):
 
             # Record start time for latency measurement
             start_time = time.time()
-            # we don't support streaming here, thus we get a ModelResponse
 
             # Suppress httpx deprecation warnings during LiteLLM calls
-            # This prevents the "Use 'content=<...>' to upload raw bytes/text content" warning
-            # that appears when LiteLLM makes HTTP requests to LLM providers
             with warnings.catch_warnings():
                 warnings.filterwarnings(
                     'ignore', category=DeprecationWarning, module='httpx.*'
@@ -328,7 +331,13 @@ class LLM(RetryMixin, DebugMixin):
                     message=r'.*content=.*upload.*',
                     category=DeprecationWarning,
                 )
-                resp: ModelResponse = self._completion_unwrapped(*args, **kwargs)
+                # Stream tokens when a callback is registered.
+                # Safe in both native and mock function calling modes: _stream_with_callback
+                # always reassembles a complete ModelResponse via stream_chunk_builder.
+                if self.stream_callback is not None:
+                    resp = self._stream_with_callback(args, kwargs)
+                else:
+                    resp: ModelResponse = self._completion_unwrapped(*args, **kwargs)
 
             # Calculate and record latency
             latency = time.time() - start_time
@@ -579,12 +588,109 @@ class LLM(RetryMixin, DebugMixin):
         # We don't need to look-up model_info, because only Anthropic models need explicit caching breakpoints
         return get_features(self.config.model).supports_prompt_cache
 
+    def _should_include_extended_thinking(self) -> bool:
+        """Return True if extended-thinking tokens should be sent this call.
+
+        Checks the session latch first (write-once cache-stability guarantee).
+        Falls back to self._thinking_config set in __init__.
+        Safe to call outside a session context (try/except RuntimeError).
+        """
+        try:
+            from openhands.server.session.session_state import get_current_session
+            session = get_current_session()
+        except RuntimeError:
+            session = None
+
+        if session is not None and session.is_latched('extended_thinking_latched'):
+            return True
+
+        thinking = self._thinking_config
+        active = bool(thinking) and thinking.get('type') != 'disabled'  # type: ignore[union-attr]
+        if active and session is not None:
+            session.latch('extended_thinking_latched')
+        return active
+
+    def _should_include_cache_control(self) -> bool:
+        """Return True if cache_control blocks should be included in this call.
+
+        Checks the session latch first (write-once cache-stability guarantee).
+        Falls back to is_caching_prompt_active().
+        Safe to call outside a session context (try/except RuntimeError).
+        """
+        try:
+            from openhands.server.session.session_state import get_current_session
+            session = get_current_session()
+        except RuntimeError:
+            session = None
+
+        if session is not None and session.is_latched('cache_control_latched'):
+            return True
+
+        active = self.is_caching_prompt_active()
+        if active and session is not None:
+            session.latch('cache_control_latched')
+        return active
+
     def is_function_calling_active(self) -> bool:
         """Returns whether function calling is supported and enabled for this LLM instance.
 
         The result is cached during initialization for performance.
         """
         return self._function_calling_active
+
+    def _stream_with_callback(self, args: tuple, kwargs: dict) -> ModelResponse:
+        """Call the LLM with stream=True, fire stream_callback per token, return assembled ModelResponse."""
+        chunks: list = []
+        has_tool_call_chunks = False
+        stream = self._completion_unwrapped(*args, **kwargs, stream=True)
+        for chunk in stream:
+            chunks.append(chunk)
+            try:
+                delta = chunk.choices[0].delta if chunk.choices else None
+                if delta:
+                    if delta.content and self.stream_callback is not None:
+                        self.stream_callback(delta.content)
+                    if getattr(delta, 'tool_calls', None):
+                        has_tool_call_chunks = True
+            except Exception:
+                pass  # never let a callback error interrupt the agent
+        # Reassemble chunks into a ModelResponse using litellm's helper
+        try:
+            assembled = litellm.stream_chunk_builder(chunks, messages=kwargs.get('messages', []))
+            # Validate tool_calls were preserved when chunks contained them
+            assembled_tool_calls = (
+                assembled.choices[0].message.tool_calls
+                if assembled.choices and assembled.choices[0].message
+                else None
+            )
+            if has_tool_call_chunks and not assembled_tool_calls:
+                # stream_chunk_builder dropped the tool_calls — retry non-streaming
+                return self._completion_unwrapped(*args, **kwargs)
+            return assembled
+        except Exception:
+            if has_tool_call_chunks:
+                # Can't safely reconstruct tool calls — retry non-streaming
+                return self._completion_unwrapped(*args, **kwargs)
+            # Text-only fallback: manual assembly from accumulated content
+            full_text = ''.join(
+                (c.choices[0].delta.content or '')
+                for c in chunks
+                if c.choices and c.choices[0].delta
+            )
+            last = chunks[-1] if chunks else None
+            from litellm.types.utils import Choices, Message as LiteLLMMsg
+            assembled = ModelResponse(
+                id=getattr(last, 'id', 'stream'),
+                choices=[
+                    Choices(
+                        finish_reason='stop',
+                        index=0,
+                        message=LiteLLMMsg(role='assistant', content=full_text),
+                    )
+                ],
+                model=self.config.model,
+            )
+            return assembled
 
     def _post_completion(self, response: ModelResponse) -> float:
         """Post-process the completion response.
@@ -812,7 +918,7 @@ class LLM(RetryMixin, DebugMixin):
 
         # set flags to know how to serialize the messages
         for message in messages:
-            message.cache_enabled = self.is_caching_prompt_active()
+            message.cache_enabled = self._should_include_cache_control()
             message.vision_enabled = self.vision_is_active()
             message.function_calling_enabled = self.is_function_calling_active()
             if 'deepseek' in self.config.model:

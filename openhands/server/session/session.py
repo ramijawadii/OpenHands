@@ -375,14 +375,24 @@ class WebSession:
             event_dict = event_to_dict(event)
             event_dict['source'] = EventSource.AGENT
             await self.send(event_dict)
-            if (
-                isinstance(event, AgentStateChangedObservation)
-                and event.agent_state == AgentState.ERROR
-            ):
-                self.logger.error(
-                    f'Agent status error: {event.reason}',
-                    extra={'signal': 'agent_status_error'},
+            if isinstance(event, AgentStateChangedObservation):
+                if event.agent_state == AgentState.ERROR:
+                    self.logger.error(
+                        f'Agent status error: {event.reason}',
+                        extra={'signal': 'agent_status_error'},
+                    )
+                # Update external 3-state surface and notify SDK consumers.
+                from openhands.server.session.external_state import EXTERNAL_STATE
+                EXTERNAL_STATE.update_from_agent_state(
+                    agent_state=event.agent_state,
+                    model=self.config.get_llm_config().model if self.config else None,
                 )
+                if self.sio:
+                    await self.sio.emit(
+                        'agent_external_state',
+                        EXTERNAL_STATE.to_dict(),
+                        to=ROOM_KEY.format(sid=self.sid),
+                    )
         elif isinstance(event, ErrorObservation):
             # send error events as agent events to the UI
             event_dict = event_to_dict(event)
