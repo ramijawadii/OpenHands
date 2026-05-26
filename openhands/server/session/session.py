@@ -6,6 +6,10 @@ import socketio
 
 from openhands.controller.agent import Agent
 from openhands.core.config import OpenHandsConfig
+from openhands.server.session.session_state import (
+    _SessionState,
+    set_current_session,
+)
 from openhands.core.config.condenser_config import (
     BrowserOutputCondenserConfig,
     CondenserPipelineConfig,
@@ -86,6 +90,12 @@ class WebSession:
         self.last_active_ts = int(time.time())
         self.file_store = file_store
         self.logger = OpenHandsLoggerAdapter(extra={'session_id': sid})
+
+        # Layer 1: per-session identity state.  One _SessionState per WebSession;
+        # bound into the asyncio context so coroutines can call
+        # get_current_session() without passing it explicitly.
+        self.session_state = _SessionState(session_id=sid)
+        set_current_session(self.session_state)
         self.llm_registry = llm_registry
         self.conversation_stats = conversation_stats
         self.agent_session = AgentSession(
@@ -135,6 +145,10 @@ class WebSession:
         initial_message: MessageAction | None,
         replay_json: str | None,
     ) -> None:
+        # Re-bind session state into the current coroutine context.
+        # Tasks spawned via create_task() inside this coroutine will inherit
+        # this binding automatically (Python contextvars semantics).
+        set_current_session(self.session_state)
         self.agent_session.event_stream.add_event(
             AgentStateChangedObservation('', AgentState.LOADING),
             EventSource.ENVIRONMENT,
@@ -304,6 +318,29 @@ class WebSession:
                 f'Failed to create agent session: {e.__class__.__name__}'
             )
             return
+        else:
+            # Wire up token streaming: give the LLM a callback that emits oh_stream_chunk
+            # directly via Socket.IO (transient — never stored in the event log).
+            controller = self.agent_session.controller
+            if controller and self.sio:
+                controller.agent.llm.stream_callback = self._emit_stream_chunk
+
+    def _emit_stream_chunk(self, delta: str) -> None:
+        """Emit a streaming token chunk directly via Socket.IO — transient, never stored in event log."""
+        if not self.sio or not self.is_alive:
+            return
+        try:
+            import asyncio as _asyncio
+            _asyncio.run_coroutine_threadsafe(
+                self.sio.emit(
+                    'oh_stream_chunk',
+                    {'content': delta},
+                    to=ROOM_KEY.format(sid=self.sid),
+                ),
+                self.loop,
+            )
+        except Exception:
+            pass
 
     def _notify_on_llm_retry(self, retries: int, max: int) -> None:
         self.queue_status_message(
@@ -353,6 +390,7 @@ class WebSession:
             await self.send(event_dict)
 
     async def dispatch(self, data: dict) -> None:
+        set_current_session(self.session_state)
         event = event_from_dict(data.copy())
         # This checks if the model supports images
         if isinstance(event, MessageAction) and event.image_urls:
