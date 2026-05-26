@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from enum import Enum
 from functools import partial
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from openhands.core.logger import openhands_logger as logger
 from openhands.events.event import Event, EventSource
@@ -18,6 +18,9 @@ from openhands.storage.locations import (
 )
 from openhands.utils.async_utils import call_sync_from_async
 from openhands.utils.shutdown_listener import should_continue
+
+if TYPE_CHECKING:
+    from openhands.storage.transcript_writer import TranscriptWriter
 
 
 class EventStreamSubscriber(str, Enum):
@@ -67,6 +70,7 @@ class EventStream(EventStore):
         self._lock = threading.Lock()
         self.secrets = {}
         self._write_page_cache = []
+        self._transcript_writer: Optional['TranscriptWriter'] = None
 
     def _init_thread_loop(self, subscriber_id: str, callback_id: str) -> None:
         loop = asyncio.new_event_loop()
@@ -74,6 +78,28 @@ class EventStream(EventStore):
         if subscriber_id not in self._thread_loops:
             self._thread_loops[subscriber_id] = {}
         self._thread_loops[subscriber_id][callback_id] = loop
+
+    def attach_transcript_writer(self, writer: 'TranscriptWriter') -> None:
+        """
+        Attach a TranscriptWriter to receive a parallel JSONL copy of every
+        event added to this stream.
+
+        Must be called before the first ``add_event()`` call to avoid missing
+        events.  Replacing an already-attached writer is not supported — close
+        the old one first.
+        """
+        if self._transcript_writer is not None:
+            raise ValueError(
+                "A TranscriptWriter is already attached to this EventStream. "
+                "Call EventStream.detach_transcript_writer() before attaching a new one."
+            )
+        self._transcript_writer = writer
+
+    def detach_transcript_writer(self) -> None:
+        """Flush and detach the current TranscriptWriter without closing the stream."""
+        if self._transcript_writer is not None:
+            self._transcript_writer.flush()
+            self._transcript_writer = None
 
     def close(self) -> None:
         self._stop_flag.set()
@@ -85,6 +111,11 @@ class EventStream(EventStore):
             callback_ids = list(self._subscribers[subscriber_id].keys())
             for callback_id in callback_ids:
                 self._clean_up_subscriber(subscriber_id, callback_id)
+
+        # Flush transcript writer before clearing the queue.
+        if self._transcript_writer is not None:
+            self._transcript_writer.close()
+            self._transcript_writer = None
 
         # Clear queue
         while not self._queue.empty():
@@ -198,9 +229,19 @@ class EventStream(EventStore):
                 )
             self.file_store.write(filename, event_json)
 
+            # Parallel JSONL write — does not block the existing event store path.
+            if self._transcript_writer is not None:
+                self._write_to_transcript(event, data)
+
             # Store the cache page last - if it is not present during reads then it will simply be bypassed.
             self._store_cache_page(current_write_page)
         self._queue.put(event)
+
+    def _write_to_transcript(self, event: Event, data: dict) -> None:
+        """Write a secret-scrubbed copy of *event* to the attached TranscriptWriter."""
+        entry_type = _event_to_transcript_type(event)
+        # data is already secret-scrubbed (comes from add_event after _replace_secrets)
+        self._transcript_writer.write(entry_type, data)  # type: ignore[union-attr]
 
     def _store_cache_page(self, current_write_page: list[dict]):
         """Store a page in the cache. Reading individual events is slow when there are a lot of them, so we use pages."""
@@ -289,3 +330,39 @@ class EventStream(EventStore):
                 raise e
 
         return _handle_callback_error
+
+
+# ---------------------------------------------------------------------------
+# Event → transcript type mapping (module-level, avoids repeated isinstance)
+# ---------------------------------------------------------------------------
+
+# Action strings (from openhands/core/schema.py ActionType) that represent
+# tool invocations — treated as ephemeral progress entries in the transcript.
+_TOOL_ACTION_TYPES: frozenset[str] = frozenset({
+    "run", "run_ipython", "read", "write", "edit", "browse", "browse_interactive",
+    "mcp", "delegate",
+})
+
+
+def _event_to_transcript_type(event: Event) -> str:
+    """
+    Map an OpenHands event to its JSONL transcript entry type.
+
+    Mapping rules:
+    - ``MessageAction`` from USER source     → ``"user"``
+    - ``MessageAction`` from AGENT source    → ``"assistant"``
+    - ``SystemMessageAction``                → ``"system"``
+    - Tool invocation actions (run, read, …) → ``"tool_progress"`` (ephemeral)
+    - Everything else                        → ``"system"``
+    """
+    from openhands.events.action.message import MessageAction, SystemMessageAction
+
+    if isinstance(event, MessageAction):
+        return "user" if event.source == EventSource.USER else "assistant"
+    if isinstance(event, SystemMessageAction):
+        return "system"
+    # Check action attribute for tool-type events
+    action_attr = getattr(event, "action", None)
+    if action_attr in _TOOL_ACTION_TYPES:
+        return "tool_progress"
+    return "system"
