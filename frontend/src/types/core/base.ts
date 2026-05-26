@@ -19,7 +19,8 @@ export type OpenHandsEventType =
   | "mcp"
   | "call_tool_mcp"
   | "task_tracking"
-  | "user_rejected";
+  | "user_rejected"
+  | "condense";
 
 export type OpenHandsSourceType = "agent" | "user" | "environment";
 

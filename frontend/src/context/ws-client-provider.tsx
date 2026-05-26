@@ -21,6 +21,8 @@ import { OpenHandsObservation } from "#/types/core/observations";
 import {
   isAgentStateChangeObservation,
   isAssistantMessage,
+  isCondensationObservation,
+  isCondensationRequestAction,
   isErrorObservation,
   isOpenHandsAction,
   isOpenHandsObservation,
@@ -29,6 +31,11 @@ import {
 } from "#/types/core/guards";
 import { useErrorMessageStore } from "#/stores/error-message-store";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
+import { useCompactStore } from "#/stores/compact-store";
+import {
+  useExternalStateStore,
+  AgentExternalStatePayload,
+} from "#/stores/external-state-store";
 
 export type WebSocketStatus = "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 
@@ -136,7 +143,9 @@ export function WsClientProvider({
   const [parsedEvents, setParsedEvents] = React.useState<
     (OpenHandsAction | OpenHandsObservation)[]
   >([]);
-  const [streamingContent, setStreamingContent] = React.useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = React.useState<string | null>(
+    null,
+  );
   const lastEventRef = React.useRef<Record<string, unknown> | null>(null);
   const { providers } = useUserProviders();
 
@@ -204,6 +213,16 @@ export function WsClientProvider({
       // A complete assistant message arriving means the stream is done.
       if (isAssistantMessage(event)) {
         setStreamingContent(null);
+      }
+
+      // Compaction lifecycle tracking (Layer 9)
+      if (isCondensationRequestAction(event)) {
+        useCompactStore.getState().recordCompactionStarted();
+      }
+      if (isCondensationObservation(event)) {
+        useCompactStore
+          .getState()
+          .recordCompactionComplete(event.extras?.summary);
       }
 
       if (isMessageAction(event)) {
@@ -292,6 +311,8 @@ export function WsClientProvider({
     setParsedEvents([]);
     setStreamingContent(null);
     setWebSocketStatus("CONNECTING");
+    useCompactStore.getState().reset();
+    useExternalStateStore.getState().reset();
   }, [conversationId]);
 
   React.useEffect(() => {
@@ -367,9 +388,14 @@ export function WsClientProvider({
       }
     };
 
+    const handleAgentExternalState = (payload: AgentExternalStatePayload) => {
+      useExternalStateStore.getState().setExternalState(payload);
+    };
+
     sio.on("connect", handleConnect);
     sio.on("oh_event", handleMessage);
     sio.on("oh_stream_chunk", handleStreamChunk);
+    sio.on("agent_external_state", handleAgentExternalState);
     sio.on("connect_error", handleError);
     sio.on("connect_failed", handleError);
     sio.on("disconnect", handleDisconnect);
@@ -380,6 +406,7 @@ export function WsClientProvider({
       sio.off("connect", handleConnect);
       sio.off("oh_event", handleMessage);
       sio.off("oh_stream_chunk", handleStreamChunk);
+      sio.off("agent_external_state", handleAgentExternalState);
       sio.off("connect_error", handleError);
       sio.off("connect_failed", handleError);
       sio.off("disconnect", handleDisconnect);

@@ -161,6 +161,17 @@ export interface TaskTrackingObservation
   };
 }
 
+export interface CondensationObservation
+  extends OpenHandsObservationEvent<"condense"> {
+  source: "environment";
+  extras: {
+    /** IDs of events removed from the LLM context window. */
+    forgotten_event_ids?: number[];
+    /** Optional summary text produced by the condenser. */
+    summary?: string;
+  };
+}
+
 export type OpenHandsObservation =
   | AgentStateChangeObservation
   | AgentThinkObservation
@@ -176,4 +187,5 @@ export type OpenHandsObservation =
   | RecallObservation
   | MCPObservation
   | UserRejectedObservation
-  | TaskTrackingObservation;
+  | TaskTrackingObservation
+  | CondensationObservation;

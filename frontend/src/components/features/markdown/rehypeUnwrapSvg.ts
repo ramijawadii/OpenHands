@@ -15,17 +15,27 @@ export function rehypeUnwrapSvg() {
     visit(
       tree,
       "element",
-      (node: Element, index: number | undefined, parent: Element | Root | null) => {
+      (
+        node: Element,
+        index: number | undefined,
+        parent: Element | Root | undefined,
+      ) => {
         if (node.tagName !== "p" || !parent || index == null) return;
 
         const svgChildren = node.children.filter(
           (c) => c.type === "element" && (c as Element).tagName === "svg",
         );
         const nonWhitespace = node.children.filter(
-          (c) => !(c.type === "text" && /^\s*$/.test((c as { value: string }).value)),
+          (c) =>
+            !(
+              c.type === "text" && /^\s*$/.test((c as { value: string }).value)
+            ),
         );
 
-        if (svgChildren.length > 0 && svgChildren.length === nonWhitespace.length) {
+        if (
+          svgChildren.length > 0 &&
+          svgChildren.length === nonWhitespace.length
+        ) {
           parent.children.splice(index, 1, ...svgChildren);
         }
       },

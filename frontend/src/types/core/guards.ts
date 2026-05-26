@@ -11,6 +11,7 @@ import {
 import {
   AgentStateChangeObservation,
   CommandObservation,
+  CondensationObservation,
   ErrorObservation,
   MCPObservation,
   OpenHandsObservation,
@@ -98,6 +99,18 @@ export const isTaskTrackingObservation = (
   event: OpenHandsParsedEvent,
 ): event is TaskTrackingObservation =>
   isOpenHandsObservation(event) && event.observation === "task_tracking";
+
+export const isCondensationObservation = (
+  event: OpenHandsParsedEvent,
+): event is CondensationObservation =>
+  isOpenHandsObservation(event) && event.observation === "condense";
+
+export const isCondensationRequestAction = (
+  event: OpenHandsParsedEvent,
+): boolean =>
+  isOpenHandsAction(event) &&
+  (event as { action: string }).action === "condense" &&
+  event.source === "environment";
 
 export const isStatusUpdate = (event: unknown): event is StatusUpdate =>
   typeof event === "object" &&

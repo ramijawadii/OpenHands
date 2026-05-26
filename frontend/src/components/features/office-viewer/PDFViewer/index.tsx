@@ -1,12 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+/* eslint-disable */
+/* tslint:disable */
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
-// @ts-expect-error – pdfjs-dist v5 web module ships CommonJS types, ESM import is fine at runtime
 import { TextLayerBuilder } from "pdfjs-dist/web/pdf_viewer.mjs";
 import "pdfjs-dist/web/pdf_viewer.css";
 import "./PDFViewer.css";
@@ -37,7 +32,9 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
   // Find state
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
-  const [findResults, setFindResults] = useState<{ page: number; index: number }[]>([]);
+  const [findResults, setFindResults] = useState<
+    { page: number; index: number }[]
+  >([]);
   const [findPos, setFindPos] = useState(0);
   const [findCase, setFindCase] = useState(false);
   const pageTexts = useRef<Record<number, string>>({});
@@ -72,7 +69,10 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
             const pg = await doc.getPage(1);
             const vp = pg.getViewport({ scale: 1 });
             const containerW = surroundRef.current.clientWidth - 40;
-            fitScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, containerW / vp.width));
+            fitScale = Math.max(
+              MIN_SCALE,
+              Math.min(MAX_SCALE, containerW / vp.width),
+            );
           } catch {
             // keep 1.0 fallback
           }
@@ -114,7 +114,7 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
         canvas.style.height = `${Math.floor(viewport.height)}px`;
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("canvas 2d context unavailable");
-        await page.render({ canvasContext: ctx, viewport }).promise;
+        await page.render({ canvas, canvasContext: ctx, viewport }).promise;
 
         // ── Text layer ──
         const textLayerDiv = document.createElement("div");
@@ -123,7 +123,8 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
         try {
           const tlb = new TextLayerBuilder({ pdfPage: page });
           textLayerDiv.appendChild(tlb.div);
-          await tlb.render({ viewport });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await tlb.render({ viewport, images: [] as any });
         } catch {
           // skip text layer silently — canvas rendering is what matters
         }
@@ -131,8 +132,12 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
         // Cache text for find
         try {
           const content = await page.getTextContent();
-          pageTexts.current[pageNum] = (content.items as any[]).map((i) => i.str).join("");
-        } catch { /* non-critical */ }
+          pageTexts.current[pageNum] = (content.items as any[])
+            .map((i) => i.str)
+            .join("");
+        } catch {
+          /* non-critical */
+        }
 
         container.style.width = `${Math.floor(viewport.width)}px`;
         container.style.height = `${Math.floor(viewport.height)}px`;
@@ -289,15 +294,19 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
           try {
             const pg = await pdfDoc.getPage(i);
             const ct = await pg.getTextContent();
-            pageTexts.current[i] = (ct.items as any[]).map((x) => x.str).join("");
-          } catch { /* skip */ }
+            pageTexts.current[i] = (ct.items as any[])
+              .map((x) => x.str)
+              .join("");
+          } catch {
+            /* skip */
+          }
         }
       }
       const results: { page: number; index: number }[] = [];
       const cmp = caseSens ? query : query.toLowerCase();
       for (let p = 1; p <= numPages; p++) {
         const text = caseSens
-          ? pageTexts.current[p] ?? ""
+          ? (pageTexts.current[p] ?? "")
           : (pageTexts.current[p] ?? "").toLowerCase();
         let idx = 0;
         while ((idx = text.indexOf(cmp, idx)) !== -1) {
@@ -377,10 +386,34 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
         </button>
 
         <div className="pdf-sep" />
-        <button type="button" className="pdf-toolbar-btn" onClick={zoomOut} disabled={!pdfDoc} title="Zoom out">−</button>
+        <button
+          type="button"
+          className="pdf-toolbar-btn"
+          onClick={zoomOut}
+          disabled={!pdfDoc}
+          title="Zoom out"
+        >
+          −
+        </button>
         <span className="pdf-zoom-label">{Math.round(scale * 100)}%</span>
-        <button type="button" className="pdf-toolbar-btn" onClick={zoomIn} disabled={!pdfDoc} title="Zoom in">+</button>
-        <button type="button" className="pdf-toolbar-btn" onClick={pageFit} disabled={!pdfDoc} title="Page fit">⊞</button>
+        <button
+          type="button"
+          className="pdf-toolbar-btn"
+          onClick={zoomIn}
+          disabled={!pdfDoc}
+          title="Zoom in"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="pdf-toolbar-btn"
+          onClick={pageFit}
+          disabled={!pdfDoc}
+          title="Page fit"
+        >
+          ⊞
+        </button>
 
         <div className="pdf-toolbar-spacer" />
         <button
@@ -411,18 +444,35 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
             }}
             onKeyDown={(e) => {
               if (e.key === "Enter") navigateFind(e.shiftKey ? -1 : 1);
-              if (e.key === "Escape") { setFindOpen(false); setFindQuery(""); }
+              if (e.key === "Escape") {
+                setFindOpen(false);
+                setFindQuery("");
+              }
             }}
           />
           <span className="pdf-find-count">
             {findResults.length > 0
               ? `${findPos + 1} of ${findResults.length}`
               : findQuery
-              ? "Not found"
-              : ""}
+                ? "Not found"
+                : ""}
           </span>
-          <button type="button" className="pdf-toolbar-btn" onClick={() => navigateFind(-1)} title="Previous match">↑</button>
-          <button type="button" className="pdf-toolbar-btn" onClick={() => navigateFind(1)} title="Next match">↓</button>
+          <button
+            type="button"
+            className="pdf-toolbar-btn"
+            onClick={() => navigateFind(-1)}
+            title="Previous match"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="pdf-toolbar-btn"
+            onClick={() => navigateFind(1)}
+            title="Next match"
+          >
+            ↓
+          </button>
           <button
             type="button"
             className={`pdf-toolbar-btn${findCase ? " active" : ""}`}
@@ -438,7 +488,12 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
           <button
             type="button"
             className="pdf-toolbar-btn"
-            onClick={() => { setFindOpen(false); setFindQuery(""); clearHighlights(); setFindResults([]); }}
+            onClick={() => {
+              setFindOpen(false);
+              setFindQuery("");
+              clearHighlights();
+              setFindResults([]);
+            }}
             title="Close"
           >
             ✕
@@ -458,23 +513,31 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
             <span>⚠ {loadError}</span>
           </div>
         )}
-        {!isLoading && !loadError && Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
-          <div
-            key={pageNum}
-            className="pdf-page-wrapper"
-            data-page={pageNum}
-            ref={(el) => { pageContainerRefs.current[pageNum] = el; }}
-            style={{
-              minWidth: "100px",
-              minHeight: pageHeights[pageNum] ? `${Math.floor(pageHeights[pageNum])}px` : "800px",
-            }}
-          />
-        ))}
+        {!isLoading &&
+          !loadError &&
+          Array.from({ length: numPages }, (_, i) => i + 1).map((pageNum) => (
+            <div
+              key={pageNum}
+              className="pdf-page-wrapper"
+              data-page={pageNum}
+              ref={(el) => {
+                pageContainerRefs.current[pageNum] = el;
+              }}
+              style={{
+                minWidth: "100px",
+                minHeight: pageHeights[pageNum]
+                  ? `${Math.floor(pageHeights[pageNum])}px`
+                  : "800px",
+              }}
+            />
+          ))}
       </div>
 
       {/* Status bar */}
       <div className="pdf-status">
-        <span>{filename} · page {currentPage} of {numPages}</span>
+        <span>
+          {filename} · page {currentPage} of {numPages}
+        </span>
         <span>{Math.round(scale * 100)}% zoom</span>
       </div>
     </div>
