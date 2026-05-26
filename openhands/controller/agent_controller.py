@@ -79,6 +79,7 @@ from openhands.events.observation import (
     Observation,
 )
 from openhands.events.serialization.event import truncate_content
+from openhands.llm.context_limits import should_auto_compact
 from openhands.llm.metrics import Metrics
 from openhands.runtime.runtime_status import RuntimeStatus
 from openhands.server.services.conversation_stats import ConversationStats
@@ -874,8 +875,21 @@ class AgentController:
             # instead, we replay the action from the replay trajectory
             action = self._replay_manager.step()
         else:
+            # Proactive auto-compact: if the last LLM call consumed ≥95% of the
+            # context window, trigger compaction now rather than letting the next
+            # call hit a prompt-too-long error.  Only fires when condensation is
+            # enabled for this agent.
+            if self._should_auto_compact():
+                self.log(
+                    'info',
+                    'Context pressure ≥95 %: triggering proactive compaction before next step.',
+                    extra={'msg_type': 'AUTO_COMPACT'},
+                )
+                self.event_stream.add_event(CondensationRequestAction(), EventSource.AGENT)
+                return
+
             try:
-                action = self.agent.step(self.state)
+                action = await asyncio.get_event_loop().run_in_executor(None, self.agent.step, self.state)
                 if action is None:
                     raise LLMNoActionError('No action was returned')
                 action._source = EventSource.AGENT  # type: ignore [attr-defined]
@@ -1083,6 +1097,34 @@ class AgentController:
             return True
 
         return self._stuck_detector.is_stuck(self.headless_mode)
+
+    def _should_auto_compact(self) -> bool:
+        """
+        Return True if context pressure from the last LLM call has reached
+        AUTO_COMPACT_THRESHOLD (95 %).
+
+        Guard conditions:
+        - Only fires when ``agent.config.enable_history_truncation`` is True.
+          If condensation is disabled for this agent, we never auto-compact.
+        - Requires at least one recorded TokenUsage entry; returns False on
+          fresh sessions with no prior calls.
+
+        The check uses the LAST entry in ``state.metrics.token_usages`` which
+        was populated by the most recent ``agent.step()`` call.  Using the
+        last entry (rather than the accumulated total) means we compare a
+        single turn's context load against the window, not the cumulative
+        token spend across all turns.
+        """
+        if not self.agent.config.enable_history_truncation:
+            return False
+        if not self.state.metrics.token_usages:
+            return False
+        last = self.state.metrics.token_usages[-1]
+        return should_auto_compact(
+            last.prompt_tokens,
+            last.completion_tokens,
+            self.agent.llm.config.model,
+        )
 
     def _prepare_metrics_for_frontend(self, action: Action) -> None:
         """Create a minimal metrics object for frontend display and log it.
