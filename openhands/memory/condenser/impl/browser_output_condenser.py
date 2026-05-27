@@ -37,7 +37,10 @@ class BrowserOutputCondenser(Condenser):
                 if isinstance(event, BrowserOutputObservation):
                     cnt += 1
 
-        return View(events=list(reversed(results)))
+        return View(
+            events=list(reversed(results)),
+            unhandled_condensation_request=view.unhandled_condensation_request,
+        )
 
     @classmethod
     def from_config(

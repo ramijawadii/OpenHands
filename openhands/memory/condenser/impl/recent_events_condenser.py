@@ -19,7 +19,10 @@ class RecentEventsCondenser(Condenser):
         head = view[: self.keep_first]
         tail_length = max(0, self.max_events - len(head))
         tail = view[-tail_length:]
-        return View(events=head + tail)
+        return View(
+            events=head + tail,
+            unhandled_condensation_request=view.unhandled_condensation_request,
+        )
 
     @classmethod
     def from_config(

@@ -25,7 +25,10 @@ class ObservationMaskingCondenser(Condenser):
             else:
                 results.append(event)
 
-        return View(events=results)
+        return View(
+            events=results,
+            unhandled_condensation_request=view.unhandled_condensation_request,
+        )
 
     @classmethod
     def from_config(
