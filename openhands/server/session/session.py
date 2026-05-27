@@ -334,6 +334,61 @@ class WebSession:
             controller = self.agent_session.controller
             if controller and self.sio:
                 controller.agent.llm.stream_callback = self._emit_stream_chunk
+            # Inject boundary-aware resume context if a prior compaction summary exists.
+            await self._inject_resume_context_if_needed()
+
+    async def _inject_resume_context_if_needed(self) -> None:
+        """Inject a RecallObservation with the post-compaction resume context.
+
+        Reads the JSONL transcript for this session, finds the last compaction
+        boundary summary, and injects it as a RecallObservation so the agent
+        knows what happened before the current context window without re-running
+        already-completed tasks.
+
+        Safe to call unconditionally — returns early if no boundary exists or if
+        any step fails.
+        """
+        try:
+            from openhands.server.session.session_resume import resume_session
+            from openhands.events.observation.agent import (
+                RecallObservation,
+                RecallType,
+                MicroagentKnowledge,
+            )
+
+            transcript_base_dir = self._transcript_writer._base_dir
+            result = resume_session(
+                self.sid, transcript_base_dir, self.session_state
+            )
+            if not result.get('boundary_found'):
+                return
+            live_msgs = result.get('live_messages', [])
+            if not live_msgs:
+                return
+            resume_content = live_msgs[0].get('content', '')
+            if not resume_content:
+                return
+
+            observation = RecallObservation(
+                recall_type=RecallType.KNOWLEDGE,
+                content=resume_content,
+                microagent_knowledge=[
+                    MicroagentKnowledge(
+                        name='session_resume',
+                        trigger='session_context',
+                        content=resume_content,
+                    )
+                ],
+            )
+            self.agent_session.event_stream.add_event(
+                observation, EventSource.ENVIRONMENT
+            )
+            self.logger.info(
+                f'[resume] Injected boundary-aware context '
+                f'({len(live_msgs)} post-boundary message(s))'
+            )
+        except Exception as exc:
+            self.logger.warning(f'[resume] Context injection skipped: {exc}')
 
     def _emit_stream_chunk(self, delta: str) -> None:
         """Emit a streaming token chunk directly via Socket.IO — transient, never stored in event log."""
