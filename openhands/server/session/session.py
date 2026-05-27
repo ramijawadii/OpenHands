@@ -130,6 +130,9 @@ class WebSession:
         )
         self.loop = asyncio.get_event_loop()
         self.user_id = user_id
+        # Tracks condenser max_size so we can report context pressure to the UI.
+        # Updated in initialize_agent() once the condenser config is known.
+        self._condenser_max_size: int = 120
 
         self._publish_queue: asyncio.Queue = asyncio.Queue()
         self._monitor_publish_queue_task: asyncio.Task = self.loop.create_task(
@@ -251,6 +254,7 @@ class WebSession:
             # ConversationWindowCondenser is kept last as a cheap fallback for
             # very short histories where the LLM summarizer declines to fire.
             max_events_for_condenser = settings.condenser_max_size or 120
+            self._condenser_max_size = max_events_for_condenser
             default_condenser_config = CondenserPipelineConfig(
                 condensers=[
                     BrowserOutputCondenserConfig(attention_window=2),
@@ -458,6 +462,23 @@ class WebSession:
                         EXTERNAL_STATE.to_dict(),
                         to=ROOM_KEY.format(sid=self.sid),
                     )
+                    # Emit context pressure so the UI ring indicator stays current.
+                    try:
+                        _all_events = list(
+                            self.agent_session.event_stream.get_events()
+                        )
+                        _used = len(_all_events)
+                        _max = self._condenser_max_size
+                        _pressure = round(
+                            min(_used / _max, 1.0) if _max > 0 else 0.0, 3
+                        )
+                        await self.sio.emit(
+                            'oh_context_pressure',
+                            {'used': _used, 'max': _max, 'pressure': _pressure},
+                            to=ROOM_KEY.format(sid=self.sid),
+                        )
+                    except Exception:
+                        pass
         elif isinstance(event, ErrorObservation):
             # send error events as agent events to the UI
             event_dict = event_to_dict(event)
@@ -466,6 +487,17 @@ class WebSession:
 
     async def dispatch(self, data: dict) -> None:
         set_current_session(self.session_state)
+        # User-triggered manual compaction: inject as ENVIRONMENT so the
+        # condenser picks it up on the next agent step without going through
+        # the normal user-message pipeline.
+        if data.get('action') == 'condensation_request':
+            from openhands.events.action.agent import (
+                CondensationRequestAction as _CRA,
+            )
+            self.agent_session.event_stream.add_event(
+                _CRA(), EventSource.ENVIRONMENT
+            )
+            return
         event = event_from_dict(data.copy())
         # This checks if the model supports images
         if isinstance(event, MessageAction) and event.image_urls:

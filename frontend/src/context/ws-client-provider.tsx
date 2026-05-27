@@ -36,6 +36,7 @@ import {
   useExternalStateStore,
   AgentExternalStatePayload,
 } from "#/stores/external-state-store";
+import { useContextPressureStore } from "#/stores/context-pressure-store";
 
 export type WebSocketStatus = "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 
@@ -313,6 +314,7 @@ export function WsClientProvider({
     setWebSocketStatus("CONNECTING");
     useCompactStore.getState().reset();
     useExternalStateStore.getState().reset();
+    useContextPressureStore.getState().reset();
   }, [conversationId]);
 
   React.useEffect(() => {
@@ -392,10 +394,23 @@ export function WsClientProvider({
       useExternalStateStore.getState().setExternalState(payload);
     };
 
+    const handleContextPressure = (data: {
+      used: number;
+      max: number;
+      pressure: number;
+    }) => {
+      if (typeof data.used === "number" && typeof data.max === "number") {
+        useContextPressureStore
+          .getState()
+          .setContextPressure(data.used, data.max);
+      }
+    };
+
     sio.on("connect", handleConnect);
     sio.on("oh_event", handleMessage);
     sio.on("oh_stream_chunk", handleStreamChunk);
     sio.on("agent_external_state", handleAgentExternalState);
+    sio.on("oh_context_pressure", handleContextPressure);
     sio.on("connect_error", handleError);
     sio.on("connect_failed", handleError);
     sio.on("disconnect", handleDisconnect);
@@ -407,6 +422,7 @@ export function WsClientProvider({
       sio.off("oh_event", handleMessage);
       sio.off("oh_stream_chunk", handleStreamChunk);
       sio.off("agent_external_state", handleAgentExternalState);
+      sio.off("oh_context_pressure", handleContextPressure);
       sio.off("connect_error", handleError);
       sio.off("connect_failed", handleError);
       sio.off("disconnect", handleDisconnect);

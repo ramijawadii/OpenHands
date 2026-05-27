@@ -36,6 +36,7 @@ import { useConversationStore } from "#/state/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { AgentStateBadge } from "./agent-state-badge";
 import { CompactionBanner } from "./compaction-banner";
+import { ContextRingIndicator } from "./context-ring-indicator";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -226,6 +227,7 @@ export function ChatInterface() {
             </div>
 
             <div className="flex items-center gap-2">
+              <ContextRingIndicator />
               <AgentStateBadge />
               {!hitBottom && (
                 <ScrollToBottomButton onClick={scrollDomToBottom} />
