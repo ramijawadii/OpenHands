@@ -211,6 +211,11 @@ class AgentController:
         self._consecutive_compact_failures: int = 0
         self._MAX_CONSECUTIVE_COMPACT_FAILURES: int = 3
         self._last_compaction_pre_tokens: int = 0   # tokens before the last condensation
+        # Set True when user clicks the ring while agent is idle (ENVIRONMENT-sourced
+        # CondensationRequestAction). Allows _step() to run the condenser once even
+        # when state == AWAITING_USER_INPUT so compaction fires immediately instead of
+        # being silently dropped.
+        self._pending_user_compact: bool = False
 
         # Add the system message to the event stream
         self._add_system_message()
@@ -516,6 +521,25 @@ class AgentController:
 
     async def _handle_action(self, action: Action) -> None:
         """Handles an Action from the agent or delegate."""
+        # User-requested compaction (ring click while agent may be idle).
+        # Mark as pending so _step() bypasses the RUNNING state guard once.
+        if (
+            isinstance(action, CondensationRequestAction)
+            and action.source == EventSource.ENVIRONMENT
+        ):
+            llm_usages = self.agent.llm.metrics.token_usages
+            if llm_usages:
+                self._last_compaction_pre_tokens = llm_usages[-1].prompt_tokens
+                # Freeze count guard just like the auto-compact path so the
+                # condenser step doesn't immediately re-trigger auto-compact.
+                self._last_condensation_llm_count = len(llm_usages)
+            self._pending_user_compact = True
+            self.log(
+                'info',
+                'User-requested compaction received (ring click). Will compact on next step.',
+                extra={'msg_type': 'USER_COMPACT_REQUEST'},
+            )
+
         if isinstance(action, CondensationAction):
             # Condensation pipeline completed — record the current LLM usage count
             # so auto-compact won't re-fire until at least one NEW LLM call has run.
@@ -881,12 +905,48 @@ class AgentController:
     async def _step(self) -> None:
         """Executes a single step of the parent or delegate agent. Detects stuck agents and limits on the number of iterations and the task budget."""
         if self.get_agent_state() != AgentState.RUNNING:
-            self.log(
-                'debug',
-                f'Agent not stepping because state is {self.get_agent_state()} (not RUNNING)',
-                extra={'msg_type': 'STEP_BLOCKED_STATE'},
-            )
-            return
+            if self._pending_user_compact:
+                # Quick tail-scan to confirm there is an unhandled CRA in history.
+                # Multiple rapid ring clicks while idle can produce extra
+                # CondensationRequestAction events.  We only want to run the
+                # condenser when there is actually one waiting — otherwise we
+                # would trigger an unwanted LLM call.
+                _has_unhandled_cra = False
+                for _evt in reversed(self.state.history):
+                    if isinstance(_evt, CondensationAction):
+                        break
+                    if isinstance(_evt, CondensationRequestAction):
+                        _has_unhandled_cra = True
+                        break
+                if not _has_unhandled_cra:
+                    self._pending_user_compact = False
+                    self.log(
+                        'debug',
+                        'User-requested compact: no unhandled CRA in history, skipping step.',
+                        extra={'msg_type': 'USER_COMPACT_SKIP'},
+                    )
+                    return
+                # User clicked the ring while the agent was idle.  Allow one
+                # compaction step to run even though state != RUNNING so the
+                # condenser fires immediately rather than being dropped.
+                self.log(
+                    'info',
+                    'Bypassing RUNNING guard for user-requested compaction '
+                    f'(state={self.get_agent_state()})',
+                    extra={'msg_type': 'USER_COMPACT_STEP'},
+                )
+            else:
+                self.log(
+                    'debug',
+                    f'Agent not stepping because state is {self.get_agent_state()} (not RUNNING)',
+                    extra={'msg_type': 'STEP_BLOCKED_STATE'},
+                )
+                return
+
+        # Clear the flag here so it only grants one bypass per compaction; any
+        # subsequent steps triggered by the resulting CondensationAction use
+        # the normal path.
+        self._pending_user_compact = False
 
         if self._pending_action:
             action_id = getattr(self._pending_action, 'id', 'unknown')
