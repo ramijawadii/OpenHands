@@ -34,6 +34,8 @@ import { useConfig } from "#/hooks/query/use-config";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/state/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
+import { AgentStateBadge } from "./agent-state-badge";
+import { CompactionBanner } from "./compaction-banner";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -47,7 +49,8 @@ function getEntryPoint(
 export function ChatInterface() {
   const { setMessageToSend } = useConversationStore();
   const { errorMessage } = useErrorMessageStore();
-  const { send, isLoadingMessages, parsedEvents, streamingContent } = useWsClient();
+  const { send, isLoadingMessages, parsedEvents, streamingContent } =
+    useWsClient();
   const { setOptimisticUserMessage, getOptimisticUserMessage } =
     useOptimisticUserMessageStore();
   const { t } = useTranslation();
@@ -222,9 +225,15 @@ export function ChatInterface() {
               {curAgentState === AgentState.RUNNING && <TypingIndicator />}
             </div>
 
-            {!hitBottom && <ScrollToBottomButton onClick={scrollDomToBottom} />}
+            <div className="flex items-center gap-2">
+              <AgentStateBadge />
+              {!hitBottom && (
+                <ScrollToBottomButton onClick={scrollDomToBottom} />
+              )}
+            </div>
           </div>
 
+          <CompactionBanner />
           {errorMessage && <ErrorMessageBanner message={errorMessage} />}
 
           <InteractiveChatBox
