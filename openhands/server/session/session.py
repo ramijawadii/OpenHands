@@ -431,6 +431,10 @@ class WebSession:
             return
         if isinstance(event, NullObservation):
             return
+
+        # ── CloudGuard working-set population (passive, all sources) ─────
+        self._observe_for_working_set(event)
+
         if event.source == EventSource.AGENT:
             await self.send(event_to_dict(event))
             # After a compaction completes, re-emit context pressure recomputed
@@ -477,6 +481,42 @@ class WebSession:
             event_dict = event_to_dict(event)
             event_dict['source'] = EventSource.AGENT
             await self.send(event_dict)
+
+    def _observe_for_working_set(self, event: Event) -> None:
+        """Passively populate the CloudGuard working set from the event stream.
+
+        Called on EVERY event (all sources). Extracts cloud scope, command
+        evidence, MCP/KG activity, IPython artifacts, and sets the post-compact
+        reinject flag when a CondensationAction lands. Thread-safe — the
+        working set holds an internal lock.
+        """
+        try:
+            controller = self.agent_session.controller
+            if controller is None:
+                return
+            agent = controller.agent
+            ws = getattr(agent, 'cloud_working_set', None)
+            if ws is None:
+                return  # not a CloudGuardAgent
+
+            from openhands.events.action.agent import CondensationAction
+            from openhands.events.action.mcp import MCPAction
+            from openhands.events.observation.commands import (
+                CmdOutputObservation as _CmdOut,
+                IPythonRunCellObservation as _IPy,
+            )
+
+            if isinstance(event, _CmdOut):
+                ws.observe_cmd(event.command, event.exit_code, event.content)
+            elif isinstance(event, _IPy):
+                ws.observe_ipython(event.code)
+            elif isinstance(event, MCPAction):
+                ws.observe_mcp(event.name, event.arguments)
+            elif isinstance(event, CondensationAction):
+                ws.mark_pending_reinject()
+                self.session_state.pending_post_compaction = True
+        except Exception:
+            pass  # never break the event pipeline for working-set tracking
 
     def _compute_context_pressure_payload(
         self, recompute_from_view: bool = False
