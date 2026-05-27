@@ -237,6 +237,8 @@ class CloudWorkingSet:
                 bits.append(f"artifacts: {', '.join(self.artifacts[-5:])}")
             if self.skills_used:
                 bits.append(f"skills: {', '.join(self.skills_used[-5:])}")
+            if self.kg_activity:
+                bits.append(f"{len(self.kg_activity)} KG queries")
             if not bits:
                 return ""
             return "CloudGuard working set: " + " | ".join(bits)

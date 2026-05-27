@@ -16,12 +16,15 @@ CodeActAgent's multi-turn tool loop handles everything.
 
 from __future__ import annotations
 
+import logging
 import pathlib
 import re
 
 from openhands.agenthub.codeact_agent.codeact_agent import CodeActAgent
 from openhands.core.config import AgentConfig
 from openhands.llm.llm_registry import LLMRegistry
+
+logger = logging.getLogger(__name__)
 
 # ── Kill keyword-triggered microagent recalls at class level ──────────────────
 # memory.py._find_microagent_knowledge() fires for EVERY user message, matches
