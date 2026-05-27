@@ -433,6 +433,14 @@ class WebSession:
             return
         if event.source == EventSource.AGENT:
             await self.send(event_to_dict(event))
+            # After a compaction completes, re-emit context pressure recomputed
+            # from the freshly condensed view so the ring drops immediately
+            # (no new agent LLM call happens while the agent is idle).
+            from openhands.events.action.agent import CondensationAction
+            if isinstance(event, CondensationAction) and self.sio:
+                await self._emit_context_pressure(
+                    to=ROOM_KEY.format(sid=self.sid), recompute_from_view=True
+                )
         elif event.source == EventSource.USER:
             await self.send(event_to_dict(event))
         # NOTE: ipython observations are not sent here currently
@@ -470,11 +478,18 @@ class WebSession:
             event_dict['source'] = EventSource.AGENT
             await self.send(event_dict)
 
-    def _compute_context_pressure_payload(self) -> dict | None:
+    def _compute_context_pressure_payload(
+        self, recompute_from_view: bool = False
+    ) -> dict | None:
         """Compute the current context pressure payload from live LLM metrics.
 
         Returns a dict suitable for the `oh_context_pressure` Socket.IO event,
         or None if no token data is available yet (before the first LLM call).
+
+        When recompute_from_view=True (used right after a manual compaction),
+        the token usage is recomputed from the CURRENT condensed view — what the
+        NEXT LLM call will send — instead of the last actual call. This lets the
+        ring drop immediately after compaction without waiting for a new turn.
         """
         try:
             controller = self.agent_session.controller
@@ -490,6 +505,14 @@ class WebSession:
                 + last.cache_write_tokens
                 + last.completion_tokens
             )
+            # After a compaction, re-estimate from the freshly condensed view so
+            # the ring reflects the reduced context immediately.
+            if recompute_from_view and controller is not None:
+                agent = controller.agent
+                if hasattr(agent, 'estimate_context_tokens'):
+                    estimated = agent.estimate_context_tokens(controller.state)
+                    if estimated is not None and estimated > 0:
+                        token_usage = estimated
             ctx_window = last.context_window
             if not ctx_window:
                 cfg_max = self.config.get_llm_config().max_input_tokens
@@ -518,11 +541,15 @@ class WebSession:
         except Exception:
             return None
 
-    async def _emit_context_pressure(self, to: str) -> None:
+    async def _emit_context_pressure(
+        self, to: str, recompute_from_view: bool = False
+    ) -> None:
         """Emit oh_context_pressure to a room or specific connection ID."""
         if not self.sio:
             return
-        payload = self._compute_context_pressure_payload()
+        payload = self._compute_context_pressure_payload(
+            recompute_from_view=recompute_from_view
+        )
         if payload:
             await self.sio.emit('oh_context_pressure', payload, to=to)
 

@@ -224,6 +224,30 @@ class CodeActAgent(Agent):
             self.pending_actions.append(action)
         return self.pending_actions.popleft()
 
+    def estimate_context_tokens(self, state: 'State') -> int | None:
+        """Estimate the token count the NEXT LLM call will send for the current
+        history, WITHOUT making an LLM call.
+
+        Mirrors the prefix of step() (build the condensed view, assemble
+        messages, count tokens) but skips completion(). Used to refresh the
+        context-pressure ring immediately after a manual compaction, since no
+        new agent LLM call happens while the agent is idle.
+
+        Returns None on any failure so callers can fall back to last-call data.
+        """
+        try:
+            from openhands.memory.view import View
+
+            # Build the view from current history. The CondensationAction (if any)
+            # is already applied here, so forgotten events are dropped and the
+            # summary is inserted — no re-condensation is triggered.
+            view = View.from_events(state.history)
+            initial_user_message = self._get_initial_user_message(state.history)
+            messages = self._get_messages(view.events, initial_user_message)
+            return self.llm.get_token_count(messages)
+        except Exception:
+            return None
+
     def _get_initial_user_message(self, history: list[Event]) -> MessageAction:
         """Finds the initial user message action from the full history."""
         initial_user_message: MessageAction | None = None
