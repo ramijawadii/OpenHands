@@ -105,11 +105,21 @@ export const isCondensationObservation = (
 ): event is CondensationObservation =>
   isOpenHandsObservation(event) && event.observation === "condense";
 
+/**
+ * The completed compaction event. The backend emits a CondensationAction
+ * (action === "condensation") when the condenser finishes — there is NO
+ * CondensationObservation in this codebase. The summary, when present, lives
+ * in event.args.summary.
+ */
+export const isCondensationAction = (event: OpenHandsParsedEvent): boolean =>
+  isOpenHandsAction(event) &&
+  (event as { action: string }).action === "condensation";
+
 export const isCondensationRequestAction = (
   event: OpenHandsParsedEvent,
 ): boolean =>
   isOpenHandsAction(event) &&
-  (event as { action: string }).action === "condense" &&
+  (event as { action: string }).action === "condensation_request" &&
   event.source === "environment";
 
 export const isStatusUpdate = (event: unknown): event is StatusUpdate =>

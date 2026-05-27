@@ -21,6 +21,7 @@ import { OpenHandsObservation } from "#/types/core/observations";
 import {
   isAgentStateChangeObservation,
   isAssistantMessage,
+  isCondensationAction,
   isCondensationObservation,
   isCondensationRequestAction,
   isErrorObservation,
@@ -36,7 +37,10 @@ import {
   useExternalStateStore,
   AgentExternalStatePayload,
 } from "#/stores/external-state-store";
-import { useContextPressureStore } from "#/stores/context-pressure-store";
+import {
+  useContextPressureStore,
+  type ContextPressurePayload,
+} from "#/stores/context-pressure-store";
 
 export type WebSocketStatus = "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 
@@ -220,6 +224,16 @@ export function WsClientProvider({
       if (isCondensationRequestAction(event)) {
         useCompactStore.getState().recordCompactionStarted();
       }
+      // Completion: the backend emits a CondensationAction (action ===
+      // "condensation") when the condenser finishes — NOT an observation.
+      // The summary, when present, is in event.args.summary.
+      if (isCondensationAction(event)) {
+        const summary = (event as { args?: { summary?: string } }).args
+          ?.summary;
+        useCompactStore.getState().recordCompactionComplete(summary);
+      }
+      // Kept for backward compatibility in case a CondensationObservation
+      // is ever emitted; harmless if it never fires.
       if (isCondensationObservation(event)) {
         useCompactStore
           .getState()
@@ -394,15 +408,12 @@ export function WsClientProvider({
       useExternalStateStore.getState().setExternalState(payload);
     };
 
-    const handleContextPressure = (data: {
-      used: number;
-      max: number;
-      pressure: number;
-    }) => {
-      if (typeof data.used === "number" && typeof data.max === "number") {
-        useContextPressureStore
-          .getState()
-          .setContextPressure(data.used, data.max);
+    const handleContextPressure = (data: ContextPressurePayload) => {
+      if (
+        typeof data.token_usage === "number" &&
+        typeof data.context_window === "number"
+      ) {
+        useContextPressureStore.getState().setContextPressure(data);
       }
     };
 

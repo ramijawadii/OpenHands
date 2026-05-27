@@ -58,24 +58,52 @@ class LLMSummarizingCondenser(RollingCondenser):
         """Truncate the content to fit within the specified maximum event length."""
         return truncate_content(content, max_chars=self.max_event_length)
 
+    # Recent events kept (for continuity) when compacting in response to an
+    # explicit condensation request (manual ring click or context-pressure
+    # trigger). Small so even short conversations produce a real summary.
+    _MANUAL_TAIL_KEEP: int = 4
+
     def get_condensation(self, view: View) -> Condensation:
         head = view[: self.keep_first]
-        target_size = self.max_size // 2
-        # Number of events to keep from the tail — target size minus prefix events
-        # minus one slot for the summarization event itself.
-        events_from_tail = target_size - len(head) - 1
+
+        if view.unhandled_condensation_request:
+            # Explicit request: compact aggressively, keeping only a small
+            # recent tail. Without this, a manual compact on a conversation
+            # shorter than max_size//2 (~60 events) would forget nothing.
+            events_from_tail = min(
+                self._MANUAL_TAIL_KEEP, max(0, len(view) - len(head) - 1)
+            )
+        else:
+            target_size = self.max_size // 2
+            # Number of events to keep from the tail — target size minus prefix
+            # events minus one slot for the summarization event itself.
+            events_from_tail = max(0, target_size - len(head) - 1)
 
         summary_event = (
             view[self.keep_first]
-            if isinstance(view[self.keep_first], AgentCondensationObservation)
+            if len(view) > self.keep_first
+            and isinstance(view[self.keep_first], AgentCondensationObservation)
             else AgentCondensationObservation('No events summarized')
         )
 
-        # Identify events to be forgotten (those not in head or tail)
-        forgotten_events = []
-        for event in view[self.keep_first : -events_from_tail]:
-            if not isinstance(event, AgentCondensationObservation):
-                forgotten_events.append(event)
+        # Identify events to be forgotten (those not in head or tail).
+        # When events_from_tail is 0, -0 == 0 would slice to empty, so guard it.
+        middle = (
+            view[self.keep_first : -events_from_tail]
+            if events_from_tail > 0
+            else view[self.keep_first :]
+        )
+        forgotten_events = [
+            event
+            for event in middle
+            if not isinstance(event, AgentCondensationObservation)
+        ]
+
+        # Nothing to summarize (very short history). Return a no-op condensation
+        # so the pipeline doesn't crash on min()/max() of an empty list, and the
+        # UI still receives a completion event to clear the compaction banner.
+        if not forgotten_events:
+            return Condensation(action=CondensationAction(forgotten_event_ids=[]))
 
         # Build structured compaction system prompt (NO_TOOLS enforced)
         system_prompt = f"{NO_TOOLS_PREAMBLE}\n\n{BASE_COMPACT_PROMPT}\n\n{NO_TOOLS_TRAILER}"

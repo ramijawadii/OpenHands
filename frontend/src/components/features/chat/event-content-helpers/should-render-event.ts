@@ -14,9 +14,16 @@ const COMMON_NO_RENDER_LIST: OpenHandsEventType[] = [
   "change_agent_state",
 ];
 
-const ACTION_NO_RENDER_LIST: OpenHandsEventType[] = ["recall"];
+const ACTION_NO_RENDER_LIST: OpenHandsEventType[] = [
+  "recall",
+  "condensation_request", // internal compaction plumbing — never shown in chat
+  "condensation", // compaction result (CondensationAction) shown via CompactionBanner, not in chat
+];
 
-const OBSERVATION_NO_RENDER_LIST: OpenHandsEventType[] = ["think"];
+const OBSERVATION_NO_RENDER_LIST: OpenHandsEventType[] = [
+  "think",
+  "condensation", // kept for safety; completion is actually an action, not an observation
+];
 
 export const shouldRenderEvent = (
   event: OpenHandsAction | OpenHandsObservation,
