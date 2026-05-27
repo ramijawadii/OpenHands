@@ -81,9 +81,9 @@ class TranscriptWriter:
         Not created until first user/assistant message.
     """
 
-    def __init__(self, session_id: str, base_dir: Path) -> None:
+    def __init__(self, session_id: str, base_dir) -> None:
         self.session_id = session_id
-        self._base_dir = base_dir
+        self._base_dir = Path(base_dir)
         self._path: Optional[Path] = None      # None until lazy materialization
         self._pending: list[str] = []          # buffered pre-materialization entries
         self._queue:   list[str] = []          # entries awaiting next drain

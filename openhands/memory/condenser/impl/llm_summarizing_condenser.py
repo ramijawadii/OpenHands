@@ -144,6 +144,12 @@ class LLMSummarizingCondenser(RollingCondenser):
         )
 
     def should_condense(self, view: View) -> bool:
+        # Also fire when there is an explicit condensation request and we have
+        # enough history to summarize (more than keep_first + 2 events).
+        # Without this, ConversationWindowCondenser intercepts the request first
+        # and produces summary=None — no LLM, no structured summary.
+        if view.unhandled_condensation_request and len(view) > self.keep_first + 2:
+            return True
         return len(view) > self.max_size
 
     @classmethod

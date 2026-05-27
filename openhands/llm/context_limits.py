@@ -106,12 +106,43 @@ CAPPED_DEFAULT_MAX_TOKENS: int = 8_000
 ESCALATED_MAX_TOKENS: int = 64_000
 
 #: Trigger proactive compaction when context usage is at or above this fraction.
-AUTO_COMPACT_THRESHOLD: float = 0.95
+#: Override via AUTO_COMPACT_THRESHOLD env var (e.g. "0.10" for testing).
+import os as _os
+AUTO_COMPACT_THRESHOLD: float = float(_os.environ.get("AUTO_COMPACT_THRESHOLD", "0.95"))
+#: Operator override for the context window size (e.g. "8000" for compaction testing).
+_MAX_CTX_OVERRIDE = _os.environ.get("OPENHANDS_MAX_CONTEXT_TOKENS", "")
 
 
 # ---------------------------------------------------------------------------
 # Public helpers
 # ---------------------------------------------------------------------------
+
+def _lookup_model_context_window(model: str) -> int:
+    """Substring match against ``_CONTEXT_WINDOWS`` table; no env-var override."""
+    best_key = ""
+    best_val = 0
+    for key, size in _CONTEXT_WINDOWS.items():
+        if key in model and len(key) > len(best_key):
+            best_key = key
+            best_val = size
+    return best_val if best_key else MODEL_CONTEXT_WINDOW_DEFAULT
+
+
+def get_model_context_window(model: str) -> int:
+    """
+    Return the model's **real** context window from the hardware table.
+
+    Unlike ``get_context_window()``, this function **never** reads
+    ``OPENHANDS_MAX_CONTEXT_TOKENS``.  It is used exclusively for the
+    auto-compact threshold so that the threshold is always derived from
+    what the model can actually accept, not an arbitrary operator cap.
+
+    ``OPENHANDS_MAX_CONTEXT_TOKENS`` is a *cost-control* knob; using it as
+    the compact trigger produces a threshold far below the system-prompt size
+    and causes infinite compact loops (see COMPACT-BUG-DIAGNOSIS.md Fix 1).
+    """
+    return _lookup_model_context_window(model)
+
 
 def get_context_window(model: str) -> int:
     """
@@ -122,17 +153,10 @@ def get_context_window(model: str) -> int:
     2. ``_CONTEXT_WINDOWS`` table — substring match, longest key wins.
     3. ``MODEL_CONTEXT_WINDOW_DEFAULT`` (200 K).
     """
-    env = os.environ.get("OPENHANDS_MAX_CONTEXT_TOKENS", "")
+    env = os.environ.get("OPENHANDS_MAX_CONTEXT_TOKENS", _MAX_CTX_OVERRIDE)
     if env.isdigit():
         return int(env)
-    # Longest-prefix wins so "claude-sonnet-4-6" beats "claude-sonnet".
-    best_key = ""
-    best_val = 0
-    for key, size in _CONTEXT_WINDOWS.items():
-        if key in model and len(key) > len(best_key):
-            best_key = key
-            best_val = size
-    return best_val if best_key else MODEL_CONTEXT_WINDOW_DEFAULT
+    return _lookup_model_context_window(model)
 
 
 def get_output_limit(model: str, *, escalated: bool = False) -> int:
@@ -167,11 +191,33 @@ def context_pressure(
     """
     Return context usage as a fraction in ``[0.0, 1.0]``.
 
-    ``prompt_tokens + completion_tokens`` is used as the total consumed because
-    both input and output count against the context budget in most providers.
+    Uses ``get_context_window()`` (which respects the env-var override) so
+    that callers such as the display layer get the operator-visible window.
+    Auto-compact triggering uses ``get_auto_compact_threshold()`` directly.
     """
     window = get_context_window(model)
     return min(1.0, (prompt_tokens + completion_tokens) / window)
+
+
+def get_auto_compact_threshold(model: str) -> int:
+    """
+    Return the token count at which auto-compact should fire.
+
+    Always derived from the **model's real context window** minus a reserved
+    output slot — never from ``OPENHANDS_MAX_CONTEXT_TOKENS``.  Using the
+    operator cap as the trigger threshold is the root cause of the infinite
+    compact loop (system prompt alone can exceed the cap).
+
+    Mirrors Claude Code's ``getAutoCompactThreshold()`` in
+    ``src/services/compact/autoCompact.ts:72``:
+        effective_window = model_window - output_reserve
+        threshold        = effective_window - autocompact_buffer
+    """
+    real_window = get_model_context_window(model)
+    # Reserve output slot + small buffer so compact fires with room to respond.
+    effective_window = real_window - COMPACT_MAX_OUTPUT_TOKENS  # e.g. 1M - 20k
+    buffer = max(5_000, int(real_window * 0.01))               # 1 % or 5k minimum
+    return effective_window - buffer
 
 
 def should_auto_compact(
@@ -180,10 +226,10 @@ def should_auto_compact(
     model: str,
 ) -> bool:
     """
-    Return ``True`` if context pressure has reached ``AUTO_COMPACT_THRESHOLD``.
+    Return ``True`` if context usage has exceeded the auto-compact threshold.
 
-    Called by ``AgentController._step()`` before each LLM invocation.  If this
-    returns ``True``, the controller emits a ``CondensationRequestAction`` to
-    trigger proactive compaction instead of proceeding with the next LLM call.
+    The threshold is derived from the **model's real context window**, not the
+    ``OPENHANDS_MAX_CONTEXT_TOKENS`` env var.  See ``get_auto_compact_threshold()``.
     """
-    return context_pressure(prompt_tokens, completion_tokens, model) >= AUTO_COMPACT_THRESHOLD
+    total = prompt_tokens + completion_tokens
+    return total >= get_auto_compact_threshold(model)

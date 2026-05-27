@@ -31,6 +31,7 @@ from openhands.events.observation.agent import RecallObservation
 from openhands.events.observation.error import ErrorObservation
 from openhands.events.serialization import event_from_dict, event_to_dict
 from openhands.events.stream import EventStreamSubscriber
+from openhands.storage.transcript_writer import TranscriptWriter
 from openhands.llm.llm_registry import LLMRegistry
 from openhands.runtime.runtime_status import RuntimeStatus
 from openhands.server.constants import ROOM_KEY
@@ -109,6 +110,16 @@ class WebSession:
         self.agent_session.event_stream.subscribe(
             EventStreamSubscriber.SERVER, self.on_event, self.sid
         )
+
+        # Layer 2: attach JSONL transcript writer so every session is persisted.
+        import os as _os2
+        _transcript_base = _os2.environ.get("OH_TRANSCRIPT_DIR", "/.openhands/sessions")
+        self._transcript_writer = TranscriptWriter(
+            session_id=sid,
+            base_dir=_transcript_base,
+        )
+        self.agent_session.event_stream.attach_transcript_writer(self._transcript_writer)
+
         self.config = config
 
         # Lazy import to avoid circular dependency
@@ -231,25 +242,24 @@ class WebSession:
         agent_name = agent_cls if agent_cls is not None else 'agent'
         llm_config = self.config.get_llm_config_from_agent(agent_name)
         if settings.enable_default_condenser:
-            # Default condenser chains three condensers together:
-            # 1. a conversation window condenser that handles explicit
-            # condensation requests,
-            # 2. a condenser that limits the total size of browser observations,
-            # and
-            # 3. a condenser that limits the size of the view given to the LLM.
-            # The order matters: with the browser output first, the summarizer
-            # will only see the most recent browser output, which should keep
-            # the summarization cost down.
+            # Default condenser chains three condensers together.
+            # Order: BrowserOutput → LLMSummarizing → ConversationWindow.
+            # LLMSummarizing is placed before ConversationWindow so that
+            # unhandled_condensation_request events produce a real LLM summary
+            # (with 9-section structured output) rather than being silently
+            # absorbed by ConversationWindowCondenser (which produces summary=None).
+            # ConversationWindowCondenser is kept last as a cheap fallback for
+            # very short histories where the LLM summarizer declines to fire.
             max_events_for_condenser = settings.condenser_max_size or 120
             default_condenser_config = CondenserPipelineConfig(
                 condensers=[
-                    ConversationWindowCondenserConfig(),
                     BrowserOutputCondenserConfig(attention_window=2),
                     LLMSummarizingCondenserConfig(
                         llm_config=llm_config,
                         keep_first=4,
                         max_size=max_events_for_condenser,
                     ),
+                    ConversationWindowCondenserConfig(),
                 ]
             )
 

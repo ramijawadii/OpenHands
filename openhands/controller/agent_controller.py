@@ -198,6 +198,20 @@ class AgentController:
         # security analyzer for direct access
         self.security_analyzer = security_analyzer
 
+        # Guard against re-triggering auto-compact in a tight loop.
+        # Set to the length of llm_usages each time condensation completes; only
+        # re-trigger once at least one NEW LLM call has been made since then.
+        self._last_condensation_llm_count: int = 0
+        # Token-based re-trigger guard: prompt tokens that fired the last compaction.
+        # Auto-compact won't re-fire until context grows back to ≥50% of this level.
+        self._last_compaction_trigger_tokens: int = 0
+        # Circuit breaker (Fix 3, mirrors Claude Code's MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES=3):
+        # If condensation fires N times in a row without a useful token reduction,
+        # stop trying this session rather than grinding to a halt.
+        self._consecutive_compact_failures: int = 0
+        self._MAX_CONSECUTIVE_COMPACT_FAILURES: int = 3
+        self._last_compaction_pre_tokens: int = 0   # tokens before the last condensation
+
         # Add the system message to the event stream
         self._add_system_message()
 
@@ -502,6 +516,43 @@ class AgentController:
 
     async def _handle_action(self, action: Action) -> None:
         """Handles an Action from the agent or delegate."""
+        if isinstance(action, CondensationAction):
+            # Condensation pipeline completed — record the current LLM usage count
+            # so auto-compact won't re-fire until at least one NEW LLM call has run.
+            llm_usages = self.agent.llm.metrics.token_usages
+            self._last_condensation_llm_count = len(llm_usages)
+            # Circuit breaker (Fix 3): check whether this condensation actually helped.
+            # If it removed < 5 % of the pre-compaction token count, count it as a
+            # failure — the condenser has nothing left to compress.
+            current_tokens = llm_usages[-1].prompt_tokens if llm_usages else 0
+            min_useful_reduction = max(1000, int(self._last_compaction_pre_tokens * 0.05))
+            reduction = self._last_compaction_pre_tokens - current_tokens
+            if self._last_compaction_pre_tokens > 0 and reduction < min_useful_reduction:
+                self._consecutive_compact_failures += 1
+                self.log(
+                    'warning',
+                    f'Condensation round {self._consecutive_compact_failures}/'
+                    f'{self._MAX_CONSECUTIVE_COMPACT_FAILURES} was not useful '
+                    f'(reduced {self._last_compaction_pre_tokens}→{current_tokens} tokens, '
+                    f'needed >{min_useful_reduction}). Circuit breaker incrementing.',
+                    extra={'msg_type': 'COMPACT_CIRCUIT_BREAKER'},
+                )
+            else:
+                self._consecutive_compact_failures = 0
+            # Layer 4: write compaction boundary marker to JSONL transcript.
+            tw = getattr(self.event_stream, '_transcript_writer', None)
+            if tw is not None:
+                pre_tokens = self._last_compaction_pre_tokens or current_tokens
+                if action.summary:
+                    summary_text = action.summary
+                elif action.forgotten_event_ids:
+                    summary_text = f"Compaction: removed events {action.forgotten_event_ids}"
+                else:
+                    summary_text = (
+                        f"Compaction: removed events "
+                        f"{action.forgotten_events_start_id}–{action.forgotten_events_end_id}"
+                    )
+                tw.write_summary(summary_text, pre_tokens)
         if isinstance(action, ChangeAgentStateAction):
             await self.set_agent_state_to(action.agent_state)  # type: ignore
         elif isinstance(action, MessageAction):
@@ -885,6 +936,16 @@ class AgentController:
                     'Context pressure ≥95 %: triggering proactive compaction before next step.',
                     extra={'msg_type': 'AUTO_COMPACT'},
                 )
+                # Freeze both guards so _should_auto_compact returns False for
+                # any _step() calls triggered by CondensationRequestAction itself,
+                # allowing agent.step() to process the request without re-looping.
+                _trigger_usages = self.agent.llm.metrics.token_usages
+                self._last_condensation_llm_count = len(_trigger_usages)
+                self._last_compaction_trigger_tokens = (
+                    _trigger_usages[-1].prompt_tokens if _trigger_usages else 0
+                )
+                # Record pre-compaction tokens for circuit breaker usefulness check.
+                self._last_compaction_pre_tokens = self._last_compaction_trigger_tokens
                 self.event_stream.add_event(CondensationRequestAction(), EventSource.AGENT)
                 return
 
@@ -1117,9 +1178,28 @@ class AgentController:
         """
         if not self.agent.config.enable_history_truncation:
             return False
-        if not self.state.metrics.token_usages:
+        # Circuit breaker (Fix 3): if condensation has failed to help N times in
+        # a row, give up for this session — mirrors Claude Code's
+        # MAX_CONSECUTIVE_AUTOCOMPACT_FAILURES=3 in autoCompact.ts:70.
+        if self._consecutive_compact_failures >= self._MAX_CONSECUTIVE_COMPACT_FAILURES:
             return False
-        last = self.state.metrics.token_usages[-1]
+        # Token usages live in agent.llm.metrics, not state.metrics.
+        llm_usages = self.agent.llm.metrics.token_usages
+        if not llm_usages:
+            return False
+        # Count guard: don't re-trigger until at least one new LLM call since
+        # last condensation — prevents the CondensationRequestAction _step() from
+        # immediately re-firing.
+        if len(llm_usages) <= self._last_condensation_llm_count:
+            return False
+        last = llm_usages[-1]
+        # Token guard: don't re-trigger until context has grown back to ≥50% of
+        # the prompt-token level that fired the last compaction.
+        if (
+            self._last_compaction_trigger_tokens > 0
+            and last.prompt_tokens < self._last_compaction_trigger_tokens * 0.5
+        ):
+            return False
         return should_auto_compact(
             last.prompt_tokens,
             last.completion_tokens,
