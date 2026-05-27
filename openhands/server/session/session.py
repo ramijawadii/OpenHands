@@ -462,28 +462,78 @@ class WebSession:
                         EXTERNAL_STATE.to_dict(),
                         to=ROOM_KEY.format(sid=self.sid),
                     )
-                    # Emit context pressure so the UI ring indicator stays current.
-                    try:
-                        _all_events = list(
-                            self.agent_session.event_stream.get_events()
-                        )
-                        _used = len(_all_events)
-                        _max = self._condenser_max_size
-                        _pressure = round(
-                            min(_used / _max, 1.0) if _max > 0 else 0.0, 3
-                        )
-                        await self.sio.emit(
-                            'oh_context_pressure',
-                            {'used': _used, 'max': _max, 'pressure': _pressure},
-                            to=ROOM_KEY.format(sid=self.sid),
-                        )
-                    except Exception:
-                        pass
+                    # Emit context pressure with real token data (Claude Code architecture).
+                    await self._emit_context_pressure(to=ROOM_KEY.format(sid=self.sid))
         elif isinstance(event, ErrorObservation):
             # send error events as agent events to the UI
             event_dict = event_to_dict(event)
             event_dict['source'] = EventSource.AGENT
             await self.send(event_dict)
+
+    def _compute_context_pressure_payload(self) -> dict | None:
+        """Compute the current context pressure payload from live LLM metrics.
+
+        Returns a dict suitable for the `oh_context_pressure` Socket.IO event,
+        or None if no token data is available yet (before the first LLM call).
+        """
+        try:
+            controller = self.agent_session.controller
+            token_usages = (
+                controller.agent.llm.metrics.token_usages if controller else []
+            )
+            if not token_usages:
+                return None
+            last = token_usages[-1]
+            token_usage = (
+                last.prompt_tokens
+                + last.cache_read_tokens
+                + last.cache_write_tokens
+                + last.completion_tokens
+            )
+            ctx_window = last.context_window
+            if not ctx_window:
+                cfg_max = self.config.get_llm_config().max_input_tokens
+                ctx_window = cfg_max or 200_000
+            # Hybrid display cap: on huge windows (e.g. Gemini's 1M), per-call
+            # context stays a tiny fraction of the real window, so the ring never
+            # visibly moves. We display pressure against a virtual 200k cap (the
+            # familiar Claude window size) so normal conversations move the ring.
+            # NOTE: this is DISPLAY ONLY — real auto-compaction in agent_controller
+            # still triggers off the true model window, not this cap.
+            DISPLAY_CAP = 200_000
+            effective_window_raw = max(1, ctx_window - 20_000)
+            display_window = min(effective_window_raw, DISPLAY_CAP)
+            threshold = max(1, display_window - 13_000)
+            percent_remaining = max(
+                0, round(((threshold - token_usage) / threshold) * 100)
+            )
+            pressure = round(min(token_usage / threshold, 1.0), 3)
+            return {
+                'token_usage': token_usage,
+                'context_window': ctx_window,
+                'auto_compact_threshold': threshold,
+                'percent_remaining': percent_remaining,
+                'pressure': pressure,
+            }
+        except Exception:
+            return None
+
+    async def _emit_context_pressure(self, to: str) -> None:
+        """Emit oh_context_pressure to a room or specific connection ID."""
+        if not self.sio:
+            return
+        payload = self._compute_context_pressure_payload()
+        if payload:
+            await self.sio.emit('oh_context_pressure', payload, to=to)
+
+    async def emit_context_pressure_snapshot(self, connection_id: str) -> None:
+        """Re-emit the current context pressure to a newly connected socket.
+
+        Called by the conversation manager after a socket joins, so the ring
+        indicator is populated immediately even if the last AgentStateChanged
+        event fired before this client connected.
+        """
+        await self._emit_context_pressure(to=connection_id)
 
     async def dispatch(self, data: dict) -> None:
         set_current_session(self.session_state)
