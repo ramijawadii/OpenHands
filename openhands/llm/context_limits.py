@@ -109,6 +109,17 @@ ESCALATED_MAX_TOKENS: int = 64_000
 #: Override via AUTO_COMPACT_THRESHOLD env var (e.g. "0.10" for testing).
 import os as _os
 AUTO_COMPACT_THRESHOLD: float = float(_os.environ.get("AUTO_COMPACT_THRESHOLD", "0.95"))
+
+#: Virtual context window used for BOTH the context-ring display and the
+#: auto-compaction trigger. On huge real windows (e.g. Gemini's 1M) the per-call
+#: context stays a tiny fraction of the window, so the ring never moves and
+#: auto-compaction effectively never fires. Capping at this value makes the ring
+#: meaningful AND makes the agent self-compact when the ring fills. Shared by
+#: session.py (ring) and get_auto_compact_threshold() so the two stay aligned.
+#: Override via CONTEXT_DISPLAY_CAP env var.
+CONTEXT_DISPLAY_CAP: int = int(_os.environ.get("CONTEXT_DISPLAY_CAP", "200000"))
+#: Trigger buffer subtracted from the display cap (mirrors the ring's math).
+CONTEXT_DISPLAY_BUFFER: int = 13_000
 #: Operator override for the context window size (e.g. "8000" for compaction testing).
 _MAX_CTX_OVERRIDE = _os.environ.get("OPENHANDS_MAX_CONTEXT_TOKENS", "")
 
@@ -217,7 +228,12 @@ def get_auto_compact_threshold(model: str) -> int:
     # Reserve output slot + small buffer so compact fires with room to respond.
     effective_window = real_window - COMPACT_MAX_OUTPUT_TOKENS  # e.g. 1M - 20k
     buffer = max(5_000, int(real_window * 0.01))               # 1 % or 5k minimum
-    return effective_window - buffer
+    real_threshold = effective_window - buffer
+    # Align with the context-ring display cap: auto-compaction fires when the
+    # ring visually fills (DISPLAY_CAP − buffer), not only near the true window.
+    # On small real windows the real threshold is lower and wins via min().
+    display_threshold = max(1, CONTEXT_DISPLAY_CAP - CONTEXT_DISPLAY_BUFFER)
+    return min(real_threshold, display_threshold)
 
 
 def should_auto_compact(

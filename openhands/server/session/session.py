@@ -519,14 +519,17 @@ class WebSession:
                 ctx_window = cfg_max or 200_000
             # Hybrid display cap: on huge windows (e.g. Gemini's 1M), per-call
             # context stays a tiny fraction of the real window, so the ring never
-            # visibly moves. We display pressure against a virtual 200k cap (the
+            # visibly moves. We display pressure against a virtual cap (the
             # familiar Claude window size) so normal conversations move the ring.
-            # NOTE: this is DISPLAY ONLY — real auto-compaction in agent_controller
-            # still triggers off the true model window, not this cap.
-            DISPLAY_CAP = 200_000
-            effective_window_raw = max(1, ctx_window - 20_000)
-            display_window = min(effective_window_raw, DISPLAY_CAP)
-            threshold = max(1, display_window - 13_000)
+            # The SAME cap drives auto-compaction (see context_limits.
+            # get_auto_compact_threshold), so when the ring fills the agent
+            # self-compacts even without a manual click.
+            from openhands.llm.context_limits import (
+                CONTEXT_DISPLAY_BUFFER,
+                CONTEXT_DISPLAY_CAP,
+            )
+            display_window = min(ctx_window, CONTEXT_DISPLAY_CAP)
+            threshold = max(1, display_window - CONTEXT_DISPLAY_BUFFER)
             percent_remaining = max(
                 0, round(((threshold - token_usage) / threshold) * 100)
             )

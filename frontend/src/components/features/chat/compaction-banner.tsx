@@ -61,8 +61,8 @@ export function CompactionBanner() {
 
   if (showComplete) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-emerald-400 border border-emerald-800/50 bg-emerald-900/20 rounded-md">
-        ✓ Context compacted ({compactionCount}×)
+      <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-neutral-400 border border-neutral-700 bg-neutral-800/60 rounded-md">
+        Context compacted ({compactionCount}×)
       </div>
     );
   }
