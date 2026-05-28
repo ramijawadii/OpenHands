@@ -63,7 +63,16 @@ except ImportError:
 # returns it as a <system-reminder> user message.  This is the direct port of
 # Claude Code's isMeta:true + ensureSystemReminderWrap() mechanism into the
 # OpenHands ConversationMemory pipeline.
-_SKILL_READY_RE = re.compile(r"\[SKILL_READY:([^\]:]+?)(?::args=([^\]]*))?\]")
+# Matches both legacy short names ([SKILL_READY:iam-aws]) and the new
+# provider-qualified format ([SKILL_READY:aws:iam-aws]). The args sub-group
+# is keyed by the literal token ":args=" to avoid colliding with the
+# provider:slug colon.
+_SKILL_READY_RE = re.compile(
+    r"\[SKILL_READY:"
+    r"([A-Za-z0-9_:\-]+?)"                # skill name: letters, digits, _, :, -
+    r"(?::args=([^\]]*))?"                # optional ":args=..."
+    r"\]"
+)
 
 # ── Search paths ────────────────────────────────────────────────────────────
 # Modern: provider-namespaced trees at /…/skills/{provider}/{slug}/SKILL.md
