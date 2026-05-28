@@ -51,10 +51,19 @@ PROVIDER_PRIORITY: dict[str, int] = {
 VALID_PROVIDERS = frozenset({"aws", "azure", "gcp", "shared", "internal"})
 
 #: Valid category values for the ``category:`` frontmatter field.
+#: Covers BOTH the legacy 11-category set (used by the existing 33 CloudGuard
+#: skills) AND the v3 spec 15-category CNAPP-aligned set (used by the 99 AWS
+#: skill catalog in registry/p*.md). ``network`` and ``compliance`` are in
+#: both sets — single membership, same string.
 VALID_CATEGORIES = frozenset({
+    # Legacy CloudGuard categories
     "identity", "posture", "network", "workload", "data",
     "hardening", "detection", "chain", "orchestration",
     "reporting", "system",
+    # v3 CNAPP-aligned categories (registry/p01_header.md §1.5)
+    "ciem", "nhi", "cspm", "compliance", "cwpp", "kspm",
+    "cdr", "devsecops", "supply-chain", "secrets", "api",
+    "dspm", "sspm", "ai-spm",
 })
 
 #: YAML frontmatter delimiter pattern.
@@ -226,11 +235,24 @@ class SkillRegistry:
     # ── Loading ─────────────────────────────────────────────────────────
 
     def _load_all(self) -> None:
-        """Load skills from the new layout first, then fall back to legacy."""
-        loaded_new = 0
+        """Load skills from new layout (2-level or 3-level), then legacy fallback.
+
+        Two new-layout variants are supported simultaneously:
+        - 2-level: ``{base}/{provider}/{slug}/SKILL.md`` — existing 33 CloudGuard skills
+        - 3-level: ``{base}/{provider}/{category}/{slug}/SKILL.md`` — v3 spec for the
+                   99 AWS skill catalog (cloudguard-runtime/skills/aws/{ciem,nhi,…}/…)
+
+        Detection: for each child ``X`` of a provider directory, if ``X/SKILL.md``
+        exists it is a 2-level slug; otherwise ``X`` is treated as a category
+        directory and each ``X/Y/SKILL.md`` becomes a 3-level skill.
+
+        Directories whose name starts with ``_`` (e.g. ``_templates/``) are
+        always skipped.
+        """
+        loaded_2level = 0
+        loaded_3level = 0
         loaded_legacy = 0
 
-        # New layout: {base_dir}/{provider}/{slug}/SKILL.md
         if self._base_dir.is_dir():
             for provider_dir in sorted(self._base_dir.iterdir()):
                 if not provider_dir.is_dir():
@@ -242,37 +264,66 @@ class SkillRegistry:
                         provider_dir,
                     )
                     continue
-                for slug_dir in sorted(provider_dir.iterdir()):
-                    if not slug_dir.is_dir():
+                for child in sorted(provider_dir.iterdir()):
+                    if not child.is_dir() or child.name.startswith("_"):
                         continue
-                    skill_file = slug_dir / "SKILL.md"
-                    if not skill_file.is_file():
-                        continue
-                    entry = self._load_entry_from_new_layout(
-                        skill_file, provider, slug_dir.name
-                    )
-                    if entry:
-                        self._skills[entry.name] = entry
-                        loaded_new += 1
+                    # 2-level: provider/slug/SKILL.md (if direct SKILL.md exists)
+                    direct_skill = child / "SKILL.md"
+                    if direct_skill.is_file():
+                        entry = self._load_entry_from_new_layout(
+                            direct_skill, provider, child.name, category_dir=None
+                        )
+                        if entry:
+                            self._skills[entry.name] = entry
+                            loaded_2level += 1
+                    # 3-level: also descend in case the same directory is a v3
+                    # category containing slug subdirectories. Names do not
+                    # collide: 2-level is `provider:child`, 3-level is
+                    # `provider:child/sub-slug`. Required so that an existing
+                    # 2-level legacy skill (e.g. aws/compliance/) does not shadow
+                    # the v3 category subtree (aws/compliance/{compliance,config-rules-audit,…}).
+                    category = child.name
+                    for slug_dir in sorted(child.iterdir()):
+                        if not slug_dir.is_dir() or slug_dir.name.startswith("_"):
+                            continue
+                        skill_file = slug_dir / "SKILL.md"
+                        if not skill_file.is_file():
+                            continue
+                        entry = self._load_entry_from_new_layout(
+                            skill_file, provider, slug_dir.name,
+                            category_dir=category,
+                        )
+                        if entry:
+                            self._skills[entry.name] = entry
+                            loaded_3level += 1
 
         # Legacy layout: flat files in {legacy_dir}/cloudguard-{slug}.md
         if self._legacy_dir and self._legacy_dir.is_dir():
             for skill_file in sorted(self._legacy_dir.glob("*.md")):
                 entry = self._load_entry_from_legacy(skill_file)
                 if entry and entry.name not in self._skills:
-                    # Only add if not already loaded from new layout
                     self._skills[entry.name] = entry
                     loaded_legacy += 1
 
         logger.info(
-            "SkillRegistry: loaded %d new-layout + %d legacy skills (%d total)",
-            loaded_new, loaded_legacy, len(self._skills),
+            "SkillRegistry: loaded %d (2-level) + %d (3-level v3) + %d legacy "
+            "= %d skills total",
+            loaded_2level, loaded_3level, loaded_legacy, len(self._skills),
         )
 
     def _load_entry_from_new_layout(
-        self, skill_file: Path, provider: str, slug: str
+        self, skill_file: Path, provider: str, slug: str,
+        category_dir: Optional[str] = None,
     ) -> Optional[SkillEntry]:
-        """Load a skill from the new ``{provider}/{slug}/SKILL.md`` layout."""
+        """Load a skill from the new layout.
+
+        Supports both:
+        - 2-level (``provider/slug/SKILL.md``, ``category_dir=None``) — name is
+          ``provider:slug``, category comes from frontmatter or defaults to "system"
+        - 3-level (``provider/category/slug/SKILL.md``, ``category_dir=<name>``) —
+          name is ``provider:category/slug``, category in frontmatter must match
+          the directory name (logged as a warning if not).
+        """
         try:
             raw = skill_file.read_text(encoding="utf-8")
             meta, _body = _parse_frontmatter(raw)
@@ -280,9 +331,22 @@ class SkillRegistry:
             logger.warning("skill registry: cannot read %s: %s", skill_file, e)
             return None
 
-        name = meta.get("name") or f"{provider}:{slug}"
+        # Default name: 3-level → provider:category/slug, 2-level → provider:slug
+        if category_dir:
+            default_name = f"{provider}:{category_dir}/{slug}"
+        else:
+            default_name = f"{provider}:{slug}"
+        name = meta.get("name") or default_name
         if ":" not in name:
             name = f"{provider}:{name}"
+
+        # Category: frontmatter wins; if absent fall back to directory name; else "system"
+        category = meta.get("category") or category_dir or "system"
+        if category_dir and meta.get("category") and meta["category"] != category_dir:
+            logger.warning(
+                "skill %s: frontmatter category %r != directory %r — using frontmatter",
+                skill_file, meta["category"], category_dir,
+            )
 
         try:
             return SkillEntry(
@@ -291,7 +355,7 @@ class SkillRegistry:
                 provider=provider,
                 description=meta.get("description", ""),
                 when_to_use=meta.get("whenToUse") or meta.get("when_to_use", ""),
-                category=meta.get("category", "system"),
+                category=category,
                 layer=int(meta["layer"]) if meta.get("layer") else None,
                 requires=meta.get("requires") or [],
                 context=meta.get("context", "inline"),

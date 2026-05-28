@@ -55,6 +55,7 @@ class FileReport:
     path: str
     name: str = ""
     issues: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -113,14 +114,33 @@ def validate_one(skill_file: Path, root: Path, strict: bool) -> FileReport:
         except (ValueError, TypeError):
             report.issues.append(f"layer must be an integer; got {layer!r}")
 
-    # Path consistency: name must match {provider}/{slug}/SKILL.md
+    # Path consistency. Two layouts allowed:
+    #   2-level: {provider}/{slug}/SKILL.md          → name = provider:slug
+    #   3-level: {provider}/{category}/{slug}/SKILL.md → name = provider:category/slug
     parts = skill_file.relative_to(root).parts
-    if len(parts) == 3 and parts[2] == "SKILL.md":
+    if len(parts) == 4 and parts[3] == "SKILL.md":
+        dir_provider, dir_category, dir_slug, _ = parts
+        expected_name = f"{dir_provider}:{dir_category}/{dir_slug}"
+        if report.name and report.name != expected_name:
+            report.issues.append(
+                f"name {report.name!r} doesn't match 3-level directory: "
+                f"expected {expected_name!r}"
+            )
+        if provider and provider != dir_provider:
+            report.issues.append(
+                f"provider {provider!r} doesn't match directory: expected {dir_provider!r}"
+            )
+        if category and category != dir_category:
+            report.issues.append(
+                f"category {category!r} doesn't match directory: expected {dir_category!r}"
+            )
+    elif len(parts) == 3 and parts[2] == "SKILL.md":
         dir_provider, dir_slug, _ = parts
         expected_name = f"{dir_provider}:{dir_slug}"
         if report.name and report.name != expected_name:
             report.issues.append(
-                f"name {report.name!r} doesn't match directory: expected {expected_name!r}"
+                f"name {report.name!r} doesn't match 2-level directory: "
+                f"expected {expected_name!r}"
             )
         if provider and provider != dir_provider:
             report.issues.append(
@@ -128,7 +148,9 @@ def validate_one(skill_file: Path, root: Path, strict: bool) -> FileReport:
             )
     else:
         report.issues.append(
-            f"unexpected path: should be {root}/{{provider}}/{{slug}}/SKILL.md"
+            f"unexpected path: should be "
+            f"{root}/{{provider}}/{{slug}}/SKILL.md or "
+            f"{root}/{{provider}}/{{category}}/{{slug}}/SKILL.md"
         )
 
     # Body must have substantive content
@@ -137,15 +159,15 @@ def validate_one(skill_file: Path, root: Path, strict: bool) -> FileReport:
             f"body too small ({len(body.strip())} chars); skills should have real content"
         )
 
-    # TODO scaffold detection
+    # TODO scaffold detection — strict fails, non-strict only warns.
     desc = (meta.get("description") or "").strip()
     when = (meta.get("whenToUse") or "").strip()
-    if "TODO:" in desc or "TODO:" in when or "TODO —" in body:
+    if "TODO:" in desc or "TODO:" in when or "TODO —" in body or "v3 STUB" in body:
         msg = "contains TODO placeholders (forgotten scaffold?)"
         if strict:
             report.issues.append(msg)
         else:
-            report.issues.append(f"WARN: {msg}")
+            report.warnings.append(msg)
 
     return report
 
@@ -178,8 +200,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: skills root not found: {args.root}", file=sys.stderr)
         return 2
 
-    # Walk the tree
-    skill_files = sorted(args.root.glob("*/*/SKILL.md"))
+    # Walk the tree — both 2-level and 3-level layouts.
+    skill_files = sorted(set(
+        list(args.root.glob("*/*/SKILL.md"))           # provider/slug/SKILL.md
+        + list(args.root.glob("*/*/*/SKILL.md"))       # provider/category/slug/SKILL.md
+    ))
     if not skill_files:
         print(f"warning: no SKILL.md files found under {args.root}",
               file=sys.stderr)
@@ -214,8 +239,12 @@ def main(argv: list[str] | None = None) -> int:
 
     # Text output
     for r in reports:
-        if r.ok and not args.quiet:
+        if r.ok and not r.warnings and not args.quiet:
             print(f"  [ok]   {r.path}")
+        elif r.ok and r.warnings and not args.quiet:
+            print(f"  [warn] {r.path}")
+            for w in r.warnings:
+                print(f"           ~ {w}")
         elif not r.ok:
             print(f"  [FAIL] {r.path}")
             for issue in r.issues:
@@ -223,10 +252,13 @@ def main(argv: list[str] | None = None) -> int:
 
     passed = sum(1 for r in reports if r.ok)
     failed = sum(1 for r in reports if not r.ok)
+    warned = sum(1 for r in reports if r.ok and r.warnings)
     print()
     print("=" * 60)
     print(f"Validated: {len(reports)} skills")
     print(f"  Passed:  {passed}")
+    if warned:
+        print(f"  Warned:  {warned} (TODO scaffolds — pass non-strict, fail strict)")
     print(f"  Failed:  {failed}")
     if dupes:
         print(f"  Duplicate names: {len(dupes)}")
