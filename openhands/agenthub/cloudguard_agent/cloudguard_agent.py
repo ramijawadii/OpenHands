@@ -65,7 +65,16 @@ except ImportError:
 # OpenHands ConversationMemory pipeline.
 _SKILL_READY_RE = re.compile(r"\[SKILL_READY:([^\]:]+?)(?::args=([^\]]*))?\]")
 
-_SKILL_SEARCH_DIRS = [
+# ── Search paths ────────────────────────────────────────────────────────────
+# Modern: provider-namespaced trees at /…/skills/{provider}/{slug}/SKILL.md
+# Legacy: flat layout at /…/microagents/{slug}.md (kept for backward compat)
+
+_NEW_LAYOUT_DIRS = [
+    "/workspace/cloudguard-runtime/skills",
+    "/app/skills",
+    "/openhands/skills",
+]
+_LEGACY_FLAT_DIRS = [
     "/workspace/.openhands/microagents",
     "/app/.openhands/microagents",
     "/root/.openhands/microagents",
@@ -74,25 +83,89 @@ _SKILL_SEARCH_DIRS = [
     "/app/microagents",
 ]
 
+# ── Module-level SkillRegistry (lazy) ───────────────────────────────────────
+# One registry per process — built on first access, cached for the lifetime
+# of the agent. Thread-safe via the registry's internal RLock.
+
+_SKILL_REGISTRY = None
+_REGISTRY_LOCK = __import__("threading").Lock()
+
+
+def _get_skill_registry():
+    """Return the module-level SkillRegistry, building it lazily.
+
+    First call walks the disk to discover skills; subsequent calls return
+    the cached instance. Failures are swallowed and a None registry is
+    cached, so the legacy filesystem fallback in _agent_load_skill keeps
+    working even when the registry can't be initialised.
+    """
+    global _SKILL_REGISTRY
+    if _SKILL_REGISTRY is not None:
+        return _SKILL_REGISTRY
+    with _REGISTRY_LOCK:
+        if _SKILL_REGISTRY is not None:  # double-check after acquiring lock
+            return _SKILL_REGISTRY
+        try:
+            from openhands.services.skills.registry import SkillRegistry
+            # Pick the first existing base/legacy directory; pass nonexistent
+            # paths through so the registry returns 0 skills cleanly.
+            base = next(
+                (d for d in _NEW_LAYOUT_DIRS if pathlib.Path(d).is_dir()),
+                _NEW_LAYOUT_DIRS[0],
+            )
+            legacy = next(
+                (d for d in _LEGACY_FLAT_DIRS if pathlib.Path(d).is_dir()),
+                _LEGACY_FLAT_DIRS[0],
+            )
+            _SKILL_REGISTRY = SkillRegistry(base_dir=base, legacy_dir=legacy)
+        except Exception as e:  # pragma: no cover — safety net
+            import logging
+            logging.getLogger(__name__).warning(
+                "SkillRegistry init failed (%s); falling back to legacy filesystem scan", e
+            )
+            _SKILL_REGISTRY = False  # sentinel meaning "tried and failed"
+        return _SKILL_REGISTRY
+
 
 def _agent_load_skill(name: str, args: str = "") -> str | None:
-    """Load skill content from the microagent files on the server side.
+    """Load skill content for ``_invoke_skill(name)`` server-side injection.
 
-    Mirrors _load_skill_content() in analytics.py but runs in the agent
-    process (not the kernel), giving us IP-safe access to the methodology.
+    Resolution order:
+        1. SkillRegistry lookup by full name (``aws:iam-aws``) or short name (``iam-aws``)
+        2. Legacy filesystem scan over ``_LEGACY_FLAT_DIRS`` (for any skill the
+           registry didn't pick up, e.g. local dev files added at runtime)
+
+    Returns the Markdown body with frontmatter stripped, ``{{ARGS}}`` placeholder
+    expanded. Returns ``None`` if no skill matches.
     """
-    for d in _SKILL_SEARCH_DIRS:
-        p = pathlib.Path(d) / f"{name}.md"
+    # 1. Registry path (preferred)
+    reg = _get_skill_registry()
+    if reg:  # not None and not the False sentinel
+        try:
+            content = reg.load_content(name)
+            if content:
+                if args:
+                    content = content.replace("{{ARGS}}", args).replace(
+                        "{{ ARGS }}", args
+                    )
+                return content
+        except LookupError:
+            # Ambiguous short name — fall through to legacy scan as a tiebreaker
+            pass
+
+    # 2. Legacy filesystem fallback (keeps unqualified lookups working
+    # for skills not yet migrated and for runtime-added files)
+    short = name.split(":", 1)[1] if ":" in name else name
+    for d in _LEGACY_FLAT_DIRS:
+        p = pathlib.Path(d) / f"{short}.md"
         if p.exists():
             text = p.read_text(encoding="utf-8")
-            # Strip YAML frontmatter (---...---)
             if text.startswith("---"):
                 end = text.find("\n---", 3)
                 if end != -1:
                     text = text[end + 4 :].lstrip("\n")
             if args:
-                text = text.replace("{{ARGS}}", args)
-                text = text.replace("{{ ARGS }}", args)
+                text = text.replace("{{ARGS}}", args).replace("{{ ARGS }}", args)
             return text
     return None
 
