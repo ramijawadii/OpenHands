@@ -493,3 +493,88 @@ class TestStats:
         assert s["by_category"]["identity"] == 1
         assert s["by_category"]["data"] == 1
         assert s["sent_this_session"] == 0
+        # by_service may be empty if no fixture declares service
+        assert "by_service" in s
+
+
+# ── Service sub-categorization ──────────────────────────────────────────────
+
+
+@pytest.fixture
+def skills_with_service(tmp_path: Path) -> Path:
+    """Skills tree that declares `service:` for AWS skills."""
+    base = tmp_path / "skills"
+
+    def write(provider: str, slug: str, service: str | None, category: str):
+        d = base / provider / slug
+        d.mkdir(parents=True)
+        svc_line = f"service: {service}\n" if service else ""
+        # Note: NOT using textwrap.dedent — the closing '---' line being at
+        # column 0 prevents dedent from stripping common indent.
+        content = (
+            f"---\n"
+            f"name: {provider}:{slug}\n"
+            f"description: {slug} description\n"
+            f"whenToUse: when {slug}\n"
+            f"provider: {provider}\n"
+            f"category: {category}\n"
+            f"context: inline\n"
+            f"{svc_line}"
+            f"---\n"
+            f"body for {slug}\n"
+        )
+        (d / "SKILL.md").write_text(content)
+
+    # AWS skills under three services
+    write("aws", "s3-exposure",        "s3",   "data")
+    write("aws", "s3-acl-audit",       "s3",   "data")
+    write("aws", "iam-aws",            "iam",  "identity")
+    write("aws", "iam-privileges",     "iam",  "identity")
+    write("aws", "ec2-public-snapshot", "ec2", "data")
+    # AWS skill without service
+    write("aws", "compliance",         None,   "posture")
+    # Non-AWS skills — service ignored
+    write("shared", "network-exposure", None,  "network")
+    return base
+
+
+class TestServiceField:
+    def test_service_field_loaded_from_frontmatter(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        s = reg.get("aws:s3-exposure")
+        assert s.service == "s3"
+
+    def test_missing_service_field_becomes_none(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        s = reg.get("aws:compliance")
+        assert s.service is None
+
+    def test_by_service_returns_correct_skills(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        s3_skills = reg.by_service("s3")
+        names = {s.name for s in s3_skills}
+        assert names == {"aws:s3-exposure", "aws:s3-acl-audit"}
+
+    def test_by_service_unknown_returns_empty(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        assert reg.by_service("nonexistent-service") == []
+
+    def test_services_enumeration_unique_sorted(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        svcs = reg.services()
+        assert svcs == ["ec2", "iam", "s3"]
+
+    def test_services_filtered_by_provider(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        # AWS has services; shared has none → filter yields empty
+        assert reg.services("aws") == ["ec2", "iam", "s3"]
+        assert reg.services("shared") == []
+
+    def test_stats_by_service_counts(self, skills_with_service):
+        reg = SkillRegistry(base_dir=skills_with_service)
+        s = reg.stats()
+        assert s["by_service"]["s3"] == 2
+        assert s["by_service"]["iam"] == 2
+        assert s["by_service"]["ec2"] == 1
+        # Compliance has no service → not counted
+        assert "compliance" not in s["by_service"]

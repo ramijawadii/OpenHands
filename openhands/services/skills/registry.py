@@ -113,6 +113,12 @@ class SkillEntry:
     # Source
     source_path: str
 
+    # Service sub-categorization (optional). For provider=aws, examples:
+    # "ec2", "s3", "iam", "lambda", "rds", "kms", "cloudtrail", "guardduty".
+    # Skills without an explicit service get None — fine for non-AWS providers
+    # and cross-cutting skills (attack-chain-analysis, environment-map).
+    service: Optional[str] = None
+
     # Lazy-loaded content (full Markdown body, no frontmatter)
     _content: Optional[str] = field(default=None, repr=False, compare=False)
 
@@ -290,6 +296,7 @@ class SkillRegistry:
                 requires=meta.get("requires") or [],
                 context=meta.get("context", "inline"),
                 source_path=str(skill_file),
+                service=meta.get("service") or None,
             )
         except ValueError as e:
             logger.warning("skill registry: invalid skill %s: %s", skill_file, e)
@@ -384,6 +391,32 @@ class SkillRegistry:
         """Return all skills in one category."""
         with self._lock:
             return [s for s in self._skills.values() if s.category == category]
+
+    def by_service(self, service: str) -> list[SkillEntry]:
+        """Return all skills declaring this service (e.g. 'ec2', 's3', 'iam').
+
+        Useful for service-scoped sub-listings at scale (98+ skills per provider).
+        Returns ``[]`` if no skill declares the service.
+        """
+        with self._lock:
+            return [s for s in self._skills.values() if s.service == service]
+
+    def services(self, provider: Optional[str] = None) -> list[str]:
+        """Return the sorted unique list of services declared by loaded skills.
+
+        Optionally filter by provider (e.g. ``services("aws")`` → ['cloudtrail',
+        'ec2', 'iam', 'lambda', 's3', …]). Skills without a service field are
+        excluded.
+        """
+        with self._lock:
+            seen: set[str] = set()
+            for s in self._skills.values():
+                if not s.service:
+                    continue
+                if provider and s.provider != provider:
+                    continue
+                seen.add(s.service)
+            return sorted(seen)
 
     # ── Listing (budget-aware) ──────────────────────────────────────────
 
@@ -528,17 +561,21 @@ class SkillRegistry:
     # ── Diagnostics ─────────────────────────────────────────────────────
 
     def stats(self) -> dict:
-        """Summary statistics — total, per-provider, per-category counts."""
+        """Summary statistics — total, per-provider, per-category, per-service counts."""
         with self._lock:
             by_provider: dict[str, int] = {}
             by_category: dict[str, int] = {}
+            by_service: dict[str, int] = {}
             for s in self._skills.values():
                 by_provider[s.provider] = by_provider.get(s.provider, 0) + 1
                 by_category[s.category] = by_category.get(s.category, 0) + 1
+                if s.service:
+                    by_service[s.service] = by_service.get(s.service, 0) + 1
             return {
                 "total": len(self._skills),
                 "by_provider": by_provider,
                 "by_category": by_category,
+                "by_service": by_service,
                 "sent_this_session": len(self._sent),
             }
 
