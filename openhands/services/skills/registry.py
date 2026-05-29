@@ -238,13 +238,21 @@ class SkillRegistry:
         """Load skills from new layout (2-level or 3-level), then legacy fallback.
 
         Two new-layout variants are supported simultaneously:
-        - 2-level: ``{base}/{provider}/{slug}/SKILL.md`` — existing 33 CloudGuard skills
-        - 3-level: ``{base}/{provider}/{category}/{slug}/SKILL.md`` — v3 spec for the
-                   99 AWS skill catalog (cloudguard-runtime/skills/aws/{ciem,nhi,…}/…)
+        - 2-level: ``{base}/{provider}/{slug}/SKILL.md`` — used by ``internal/``
+                   (mermaid, kernel-guardian, etc.), ``shared/`` cross-cloud
+                   bases, and the ``azure/`` + ``gcp/`` provider stubs.
+        - 3-level: ``{base}/{provider}/{category}/{slug}/SKILL.md`` — the v3 spec
+                   form. AWS is exclusively 3-level (99 canonical skills across
+                   ciem/nhi/cspm/compliance/cwpp/kspm/network/cdr/devsecops/
+                   supply-chain/secrets/api/dspm/sspm/ai-spm). Other providers
+                   may adopt 3-level as their catalogs grow.
 
         Detection: for each child ``X`` of a provider directory, if ``X/SKILL.md``
         exists it is a 2-level slug; otherwise ``X`` is treated as a category
-        directory and each ``X/Y/SKILL.md`` becomes a 3-level skill.
+        directory and each ``X/Y/SKILL.md`` becomes a 3-level skill. A provider
+        directory MAY mix the two — descent continues regardless so a
+        ``provider/category/`` subtree is not shadowed by a ``provider/category/``
+        2-level entry of the same name.
 
         Directories whose name starts with ``_`` (e.g. ``_templates/``) are
         always skipped.

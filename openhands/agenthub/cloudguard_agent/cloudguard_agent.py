@@ -64,9 +64,9 @@ except ImportError:
 # Claude Code's isMeta:true + ensureSystemReminderWrap() mechanism into the
 # OpenHands ConversationMemory pipeline.
 # Matches all three skill-name shapes:
-#   [SKILL_READY:iam-aws]                          → legacy short name
-#   [SKILL_READY:aws:iam-aws]                      → provider-qualified
-#   [SKILL_READY:aws:dspm/s3-exposure]             → v3 provider+category+slug
+#   [SKILL_READY:mermaid]                          → unqualified short name (legacy flat-file slug)
+#   [SKILL_READY:internal:mermaid]                 → provider-qualified 2-level (internal/shared bases)
+#   [SKILL_READY:aws:dspm/s3-exposure]             → v3 provider+category+slug (canonical AWS form)
 # The args sub-group is keyed by the literal token ":args=" to avoid colliding
 # with the colons inside the skill name.
 _SKILL_READY_RE = re.compile(
