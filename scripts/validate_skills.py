@@ -66,6 +66,31 @@ class FileReport:
 
 _REQUIRED_FIELDS = ("name", "description", "whenToUse", "provider", "category", "context")
 
+# Providers that may legally OMIT the `## IAM Actions (READ)` and
+# `## IAM Actions (WRITE)` blocks. Per audit finding D14 (catalog-build-plan
+# Phase 0 §1.6):
+#   - `shared`        — SaaS / cross-cloud connector skills. Substitute the
+#                       `## Connector Requirements` block instead.
+#   - `orchestrator`  — cross-domain aggregator skills. No provider IAM by
+#                       definition; must declare `## Config` instead.
+#   - `internal`      — CloudGuard meta-skills (KG queries, evidence
+#                       collection, notebook ops). Use the finding ledger /
+#                       KG, not cloud-provider IAM.
+# Every other provider (aws, azure, gcp) MUST carry the IAM Actions (READ) block.
+_IAM_OPTIONAL_PROVIDERS = frozenset({"shared", "orchestrator", "internal"})
+
+
+def _has_iam_blocks(body: str) -> bool:
+    """True when the body contains either an IAM Actions header or the
+    Connector Requirements alternative (shared/) — used by the Phase 2
+    stricter validator and surfaced here for parity with D14's contract."""
+    return (
+        "## IAM Actions (READ)" in body
+        or "## IAM Actions (WRITE)" in body
+        or "## Connector Requirements" in body
+        or "## Config" in body
+    )
+
 
 def validate_one(skill_file: Path, root: Path, strict: bool) -> FileReport:
     """Check a single SKILL.md file. Returns a FileReport with issues."""
@@ -158,6 +183,22 @@ def validate_one(skill_file: Path, root: Path, strict: bool) -> FileReport:
         report.issues.append(
             f"body too small ({len(body.strip())} chars); skills should have real content"
         )
+
+    # IAM-block presence — warning only in this pass.
+    # Per audit finding D14: shared/ orchestrator/ and internal/ providers
+    # may legally OMIT the IAM Actions blocks (cross-cloud advisory skills
+    # carry no provider IAM; SaaS connectors document scopes under Connector
+    # Requirements; orchestrator skills declare Config instead). For
+    # aws/azure/gcp the absence is a warning surface in strict mode so
+    # Phase 2 can promote to failure once the 5 known legacy skills (waf-
+    # assessment, eks-irsa-security, ssm-parameter-security, iam-azure,
+    # iam-gcp) are backfilled.
+    if strict and provider and provider not in _IAM_OPTIONAL_PROVIDERS:
+        if "## IAM Actions (READ)" not in body:
+            report.warnings.append(
+                f"provider {provider!r} is missing '## IAM Actions (READ)' "
+                f"block — backfill before Phase 2 promotes this to failure"
+            )
 
     # TODO scaffold detection — strict fails, non-strict only warns.
     desc = (meta.get("description") or "").strip()

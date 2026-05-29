@@ -48,13 +48,18 @@ PROVIDER_PRIORITY: dict[str, int] = {
 }
 
 #: Valid provider values for the ``provider:`` frontmatter field.
-VALID_PROVIDERS = frozenset({"aws", "azure", "gcp", "shared", "internal"})
+#: ``orchestrator`` is a top-level path for cross-domain aggregator skills
+#: (catalog-build-plan Phase 1f) — audit finding D11.
+VALID_PROVIDERS = frozenset({
+    "aws", "azure", "gcp", "shared", "internal", "orchestrator",
+})
 
 #: Valid category values for the ``category:`` frontmatter field.
-#: Covers BOTH the legacy 11-category set (used by the existing 33 CloudGuard
-#: skills) AND the v3 spec 15-category CNAPP-aligned set (used by the 99 AWS
-#: skill catalog in registry/p*.md). ``network`` and ``compliance`` are in
-#: both sets — single membership, same string.
+#: Three layers:
+#:   - Legacy 11-category set (existing 33 CloudGuard skills)
+#:   - v3 spec 15-category CNAPP-aligned (the 99-skill AWS v3 catalog)
+#:   - 10 expansion categories from gaps_p01–p04 (catalog-build-plan, audit D11)
+#: ``network`` and ``compliance`` appear in legacy + v3 (single membership).
 VALID_CATEGORIES = frozenset({
     # Legacy CloudGuard categories
     "identity", "posture", "network", "workload", "data",
@@ -64,6 +69,9 @@ VALID_CATEGORIES = frozenset({
     "ciem", "nhi", "cspm", "compliance", "cwpp", "kspm",
     "cdr", "devsecops", "supply-chain", "secrets", "api",
     "dspm", "sspm", "ai-spm",
+    # v3 expansion categories — gaps_p01–p04
+    "graph", "runtime", "kspm-rbac", "aspm", "api-ext",
+    "ir", "ai-agents", "ctem", "easm", "data-flow",
 })
 
 #: YAML frontmatter delimiter pattern.
