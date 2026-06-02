@@ -95,8 +95,20 @@ function schedule(): void {
   flushTimer = setTimeout(flush, FLUSH_DEBOUNCE_MS);
 }
 
-/** Bind the conversation the health file is written into. Call on panel mount. */
+/** Bind the conversation the health file is written into. Call on panel mount.
+ *
+ * When the conversation CHANGES (the same browser tab navigating between
+ * conversations), the accumulated in-memory entries belong to the previous
+ * conversation — clear them so the new conversation's .artifact_health.json
+ * only ever reflects ITS OWN artifacts. Without this reset, stale artifacts
+ * from other conversations leak into the file and the agent could chase a
+ * phantom error that belongs to a different conversation. */
 export function setHealthConversation(id: string | null): void {
+  if (id !== conversationId) {
+    entries.clear();
+    panel = {};
+    lastPayload = "";
+  }
   conversationId = id;
 }
 
