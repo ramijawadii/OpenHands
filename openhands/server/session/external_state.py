@@ -30,7 +30,7 @@ from openhands.core.schema import AgentState
 # Types
 # ---------------------------------------------------------------------------
 
-ExternalStateName = Literal["idle", "running", "requires_action"]
+ExternalStateName = Literal["idle", "running", "requires_action", "compacting"]
 
 # ---------------------------------------------------------------------------
 # Internal → external state mapping
@@ -115,6 +115,23 @@ class ExternalSessionState:
         self._metadata = SessionExternalMetadata()
         self._listener: Optional[Callable[[SessionExternalMetadata], None]] = None
         self._lock = threading.Lock()
+        # Transient override: True while a condensation/compaction is in flight.
+        # AgentState has no COMPACTING value, so the external surface reports
+        # "compacting" via this flag and falls back to the real agent state once
+        # cleared. Set/cleared from session._on_event on Condensation events.
+        self._compacting = False
+
+    def _snapshot_locked(self) -> "SessionExternalMetadata":
+        """Build a snapshot under the held lock, applying the compacting override."""
+        state: ExternalStateName = "compacting" if self._compacting else self._metadata.state
+        return SessionExternalMetadata(
+            state=state,
+            permission_mode=self._metadata.permission_mode,
+            model=self._metadata.model,
+            pending_action=self._metadata.pending_action,
+            post_turn_summary=self._metadata.post_turn_summary,
+            task_summary=self._metadata.task_summary,
+        )
 
     # -----------------------------------------------------------------------
     # Configuration
@@ -171,14 +188,29 @@ class ExternalSessionState:
             if model is not None:
                 self._metadata.model = model
             listener = self._listener
-            snapshot = SessionExternalMetadata(
-                state=self._metadata.state,
-                permission_mode=self._metadata.permission_mode,
-                model=self._metadata.model,
-                pending_action=self._metadata.pending_action,
-                post_turn_summary=self._metadata.post_turn_summary,
-                task_summary=self._metadata.task_summary,
-            )
+            snapshot = self._snapshot_locked()
+        if listener is not None:
+            listener(snapshot)
+
+    def set_compacting(self) -> None:
+        """Mark a condensation/compaction as in-flight; surface reports "compacting"."""
+        with self._lock:
+            if self._compacting:
+                return
+            self._compacting = True
+            listener = self._listener
+            snapshot = self._snapshot_locked()
+        if listener is not None:
+            listener(snapshot)
+
+    def clear_compacting(self) -> None:
+        """Clear the compaction override; surface falls back to the real agent state."""
+        with self._lock:
+            if not self._compacting:
+                return
+            self._compacting = False
+            listener = self._listener
+            snapshot = self._snapshot_locked()
         if listener is not None:
             listener(snapshot)
 
@@ -200,11 +232,12 @@ class ExternalSessionState:
         """
         with self._lock:
             self._metadata = SessionExternalMetadata()
+            self._compacting = False
 
     def to_dict(self) -> dict:
         """Return current metadata as a JSON-serializable dict (None values omitted)."""
         with self._lock:
-            return self._metadata.to_dict()
+            return self._snapshot_locked().to_dict()
 
 
 # ---------------------------------------------------------------------------

@@ -435,6 +435,28 @@ class WebSession:
         # ── CloudGuard working-set population (passive, all sources) ─────
         self._observe_for_working_set(event)
 
+        # ── Gap 3: external "compacting" state during condensation ───────
+        # AgentState has no COMPACTING value, so the external surface stays
+        # "running"/"idle" during a 10–30s compaction. Override it here so SDK
+        # consumers see accurate state. Source-independent (ring click = USER,
+        # auto-compact = AGENT), so handled before the source branches.
+        from openhands.events.action.agent import (
+            CondensationAction as _CondAction,
+            CondensationRequestAction as _CondReq,
+        )
+        if isinstance(event, (_CondReq, _CondAction)):
+            from openhands.server.session.external_state import EXTERNAL_STATE
+            if isinstance(event, _CondReq):
+                EXTERNAL_STATE.set_compacting()
+            else:
+                EXTERNAL_STATE.clear_compacting()
+            if self.sio:
+                await self.sio.emit(
+                    'agent_external_state',
+                    EXTERNAL_STATE.to_dict(),
+                    to=ROOM_KEY.format(sid=self.sid),
+                )
+
         if event.source == EventSource.AGENT:
             await self.send(event_to_dict(event))
             # After a compaction completes, re-emit context pressure recomputed

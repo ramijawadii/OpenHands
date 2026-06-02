@@ -117,6 +117,15 @@ PROMPT_CACHE_PATTERNS: list[str] = [
     'claude-3-opus-20240229',
     'claude-sonnet-4*',
     'claude-opus-4*',
+    # CloudGuard: Gemini via Vertex AI supports prompt/context caching.
+    # `gemini-*` matches the normalized basename (so it covers
+    # `vertex_ai/gemini-2.5-flash`); the provider-qualified entries match the
+    # full model string for completeness. Whether litellm honors Anthropic-style
+    # cache_control for Gemini is measured at runtime (Gap 2 Step 3); if it is a
+    # no-op the native Vertex caching path is used instead.
+    'gemini-*',
+    'vertex_ai/*',
+    'vertex_ai_beta/*',
 ]
 
 SUPPORTS_STOP_WORDS_FALSE_PATTERNS: list[str] = [

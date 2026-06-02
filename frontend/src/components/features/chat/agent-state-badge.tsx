@@ -24,12 +24,17 @@ const STYLES: Record<
     label: "Action required",
     wrapper: "text-amber-400 border-amber-700/50 bg-amber-900/20",
   },
+  compacting: {
+    dot: "bg-violet-400 animate-pulse",
+    label: "Compacting…",
+    wrapper: "text-violet-400 border-violet-700/50 bg-violet-900/20",
+  },
 };
 
 export function AgentStateBadge() {
   const { externalState } = useExternalStateStore();
 
-  if (externalState === "idle") return null;
+  if (externalState !== "running" && externalState !== "compacting") return null;
 
   const { dot, label, wrapper } = STYLES[externalState];
 

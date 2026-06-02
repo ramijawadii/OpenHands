@@ -211,6 +211,15 @@ class CodeActAgent(Agent):
             'messages': messages,
         }
         params['tools'] = check_tools(self.tools, self.llm.config)
+        # Gap 2 (prompt caching): mark the last tool schema as an ephemeral cache
+        # breakpoint so the large, static tool array is cached after turn 1.
+        # Gated by the SAME latched check the message breakpoints use
+        # (_should_include_cache_control), so tool and message cache markers are
+        # always consistent within a turn — a mismatch would bust the cache.
+        if params['tools'] and self.llm._should_include_cache_control():
+            last_tool = params['tools'][-1]
+            if isinstance(last_tool, dict):
+                last_tool['cache_control'] = {'type': 'ephemeral'}
         params['extra_body'] = {
             'metadata': state.to_llm_metadata(
                 model_name=self.llm.config.model, agent_name=self.name

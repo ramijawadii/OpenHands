@@ -5,12 +5,16 @@
  * Updated by ws-client-provider when `agent_external_state` Socket.IO events
  * arrive from the backend (emitted on every AgentStateChangedObservation).
  *
- * State values: "idle" | "running" | "requires_action"
+ * State values: "idle" | "running" | "requires_action" | "compacting"
  * Corresponds to openhands/server/session/external_state.py
  */
 import { create } from "zustand";
 
-export type ExternalStateName = "idle" | "running" | "requires_action";
+export type ExternalStateName =
+  | "idle"
+  | "running"
+  | "requires_action"
+  | "compacting";
 
 export interface PendingAction {
   tool_name: string;
