@@ -15,13 +15,26 @@ type PDFDocProxy = Awaited<ReturnType<typeof pdfjsLib.getDocument>["promise"]>;
 interface Props {
   arrayBuffer: ArrayBuffer;
   filename?: string;
+  /** Reports successful load + metadata (page count, zoom) to the health layer. */
+  onReady?: (meta: Record<string, unknown>) => void;
+  /** Reports a display/render error to the health layer. */
+  onDisplayError?: (error: string) => void;
 }
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 4.0;
 const SCALE_STEPS = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0];
 
-export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
+export function PDFViewer({
+  arrayBuffer,
+  filename = "document.pdf",
+  onReady,
+  onDisplayError,
+}: Props) {
+  const onReadyRef = useRef(onReady);
+  const onDisplayErrorRef = useRef(onDisplayError);
+  onReadyRef.current = onReady;
+  onDisplayErrorRef.current = onDisplayError;
   const [pdfDoc, setPdfDoc] = useState<PDFDocProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -82,10 +95,17 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
         setNumPages(doc.numPages);
         setCurrentPage(1);
         setIsLoading(false);
+        onReadyRef.current?.({
+          kind: "pdf",
+          pages: doc.numPages,
+          zoom: Math.round(fitScale * 100) / 100,
+        });
       })
       .catch((err: unknown) => {
-        setLoadError(err instanceof Error ? err.message : "Failed to load PDF");
+        const msg = err instanceof Error ? err.message : "Failed to load PDF";
+        setLoadError(msg);
         setIsLoading(false);
+        onDisplayErrorRef.current?.(msg);
       });
     return () => {
       task.destroy();
@@ -147,6 +167,7 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         container.innerHTML = `<div style="color:#f48771;padding:12px;font-size:12px;font-family:monospace">Page ${pageNum} render error: ${msg}</div>`;
+        onDisplayErrorRef.current?.(`Page ${pageNum}: ${msg}`);
       } finally {
         renderingPages.current.delete(pageNum);
       }
@@ -531,14 +552,6 @@ export function PDFViewer({ arrayBuffer, filename = "document.pdf" }: Props) {
               }}
             />
           ))}
-      </div>
-
-      {/* Status bar */}
-      <div className="pdf-status">
-        <span>
-          {filename} · page {currentPage} of {numPages}
-        </span>
-        <span>{Math.round(scale * 100)}% zoom</span>
       </div>
     </div>
   );

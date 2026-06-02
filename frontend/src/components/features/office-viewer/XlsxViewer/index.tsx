@@ -7,6 +7,10 @@ import { CG_ASK_ABOUT_EVENT } from "#/hooks/chat/use-chat-input-logic";
 interface Props {
   arrayBuffer: ArrayBuffer;
   filename?: string;
+  /** Reports successful parse + metadata (sheets, dims) to the health layer. */
+  onReady?: (meta: Record<string, unknown>) => void;
+  /** Reports a parse/display error to the health layer. */
+  onDisplayError?: (error: string) => void;
 }
 
 interface CellCoord { r: number; c: number }
@@ -86,7 +90,16 @@ function isMultiCell(a: CellCoord | null, b: CellCoord | null): boolean {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function XlsxViewer({ arrayBuffer, filename = "workbook.xlsx" }: Props) {
+export function XlsxViewer({
+  arrayBuffer,
+  filename = "workbook.xlsx",
+  onReady,
+  onDisplayError,
+}: Props) {
+  const onReadyRef = useRef(onReady);
+  const onDisplayErrorRef = useRef(onDisplayError);
+  onReadyRef.current = onReady;
+  onDisplayErrorRef.current = onDisplayError;
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
   const [activeSheet, setActiveSheet] = useState<string>("");
   const [selectedCell, setSelectedCell] = useState<string>("A1");
@@ -124,8 +137,17 @@ export function XlsxViewer({ arrayBuffer, filename = "workbook.xlsx" }: Props) {
       setSelHead(null);
       setPopup(null);
       setError(null);
+      const firstWs = wb.SheetNames[0] ? wb.Sheets[wb.SheetNames[0]] : null;
+      onReadyRef.current?.({
+        kind: "xlsx",
+        sheets: wb.SheetNames,
+        active_sheet: wb.SheetNames[0] ?? "",
+        dims: firstWs?.["!ref"] ?? "empty",
+      });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to parse file");
+      const msg = e instanceof Error ? e.message : "Failed to parse file";
+      setError(msg);
+      onDisplayErrorRef.current?.(msg);
     }
   }, [arrayBuffer]);
 
@@ -199,6 +221,19 @@ export function XlsxViewer({ arrayBuffer, filename = "workbook.xlsx" }: Props) {
       }
     };
   }, [isDragging]);
+
+  // ── Viewport size — used to pad the grid with empty cells so it fills the
+  //    panel (Excel-style) instead of stopping at the last data cell. ────────
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = gridAreaRef.current;
+    if (!el) return undefined;
+    const measure = () => setViewport({ w: el.clientWidth, h: el.clientHeight });
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [workbook, activeSheet]);
 
   // ── Active worksheet ──────────────────────────────────────────────────────
   const ws = useMemo(
@@ -366,10 +401,27 @@ export function XlsxViewer({ arrayBuffer, filename = "workbook.xlsx" }: Props) {
     );
   }
 
+  // Pad the rendered range with empty cells so the grid fills the viewport
+  // (like a real spreadsheet) instead of being cut off at the last data cell.
+  const ROWNUM_W = 40;
+  const HEADER_H = 22;
+  const DEF_COL = 70;
+  const DEF_ROW = 22;
+  const fillCols = viewport.w ? Math.ceil((viewport.w - ROWNUM_W) / DEF_COL) : 0;
+  const fillRows = viewport.h ? Math.ceil((viewport.h - HEADER_H) / DEF_ROW) : 0;
+  const dispEndC = Math.min(
+    startC + MAX_COLS - 1,
+    Math.max(endC, startC + Math.max(0, fillCols) - 1),
+  );
+  const dispEndR = Math.min(
+    startR + MAX_ROWS - 1,
+    Math.max(endR, startR + Math.max(0, fillRows) - 1),
+  );
+
   const rows: React.ReactNode[] = [];
 
   const colHeaders: React.ReactNode[] = [<th key="corner" className="xlsx-corner" />];
-  for (let c = startC; c <= endC; c++) {
+  for (let c = startC; c <= dispEndC; c++) {
     colHeaders.push(
       <th key={c} className="xlsx-col-header" style={{ minWidth: colWidthPx(c), width: colWidthPx(c) }}>
         {colLabel(c)}
@@ -378,11 +430,11 @@ export function XlsxViewer({ arrayBuffer, filename = "workbook.xlsx" }: Props) {
   }
   rows.push(<tr key="header">{colHeaders}</tr>);
 
-  for (let r = startR; r <= endR; r++) {
+  for (let r = startR; r <= dispEndR; r++) {
     const cells: React.ReactNode[] = [
       <td key="rn" className="xlsx-row-num" style={{ height: rowHeightPx(r) }}>{r + 1}</td>,
     ];
-    for (let c = startC; c <= endC; c++) {
+    for (let c = startC; c <= dispEndC; c++) {
       if (skipSet.has(`${r},${c}`)) continue;
       const addr = XLSX.utils.encode_cell({ r, c });
       const cell = ws ? ws[addr] : undefined;

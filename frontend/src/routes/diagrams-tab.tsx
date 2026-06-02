@@ -5,10 +5,17 @@ import { ReactFlow, Background, Controls, BackgroundVariant } from "@xyflow/reac
 import "@xyflow/react/dist/style.css";
 import { RotateCw, ChevronDown, Download } from "lucide-react";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
+import { sanitizeMermaid } from "#/utils/sanitize-mermaid";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import { XlsxViewer } from "#/components/features/office-viewer/XlsxViewer";
+import {
+  setHealthConversation,
+  reportArtifactHealth,
+  reportPanelState,
+  clearArtifactHealth,
+} from "#/utils/artifact-health";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -138,7 +145,7 @@ function MermaidBlock({ code, onError, onSuccess, onExpand }: MermaidBlockProps)
     const id = `cg-md-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     getMermaid(async (m) => {
       try {
-        const { svg } = await m.default.render(id, code);
+        const { svg } = await m.default.render(id, sanitizeMermaid(code));
         const scaledSvg = svg
           .replace(/(<svg[^>]*)\swidth="[^"]*"/, "$1")
           .replace(/(<svg[^>]*)\sheight="[^"]*"/, "$1");
@@ -239,6 +246,11 @@ function DiagramsTab() {
   const consecutiveEmptyRef = useRef(0);
   const lastLatestRef = useRef<string | null>(null);
 
+  // ── Content cache — keyed by "<basePath>/<file>", avoids a network
+  // round-trip every time the user switches back to the Artifact tab.
+  const textCacheRef = useRef<Map<string, string>>(new Map());
+  const binaryCacheRef = useRef<Map<string, ArrayBuffer>>(new Map());
+
   // Mark client-side mount — guards ReactFlow from SSR hydration mismatch (#418)
   useEffect(() => {
     setMounted(true);
@@ -248,6 +260,11 @@ function DiagramsTab() {
   useEffect(() => {
     getMermaid(() => {});
   }, []);
+
+  // ── Artifact Health: bind conversation + report panel selection ──────────────
+  useEffect(() => {
+    setHealthConversation(conversationId ?? null);
+  }, [conversationId]);
 
   // Derive file type from extension
   const fileType: "md" | "mmd" | "pdf" | "xlsx" | null = useMemo(() => {
@@ -261,6 +278,15 @@ function DiagramsTab() {
   }, [selectedFile]);
 
   const isMdFile = fileType === "md";
+
+  // Report which artifact is selected + that the panel is open.
+  useEffect(() => {
+    reportPanelState({
+      active_file: selectedFile,
+      tab: fileType,
+      open: true,
+    });
+  }, [selectedFile, fileType]);
 
   // ── T4: render error feedback ───────────────────────────────────────────────
 
@@ -384,7 +410,10 @@ function DiagramsTab() {
       setIsEmpty(false);
       const newLatest = parsed.latest ?? null;
       if (newLatest && newLatest !== lastLatestRef.current) {
-        // A new page was saved — auto-switch to it
+        // A new page was saved — bust cache and auto-switch to it
+        const cacheKey = `${base}/${newLatest}`;
+        textCacheRef.current.delete(cacheKey);
+        binaryCacheRef.current.delete(cacheKey);
         setSelectedFile(newLatest);
         lastLatestRef.current = newLatest;
       } else {
@@ -417,28 +446,51 @@ function DiagramsTab() {
 
   useEffect(() => {
     if (!selectedFile) return;
-    setSvgHtml("");
-    setBinaryData(null);
 
     // Virtual files (expanded inline mermaid blocks) are served from memory
     const virtual = virtualFilesRef.current.get(selectedFile);
     if (virtual !== undefined) {
+      setSvgHtml("");
       setPageContent(virtual);
       setRenderError(null);
       return;
     }
 
+    const cacheKey = `${basePath}/${selectedFile}`;
+
     // Binary file types — load as ArrayBuffer
     if (fileType === "pdf" || fileType === "xlsx") {
-      readFileBinary(`${basePath}/${selectedFile}`).then((ab) => {
+      const cached = binaryCacheRef.current.get(cacheKey);
+      if (cached) {
+        // Instant: serve from cache, no blank flash
+        setBinaryData(cached);
+        setRenderError(null);
+        return;
+      }
+      setBinaryData(null);
+      readFileBinary(cacheKey).then((ab) => {
+        if (ab) binaryCacheRef.current.set(cacheKey, ab);
         setBinaryData(ab);
         setRenderError(null);
       });
       return;
     }
 
-    readFile(`${basePath}/${selectedFile}`).then((content) => {
-      setPageContent(content ?? "");
+    const cachedText = textCacheRef.current.get(cacheKey);
+    if (cachedText !== undefined) {
+      // Instant: serve from cache
+      setSvgHtml("");
+      setPageContent(cachedText);
+      setRenderError(null);
+      return;
+    }
+
+    setSvgHtml("");
+    setBinaryData(null);
+    readFile(cacheKey).then((content) => {
+      const text = content ?? "";
+      textCacheRef.current.set(cacheKey, text);
+      setPageContent(text);
       setRenderError(null);
     });
   // refreshKey intentionally triggers a re-fetch of the current file on manual refresh
@@ -451,17 +503,57 @@ function DiagramsTab() {
     if (isMdFile || !pageContent) return;
     setSvgHtml("");
     setRenderError(null);
-    const id = `cg-diagram-${Date.now()}`;
+    const id = `cg-diagram-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    let settled = false;
     getMermaid(async (m) => {
       try {
-        const { svg } = await m.default.render(id, pageContent);
+        // Race the render against a timeout so a malformed/huge diagram can never
+        // leave the panel stuck on "Rendering…" forever.
+        const { svg } = (await Promise.race([
+          m.default.render(id, sanitizeMermaid(pageContent)),
+          new Promise((_, reject) =>
+            setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "Render timed out (15s) — the diagram is too large or has a syntax error. Open “View source” to fix it.",
+                  ),
+                ),
+              15000,
+            ),
+          ),
+        ])) as { svg: string };
+        if (settled) return;
+        settled = true;
         setSvgHtml(svg);
-        if (selectedFile) clearRenderError(selectedFile);
+        if (selectedFile) {
+          clearRenderError(selectedFile);
+          // Approximate node/edge counts from the rendered SVG for health metadata.
+          const nodes = (svg.match(/class="[^"]*\bnode\b/g) || []).length;
+          const edges = (svg.match(/class="[^"]*\bedgePath\b/g) || []).length;
+          reportArtifactHealth({
+            file: selectedFile,
+            tab: "diagram",
+            status: "ok",
+            meta: { kind: "mermaid", nodes, edges },
+          });
+        }
       } catch (e: unknown) {
+        if (settled) return;
+        settled = true;
         const msg = e instanceof Error ? e.message : String(e);
         setRenderError(msg);
         setSvgHtml("");
-        if (selectedFile) reportRenderError(selectedFile, msg);
+        if (selectedFile) {
+          reportRenderError(selectedFile, msg);
+          reportArtifactHealth({
+            file: selectedFile,
+            tab: "diagram",
+            status: "error",
+            error: msg,
+            meta: { kind: "mermaid" },
+          });
+        }
       } finally {
         document.getElementById(id)?.remove();
       }
@@ -469,6 +561,29 @@ function DiagramsTab() {
   }, [pageContent, isMdFile, selectedFile, clearRenderError, reportRenderError]);
 
   const selectedEntry = manifest?.diagrams?.find((d) => d.file === selectedFile);
+
+  // Collapse "<base>-v<N>.<ext>" version spam → one entry per base (latest version).
+  // The agent saves a new -vN.pdf on every recompile; the selector should show the
+  // latest of each report, not all 8 intermediate versions.
+  const collapsedDiagrams = useMemo(() => {
+    const list = manifest?.diagrams ?? [];
+    const VER = /^(.*)-v(\d+)(\.[^.]+)$/;
+    const groups = new Map<string, PageEntry>();
+    for (const d of list) {
+      const m = d.file.match(VER);
+      const key = m ? `${m[1]}${m[3]}` : d.file; // base + ext (versionless key)
+      const ver = m ? parseInt(m[2], 10) : -1;
+      const cur = groups.get(key);
+      if (!cur) {
+        groups.set(key, d);
+      } else {
+        const cm = cur.file.match(VER);
+        const cv = cm ? parseInt(cm[2], 10) : -1;
+        if (ver > cv || (ver === cv && d.ts > cur.ts)) groups.set(key, d);
+      }
+    }
+    return [...groups.values()].sort((a, b) => b.ts - a.ts);
+  }, [manifest]);
 
   // ── Download SVG ────────────────────────────────────────────────────────────
 
@@ -533,12 +648,22 @@ function DiagramsTab() {
           <MermaidBlock
             code={code}
             onError={(err) => {
-              if (selectedFileRef.current)
+              if (selectedFileRef.current) {
                 reportRenderErrorRef.current(selectedFileRef.current, err);
+                reportArtifactHealth({
+                  file: selectedFileRef.current,
+                  tab: "markdown",
+                  status: "error",
+                  error: err,
+                  meta: { kind: "mermaid-in-markdown" },
+                });
+              }
             }}
             onSuccess={() => {
-              if (selectedFileRef.current)
+              if (selectedFileRef.current) {
                 clearRenderErrorRef.current(selectedFileRef.current);
+                clearArtifactHealth("markdown", selectedFileRef.current);
+              }
             }}
             onExpand={(c) => expandToStandaloneRef.current(c)}
           />
@@ -604,19 +729,24 @@ function DiagramsTab() {
           </button>
         )}
 
-        {manifest && (manifest.diagrams ?? []).length > 0 && (
+        {manifest && collapsedDiagrams.length > 0 && (
           <div className="relative flex-1 min-w-0">
             <select
               className="w-full appearance-none bg-[var(--cg-input-bg)] text-[var(--cg-text-nav)] text-[13px] rounded-[3px] pl-2.5 pr-7 py-1 border border-[var(--cg-border)] focus:outline-none focus:border-[var(--cg-accent)] cursor-pointer hover:border-[var(--cg-border-strong)] transition-colors"
+              style={{ colorScheme: "light dark" }}
               value={selectedFile && !virtualFilesRef.current.has(selectedFile) ? selectedFile : (manifest.latest ?? "")}
               onChange={(e) => { setSelectedFile(e.target.value); setPrevRealPage(null); }}
             >
-              {[...(manifest.diagrams ?? [])].reverse().map((d) => {
+              {collapsedDiagrams.map((d) => {
                 // Derive version from filename (e.g. report-v2.md → v2) if not already in name
                 const vMatch = d.file.match(/-v(\d+)\.[^.]+$/);
                 const vTag = vMatch && !d.name.toLowerCase().includes(`v${vMatch[1]}`) ? ` (v${vMatch[1]})` : "";
                 return (
-                  <option key={d.file} value={d.file}>
+                  <option
+                    key={d.file}
+                    value={d.file}
+                    style={{ backgroundColor: "var(--cg-bg-page)", color: "var(--cg-text-nav)" }}
+                  >
                     {d.name}{vTag}{!d.valid ? " ⚠" : ""}
                   </option>
                 );
@@ -651,7 +781,16 @@ function DiagramsTab() {
 
         <button
           type="button"
-          onClick={async () => { await pollManifest(); setRefreshKey((k) => k + 1); }}
+          onClick={async () => {
+            // Bust cache for the current file so the refetch is actually fresh
+            if (selectedFile) {
+              const ck = `${basePath}/${selectedFile}`;
+              textCacheRef.current.delete(ck);
+              binaryCacheRef.current.delete(ck);
+            }
+            await pollManifest();
+            setRefreshKey((k) => k + 1);
+          }}
           className="text-[#858585] hover:text-[#cccccc] transition-colors flex-shrink-0 p-1 rounded hover:bg-[#2a2d2e]"
           aria-label="Refresh"
           title="Refresh"
@@ -665,7 +804,29 @@ function DiagramsTab() {
         // PDF viewer
         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
           {binaryData ? (
-            <PDFViewer arrayBuffer={binaryData} filename={selectedFile ?? "document.pdf"} />
+            <PDFViewer
+              arrayBuffer={binaryData}
+              filename={selectedFile ?? "document.pdf"}
+              onReady={(meta) => {
+                if (selectedFile)
+                  reportArtifactHealth({
+                    file: selectedFile,
+                    tab: "pdf",
+                    status: "ok",
+                    meta,
+                  });
+              }}
+              onDisplayError={(err) => {
+                if (selectedFile)
+                  reportArtifactHealth({
+                    file: selectedFile,
+                    tab: "pdf",
+                    status: "error",
+                    error: err,
+                    meta: { kind: "pdf" },
+                  });
+              }}
+            />
           ) : (
             <div className="flex items-center justify-center w-full h-full bg-[var(--cg-bg-page)] text-[var(--cg-text-muted)] text-sm">
               Loading PDF…
@@ -676,7 +837,29 @@ function DiagramsTab() {
         // Excel viewer
         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
           {binaryData ? (
-            <XlsxViewer arrayBuffer={binaryData} filename={selectedFile ?? "workbook.xlsx"} />
+            <XlsxViewer
+              arrayBuffer={binaryData}
+              filename={selectedFile ?? "workbook.xlsx"}
+              onReady={(meta) => {
+                if (selectedFile)
+                  reportArtifactHealth({
+                    file: selectedFile,
+                    tab: "xlsx",
+                    status: "ok",
+                    meta,
+                  });
+              }}
+              onDisplayError={(err) => {
+                if (selectedFile)
+                  reportArtifactHealth({
+                    file: selectedFile,
+                    tab: "xlsx",
+                    status: "error",
+                    error: err,
+                    meta: { kind: "xlsx" },
+                  });
+              }}
+            />
           ) : (
             <div className="flex items-center justify-center w-full h-full bg-[var(--cg-bg-page)] text-[var(--cg-text-muted)] text-sm">
               Loading spreadsheet…
@@ -741,6 +924,18 @@ function DiagramsTab() {
                 />
                 <Controls showInteractive={false} />
               </ReactFlow>
+            ) : renderError ? (
+              <div className="flex flex-col items-center justify-center w-full h-full bg-[var(--cg-bg-page)] gap-2 px-6 text-center">
+                <span className="text-red-400 text-sm font-medium">
+                  Diagram failed to render
+                </span>
+                <span className="text-[var(--cg-text-muted)] text-xs font-mono max-w-full overflow-auto whitespace-pre-wrap">
+                  {renderError}
+                </span>
+                <span className="text-[var(--cg-text-muted)] text-xs">
+                  Open “View source (.mmd)” below to inspect / fix the syntax.
+                </span>
+              </div>
             ) : (
               <div className="flex items-center justify-center w-full h-full bg-[var(--cg-bg-page)]">
                 <span className="text-[var(--cg-text-muted)] text-sm">Rendering…</span>

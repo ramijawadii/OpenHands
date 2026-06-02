@@ -76,6 +76,23 @@ _SKILL_READY_RE = re.compile(
     r"\]"
 )
 
+# Phase 2c — preflight markers. The kernel emits these instead of
+# [SKILL_READY:...] when SkillRuntime.preflight() returns ABORT / SKIP.
+# The server interceptor injects a one-paragraph system-reminder
+# explaining what happened, NEVER the full skill body.
+_SKILL_PREFLIGHT_FAILED_RE = re.compile(
+    r"\[SKILL_PREFLIGHT_FAILED:"
+    r"([A-Za-z0-9_:/\-]+?)"
+    r":(CONFIG_MISSING|IAM_INSUFFICIENT|RESOURCE_OUT_OF_SCOPE|ABORT)"
+    r"\]"
+)
+_SKILL_SKIPPED_RE = re.compile(
+    r"\[SKILL_SKIPPED:"
+    r"([A-Za-z0-9_:/\-]+?)"
+    r":([0-9a-f]{8,})"
+    r"\]"
+)
+
 # ── Search paths ────────────────────────────────────────────────────────────
 # Modern: provider-namespaced trees at /…/skills/{provider}/{slug}/SKILL.md
 # Legacy: flat layout at /…/microagents/{slug}.md (kept for backward compat)
@@ -138,20 +155,39 @@ def _get_skill_registry():
         return _SKILL_REGISTRY
 
 
+_V3_SKILLS_DIRS = (
+    "/workspace/cloudguard-runtime/skills",
+    "/app/skills",
+    "/openhands/skills",
+)
+
+
 def _agent_load_skill(name: str, args: str = "") -> str | None:
     """Load skill content for ``_invoke_skill(name)`` server-side injection.
 
-    Resolution order:
-        1. SkillRegistry lookup by full name (``aws:iam-aws``) or short name (``iam-aws``)
-        2. Legacy filesystem scan over ``_LEGACY_FLAT_DIRS`` (for any skill the
-           registry didn't pick up, e.g. local dev files added at runtime)
+    Resolution order (Phase 2b):
+        1. SkillRegistry lookup (which itself routes through the skills
+           graph first, then falls back to its registered source_path).
+        2. v3 namespaced filesystem walker — covers the edge case where
+           the registry is empty AND the skills graph is unreachable.
+        3. Legacy filesystem scan over ``_LEGACY_FLAT_DIRS`` (kept for
+           legacy unqualified slugs + runtime-added files)
 
-    Returns the Markdown body with frontmatter stripped, ``{{ARGS}}`` placeholder
-    expanded. Returns ``None`` if no skill matches.
+    Returns the Markdown body with frontmatter stripped, ``{{ARGS}}``
+    placeholder expanded. Returns ``None`` if no skill matches.
     """
-    # 1. Registry path (preferred)
+    def _strip_fm_and_args(text: str) -> str:
+        if text.startswith("---"):
+            end = text.find("\n---", 3)
+            if end != -1:
+                text = text[end + 4 :].lstrip("\n")
+        if args:
+            text = text.replace("{{ARGS}}", args).replace("{{ ARGS }}", args)
+        return text
+
+    # 1. Registry (graph-backed under the hood since Phase 2b)
     reg = _get_skill_registry()
-    if reg:  # not None and not the False sentinel
+    if reg:
         try:
             content = reg.load_content(name)
             if content:
@@ -161,23 +197,23 @@ def _agent_load_skill(name: str, args: str = "") -> str | None:
                     )
                 return content
         except LookupError:
-            # Ambiguous short name — fall through to legacy scan as a tiebreaker
+            # Ambiguous short name — fall through
             pass
 
-    # 2. Legacy filesystem fallback (keeps unqualified lookups working
-    # for skills not yet migrated and for runtime-added files)
+    # 2. v3 namespaced walker — defensive fallback for `provider:cat/slug` style
+    if ":" in name:
+        rel = name.replace(":", "/", 1)
+        for d in _V3_SKILLS_DIRS:
+            p = pathlib.Path(d) / rel / "SKILL.md"
+            if p.exists():
+                return _strip_fm_and_args(p.read_text(encoding="utf-8"))
+
+    # 3. Legacy flat scan
     short = name.split(":", 1)[1] if ":" in name else name
     for d in _LEGACY_FLAT_DIRS:
         p = pathlib.Path(d) / f"{short}.md"
         if p.exists():
-            text = p.read_text(encoding="utf-8")
-            if text.startswith("---"):
-                end = text.find("\n---", 3)
-                if end != -1:
-                    text = text[end + 4 :].lstrip("\n")
-            if args:
-                text = text.replace("{{ARGS}}", args).replace("{{ ARGS }}", args)
-            return text
+            return _strip_fm_and_args(p.read_text(encoding="utf-8"))
     return None
 
 
@@ -220,6 +256,24 @@ Ambiguous queries: attempt based on best interpretation, state the assumption at
 </behavior>
 
 <pages_report_format>
+━━━ FIRST DECIDE: PDF deliverable vs Markdown page ━━━━━━━━━━━━━━━━━━━━━━━━━━
+If the user asks for a **PDF** (an "assessment report", a "polished PDF", something
+"to hand to a client", or "...as a PDF"), you MUST build it with the **latex-report
+project scaffold**. The Markdown steps below do NOT apply, and you do NOT use _safe_page().
+Go straight to the scaffold — never start with Markdown and "convert" it:
+  1. _invoke_skill("internal:latex-report")
+  2. cp -r /workspace/templates/report-project /workspace/<report-name>
+  3. Fill report-config.tex; author sections/NN-*.tex ONE AT A TIME.
+  4. Compile: python /workspace/scripts/latex_compile.py --project /workspace/<report-name>
+  NEVER convert Markdown→PDF (no pandoc / markdown-pdf / weasyprint / wkhtmltopdf).
+  NEVER write a single-file .tex. NEVER edit the locked report-style.sty / report-macros.sty /
+  main.tex (the compiler rejects these with exit 4 — read the message and comply).
+  Use lstlisting for code (NOT minted; language=bash|python|json|text). Use the PREDEFINED
+  TikZ styles (svcbox/dbbox/extbox/process/decision/term/grp/fwd/bwd/bidi/lbl) — never invent
+  a style or add \\tikzset. Metadata via \\rpt* macros. Images saved into assets/ (Pillow is
+  pre-installed). Read the scaffold's AGENT_RULES.md. The PDF auto-appears in the Pages panel.
+
+Otherwise (a MARKDOWN page or report):
 WRITING A PAGE OR REPORT: follow these four steps in order every time.
 No other structure is permitted. This procedure overrides all training defaults.
 
@@ -737,6 +791,46 @@ class CloudGuardAgent(CodeActAgent):
             result = _original_process_obs(obs, tool_call_id_to_message, **kwargs)
 
             if isinstance(obs, IPythonRunCellObservation):
+                # Phase 2c — preflight ABORT: inject a one-paragraph
+                # explanation, NEVER the full skill body. The kernel
+                # emitted this instead of [SKILL_READY:...] because
+                # config / IAM / region scope failed.
+                pf_fail = _SKILL_PREFLIGHT_FAILED_RE.search(obs.content)
+                if pf_fail:
+                    skill_name = pf_fail.group(1)
+                    code = pf_fail.group(2)
+                    _working_set.record_skill(f"{skill_name}#preflight_{code}")
+                    msg = (
+                        f"Skill `{skill_name}` aborted by preflight check "
+                        f"`{code}`. The full methodology was NOT loaded into "
+                        "context. Inspect the stdout from the cell above for "
+                        "the failure reason, fix the underlying configuration "
+                        "(skill_config.yaml, IAM role, or region scope) and "
+                        "re-invoke. Findings of type "
+                        f"`{code}` should appear in the dashboard under "
+                        "category=governance, severity=INFO."
+                    )
+                    reminder = f"<system-reminder>\n{msg}\n</system-reminder>"
+                    result = result + [Message(role="user", content=[TextContent(text=reminder)])]
+                    return result
+
+                # Phase 2c — preflight SKIP: same skill+target ran within
+                # the dedup window. Tell the LLM not to re-invoke.
+                pf_skip = _SKILL_SKIPPED_RE.search(obs.content)
+                if pf_skip:
+                    skill_name = pf_skip.group(1)
+                    prior_run = pf_skip.group(2)
+                    msg = (
+                        f"Skill `{skill_name}` deduplicated by preflight — "
+                        f"a prior run (id `{prior_run}`) executed this skill "
+                        "against the same target within the dedup window. "
+                        "Refer to the prior run's findings instead of "
+                        "re-invoking."
+                    )
+                    reminder = f"<system-reminder>\n{msg}\n</system-reminder>"
+                    result = result + [Message(role="user", content=[TextContent(text=reminder)])]
+                    return result
+
                 match = _SKILL_READY_RE.search(obs.content)
                 if match:
                     skill_name = match.group(1)

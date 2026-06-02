@@ -2,7 +2,7 @@
 :root {
   --pdf-shell:   #1e1e1e;
   --pdf-toolbar: #2d2d2d;
-  --pdf-surround:#3c3c3c;
+  --pdf-surround:#ffffff;
   --pdf-border:  #3c3c3c;
   --pdf-text:    #cccccc;
   --pdf-muted:   #858585;
@@ -132,7 +132,7 @@
 .pdf-page-wrapper {
   position: relative;
   background: white;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  box-shadow: 0 0 0 1px #e2e2e2, 0 2px 8px rgba(0,0,0,0.12);
   flex-shrink: 0;
 }
 
