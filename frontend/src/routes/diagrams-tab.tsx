@@ -14,7 +14,6 @@ import {
   setHealthConversation,
   reportArtifactHealth,
   reportPanelState,
-  clearArtifactHealth,
 } from "#/utils/artifact-health";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -94,6 +93,22 @@ function getMermaid(cb: (m: MermaidModule) => void): void {
       mermaidQueue.forEach((fn) => fn(m));
       mermaidQueue.length = 0;
     });
+  }
+}
+
+// ── Count rendered nodes/edges from a Mermaid SVG (for health metadata) ──────
+// DOM-based, version-robust: regex on class names misses current Mermaid output
+// (edge paths are `.edgePaths path` / `.flowchart-link`, not `edgePath`).
+function countMermaidParts(svg: string): { nodes: number; edges: number; subgraphs: number } {
+  try {
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const nodes = doc.querySelectorAll("g.node").length;
+    // Comma-selector returns a deduped union, so a path matching both counts once.
+    const edges = doc.querySelectorAll(".edgePaths path.flowchart-link, path.flowchart-link, .edgePaths > path").length;
+    const subgraphs = doc.querySelectorAll("g.cluster").length;
+    return { nodes, edges, subgraphs };
+  } catch {
+    return { nodes: 0, edges: 0, subgraphs: 0 };
   }
 }
 
@@ -287,6 +302,19 @@ function DiagramsTab() {
       open: true,
     });
   }, [selectedFile, fileType]);
+
+  // A markdown page that loaded content is, by default, displaying OK. This gives
+  // the agent a positive health entry for .md pages (embedded-diagram errors below
+  // flip it to "error"). Without this, a healthy page produced an empty artifact list.
+  useEffect(() => {
+    if (!isMdFile || !selectedFile || !pageContent) return;
+    reportArtifactHealth({
+      file: selectedFile,
+      tab: "markdown",
+      status: "ok",
+      meta: { kind: "markdown" },
+    });
+  }, [isMdFile, selectedFile, pageContent]);
 
   // ── T4: render error feedback ───────────────────────────────────────────────
 
@@ -528,14 +556,11 @@ function DiagramsTab() {
         setSvgHtml(svg);
         if (selectedFile) {
           clearRenderError(selectedFile);
-          // Approximate node/edge counts from the rendered SVG for health metadata.
-          const nodes = (svg.match(/class="[^"]*\bnode\b/g) || []).length;
-          const edges = (svg.match(/class="[^"]*\bedgePath\b/g) || []).length;
           reportArtifactHealth({
             file: selectedFile,
             tab: "diagram",
             status: "ok",
-            meta: { kind: "mermaid", nodes, edges },
+            meta: { kind: "mermaid", ...countMermaidParts(svg) },
           });
         }
       } catch (e: unknown) {
@@ -662,7 +687,14 @@ function DiagramsTab() {
             onSuccess={() => {
               if (selectedFileRef.current) {
                 clearRenderErrorRef.current(selectedFileRef.current);
-                clearArtifactHealth("markdown", selectedFileRef.current);
+                // Re-assert OK (do NOT clear — the page-level md-ok entry must
+                // survive so the agent always sees a positive record for the page).
+                reportArtifactHealth({
+                  file: selectedFileRef.current,
+                  tab: "markdown",
+                  status: "ok",
+                  meta: { kind: "markdown" },
+                });
               }
             }}
             onExpand={(c) => expandToStandaloneRef.current(c)}
