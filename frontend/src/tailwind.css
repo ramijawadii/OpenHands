@@ -110,6 +110,13 @@
 .custom-scrollbar-always {
   scrollbar-width: thin;
   scrollbar-color: rgba(208, 217, 250, 0.3) transparent;
+  /* Reserve the scrollbar gutter permanently. Without this, overflow-y:auto
+     toggles the scrollbar as content height crosses the viewport boundary
+     (very common while streaming): the scrollbar appearing shrinks the content
+     width, which reflows text/height, which hides the scrollbar, which widens
+     the content again — an infinite flicker loop. A stable gutter keeps the
+     content width constant so the scrollbar can never thrash the layout. */
+  scrollbar-gutter: stable;
 }
 
 /* Custom styles for contenteditable */
