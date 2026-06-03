@@ -215,8 +215,19 @@ export function WsClientProvider({
         removeOptimisticUserMessage();
       }
 
-      // A complete assistant message arriving means the stream is done.
-      if (isAssistantMessage(event)) {
+      // The streamed text is transient: once the step's terminal event arrives
+      // it is committed into that event (an assistant message, or the `thought`
+      // of a tool action). Clear it then. Clearing ONLY on assistant messages
+      // left tool-using turns (run / run_ipython / mcp / finish — which are
+      // ACTIONS, not messages) with the streamed thinking lingering in the chat
+      // AND duplicated by the action's own thought rendering.
+      const isAgentTerminalEvent =
+        isAssistantMessage(event) ||
+        (typeof event === "object" &&
+          event !== null &&
+          "action" in event &&
+          (event as { source?: string }).source === "agent");
+      if (isAgentTerminalEvent) {
         setStreamingContent(null);
       }
 

@@ -1,32 +1,37 @@
 import React from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { code } from "../markdown/code";
-import { ul, ol } from "../markdown/list";
-import { anchor } from "../markdown/anchor";
-import { paragraph } from "../markdown/paragraph";
+import { MarkdownRenderer } from "../markdown/MarkdownRenderer";
 
 interface StreamingMessageProps {
   content: string;
 }
 
+/**
+ * Renders the in-flight assistant text while tokens stream in.
+ *
+ * It MUST mirror the final agent message exactly (ChatMessage → MarkdownRenderer
+ * with className="md-vscode--chat" + breaks, wrapped in the same article/div),
+ * otherwise the text appears unstyled during the stream and then visibly snaps
+ * to the styled markdown when the complete message arrives. Using the same
+ * renderer + scoping class makes the hand-off seamless — no reflow, no flash.
+ */
 export function StreamingMessage({ content }: StreamingMessageProps) {
   return (
-    <article className="mt-6 w-full max-w-full">
-      <div
-        className="text-sm"
-        style={{ whiteSpace: "normal", wordBreak: "break-word" }}
-      >
-        <Markdown
-          components={{ code, ul, ol, a: anchor, p: paragraph }}
-          remarkPlugins={[remarkGfm, remarkBreaks]}
-        >
-          {content}
-        </Markdown>
+    <article
+      data-testid="streaming-message"
+      className="rounded-xl relative w-fit max-w-full mt-6 w-full flex flex-col gap-2"
+    >
+      <div style={{ wordBreak: "break-word" }}>
+        <MarkdownRenderer
+          content={content}
+          className="md-vscode--chat"
+          breaks
+        />
         <span
           className="inline-block w-[2px] h-[0.85em] ml-[2px] animate-pulse"
-          style={{ background: "var(--cg-text-muted)", verticalAlign: "text-bottom" }}
+          style={{
+            background: "var(--cg-text-muted)",
+            verticalAlign: "text-bottom",
+          }}
         />
       </div>
     </article>
