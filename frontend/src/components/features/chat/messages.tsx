@@ -294,7 +294,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
         ))}
 
         {streamingContent && !isAssistantMessage(messages[messages.length - 1] as never) && (
-          <StreamingMessage content={streamingContent} />
+          <StreamingMessage />
         )}
 
         {optimisticUserMessage && (

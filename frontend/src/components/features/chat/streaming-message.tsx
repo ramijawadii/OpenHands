@@ -1,22 +1,15 @@
 import React from "react";
-import { ThoughtDisclosure } from "./thought-disclosure";
-
-interface StreamingMessageProps {
-  content: string;
-}
+import { ThoughtIndicator } from "./thought-indicator";
 
 /**
- * Renders the agent's in-flight output while tokens stream in.
- *
- * The live text is contained in a COLLAPSED, openable "Thinking…" disclosure so
- * the running reasoning never spreads inline in the chat — the user sees a calm
- * marker they can expand. Mirrors how the persisted action thought renders
- * (same ThoughtDisclosure), so the hand-off when the step completes is seamless.
+ * While the agent streams, show ONLY a "Thinking… Ns" point in the timeline —
+ * the thinking tokens themselves are never rendered. When the step completes
+ * the stream clears and the action card's static "Thought" marker takes over.
  */
-export function StreamingMessage({ content }: StreamingMessageProps) {
+export function StreamingMessage() {
   return (
     <article data-testid="streaming-message" className="mt-6 w-full max-w-full">
-      <ThoughtDisclosure content={content} streaming />
+      <ThoughtIndicator streaming />
     </article>
   );
 }

@@ -11,6 +11,7 @@ import { expandSlashCommand } from "#/utils/expand-slash-command";
 import AwsColorIcon from "#/icons/aws-color (1).svg?react";
 import AzureAIcon from "#/icons/azure-a.svg?react";
 import GoogleCloudIcon from "#/icons/icons8-google-cloud.svg?react";
+import { ContextRingIndicator } from "../context-ring-indicator";
 
 const CLOUD_PROVIDERS = [
   {
@@ -284,8 +285,9 @@ export function ChatInputRow({
           ))}
         </div>
 
-        {/* Right: mode selector + agent status + send */}
+        {/* Right: context ring + mode selector + agent status + send */}
         <div className="flex items-center gap-2">
+          <ContextRingIndicator />
           {modeSlot}
           {agentStatusSlot}
           {showButton && (

@@ -2,7 +2,7 @@ import React from "react";
 import { OpenHandsAction } from "#/types/core/actions";
 import { OpenHandsObservation } from "#/types/core/observations";
 import { isOpenHandsAction, isOpenHandsObservation } from "#/types/core/guards";
-import { ThoughtDisclosure } from "../thought-disclosure";
+import { ThoughtIndicator } from "../thought-indicator";
 import { GenericEventMessage } from "../generic-event-message";
 import { ConfirmationButtons } from "#/components/shared/buttons/confirmation-buttons";
 import { getEventContent } from "../event-content-helpers/get-event-content";
@@ -29,9 +29,7 @@ export function GenericEventMessageWrapper({
     <div>
       {isOpenHandsAction(event) &&
         hasThoughtProperty(event.args) &&
-        event.action !== "think" && (
-          <ThoughtDisclosure content={event.args.thought} />
-        )}
+        event.action !== "think" && <ThoughtIndicator />}
 
       <GenericEventMessage
         title={content.title}

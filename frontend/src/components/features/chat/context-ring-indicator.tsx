@@ -2,6 +2,7 @@
 import React from "react";
 import { useContextPressureStore } from "#/stores/context-pressure-store";
 import { useWsClient } from "#/context/ws-client-provider";
+import { useCompactStore } from "#/stores/compact-store";
 
 // SVG ring geometry
 const RADIUS = 10;
@@ -12,38 +13,56 @@ const CX = SIZE / 2;
 const CY = SIZE / 2;
 
 function getRingColor(pressure: number): string {
-  if (pressure >= 0.95) return "#ef4444"; // red — imminent
-  if (pressure >= 0.8) return "#f97316"; // orange — high
+  if (pressure >= 0.95) return "#ef4444"; // red — imminent compaction
+  if (pressure >= 0.8) return "#f97316"; // orange — high pressure
   if (pressure >= 0.6) return "#eab308"; // yellow — moderate
   return "#22c55e"; // green — comfortable
 }
 
 /**
  * Circular progress ring showing how full the context window is before
- * the next auto-compaction fires.  Clicking it triggers an on-demand compact.
+ * the next auto-compaction fires (Claude Code architecture — real token data).
  *
- * Hidden when no events have been recorded yet (used === 0).
+ * pressure = tokenUsage / autoCompactThreshold (0–1)
+ * percentRemaining = % of threshold left before auto-compact fires
+ *
+ * Hidden until the first LLM API response arrives (contextWindow === 0).
+ * Clicking triggers an on-demand compact.
  */
 export function ContextRingIndicator() {
-  const { used, max, pressure } = useContextPressureStore();
+  const { percentRemaining, pressure, contextWindow } =
+    useContextPressureStore();
   const { send } = useWsClient();
+  const [pulsing, setPulsing] = React.useState(false);
 
-  if (used === 0 || max === 0) return null;
+  // Hide until real token data arrives from the backend
+  if (contextWindow === 0) return null;
 
-  const remaining = Math.max(0, Math.round((1 - pressure) * 100));
   const fillOffset = CIRCUMFERENCE * (1 - pressure);
   const color = getRingColor(pressure);
-  const tooltipText = `${remaining}% of context remaining until next compact`;
+  const tooltipText = `${percentRemaining}% of context remaining — click to compact`;
 
   const handleCompact = (e: React.MouseEvent) => {
     e.stopPropagation();
     send({ action: "condensation_request" });
+    // Show CompactionBanner immediately. If agent is running the condenser fires
+    // and CondensationObservation will resolve it. If agent is idle, the
+    // CompactionBanner 30-second timeout switches to "⏳ Queued" and auto-clears.
+    useCompactStore.getState().recordCompactionStarted();
+    setPulsing(true);
+    setTimeout(() => setPulsing(false), 600);
   };
 
   return (
     <div
       className="relative flex items-center justify-center cursor-pointer group select-none"
-      style={{ width: SIZE, height: SIZE, flexShrink: 0 }}
+      style={{
+        width: SIZE,
+        height: SIZE,
+        flexShrink: 0,
+        transform: pulsing ? "scale(1.25)" : "scale(1)",
+        transition: "transform 0.15s ease",
+      }}
       onClick={handleCompact}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ")
@@ -73,7 +92,7 @@ export function ContextRingIndicator() {
           strokeDasharray={CIRCUMFERENCE}
           strokeDashoffset={0}
         />
-        {/* Filled arc — grows clockwise */}
+        {/* Filled arc — grows clockwise as context fills up */}
         <circle
           cx={CX}
           cy={CY}
