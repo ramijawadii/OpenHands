@@ -410,8 +410,16 @@ export function WsClientProvider({
     });
 
     const handleStreamChunk = (data: { content: string }) => {
+      // The thinking tokens are NOT rendered — the UI only shows a "Thinking… Ns"
+      // marker (see ThoughtIndicator). So we must NOT accumulate the text:
+      // appending every token (prev + delta) changed state on each chunk and
+      // re-rendered the whole message list dozens of times a second, glitching
+      // the page during streaming. Instead, flip a single sentinel — once
+      // streamingContent is "1", identical subsequent sets are no-ops (React
+      // bails), so the message list does not re-render per token. It is reset to
+      // null on the step's terminal event.
       if (typeof data.content === "string") {
-        setStreamingContent((prev) => (prev ?? "") + data.content);
+        setStreamingContent("1");
       }
     };
 
