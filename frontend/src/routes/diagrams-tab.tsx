@@ -902,7 +902,15 @@ function DiagramsTab() {
         // VSCode Dark Modern markdown renderer
         <div
           className="flex-1 overflow-y-auto"
-          style={{ backgroundColor: "var(--cg-bg-page)", minHeight: 0 }}
+          // scrollbarGutter:stable reserves the scrollbar gutter so it can't
+          // thrash the layout width as embedded mermaid diagrams render async
+          // (each SVG replacing its placeholder grows the height and would
+          // otherwise toggle the scrollbar → reflow → toggle loop).
+          style={{
+            backgroundColor: "var(--cg-bg-page)",
+            minHeight: 0,
+            scrollbarGutter: "stable",
+          }}
         >
           <MarkdownRenderer
             content={pageContent}
