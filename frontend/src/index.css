@@ -120,6 +120,17 @@
   background: var(--cg-text-muted);
 }
 
+html,
+body {
+  /* The app is a fixed full-viewport IDE layout — only the inner panels (chat,
+     Pages, terminal) scroll. Lock the document so it can NEVER show a page-level
+     scrollbar: a momentary content overflow (streaming, async mermaid render)
+     was introducing/removing the global scrollbar in a loop, glitching the
+     whole page. height:100% + overflow:hidden removes that scrollbar entirely. */
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
   margin: 0;
   font-family:
