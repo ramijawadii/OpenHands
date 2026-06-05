@@ -83,4 +83,15 @@ app.include_router(secrets_router)
 if server_config.app_mode == AppMode.OSS:
     app.include_router(git_api_router)
 app.include_router(trajectory_router)
+
+# CloudGuard approval + clarification routes (the chat banner's same-origin API).
+try:
+    from openhands.server.routes.cloudguard_approvals import app as cloudguard_approvals_router
+
+    app.include_router(cloudguard_approvals_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning("CloudGuard approval routes unavailable: %s", _cg_exc)
+
 add_health_endpoints(app)

@@ -35,6 +35,8 @@ import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/state/conversation-store";
 import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { CompactionBanner } from "./compaction-banner";
+import { ApprovalBanner } from "./approval-banner";
+import { ClarificationBanner } from "./clarification-banner";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -232,6 +234,8 @@ export function ChatInterface() {
           </div>
 
           <CompactionBanner />
+          <ApprovalBanner />
+          <ClarificationBanner />
           {errorMessage && <ErrorMessageBanner message={errorMessage} />}
 
           <InteractiveChatBox
