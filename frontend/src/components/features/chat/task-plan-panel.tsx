@@ -1,6 +1,7 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { useParams } from "react-router";
+import { ListChecks } from "lucide-react";
 import { openHands } from "#/api/open-hands-axios";
 import { TaskListSection } from "./task-tracking/task-list-section";
 
@@ -57,18 +58,31 @@ export function TaskPlanPanel() {
   }));
   const done = items.filter((i) => i.status === "done").length;
 
+  // Render as a message in the conversation flow (timeline rail like the agent's
+  // other messages), NOT a chrome card pinned to the input box.
   return (
-    <div
-      className="flex flex-col gap-1 px-3 py-2 rounded-md border"
-      style={{
-        borderColor: "var(--cg-border)",
-        background: "var(--cg-input-bg)",
-      }}
-    >
-      <span className="text-xs" style={{ color: "var(--cg-text-muted)" }}>
-        Plan · {done}/{items.length} done
-      </span>
-      <TaskListSection taskList={items} />
+    <div className="flex w-full">
+      <div className="w-[20px] flex flex-col items-center shrink-0" aria-hidden>
+        <div
+          className="w-px flex-1"
+          style={{ background: "var(--cg-border)" }}
+        />
+        <ListChecks
+          size={16}
+          className="shrink-0 my-[3px]"
+          style={{ color: "var(--cg-text-muted)" }}
+        />
+        <div
+          className="w-px flex-1"
+          style={{ background: "var(--cg-border)" }}
+        />
+      </div>
+      <div className="min-w-0 pl-2 py-1.5 flex-1">
+        <div className="text-sm mb-1" style={{ color: "var(--cg-text-nav)" }}>
+          Task plan · {done}/{items.length} done
+        </div>
+        <TaskListSection taskList={items} />
+      </div>
     </div>
   );
 }
