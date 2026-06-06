@@ -25,9 +25,11 @@ export function TaskTrackingEventMessage({
   const { command } = event.extras;
   let title: React.ReactNode;
   let initiallyExpanded = false;
+  // The plan is the agent's working state — always visible, never behind a dropdown.
+  const isPlan = command === "plan";
 
   // Determine title and expansion state based on command
-  if (command === "plan") {
+  if (isPlan) {
     title = t("OBSERVATION_MESSAGE$TASK_TRACKING_PLAN");
     initiallyExpanded = true;
   } else {
@@ -43,6 +45,7 @@ export function TaskTrackingEventMessage({
         details={<TaskTrackingObservationContent event={event} />}
         success={getObservationResult(event)}
         initiallyExpanded={initiallyExpanded}
+        collapsible={!isPlan}
       />
       {shouldShowConfirmationButtons && <ConfirmationButtons />}
     </div>

@@ -91,16 +91,12 @@ const getTaskTrackingActionContent = (event: TaskTrackingAction): string => {
   ) {
     content += `\n\n**Task List (${event.args.task_list.length} ${event.args.task_list.length === 1 ? "item" : "items"}):**\n`;
 
-    event.args.task_list.forEach((task, index) => {
-      const statusIcon =
-        {
-          todo: "⏳",
-          in_progress: "🔄",
-          done: "✅",
-        }[task.status] || "❓";
+    event.args.task_list.forEach((task) => {
+      // Monochrome markdown checkbox (no emoji): [ ] todo, [~] in progress, [x] done.
+      const checkbox =
+        { todo: "[ ]", in_progress: "[~]", done: "[x]" }[task.status] || "[ ]";
 
-      content += `\n${index + 1}. ${statusIcon} **[${task.status.toUpperCase().replace("_", " ")}]** ${task.title}`;
-      content += `\n   *ID: ${task.id}*`;
+      content += `\n- ${checkbox} ${task.title}`;
       if (task.notes) {
         content += `\n   *Notes: ${task.notes}*`;
       }

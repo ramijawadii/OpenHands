@@ -115,16 +115,12 @@ const getTaskTrackingObservationContent = (
   if (command === "plan" && taskList.length > 0) {
     content += `\n\n**Task List (${taskList.length} ${taskList.length === 1 ? "item" : "items"}):**\n`;
 
-    taskList.forEach((task, index) => {
-      const statusIcon =
-        {
-          todo: "⏳",
-          in_progress: "🔄",
-          done: "✅",
-        }[task.status] || "❓";
+    taskList.forEach((task) => {
+      // Monochrome markdown checkbox (no emoji): [ ] todo, [~] in progress, [x] done.
+      const checkbox =
+        { todo: "[ ]", in_progress: "[~]", done: "[x]" }[task.status] || "[ ]";
 
-      content += `\n${index + 1}. ${statusIcon} **[${task.status.toUpperCase().replace("_", " ")}]** ${task.title}`;
-      content += `\n   *ID: ${task.id}*`;
+      content += `\n- ${checkbox} ${task.title}`;
       if (task.notes) {
         content += `\n   *Notes: ${task.notes}*`;
       }
