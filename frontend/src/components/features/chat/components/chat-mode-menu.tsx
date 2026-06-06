@@ -1,10 +1,26 @@
+/* eslint-disable i18next/no-literal-string, no-param-reassign, consistent-return, no-void */
 import React from "react";
+import { useParams } from "react-router";
 import { HelpCircle, Cpu, ListChecks, type LucideIcon } from "lucide-react";
 import { cn } from "#/utils/utils";
+import { openHands } from "#/api/open-hands-axios";
 
 export type ChatMode = "autonomous" | "ask" | "plan";
 
 const MODE_STORAGE_KEY = "cloudguard-chat-mode";
+
+/** Persist the chosen mode to the backend so the live agent (step()) honors it. */
+async function pushMode(conversationId: string | undefined, mode: ChatMode) {
+  if (!conversationId) return;
+  try {
+    await openHands.post("/api/cloudguard/mode", {
+      conversation_id: conversationId,
+      mode,
+    });
+  } catch {
+    /* mode endpoint absent — falls back to autonomous server-side */
+  }
+}
 
 const MODES: {
   id: ChatMode;
@@ -49,9 +65,12 @@ interface ChatModeMenuProps {
 }
 
 function ChatModeMenu({ onClose }: ChatModeMenuProps) {
+  const { conversationId } = useParams();
   const [mode, setMode] = React.useState<ChatMode>(() => {
     try {
-      return (localStorage.getItem(MODE_STORAGE_KEY) as ChatMode) ?? "autonomous";
+      return (
+        (localStorage.getItem(MODE_STORAGE_KEY) as ChatMode) ?? "autonomous"
+      );
     } catch {
       return "autonomous";
     }
@@ -64,6 +83,7 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
     } catch {
       /* ignore */
     }
+    void pushMode(conversationId, m);
     onClose();
   };
 
@@ -81,7 +101,12 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
         className="flex items-center justify-between px-3 py-2"
         style={{ borderBottom: "1px solid var(--cg-border)" }}
       >
-        <span className="text-[11px] font-semibold" style={{ color: "var(--cg-text-primary)" }}>Modes</span>
+        <span
+          className="text-[11px] font-semibold"
+          style={{ color: "var(--cg-text-primary)" }}
+        >
+          Modes
+        </span>
         <span className="text-[10px]" style={{ color: "var(--cg-text-muted)" }}>
           ⬆ + tab to switch
         </span>
@@ -103,7 +128,8 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
               }}
               onMouseEnter={(e) => {
                 if (!selected)
-                  (e.currentTarget as HTMLElement).style.background = "var(--cg-bg-hover)";
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--cg-bg-hover)";
               }}
               onMouseLeave={(e) => {
                 (e.currentTarget as HTMLElement).style.background = selected
@@ -115,8 +141,12 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
               <span
                 className="mt-0.5 w-7 h-7 flex items-center justify-center rounded-md flex-shrink-0"
                 style={{
-                  background: selected ? "var(--cg-bg-hover)" : "var(--cg-bg-badge)",
-                  color: selected ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
+                  background: selected
+                    ? "var(--cg-bg-hover)"
+                    : "var(--cg-bg-badge)",
+                  color: selected
+                    ? "var(--cg-text-primary)"
+                    : "var(--cg-text-muted)",
                 }}
               >
                 <m.Icon size={14} />
@@ -126,7 +156,11 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
               <div className="flex-1 min-w-0">
                 <div
                   className="text-sm font-medium"
-                  style={{ color: selected ? "var(--cg-text-primary)" : "var(--cg-text-nav)" }}
+                  style={{
+                    color: selected
+                      ? "var(--cg-text-primary)"
+                      : "var(--cg-text-nav)",
+                  }}
                 >
                   {m.label}
                 </div>
@@ -140,7 +174,9 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
 
               {/* Checkmark */}
               {selected && (
-                <span className="mt-1 text-[var(--cg-text-primary)] text-xs flex-shrink-0">✓</span>
+                <span className="mt-1 text-[var(--cg-text-primary)] text-xs flex-shrink-0">
+                  ✓
+                </span>
               )}
             </button>
           );
@@ -156,7 +192,9 @@ export function ChatModeButton() {
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<ChatMode>(() => {
     try {
-      return (localStorage.getItem(MODE_STORAGE_KEY) as ChatMode) ?? "autonomous";
+      return (
+        (localStorage.getItem(MODE_STORAGE_KEY) as ChatMode) ?? "autonomous"
+      );
     } catch {
       return "autonomous";
     }
@@ -179,7 +217,10 @@ export function ChatModeButton() {
   React.useEffect(() => {
     if (!open) return;
     const handle = (e: MouseEvent) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+      if (
+        wrapperRef.current &&
+        !wrapperRef.current.contains(e.target as Node)
+      ) {
         handleClose();
       }
     };
@@ -194,7 +235,9 @@ export function ChatModeButton() {
         onClick={() => setOpen((v) => !v)}
         className={cn(
           "flex items-center gap-1.5 px-2 py-[4px] rounded-md text-[11px] font-medium transition-colors select-none",
-          open ? "text-[var(--cg-text-primary)]" : "text-[var(--cg-text-muted)] hover:text-[var(--cg-text-nav)]",
+          open
+            ? "text-[var(--cg-text-primary)]"
+            : "text-[var(--cg-text-muted)] hover:text-[var(--cg-text-nav)]",
         )}
         style={{
           background: open ? "var(--cg-bg-active)" : "transparent",

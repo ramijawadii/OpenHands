@@ -33,6 +33,16 @@ class ClarificationAnswer(BaseModel):
     answers: list = Field(default_factory=list)
 
 
+class ModeBody(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    mode: str = Field(default="autonomous", max_length=32)
+
+
+class PlanDecisionBody(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    decision: str = Field(default="auto", max_length=32)  # auto | ask | changes
+
+
 def _safe(import_name: str):
     """Import a cloudguard module; 503 if the package isn't on PYTHONPATH."""
     import importlib
@@ -80,6 +90,27 @@ async def decide_approval(rid: str, body: ApprovalDecision):
     if not ok:
         raise HTTPException(status_code=409, detail="approval not found or already decided")
     return approval.get_request(rid)
+
+
+# ── Execution mode + plan-approval (conversation-scoped) ──────────────────────
+@app.get("/mode")
+async def get_mode_route(conversation_id: str | None = None):
+    modes = _safe("cloudguard.modes")
+    return modes.get_record(conversation_id)
+
+
+@app.post("/mode")
+async def set_mode_route(body: ModeBody):
+    modes = _safe("cloudguard.modes")
+    return modes.set_mode(body.conversation_id or None, body.mode)
+
+
+@app.post("/plan/decision")
+async def decide_plan_route(body: PlanDecisionBody):
+    """The plan-approval banner posts here: auto -> autonomous, ask -> ask-before,
+    changes -> stay in plan mode and re-plan. Returns the new mode record."""
+    modes = _safe("cloudguard.modes")
+    return modes.decide_plan(body.conversation_id or None, body.decision)
 
 
 # ── Tasks (Plane T — the single task plan, conversation-scoped) ───────────────
