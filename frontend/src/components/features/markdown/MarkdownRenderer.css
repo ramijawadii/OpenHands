@@ -335,3 +335,9 @@
 .md-vscode .notion-gray_background,
 .md-vscode .notion-grey_background   { background: rgba(133,133,133,0.15); border-radius: 3px; padding: 1px 3px; }
 .md-vscode .notion-brown_background  { background: rgba(197,162,143,0.15); border-radius: 3px; padding: 1px 3px; }
+
+/* CloudGuard task-plan snapshots: gray (not blue) checkboxes + tight list */
+.md-vscode ul.contains-task-list,
+.md-vscode .contains-task-list { list-style: none; padding-left: 0; margin: 4px 0; }
+.md-vscode li.task-list-item { list-style: none; }
+.md-vscode input[type="checkbox"] { accent-color: #9ca3af; margin-right: 6px; }

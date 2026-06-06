@@ -19,10 +19,35 @@ const getCommandObservationContent = (
   event: CommandObservation | IPythonObservation,
 ): string => {
   let { content } = event;
+
+  // CloudGuard plan snapshot: the kernel emits the whole plan as a markdown checklist
+  // wrapped in [CLOUDGUARD_PLAN]…[/CLOUDGUARD_PLAN] on each task change. Lift the LAST
+  // one OUT of the code fence so it renders as a persistent checklist in history.
+  let planMd = "";
+  const planRe = /\[CLOUDGUARD_PLAN\]\s*([\s\S]*?)\s*\[\/CLOUDGUARD_PLAN\]/g;
+  let match: RegExpExecArray | null;
+  // eslint-disable-next-line no-cond-assign
+  while ((match = planRe.exec(content)) !== null) {
+    planMd = match[1].trim();
+  }
+  if (planMd) {
+    content = content.replace(planRe, "").trim();
+  }
+
   if (content.length > MAX_CONTENT_LENGTH) {
     content = `${content.slice(0, MAX_CONTENT_LENGTH)}...`;
   }
-  return `Output:\n\`\`\`sh\n${content.trim() || i18n.t("OBSERVATION$COMMAND_NO_OUTPUT")}\n\`\`\``;
+  const rest = content.trim();
+  let body = "";
+  if (rest) {
+    body = `Output:\n\`\`\`sh\n${rest}\n\`\`\``;
+  } else if (!planMd) {
+    body = `Output:\n\`\`\`sh\n${i18n.t("OBSERVATION$COMMAND_NO_OUTPUT")}\n\`\`\``;
+  }
+  if (!planMd) {
+    return body;
+  }
+  return body ? `${planMd}\n\n${body}` : planMd;
 };
 
 const getEditObservationContent = (

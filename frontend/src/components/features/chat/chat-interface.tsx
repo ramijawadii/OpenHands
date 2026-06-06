@@ -37,7 +37,6 @@ import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { CompactionBanner } from "./compaction-banner";
 import { ApprovalBanner } from "./approval-banner";
 import { ClarificationBanner } from "./clarification-banner";
-import { TaskPlanPanel } from "./task-plan-panel";
 import { PlanApprovalBanner } from "./plan-approval-banner";
 
 function getEntryPoint(
@@ -205,10 +204,6 @@ export function ChatInterface() {
               streamingContent={streamingContent}
             />
           )}
-
-          {/* The task plan lives within the chat flow (scrolls with the conversation),
-              not pinned to the input box. */}
-          <TaskPlanPanel />
         </div>
 
         <div className="flex flex-col gap-[6px]">
