@@ -43,11 +43,24 @@ def _safe(import_name: str):
         raise HTTPException(status_code=503, detail=f"cloudguard unavailable: {exc}") from exc
 
 
+def _scope(records: list, conversation_id: str | None, id_getter) -> list:
+    """Keep only records for this conversation. Records with no conversation id
+    (legacy / unstamped) are kept for backward compatibility during rollout."""
+    if not conversation_id:
+        return records
+    return [r for r in records if id_getter(r) in (conversation_id, "", None)]
+
+
 # ── Approvals ─────────────────────────────────────────────────────────────────
 @app.get("/approvals")
-async def list_approvals(status: str | None = None):
+async def list_approvals(status: str | None = None, conversation_id: str | None = None):
     approval = _safe("cloudguard.approval")
-    return {"approvals": approval.list_requests(status)}
+    records = approval.list_requests(status)
+    return {
+        "approvals": _scope(
+            records, conversation_id, lambda r: (r.get("context") or {}).get("conversation_id")
+        )
+    }
 
 
 @app.get("/approvals/{rid}")
@@ -71,7 +84,7 @@ async def decide_approval(rid: str, body: ApprovalDecision):
 
 # ── Clarifications ────────────────────────────────────────────────────────────
 @app.get("/clarifications")
-async def list_clarifications(status: str | None = None):
+async def list_clarifications(status: str | None = None, conversation_id: str | None = None):
     import glob
     import json
     import os
@@ -88,7 +101,7 @@ async def list_clarifications(status: str | None = None):
                 out.append(rec)
     except Exception:  # noqa: BLE001
         pass
-    return {"clarifications": out}
+    return {"clarifications": _scope(out, conversation_id, lambda r: r.get("session_id"))}
 
 
 @app.get("/clarifications/{cid}")

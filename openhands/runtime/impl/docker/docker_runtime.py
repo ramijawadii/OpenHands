@@ -467,6 +467,10 @@ class DockerRuntime(ActionExecutionClient):
                 'APP_PORT_1': str(self._app_ports[0]),
                 'APP_PORT_2': str(self._app_ports[1]),
                 'PIP_BREAK_SYSTEM_PACKAGES': '1',
+                # CloudGuard: expose the conversation id so the kernel can scope
+                # staged edit-approvals / clarifications to THIS session (the chat
+                # banner filters by it). Matches the frontend URL conversationId.
+                'CLOUDGUARD_CONVERSATION_ID': str(self.sid),
             }
         )
         if self.config.debug or DEBUG:
