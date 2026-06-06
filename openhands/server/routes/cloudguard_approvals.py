@@ -82,6 +82,20 @@ async def decide_approval(rid: str, body: ApprovalDecision):
     return approval.get_request(rid)
 
 
+# ── Tasks (Plane T — the single task plan, conversation-scoped) ───────────────
+@app.get("/tasks")
+async def list_tasks_route(conversation_id: str | None = None):
+    """Return the Plane T task plan for this conversation (the chat plan panel polls
+    this). Reads the shared-volume store the kernel writes — same cross-container
+    pattern as approvals/clarifications."""
+    tasks = _safe("cloudguard.tasks")
+    try:
+        items = [t.to_dict() for t in tasks.list_tasks(conversation_id=conversation_id)]
+    except Exception:  # noqa: BLE001
+        items = []
+    return {"tasks": items}
+
+
 # ── Clarifications ────────────────────────────────────────────────────────────
 @app.get("/clarifications")
 async def list_clarifications(status: str | None = None, conversation_id: str | None = None):

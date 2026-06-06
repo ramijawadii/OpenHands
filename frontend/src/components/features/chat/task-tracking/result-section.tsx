@@ -13,7 +13,13 @@ export function ResultSection({ content }: ResultSectionProps) {
       <div className="flex items-center justify-between">
         <Typography.H3>{t("TASK_TRACKING_OBSERVATION$RESULT")}</Typography.H3>
       </div>
-      <div className="p-3 bg-gray-900 rounded-md overflow-auto text-gray-300 shadow-inner">
+      <div
+        className="p-3 rounded-md overflow-auto shadow-inner"
+        style={{
+          background: "var(--cg-input-bg)",
+          color: "var(--cg-text-primary)",
+        }}
+      >
         <pre className="whitespace-pre-wrap text-sm">{content.trim()}</pre>
       </div>
     </div>

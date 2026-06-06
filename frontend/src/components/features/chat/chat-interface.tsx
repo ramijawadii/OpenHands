@@ -37,6 +37,7 @@ import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { CompactionBanner } from "./compaction-banner";
 import { ApprovalBanner } from "./approval-banner";
 import { ClarificationBanner } from "./clarification-banner";
+import { TaskPlanPanel } from "./task-plan-panel";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -234,6 +235,7 @@ export function ChatInterface() {
           </div>
 
           <CompactionBanner />
+          <TaskPlanPanel />
           <ApprovalBanner />
           <ClarificationBanner />
           {errorMessage && <ErrorMessageBanner message={errorMessage} />}
