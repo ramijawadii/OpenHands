@@ -38,6 +38,7 @@ import { CompactionBanner } from "./compaction-banner";
 import { ApprovalBanner } from "./approval-banner";
 import { ClarificationBanner } from "./clarification-banner";
 import { PlanApprovalBanner } from "./plan-approval-banner";
+import { ConfirmationBanner } from "./confirmation-banner";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -236,6 +237,7 @@ export function ChatInterface() {
 
           <CompactionBanner />
           <PlanApprovalBanner />
+          <ConfirmationBanner />
           <ApprovalBanner />
           <ClarificationBanner />
           {errorMessage && <ErrorMessageBanner message={errorMessage} />}

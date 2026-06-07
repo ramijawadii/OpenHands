@@ -12,6 +12,10 @@ import {
   isAssistantMessage,
 } from "#/types/core/guards";
 import { EventMessage } from "./event-message";
+import {
+  PlanSnapshotMessage,
+  extractPlanMarkdown,
+} from "./plan-snapshot-message";
 import { ChatMessage } from "./chat-message";
 import { StreamingMessage } from "./streaming-message";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -44,7 +48,7 @@ function computeToolBadges(
       } else if (evt.action === "run_ipython") {
         const code = (evt as IPythonAction).args.code ?? "";
         tabs.add(
-          (code.includes("_safe_diagram") || code.includes("_safe_page"))
+          code.includes("_safe_diagram") || code.includes("_safe_page")
             ? "diagrams"
             : "jupyter",
         );
@@ -256,46 +260,62 @@ export const Messages: React.FC<MessagesProps> = React.memo(
 
     return (
       <>
-        {messages.map((message, index) => (
-          <EventMessage
-            key={index}
-            event={message}
-            hasObservationPair={actionHasObservationPair(message)}
-            isAwaitingUserConfirmation={isAwaitingUserConfirmation}
-            isLastMessage={messages.length - 1 === index}
-            microagentStatus={getMicroagentStatusForEvent(message.id)}
-            microagentConversationId={getMicroagentConversationIdForEvent(
-              message.id,
-            )}
-            microagentPRUrl={getMicroagentPRUrlForEvent(message.id)}
-            actions={
-              conversation?.selected_repository
-                ? [
-                    {
-                      icon: (
-                        <MemoryIcon className="w-[14px] h-[14px] text-[var(--cg-text-nav)]" />
-                      ),
-                      onClick: () => {
-                        setSelectedEventId(message.id);
-                        setShowLaunchMicroagentModal(true);
-                      },
-                      tooltip: t("MICROAGENT$ADD_TO_MEMORY"),
-                    },
-                  ]
-                : undefined
-            }
-            toolBadges={
-              isAssistantMessage(message)
-                ? computeToolBadges(messages, index)
-                : undefined
-            }
-            isInLast10Actions={messages.length - 1 - index < 10}
-          />
-        ))}
+        {messages.map((message, index) => {
+          // CloudGuard: if this action's paired observation carries a plan snapshot,
+          // render the gray checklist always-visible after it (the cell stays collapsed).
+          let planMarkdown = "";
+          if (isOpenHandsAction(message)) {
+            const obs = messages.find(
+              (m) => isOpenHandsObservation(m) && m.cause === message.id,
+            ) as OpenHandsObservation | undefined;
+            planMarkdown = extractPlanMarkdown(obs?.content);
+          }
+          return (
+            <React.Fragment key={index}>
+              <EventMessage
+                event={message}
+                hasObservationPair={actionHasObservationPair(message)}
+                isAwaitingUserConfirmation={isAwaitingUserConfirmation}
+                isLastMessage={messages.length - 1 === index}
+                microagentStatus={getMicroagentStatusForEvent(message.id)}
+                microagentConversationId={getMicroagentConversationIdForEvent(
+                  message.id,
+                )}
+                microagentPRUrl={getMicroagentPRUrlForEvent(message.id)}
+                actions={
+                  conversation?.selected_repository
+                    ? [
+                        {
+                          icon: (
+                            <MemoryIcon className="w-[14px] h-[14px] text-[var(--cg-text-nav)]" />
+                          ),
+                          onClick: () => {
+                            setSelectedEventId(message.id);
+                            setShowLaunchMicroagentModal(true);
+                          },
+                          tooltip: t("MICROAGENT$ADD_TO_MEMORY"),
+                        },
+                      ]
+                    : undefined
+                }
+                toolBadges={
+                  isAssistantMessage(message)
+                    ? computeToolBadges(messages, index)
+                    : undefined
+                }
+                isInLast10Actions={messages.length - 1 - index < 10}
+              />
+              {planMarkdown && (
+                <PlanSnapshotMessage planMarkdown={planMarkdown} />
+              )}
+            </React.Fragment>
+          );
+        })}
 
-        {streamingContent && !isAssistantMessage(messages[messages.length - 1] as never) && (
-          <StreamingMessage />
-        )}
+        {streamingContent &&
+          !isAssistantMessage(messages[messages.length - 1] as never) && (
+            <StreamingMessage />
+          )}
 
         {optimisticUserMessage && (
           <ChatMessage type="user" message={optimisticUserMessage} />

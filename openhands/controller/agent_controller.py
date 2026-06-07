@@ -252,12 +252,18 @@ class AgentController:
                 if hasattr(action, 'security_risk'):
                     action.security_risk = ActionSecurityRisk.UNKNOWN
         else:
-            # When no security analyzer is configured, treat all actions as UNKNOWN risk
-            # This is a fail-safe approach that ensures confirmation is required
-            logger.debug(
-                f'No security analyzer configured, setting UNKNOWN risk for action: {action}'
-            )
-            if hasattr(action, 'security_risk'):
+            # When no security analyzer is configured, default to UNKNOWN — BUT do not
+            # clobber a risk the agent already set. CloudGuard's _apply_ask_mode stamps
+            # consequential actions HIGH and reads LOW in ask mode; overwriting that with
+            # UNKNOWN makes `is_ask_for_every_action` fire on EVERY action (even
+            # task_update / reads), which is the "Risk: Unknown, confirm everything" bug.
+            if hasattr(action, 'security_risk') and action.security_risk in (
+                None,
+                ActionSecurityRisk.UNKNOWN,
+            ):
+                logger.debug(
+                    f'No security analyzer configured, setting UNKNOWN risk for action: {action}'
+                )
                 action.security_risk = ActionSecurityRisk.UNKNOWN
 
     def _add_system_message(self):
