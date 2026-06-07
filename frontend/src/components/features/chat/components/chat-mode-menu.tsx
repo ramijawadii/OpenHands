@@ -189,6 +189,7 @@ function ChatModeMenu({ onClose }: ChatModeMenuProps) {
 /* ─── Mode button (used in ChatInputActions) ─── */
 
 export function ChatModeButton() {
+  const { conversationId } = useParams();
   const [open, setOpen] = React.useState(false);
   const [mode, setMode] = React.useState<ChatMode>(() => {
     try {
@@ -199,6 +200,32 @@ export function ChatModeButton() {
       return "autonomous";
     }
   });
+
+  // Carry the last-selected mode (localStorage) into a NEW conversation. A mode chosen
+  // on the home screen never reached the backend (no conversationId yet); apply it once
+  // the conversation exists — but ONLY when the backend has no record, so an explicit
+  // per-conversation change or a plan-approval decision is never clobbered.
+  React.useEffect(() => {
+    if (!conversationId) return;
+    let stored: ChatMode | null = null;
+    try {
+      stored = localStorage.getItem(MODE_STORAGE_KEY) as ChatMode | null;
+    } catch {
+      stored = null;
+    }
+    if (!stored || stored === "autonomous") return;
+    openHands
+      .get("/api/cloudguard/mode", {
+        params: { conversation_id: conversationId },
+      })
+      .then(({ data }) => {
+        if (!data?.updated_at) {
+          void pushMode(conversationId, stored as ChatMode);
+          setMode(stored as ChatMode);
+        }
+      })
+      .catch(() => {});
+  }, [conversationId]);
 
   // Sync label with localStorage when menu closes
   const handleClose = () => {
