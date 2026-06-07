@@ -127,6 +127,24 @@ async def list_tasks_route(conversation_id: str | None = None):
     return {"tasks": items}
 
 
+# ── File history (rewind points) — read the shared METADATA mirror the kernel writes ──
+@app.get("/file-history")
+async def list_file_history_route(conversation_id: str | None = None):
+    """Return the file-history checkpoints for this conversation (the rewind panel polls
+    this). Reads the read-only index the sandbox mirrors to /cloudguard-shared — the
+    backups + the actual restore stay in the sandbox; the UI triggers rewind via the agent
+    (file_rewind), which re-confines paths. Metadata only (no file content) is exposed."""
+    fh = _safe("cloudguard.file_history")
+    try:
+        import os as _os
+
+        shared = _os.environ.get("CLOUDGUARD_FILE_HISTORY_SHARED_DIR") or "/cloudguard-shared/file_history"
+        checkpoints = fh.list_snapshots(conversation_id=conversation_id, base_dir=shared)
+    except Exception:  # noqa: BLE001
+        checkpoints = []
+    return {"checkpoints": checkpoints}
+
+
 # ── Clarifications ────────────────────────────────────────────────────────────
 @app.get("/clarifications")
 async def list_clarifications(status: str | None = None, conversation_id: str | None = None):

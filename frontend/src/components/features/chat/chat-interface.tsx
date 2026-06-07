@@ -39,6 +39,7 @@ import { ApprovalBanner } from "./approval-banner";
 import { ClarificationBanner } from "./clarification-banner";
 import { PlanApprovalBanner } from "./plan-approval-banner";
 import { ConfirmationBanner } from "./confirmation-banner";
+import { FileHistoryPanel } from "./file-history-panel";
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -236,6 +237,7 @@ export function ChatInterface() {
           </div>
 
           <CompactionBanner />
+          <FileHistoryPanel />
           <PlanApprovalBanner />
           <ConfirmationBanner />
           <ApprovalBanner />
