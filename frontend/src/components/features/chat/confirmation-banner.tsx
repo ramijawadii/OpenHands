@@ -89,6 +89,17 @@ function DiffBlock({
   );
 }
 
+const RUNNABLE_ACTIONS = [
+  "run",
+  "run_ipython",
+  "edit",
+  "write",
+  "browse",
+  "browse_interactive",
+  "mcp",
+  "call_tool",
+];
+
 export function ConfirmationBanner() {
   const { send, parsedEvents } = useWsClient();
   const { curAgentState } = useAgentStore();
@@ -100,21 +111,40 @@ export function ConfirmationBanner() {
   const [otherText, setOtherText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
-  // The most recent agent action awaiting confirmation.
-  const awaiting = React.useMemo(
-    () =>
-      parsedEvents
-        .slice()
-        .reverse()
-        .find((ev) => {
-          if (!isOpenHandsAction(ev) || ev.source !== "agent") return false;
-          const { args } = ev as { args?: Record<string, unknown> };
-          return args?.confirmation_state === "awaiting_confirmation";
-        }) as
+  // The agent action awaiting confirmation. Prefer the explicit
+  // args.confirmation_state flag (CmdRun/IPython carry it), but FALL BACK to the most
+  // recent runnable agent action whenever the agent state is AWAITING_USER_CONFIRMATION
+  // — FileEditAction does NOT serialize confirmation_state into args, which previously
+  // hid the banner and left the user stuck.
+  const awaiting = React.useMemo(() => {
+    const rev = parsedEvents.slice().reverse();
+    const isAgentAction = (
+      ev: unknown,
+    ): ev is { id: number; action: string; args: Record<string, unknown> } =>
+      isOpenHandsAction(ev) && (ev as { source?: string }).source === "agent";
+    const explicit = rev.find(
+      (ev) =>
+        isAgentAction(ev) &&
+        (ev as { args?: Record<string, unknown> }).args?.confirmation_state ===
+          "awaiting_confirmation",
+    );
+    if (explicit)
+      return explicit as {
+        id: number;
+        action: string;
+        args: Record<string, unknown>;
+      };
+    if (curAgentState === AgentState.AWAITING_USER_CONFIRMATION) {
+      return rev.find(
+        (ev) =>
+          isAgentAction(ev) &&
+          RUNNABLE_ACTIONS.includes((ev as { action: string }).action),
+      ) as
         | { id: number; action: string; args: Record<string, unknown> }
-        | undefined,
-    [parsedEvents],
-  );
+        | undefined;
+    }
+    return undefined;
+  }, [parsedEvents, curAgentState]);
 
   if (curAgentState !== AgentState.AWAITING_USER_CONFIRMATION || !awaiting) {
     return null;
