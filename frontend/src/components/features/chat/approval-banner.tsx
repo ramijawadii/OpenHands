@@ -12,6 +12,34 @@ interface ApprovalRecord {
 
 const POLL_MS = 3000;
 
+/** Render a unified diff with red (removed) / green (added) line highlighting. */
+function DiffView({ diff }: { diff?: string }) {
+  if (!diff) {
+    return (
+      <pre className="rounded bg-neutral-900/70 p-2 text-[11px] text-neutral-400">
+        (no diff available)
+      </pre>
+    );
+  }
+  const lineClass = (l: string): string => {
+    if (l.startsWith("+++") || l.startsWith("---")) return "text-neutral-500";
+    if (l.startsWith("@@")) return "text-cyan-300/80";
+    if (l.startsWith("+")) return "bg-green-900/30 text-green-200";
+    if (l.startsWith("-")) return "bg-red-900/30 text-red-200";
+    return "text-neutral-300";
+  };
+  return (
+    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-neutral-900/70 p-2 text-[11px] leading-snug">
+      {diff.split("\n").map((l, i) => (
+        // eslint-disable-next-line react/no-array-index-key
+        <div key={i} className={lineClass(l)}>
+          {l || " "}
+        </div>
+      ))}
+    </pre>
+  );
+}
+
 export function ApprovalBanner() {
   const { conversationId } = useParams();
   const [pending, setPending] = React.useState<ApprovalRecord[]>([]);
@@ -85,11 +113,7 @@ export function ApprovalBanner() {
         </button>
       </div>
 
-      {showDiff && (
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-neutral-900/70 p-2 text-[11px] text-neutral-300">
-          {ctx.diff || "(no diff available)"}
-        </pre>
-      )}
+      {showDiff && <DiffView diff={ctx.diff} />}
 
       {!other ? (
         <div className="flex items-center gap-2">
