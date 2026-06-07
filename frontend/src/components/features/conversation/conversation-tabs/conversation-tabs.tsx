@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { StickyNote, FileTerminal, GitMerge } from "lucide-react";
+import { StickyNote, FileTerminal, GitMerge, History } from "lucide-react";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import VSCodeIcon from "#/icons/vscode.svg?react";
 import { cn } from "#/utils/utils";
@@ -83,41 +83,56 @@ export function ConversationTabs() {
   const isTabActive = (tab: ConversationTab) =>
     isRightPanelShown && selectedTab === tab;
 
+  // Order mirrors the design mockup (Terminal · Artifact · Jupyter · …); the
+  // Artifact (Pages) tab sits where the mockup's placeholder "Topology" was.
   const tabs = [
-    {
-      isActive: isTabActive("diagrams"),
-      icon: StickyNote,
-      onClick: () => onTabSelected("diagrams"),
-      tooltipContent: "Artifact",
-      tooltipAriaLabel: "Artifact",
-    },
     {
       isActive: isTabActive("terminal"),
       icon: TerminalIcon,
+      label: t(I18nKey.COMMON$TERMINAL),
       onClick: () => onTabSelected("terminal"),
       tooltipContent: t(I18nKey.COMMON$TERMINAL),
       tooltipAriaLabel: t(I18nKey.COMMON$TERMINAL),
     },
     {
-      isActive: isTabActive("vscode"),
-      icon: VSCodeIcon,
-      onClick: () => onTabSelected("vscode"),
-      tooltipContent: <VSCodeTooltipContent />,
-      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
+      isActive: isTabActive("diagrams"),
+      icon: StickyNote,
+      label: "Artifact",
+      onClick: () => onTabSelected("diagrams"),
+      tooltipContent: "Artifact",
+      tooltipAriaLabel: "Artifact",
     },
     {
       isActive: isTabActive("jupyter"),
       icon: FileTerminal,
+      label: t(I18nKey.COMMON$JUPYTER),
       onClick: () => onTabSelected("jupyter"),
       tooltipContent: t(I18nKey.COMMON$JUPYTER),
       tooltipAriaLabel: t(I18nKey.COMMON$JUPYTER),
     },
     {
+      isActive: isTabActive("vscode"),
+      icon: VSCodeIcon,
+      label: t(I18nKey.COMMON$CODE),
+      onClick: () => onTabSelected("vscode"),
+      tooltipContent: <VSCodeTooltipContent />,
+      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
+    },
+    {
       isActive: isTabActive("editor"),
       icon: GitMerge,
+      label: t(I18nKey.COMMON$CHANGES),
       onClick: () => onTabSelected("editor"),
       tooltipContent: t(I18nKey.COMMON$CHANGES),
       tooltipAriaLabel: t(I18nKey.COMMON$CHANGES),
+    },
+    {
+      isActive: isTabActive("states"),
+      icon: History,
+      label: "States",
+      onClick: () => onTabSelected("states"),
+      tooltipContent: "States — workspace rewind points (flashpoints)",
+      tooltipAriaLabel: "States",
     },
   ];
 
@@ -125,12 +140,12 @@ export function ConversationTabs() {
     <div
       className={cn(
         "relative w-full",
-        "flex flex-row justify-start lg:justify-end items-center gap-4.5",
+        "flex flex-row justify-start lg:justify-end items-center gap-1",
       )}
     >
       {tabs.map(
         (
-          { icon, onClick, isActive, tooltipContent, tooltipAriaLabel },
+          { icon, label, onClick, isActive, tooltipContent, tooltipAriaLabel },
           index,
         ) => (
           <ChatActionTooltip
@@ -140,6 +155,7 @@ export function ConversationTabs() {
           >
             <ConversationTabNav
               icon={icon}
+              label={label}
               onClick={onClick}
               isActive={isActive}
             />

@@ -15,6 +15,7 @@ const EditorTab = lazy(() => import("#/routes/changes-tab"));
 const JupyterTab = lazy(() => import("#/routes/jupyter-tab"));
 const VSCodeTab = lazy(() => import("#/routes/vscode-tab"));
 const DiagramsTab = lazy(() => import("#/routes/diagrams-tab"));
+const StatesTab = lazy(() => import("#/routes/states-tab"));
 
 export function ConversationTabContent() {
   const { selectedTab, shouldShownAgentLoading } = useConversationStore();
@@ -26,6 +27,7 @@ export function ConversationTabContent() {
   const isVSCodeActive = selectedTab === "vscode";
   const isTerminalActive = selectedTab === "terminal";
   const isDiagramsActive = selectedTab === "diagrams";
+  const isStatesActive = selectedTab === "states";
 
   const tabs = [
     { key: "editor", component: EditorTab, isActive: isEditorActive },
@@ -33,6 +35,7 @@ export function ConversationTabContent() {
     { key: "vscode", component: VSCodeTab, isActive: isVSCodeActive },
     { key: "terminal", component: Terminal, isActive: isTerminalActive },
     { key: "diagrams", component: DiagramsTab, isActive: isDiagramsActive },
+    { key: "states", component: StatesTab, isActive: isStatesActive },
   ];
 
   const conversationTabTitle = useMemo(() => {
@@ -41,6 +44,7 @@ export function ConversationTabContent() {
     if (isVSCodeActive) return t(I18nKey.COMMON$CODE);
     if (isTerminalActive) return t(I18nKey.COMMON$TERMINAL);
     if (isDiagramsActive) return "Pages";
+    if (isStatesActive) return "States";
     return "";
   }, [
     isEditorActive,
@@ -48,6 +52,7 @@ export function ConversationTabContent() {
     isVSCodeActive,
     isTerminalActive,
     isDiagramsActive,
+    isStatesActive,
   ]);
 
   if (shouldShownAgentLoading) {
