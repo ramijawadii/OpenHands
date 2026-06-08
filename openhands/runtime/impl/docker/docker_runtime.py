@@ -478,6 +478,28 @@ class DockerRuntime(ActionExecutionClient):
         # also update with runtime_startup_env_vars
         environment.update(self.config.sandbox.runtime_startup_env_vars)
 
+        # CloudGuard multi-tenancy: inject the tenant resolved from the TRUSTED, app-private
+        # conversation→tenant map (cloudguard.conversation_tenant) — NEVER a sandbox- or
+        # client-supplied value, and applied AFTER runtime_startup_env_vars so a
+        # global/forgeable CLOUDGUARD_TENANT_ID can never override the per-conversation
+        # trusted value. Fail-closed in STRICT mode: refuse to spawn a tenant-less sandbox
+        # (it would resolve to the shared 'default' bucket = cross-tenant exposure).
+        # MULTI_TENANCY_ARCHITECTURE.md §4. Inert when tenancy is OFF (the default).
+        try:
+            from cloudguard import conversation_tenant, tenancy
+
+            if tenancy.is_enabled():
+                _tid = conversation_tenant.resolve_runtime_tenant_env(str(self.sid))
+                if _tid:
+                    environment['CLOUDGUARD_TENANT_ID'] = _tid
+                elif tenancy.is_strict():
+                    raise RuntimeError(
+                        f'CloudGuard tenancy STRICT: conversation {self.sid} has no trusted '
+                        'tenant mapping; refusing to spawn runtime (fail-closed).'
+                    )
+        except ImportError:
+            pass  # cloudguard not importable in this process → single-tenant behaviour
+
         self.log('debug', f'Workspace Base: {self.config.workspace_base}')
 
         # Process volumes for mounting
