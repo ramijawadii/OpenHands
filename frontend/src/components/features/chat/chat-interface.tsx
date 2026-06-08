@@ -40,6 +40,17 @@ import { ClarificationBanner } from "./clarification-banner";
 import { PlanApprovalBanner } from "./plan-approval-banner";
 import { ConfirmationBanner } from "./confirmation-banner";
 import { FileHistoryPanel } from "./file-history-panel";
+import { PendingTurns } from "./pending-turns";
+import { useCommandQueueStore } from "#/stores/command-queue-store";
+
+// Agent states in which a brand-new user turn can be sent right away. Anything else
+// (RUNNING / LOADING / awaiting-confirmation / paused …) means the turn is buffered.
+const READY_FOR_TURN = new Set<AgentState>([
+  AgentState.FINISHED,
+  AgentState.AWAITING_USER_INPUT,
+  AgentState.STOPPED,
+  AgentState.INIT,
+]);
 
 function getEntryPoint(
   hasRepository: boolean | null,
@@ -70,6 +81,12 @@ export function ChatInterface() {
   const { data: config } = useConfig();
 
   const { curAgentState } = useAgentStore();
+  const {
+    queue: pendingTurns,
+    enqueue: enqueueTurn,
+    dequeue: dequeueTurn,
+    remove: removeTurn,
+  } = useCommandQueueStore();
 
   const [feedbackPolarity, setFeedbackPolarity] = React.useState<
     "positive" | "negative"
@@ -95,7 +112,9 @@ export function ChatInterface() {
     [parsedEvents],
   );
 
-  const handleSendMessage = async (
+  // The actual send: upload/convert + push the user turn over the websocket. Called
+  // immediately when the agent is idle, or by the flush effect for a buffered turn.
+  const doSend = async (
     content: string,
     originalImages: File[],
     originalFiles: File[],
@@ -147,6 +166,52 @@ export function ChatInterface() {
     send(createChatMessage(prompt, imageUrls, uploadedFiles, timestamp));
     setOptimisticUserMessage(content);
     setMessageToSend("");
+  };
+
+  // Keep the latest doSend reachable from the flush effect without making the effect
+  // re-run on every render (doSend closes over many values).
+  const doSendRef = React.useRef(doSend);
+  doSendRef.current = doSend;
+
+  const handleSendMessage = async (
+    content: string,
+    images: File[],
+    files: File[],
+  ) => {
+    // Buffer the turn if the agent can't take one right now, or if turns are already
+    // queued (preserve FIFO/priority order). Otherwise send immediately. (mem-mgmt §2)
+    if (!READY_FOR_TURN.has(curAgentState) || pendingTurns.length > 0) {
+      enqueueTurn(content, images, files, "next");
+      setMessageToSend("");
+      return;
+    }
+    await doSend(content, images, files);
+  };
+
+  // Flush one buffered turn whenever the agent becomes ready. One-at-a-time: each send
+  // moves the agent back to RUNNING, and the next flushes on the following idle.
+  const flushingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (flushingRef.current) return;
+    if (!READY_FOR_TURN.has(curAgentState)) return;
+    if (pendingTurns.length === 0) return;
+    const next = dequeueTurn();
+    if (!next) return;
+    flushingRef.current = true;
+    Promise.resolve(doSendRef.current(next.text, next.images, next.files))
+      .catch(() => undefined)
+      .finally(() => {
+        flushingRef.current = false;
+      });
+  }, [curAgentState, pendingTurns.length, dequeueTurn]);
+
+  // "Run now": interrupt the agent (stop) and send this buffered turn immediately.
+  const handleRunNow = async (id: string) => {
+    const item = pendingTurns.find((c) => c.id === id);
+    if (!item) return;
+    removeTurn(id);
+    send(generateAgentStateChangeEvent(AgentState.STOPPED));
+    await doSend(item.text, item.images, item.files);
   };
 
   const handleStop = () => {
@@ -243,6 +308,12 @@ export function ChatInterface() {
           <ApprovalBanner />
           <ClarificationBanner />
           {errorMessage && <ErrorMessageBanner message={errorMessage} />}
+
+          <PendingTurns
+            items={pendingTurns}
+            onRunNow={handleRunNow}
+            onCancel={removeTurn}
+          />
 
           <InteractiveChatBox
             onSubmit={handleSendMessage}
