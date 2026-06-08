@@ -42,7 +42,10 @@ import { ConfirmationBanner } from "./confirmation-banner";
 import { FileHistoryPanel } from "./file-history-panel";
 import { PendingTurns } from "./pending-turns";
 import { MidRunDecision } from "./mid-run-decision";
-import { useCommandQueueStore } from "#/stores/command-queue-store";
+import {
+  useCommandQueueStore,
+  selectNextIndex,
+} from "#/stores/command-queue-store";
 
 interface PendingDecision {
   text: string;
@@ -89,11 +92,18 @@ export function ChatInterface() {
 
   const { curAgentState } = useAgentStore();
   const {
-    queue: pendingTurns,
+    queue: allTurns,
     enqueue: enqueueTurn,
-    dequeue: dequeueTurn,
     remove: removeTurn,
   } = useCommandQueueStore();
+  const params = useParams();
+  const conversationId = params.conversationId ?? "";
+  // Only this conversation's turns — the store is global but turns must never flush into
+  // another conversation (Finding A: cross-context delivery).
+  const pendingTurns = React.useMemo(
+    () => allTurns.filter((turn) => turn.conversationId === conversationId),
+    [allTurns, conversationId],
+  );
 
   // A message the user submitted while the agent was busy, awaiting their per-message
   // choice: add it to the current run (inject) or queue it as a separate turn.
@@ -105,7 +115,6 @@ export function ChatInterface() {
   >("positive");
   const [feedbackModalIsOpen, setFeedbackModalIsOpen] = React.useState(false);
   const { selectedRepository, replayJson } = useInitialQueryStore();
-  const params = useParams();
   const { mutateAsync: uploadFiles } = useUploadFiles();
 
   const optimisticUserMessage = getOptimisticUserMessage();
@@ -197,6 +206,7 @@ export function ChatInterface() {
       // is lost, then raise the choice for this newest message.
       if (pendingDecision) {
         enqueueTurn(
+          conversationId,
           pendingDecision.text,
           pendingDecision.images,
           pendingDecision.files,
@@ -223,7 +233,7 @@ export function ChatInterface() {
     const d = pendingDecision;
     if (!d) return;
     setPendingDecision(null);
-    enqueueTurn(d.text, d.images, d.files, "next");
+    enqueueTurn(conversationId, d.text, d.images, d.files, "next");
   };
   const decideDismiss = () => {
     if (pendingDecision) setMessageToSend(pendingDecision.text); // restore to the input
@@ -236,16 +246,18 @@ export function ChatInterface() {
   React.useEffect(() => {
     if (flushingRef.current) return;
     if (!READY_FOR_TURN.has(curAgentState)) return;
-    if (pendingTurns.length === 0) return;
-    const next = dequeueTurn();
-    if (!next) return;
+    // Only flush turns belonging to THIS conversation (Finding A).
+    const idx = selectNextIndex(pendingTurns);
+    if (idx < 0) return;
+    const next = pendingTurns[idx];
     flushingRef.current = true;
+    removeTurn(next.id);
     Promise.resolve(doSendRef.current(next.text, next.images, next.files))
       .catch(() => undefined)
       .finally(() => {
         flushingRef.current = false;
       });
-  }, [curAgentState, pendingTurns.length, dequeueTurn]);
+  }, [curAgentState, pendingTurns, removeTurn]);
 
   // "Run now": interrupt the agent (stop) and send this buffered turn immediately.
   const handleRunNow = async (id: string) => {

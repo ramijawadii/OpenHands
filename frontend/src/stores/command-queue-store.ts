@@ -24,6 +24,13 @@ export const PRIORITY: Record<CommandPriority, number> = {
 
 export interface QueuedCommand {
   id: string;
+  /**
+   * The conversation this turn belongs to. The store is a single global zustand store,
+   * but turns MUST flush only into their own conversation — otherwise a turn queued in
+   * assessment A would be sent into whatever conversation is open when the agent next goes
+   * idle (cross-context delivery). Consumers filter on this before flushing/displaying.
+   */
+  conversationId: string;
   text: string;
   images: File[];
   files: File[];
@@ -68,6 +75,7 @@ interface CommandQueueState {
   queue: QueuedCommand[];
   log: QueueOp[];
   enqueue: (
+    conversationId: string,
     text: string,
     images: File[],
     files: File[],
@@ -90,13 +98,13 @@ export const useCommandQueueStore = create<CommandQueueState>((set, get) => ({
   queue: [],
   log: [],
 
-  enqueue: (text, images, files, priority = "next") => {
+  enqueue: (conversationId, text, images, files, priority = "next") => {
     const id = newId();
     const at = new Date().toISOString();
     set((s) => ({
       queue: [
         ...s.queue,
-        { id, text, images, files, priority, enqueuedAt: at },
+        { id, conversationId, text, images, files, priority, enqueuedAt: at },
       ],
       log: pushLog(s.log, { op: "enqueue", id, priority, at }),
     }));
