@@ -5,17 +5,14 @@ import { OpenHandsAction } from "#/types/core/actions";
 import { OpenHandsObservation } from "#/types/core/observations";
 import {
   isOpenHandsAction,
-  isOpenHandsObservation,
   isOpenHandsEvent,
   isAgentStateChangeObservation,
   isFinishAction,
   isAssistantMessage,
 } from "#/types/core/guards";
 import { EventMessage } from "./event-message";
-import {
-  PlanSnapshotMessage,
-  extractPlanMarkdown,
-} from "./plan-snapshot-message";
+import { PlanSnapshotMessage } from "./plan-snapshot-message";
+import { buildMessageLookups } from "./message-lookups";
 import { ChatMessage } from "./chat-message";
 import { StreamingMessage } from "./streaming-message";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
@@ -102,17 +99,18 @@ export const Messages: React.FC<MessagesProps> = React.memo(
 
     const { t } = useTranslation();
 
-    const actionHasObservationPair = React.useCallback(
-      (event: OpenHandsAction | OpenHandsObservation): boolean => {
-        if (isOpenHandsAction(event)) {
-          return !!messages.some(
-            (msg) => isOpenHandsObservation(msg) && msg.cause === event.id,
-          );
-        }
-
-        return false;
-      },
+    // O(1) lookups built once per messages change (was two O(n)-per-row scans → O(n²)).
+    const lookups = React.useMemo(
+      () => buildMessageLookups(messages),
       [messages],
+    );
+
+    const actionHasObservationPair = React.useCallback(
+      (event: OpenHandsAction | OpenHandsObservation): boolean =>
+        isOpenHandsAction(event)
+          ? lookups.observationByCauseId.has(event.id)
+          : false,
+      [lookups],
     );
 
     const getMicroagentStatusForEvent = React.useCallback(
@@ -263,13 +261,9 @@ export const Messages: React.FC<MessagesProps> = React.memo(
         {messages.map((message, index) => {
           // CloudGuard: if this action's paired observation carries a plan snapshot,
           // render the gray checklist always-visible after it (the cell stays collapsed).
-          let planMarkdown = "";
-          if (isOpenHandsAction(message)) {
-            const obs = messages.find(
-              (m) => isOpenHandsObservation(m) && m.cause === message.id,
-            ) as OpenHandsObservation | undefined;
-            planMarkdown = extractPlanMarkdown(obs?.content);
-          }
+          const planMarkdown = isOpenHandsAction(message)
+            ? (lookups.planSnapshotByCause.get(message.id) ?? "")
+            : "";
           return (
             <React.Fragment key={index}>
               <EventMessage
