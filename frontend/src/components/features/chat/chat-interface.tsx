@@ -41,7 +41,14 @@ import { PlanApprovalBanner } from "./plan-approval-banner";
 import { ConfirmationBanner } from "./confirmation-banner";
 import { FileHistoryPanel } from "./file-history-panel";
 import { PendingTurns } from "./pending-turns";
+import { MidRunDecision } from "./mid-run-decision";
 import { useCommandQueueStore } from "#/stores/command-queue-store";
+
+interface PendingDecision {
+  text: string;
+  images: File[];
+  files: File[];
+}
 
 // Agent states in which a brand-new user turn can be sent right away. Anything else
 // (RUNNING / LOADING / awaiting-confirmation / paused …) means the turn is buffered.
@@ -87,6 +94,11 @@ export function ChatInterface() {
     dequeue: dequeueTurn,
     remove: removeTurn,
   } = useCommandQueueStore();
+
+  // A message the user submitted while the agent was busy, awaiting their per-message
+  // choice: add it to the current run (inject) or queue it as a separate turn.
+  const [pendingDecision, setPendingDecision] =
+    React.useState<PendingDecision | null>(null);
 
   const [feedbackPolarity, setFeedbackPolarity] = React.useState<
     "positive" | "negative"
@@ -178,14 +190,44 @@ export function ChatInterface() {
     images: File[],
     files: File[],
   ) => {
-    // Buffer the turn if the agent can't take one right now, or if turns are already
-    // queued (preserve FIFO/priority order). Otherwise send immediately. (mem-mgmt §2)
-    if (!READY_FOR_TURN.has(curAgentState) || pendingTurns.length > 0) {
-      enqueueTurn(content, images, files, "next");
+    // If the agent is busy, don't decide for the user — ask PER MESSAGE whether to add it
+    // to the current run (inject) or queue it as a separate turn. (mem-mgmt §2)
+    if (!READY_FOR_TURN.has(curAgentState)) {
+      // If a decision is still on screen, queue that earlier one (safe default) so nothing
+      // is lost, then raise the choice for this newest message.
+      if (pendingDecision) {
+        enqueueTurn(
+          pendingDecision.text,
+          pendingDecision.images,
+          pendingDecision.files,
+          "next",
+        );
+      }
+      setPendingDecision({ text: content, images, files });
       setMessageToSend("");
       return;
     }
     await doSend(content, images, files);
+  };
+
+  // Per-message decision handlers (mid-run).
+  const decideAddToCurrent = async () => {
+    const d = pendingDecision;
+    if (!d) return;
+    setPendingDecision(null);
+    // Inject: send now. OpenHands adds it to history and the agent picks it up on its
+    // next step within the CURRENT run.
+    await doSend(d.text, d.images, d.files);
+  };
+  const decideQueue = () => {
+    const d = pendingDecision;
+    if (!d) return;
+    setPendingDecision(null);
+    enqueueTurn(d.text, d.images, d.files, "next");
+  };
+  const decideDismiss = () => {
+    if (pendingDecision) setMessageToSend(pendingDecision.text); // restore to the input
+    setPendingDecision(null);
   };
 
   // Flush one buffered turn whenever the agent becomes ready. One-at-a-time: each send
@@ -308,6 +350,15 @@ export function ChatInterface() {
           <ApprovalBanner />
           <ClarificationBanner />
           {errorMessage && <ErrorMessageBanner message={errorMessage} />}
+
+          {pendingDecision && (
+            <MidRunDecision
+              text={pendingDecision.text}
+              onAddToCurrent={decideAddToCurrent}
+              onQueue={decideQueue}
+              onDismiss={decideDismiss}
+            />
+          )}
 
           <PendingTurns
             items={pendingTurns}
