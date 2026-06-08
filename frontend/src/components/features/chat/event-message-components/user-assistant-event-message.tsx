@@ -1,5 +1,13 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
+import {
+  StickyNote,
+  FileTerminal,
+  GitMerge,
+  TerminalSquare,
+  Code2,
+  History,
+} from "lucide-react";
 import { OpenHandsAction } from "#/types/core/actions";
 import { isUserMessage, isAssistantMessage } from "#/types/core/guards";
 import { ChatMessage } from "../chat-message";
@@ -14,7 +22,6 @@ import {
   useConversationStore,
   type ConversationTab,
 } from "#/state/conversation-store";
-import { StickyNote, FileTerminal, GitMerge, TerminalSquare, Code2 } from "lucide-react";
 
 // ── Tool badge row ────────────────────────────────────────────────────────────
 
@@ -26,11 +33,28 @@ const TAB_META: Record<
     subtitle: string;
   }
 > = {
-  terminal: { icon: TerminalSquare, label: "Terminal", subtitle: "Shell · Interactive" },
-  jupyter: { icon: FileTerminal, label: "Jupyter Notebook", subtitle: "Python · Interactive" },
+  terminal: {
+    icon: TerminalSquare,
+    label: "Terminal",
+    subtitle: "Shell · Interactive",
+  },
+  jupyter: {
+    icon: FileTerminal,
+    label: "Jupyter Notebook",
+    subtitle: "Python · Interactive",
+  },
   editor: { icon: GitMerge, label: "Changes", subtitle: "Git · Diff" },
-  diagrams: { icon: StickyNote, label: "Artifact", subtitle: "Document · Pages" },
+  diagrams: {
+    icon: StickyNote,
+    label: "Artifact",
+    subtitle: "Document · Pages",
+  },
   vscode: { icon: Code2, label: "VSCode", subtitle: "Code · Editor" },
+  states: {
+    icon: History,
+    label: "States",
+    subtitle: "Workspace · Flashpoints",
+  },
 };
 
 function ToolBadgesRow({ tabs }: { tabs: ConversationTab[] }) {
@@ -65,13 +89,20 @@ function ToolBadgesRow({ tabs }: { tabs: ConversationTab[] }) {
             </div>
             {/* Labels */}
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-sm font-medium text-[var(--cg-text-primary)] leading-tight">{meta.label}</span>
-              <span className="text-xs text-[var(--cg-text-muted)] leading-tight mt-0.5">{meta.subtitle}</span>
+              <span className="text-sm font-medium text-[var(--cg-text-primary)] leading-tight">
+                {meta.label}
+              </span>
+              <span className="text-xs text-[var(--cg-text-muted)] leading-tight mt-0.5">
+                {meta.subtitle}
+              </span>
             </div>
             {/* Open button */}
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); openTab(tab); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openTab(tab);
+              }}
               className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-[var(--cg-border)] text-xs text-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)] hover:border-[var(--cg-border-strong)] hover:bg-[var(--cg-bg-badge)] transition-colors"
             >
               Open

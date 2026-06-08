@@ -6,6 +6,7 @@ import { AgentState } from "#/types/agent-state";
 import { generateAgentStateChangeEvent } from "#/services/agent-state-service";
 import { createChatMessage } from "#/services/chat-service";
 import { isOpenHandsAction } from "#/types/core/guards";
+import { OpenHandsParsedEvent } from "#/types/core";
 import { useEventMessageStore } from "#/stores/event-message-store";
 
 /**
@@ -121,7 +122,8 @@ export function ConfirmationBanner() {
     const isAgentAction = (
       ev: unknown,
     ): ev is { id: number; action: string; args: Record<string, unknown> } =>
-      isOpenHandsAction(ev) && (ev as { source?: string }).source === "agent";
+      isOpenHandsAction(ev as OpenHandsParsedEvent) &&
+      (ev as { source?: string }).source === "agent";
     const explicit = rev.find(
       (ev) =>
         isAgentAction(ev) &&

@@ -60,11 +60,12 @@ export function PlanApprovalBanner() {
   }, [conversationId]);
 
   const agentWaiting = WAITING_STATES.has(curAgentState);
+  // Only show once the agent has explicitly marked the plan READY (plan_status
+  // is set to "ready" when the agent finishes planning). A bare "not decided"
+  // check replayed the banner whenever you switched into plan mode with stale
+  // tasks present, even if no fresh plan was produced this turn.
   const visible =
-    mode === "plan" &&
-    planStatus !== "decided" &&
-    taskCount > 0 &&
-    agentWaiting;
+    mode === "plan" && planStatus === "ready" && taskCount > 0 && agentWaiting;
   if (!visible) return null;
 
   const decide = async (
