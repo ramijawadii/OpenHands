@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import { ScopeBadge } from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -395,17 +396,26 @@ export default function UsageSettings() {
         }}
       >
         <div>
-          <h1
+          <div
             style={{
-              fontSize: 20,
-              fontWeight: 400,
-              color: S.textPrimary,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
               marginBottom: 4,
-              marginTop: 0,
             }}
           >
-            Usage
-          </h1>
+            <h1
+              style={{
+                fontSize: 20,
+                fontWeight: 400,
+                color: S.textPrimary,
+                margin: 0,
+              }}
+            >
+              Usage
+            </h1>
+            <ScopeBadge scope="Organization" />
+          </div>
           <p
             style={{
               fontSize: 13,

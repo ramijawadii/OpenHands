@@ -1,5 +1,10 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ScopeBadge,
+  SaveBar,
+  useDirty,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -451,7 +456,8 @@ export default function WorkspaceSettings() {
   const [data, setData] = React.useState<WorkspaceData>(load);
   const [workspaces, setWorkspaces] =
     React.useState<WorkspaceRow[]>(INITIAL_WORKSPACES);
-  const [saved, setSaved] = React.useState(false);
+  const [savedAt, setSavedAt] = React.useState(0);
+  const { dirty, baseline, reset } = useDirty(data);
   const [modal, setModal] = React.useState<null | "create" | "invite">(null);
   const [inviteTarget, setInviteTarget] = React.useState<string>("");
 
@@ -473,8 +479,8 @@ export default function WorkspaceSettings() {
 
   const handleSave = () => {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2200);
+    reset(data);
+    setSavedAt(Date.now());
   };
 
   const createWorkspace = () => {
@@ -510,17 +516,26 @@ export default function WorkspaceSettings() {
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 760 }}>
-      <h1
+      <div
         style={{
-          fontSize: 20,
-          fontWeight: 400,
-          color: S.textPrimary,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
           marginBottom: 4,
-          marginTop: 0,
         }}
       >
-        Workspace
-      </h1>
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: S.textPrimary,
+            margin: 0,
+          }}
+        >
+          Workspace
+        </h1>
+        <ScopeBadge scope="This workspace" />
+      </div>
       <p
         style={{
           fontSize: 13,
@@ -786,33 +801,12 @@ export default function WorkspaceSettings() {
         />
       </Section>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          gap: 14,
-        }}
-      >
-        {saved && <span style={{ fontSize: 12, color: S.success }}>Saved</span>}
-        <button
-          type="button"
-          onClick={handleSave}
-          style={{
-            height: 34,
-            padding: "0 14px",
-            borderRadius: 6,
-            background: S.accent,
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 500,
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          Save changes
-        </button>
-      </div>
+      <SaveBar
+        dirty={dirty}
+        savedAt={savedAt}
+        onSave={handleSave}
+        onDiscard={() => setData(baseline)}
+      />
 
       {modal === "create" && (
         <Modal

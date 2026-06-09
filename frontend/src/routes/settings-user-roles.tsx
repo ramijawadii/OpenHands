@@ -1,5 +1,9 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ConfirmButton,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -360,16 +364,19 @@ export default function UserRolesSettings() {
           marginBottom: 8,
         }}
       >
-        <h1
-          style={{
-            fontSize: 20,
-            fontWeight: 400,
-            color: S.textPrimary,
-            margin: 0,
-          }}
-        >
-          User Roles
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1
+            style={{
+              fontSize: 20,
+              fontWeight: 400,
+              color: S.textPrimary,
+              margin: 0,
+            }}
+          >
+            User Roles
+          </h1>
+          <ScopeBadge scope="Organization" />
+        </div>
         <button
           type="button"
           onClick={openCreate}
@@ -523,27 +530,16 @@ export default function UserRolesSettings() {
                   >
                     Edit
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => remove(r.id)}
+                  <ConfirmButton
+                    variant="link"
+                    label="Delete"
                     disabled={r.builtin}
-                    title={
-                      r.builtin
-                        ? "Built-in roles can't be deleted"
-                        : "Delete role"
-                    }
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: r.builtin ? S.textMuted : S.danger,
-                      fontSize: 12,
-                      cursor: r.builtin ? "default" : "pointer",
-                      padding: 0,
-                      opacity: r.builtin ? 0.5 : 1,
-                    }}
-                  >
-                    Delete
-                  </button>
+                    disabledReason="Built-in roles can't be deleted"
+                    title={`Delete role "${r.name}"?`}
+                    body={`${r.members.length} member(s) currently hold this role and will need reassigning. This cannot be undone.`}
+                    confirmLabel="Delete role"
+                    onConfirm={() => remove(r.id)}
+                  />
                 </div>
               </div>
               {open && (

@@ -15,6 +15,10 @@ import {
   Database,
   ChevronDown,
 } from "lucide-react";
+import {
+  ConfirmButton,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
 
 const LS_SECRETS = "cg_vault_secrets";
 
@@ -789,17 +793,26 @@ export default function VaultSettings() {
         }}
       >
         <div>
-          <h1
+          <div
             style={{
-              fontSize: 20,
-              fontWeight: 400,
-              color: S.textPrimary,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
               marginBottom: 4,
-              marginTop: 0,
             }}
           >
-            Secret Vault
-          </h1>
+            <h1
+              style={{
+                fontSize: 20,
+                fontWeight: 400,
+                color: S.textPrimary,
+                margin: 0,
+              }}
+            >
+              Secret Vault
+            </h1>
+            <ScopeBadge scope="Organization" />
+          </div>
           <p
             style={{
               fontSize: 13,
@@ -1132,22 +1145,20 @@ export default function VaultSettings() {
                       <RotateCcw size={13} />
                     </button>
                   )}
-                  <button
-                    type="button"
-                    title="Delete"
-                    onClick={() => handleDelete(s.id)}
+                  <ConfirmButton
+                    variant="link"
+                    label={<Trash2 size={13} />}
+                    title={`Delete secret "${s.name}"?`}
+                    body="Anything referencing this secret will break. This cannot be undone."
+                    confirmLabel="Delete secret"
+                    onConfirm={() => handleDelete(s.id)}
                     style={{
-                      background: "none",
-                      border: "none",
                       color: S.textMuted,
-                      cursor: "pointer",
-                      padding: "2px 4px",
                       display: "flex",
                       alignItems: "center",
+                      padding: "2px 4px",
                     }}
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  />
                   <ChevronDown
                     size={12}
                     color={S.textMuted}

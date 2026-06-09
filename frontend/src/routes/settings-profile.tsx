@@ -1,5 +1,10 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ScopeBadge,
+  SaveBar,
+  useDirty,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   pageBg: "var(--cg-bg-page)",
@@ -135,7 +140,8 @@ const selectStyle: React.CSSProperties = {
 
 export default function ProfileSettings() {
   const [data, setData] = React.useState<ProfileData>(load);
-  const [saved, setSaved] = React.useState(false);
+  const [savedAt, setSavedAt] = React.useState(0);
+  const { dirty, baseline, reset } = useDirty(data);
   const [avatarUrl, setAvatarUrl] = React.useState<string>("");
   const fileRef = React.useRef<HTMLInputElement>(null);
 
@@ -149,23 +155,32 @@ export default function ProfileSettings() {
 
   const handleSave = () => {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2200);
+    reset(data);
+    setSavedAt(Date.now());
   };
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 700 }}>
-      <h1
+      <div
         style={{
-          fontSize: 20,
-          fontWeight: 400,
-          color: S.textPrimary,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
           marginBottom: 4,
-          marginTop: 0,
         }}
       >
-        Profile
-      </h1>
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: S.textPrimary,
+            margin: 0,
+          }}
+        >
+          Profile
+        </h1>
+        <ScopeBadge scope="You" />
+      </div>
       <p
         style={{
           fontSize: 13,
@@ -338,33 +353,12 @@ export default function ProfileSettings() {
         </Row>
       </Section>
 
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          alignItems: "center",
-          gap: 14,
-        }}
-      >
-        {saved && <span style={{ fontSize: 12, color: S.success }}>Saved</span>}
-        <button
-          type="button"
-          onClick={handleSave}
-          style={{
-            height: 34,
-            padding: "0 14px",
-            borderRadius: 6,
-            background: S.accent,
-            color: "#fff",
-            fontSize: 13,
-            fontWeight: 500,
-            border: "none",
-            cursor: "pointer",
-          }}
-        >
-          Save changes
-        </button>
-      </div>
+      <SaveBar
+        dirty={dirty}
+        savedAt={savedAt}
+        onSave={handleSave}
+        onDiscard={() => setData(baseline)}
+      />
     </div>
   );
 }

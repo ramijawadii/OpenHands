@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { ScopeBadge } from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -397,17 +398,26 @@ export default function SandboxComputeSettings() {
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 820 }}>
-      <h1
+      <div
         style={{
-          fontSize: 20,
-          fontWeight: 400,
-          color: S.textPrimary,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
           marginBottom: 4,
-          marginTop: 0,
         }}
       >
-        Sandbox Compute
-      </h1>
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: S.textPrimary,
+            margin: 0,
+          }}
+        >
+          Sandbox Compute
+        </h1>
+        <ScopeBadge scope="This workspace" />
+      </div>
       <p
         style={{
           fontSize: 13,

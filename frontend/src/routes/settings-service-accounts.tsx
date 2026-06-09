@@ -1,5 +1,10 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ConfirmButton,
+  EmptyState,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -322,16 +327,19 @@ export default function ServiceAccountsSettings() {
           marginBottom: 8,
         }}
       >
-        <h1
-          style={{
-            fontSize: 20,
-            fontWeight: 400,
-            color: S.textPrimary,
-            margin: 0,
-          }}
-        >
-          Service Accounts
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1
+            style={{
+              fontSize: 20,
+              fontWeight: 400,
+              color: S.textPrimary,
+              margin: 0,
+            }}
+          >
+            Service Accounts
+          </h1>
+          <ScopeBadge scope="Organization" />
+        </div>
         <button
           type="button"
           onClick={() => setModal("create")}
@@ -511,24 +519,28 @@ export default function ServiceAccountsSettings() {
               >
                 {r.active ? "Disable" : "Enable"}
               </button>
-              <button
-                type="button"
-                onClick={() => remove(r.id)}
-                title="Delete"
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: S.danger,
-                  fontSize: 12,
-                  cursor: "pointer",
-                  padding: 0,
-                }}
-              >
-                ✕
-              </button>
+              <ConfirmButton
+                variant="link"
+                label="✕"
+                title={`Delete service account "${r.name}"?`}
+                body="Any automation using this key will immediately lose access. This cannot be undone."
+                confirmLabel="Delete service account"
+                onConfirm={() => remove(r.id)}
+              />
             </div>
           </div>
         ))}
+        {rows.length === 0 && (
+          <div style={{ padding: 16 }}>
+            <EmptyState
+              icon="🤖"
+              title="No service accounts yet"
+              hint="Create a scoped, non-human identity for CI/CD pipelines or scheduled scans."
+              cta="Create service account"
+              onCta={() => setModal("create")}
+            />
+          </div>
+        )}
       </div>
 
       {modal === "create" && (

@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { ScopeBadge } from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -339,16 +340,19 @@ export default function AuditLogSettings() {
           marginBottom: 8,
         }}
       >
-        <h1
-          style={{
-            fontSize: 20,
-            fontWeight: 400,
-            color: S.textPrimary,
-            margin: 0,
-          }}
-        >
-          Audit Log
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1
+            style={{
+              fontSize: 20,
+              fontWeight: 400,
+              color: S.textPrimary,
+              margin: 0,
+            }}
+          >
+            Audit Log
+          </h1>
+          <ScopeBadge scope="This workspace" />
+        </div>
         <button
           type="button"
           style={{

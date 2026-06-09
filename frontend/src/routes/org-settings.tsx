@@ -1,5 +1,9 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ConfirmButton,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -480,17 +484,26 @@ export default function OrgSettings() {
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 760 }}>
-      <h1
+      <div
         style={{
-          fontSize: 20,
-          fontWeight: 400,
-          color: S.textPrimary,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
           marginBottom: 4,
-          marginTop: 0,
         }}
       >
-        Organization
-      </h1>
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: S.textPrimary,
+            margin: 0,
+          }}
+        >
+          Organization
+        </h1>
+        <ScopeBadge scope="Organization" />
+      </div>
       <p
         style={{
           fontSize: 13,
@@ -761,21 +774,14 @@ export default function OrgSettings() {
                 <RoleBadge role={m.role} />
               </div>
               <span style={{ fontSize: 12, color: S.textMuted }}>{m.last}</span>
-              <button
-                type="button"
-                title="Remove member"
-                onClick={() => removeMember(m.email)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: S.danger,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  padding: 0,
-                }}
-              >
-                ✕
-              </button>
+              <ConfirmButton
+                variant="link"
+                label="✕"
+                title={`Remove ${m.name}?`}
+                body={`${m.name} will lose access to this organization. You can re-invite them later.`}
+                confirmLabel="Remove member"
+                onConfirm={() => removeMember(m.email)}
+              />
             </div>
           ))}
         </div>
@@ -989,21 +995,14 @@ export default function OrgSettings() {
                 Transfer ownership to another admin.
               </div>
             </div>
-            <button
-              type="button"
-              style={{
-                height: 34,
-                padding: "0 14px",
-                borderRadius: 6,
-                background: "transparent",
-                border: `1px solid rgba(224,82,82,0.4)`,
-                color: S.danger,
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              Transfer
-            </button>
+            <ConfirmButton
+              variant="ghost"
+              label="Transfer"
+              title="Transfer organization ownership?"
+              body="The selected admin becomes the owner. You will lose owner-level controls. This can only be reversed by the new owner."
+              confirmLabel="Transfer ownership"
+              onConfirm={() => {}}
+            />
           </div>
           <div style={{ height: 1, background: S.border }} />
           <div
@@ -1022,21 +1021,15 @@ export default function OrgSettings() {
                 undone.
               </div>
             </div>
-            <button
-              type="button"
-              style={{
-                height: 34,
-                padding: "0 14px",
-                borderRadius: 6,
-                background: "transparent",
-                border: `1px solid rgba(224,82,82,0.4)`,
-                color: S.danger,
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              Delete org
-            </button>
+            <ConfirmButton
+              variant="ghost"
+              label="Delete org"
+              title="Delete this organization?"
+              body="This permanently deletes the organization, all workspaces, findings, connectors and audit history. This cannot be undone."
+              confirmLabel="Delete organization"
+              confirmWord="DELETE"
+              onConfirm={() => {}}
+            />
           </div>
         </div>
       </Section>

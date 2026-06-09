@@ -1,5 +1,9 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ConfirmButton,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -403,17 +407,26 @@ export default function SecuritySettings() {
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 700 }}>
-      <h1
+      <div
         style={{
-          fontSize: 20,
-          fontWeight: 400,
-          color: S.textPrimary,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
           marginBottom: 4,
-          marginTop: 0,
         }}
       >
-        Sessions & Security
-      </h1>
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: S.textPrimary,
+            margin: 0,
+          }}
+        >
+          Account Security
+        </h1>
+        <ScopeBadge scope="You" />
+      </div>
       <p
         style={{
           fontSize: 13,
@@ -637,20 +650,14 @@ export default function SecuritySettings() {
         <div
           style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}
         >
-          <button
-            type="button"
-            onClick={revokeOthers}
-            style={{
-              background: "none",
-              border: "none",
-              color: S.danger,
-              fontSize: 12,
-              cursor: "pointer",
-              padding: 0,
-            }}
-          >
-            Revoke all other sessions
-          </button>
+          <ConfirmButton
+            variant="link"
+            label="Revoke all other sessions"
+            title="Revoke all other sessions?"
+            body="Every session except this one will be signed out immediately. They'll need to sign in again."
+            confirmLabel="Revoke all"
+            onConfirm={revokeOthers}
+          />
         </div>
       </Section>
 

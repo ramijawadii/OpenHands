@@ -1,5 +1,10 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import {
+  ConfirmButton,
+  EmptyState,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -277,10 +282,10 @@ export default function WebhooksSettings() {
       ),
     );
   const test = (h: Hook) => {
-    setToast(
-      `Test event sent to ${h.url.replace(/^https?:\/\//, "").slice(0, 32)}…`,
-    );
-    setTimeout(() => setToast(""), 2600);
+    const host = h.url.replace(/^https?:\/\//, "").slice(0, 36);
+    const code = h.status === "failing" ? "503 Service Unavailable" : "200 OK";
+    setToast(`Test POST → ${host} · ${code}`);
+    setTimeout(() => setToast(""), 3200);
   };
 
   return (
@@ -293,16 +298,19 @@ export default function WebhooksSettings() {
           marginBottom: 8,
         }}
       >
-        <h1
-          style={{
-            fontSize: 20,
-            fontWeight: 400,
-            color: S.textPrimary,
-            margin: 0,
-          }}
-        >
-          Webhooks
-        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1
+            style={{
+              fontSize: 20,
+              fontWeight: 400,
+              color: S.textPrimary,
+              margin: 0,
+            }}
+          >
+            Webhooks
+          </h1>
+          <ScopeBadge scope="Organization" />
+        </div>
         <button
           type="button"
           onClick={() => setModal(true)}
@@ -419,20 +427,14 @@ export default function WebhooksSettings() {
                 >
                   {h.status === "disabled" ? "Enable" : "Disable"}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => remove(h.id)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: S.danger,
-                    fontSize: 12,
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  Delete
-                </button>
+                <ConfirmButton
+                  variant="link"
+                  label="Delete"
+                  title="Delete this webhook endpoint?"
+                  body="Events will stop being delivered to this URL. This cannot be undone."
+                  confirmLabel="Delete endpoint"
+                  onConfirm={() => remove(h.id)}
+                />
               </div>
             </div>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -457,6 +459,15 @@ export default function WebhooksSettings() {
             </div>
           </div>
         ))}
+        {hooks.length === 0 && (
+          <EmptyState
+            icon="🔔"
+            title="No webhook endpoints"
+            hint="Add an endpoint to push scan and finding events to your SIEM, SOAR, Slack or PagerDuty."
+            cta="Add endpoint"
+            onCta={() => setModal(true)}
+          />
+        )}
       </div>
 
       <div>
