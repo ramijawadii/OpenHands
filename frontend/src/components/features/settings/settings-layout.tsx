@@ -1,6 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
-import { NavLink, Navigate, useLocation } from "react-router";
+import { NavLink, Navigate, useLocation, useNavigate } from "react-router";
 import {
   User,
   SunMoon,
@@ -37,11 +37,12 @@ type LucideIcon = React.ComponentType<{
 }>;
 
 type NavLeaf = { to: string; text: string; Icon: LucideIcon };
-type NavGroup = { group: string; items: NavLeaf[] };
+type NavGroup = { group: string; Icon: LucideIcon; items: NavLeaf[] };
 
 const NAV_GROUPS: NavGroup[] = [
   {
     group: "Account",
+    Icon: User,
     items: [
       { to: "/settings/profile", text: "Profile", Icon: User },
       { to: "/settings/theme", text: "Theme & Language", Icon: SunMoon },
@@ -50,6 +51,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     group: "Organization",
+    Icon: Building2,
     items: [
       { to: "/settings/org", text: "Organization", Icon: Building2 },
       { to: "/settings/user-roles", text: "User Roles", Icon: Users },
@@ -59,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     group: "Workspace",
+    Icon: LayoutGrid,
     items: [
       { to: "/settings/workspace", text: "Workspace", Icon: LayoutGrid },
       { to: "/settings/sandbox-compute", text: "Sandbox Compute", Icon: Cpu },
@@ -67,6 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     group: "Security & Data",
+    Icon: Globe,
     items: [
       { to: "/settings/data-residency", text: "Data Residency", Icon: Globe },
       { to: "/settings/connectors", text: "Connectors", Icon: Plug2 },
@@ -75,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     group: "Developer",
+    Icon: Bot,
     items: [
       { to: "/settings/service-accounts", text: "Service Accounts", Icon: Bot },
       { to: "/settings/webhooks", text: "Webhooks", Icon: Webhook },
@@ -88,48 +93,29 @@ interface SettingsLayoutProps {
   isSaas?: boolean;
 }
 
-const ORGS = ["Sentinel Security Corp"];
-const WORKSPACES = [
-  "Sentinel Security Workspace",
-  "Production Cloud",
-  "Sandbox / Dev",
-];
-
-const ctxSelect: React.CSSProperties = {
-  width: "100%",
-  height: 30,
-  padding: "0 24px 0 8px",
-  background: "var(--cg-bg-page)",
-  border: "1px solid var(--cg-border)",
-  borderRadius: 6,
-  color: "var(--cg-text-primary)",
-  fontSize: 12.5,
-  outline: "none",
-  appearance: "none",
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
-
 export function SettingsLayout({ children }: SettingsLayoutProps) {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const [hovered, setHovered] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
-  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
-  const [org, setOrg] = React.useState(ORGS[0]);
-  const [workspace, setWorkspace] = React.useState(WORKSPACES[0]);
   const role = useCurrentRole();
 
   if (pathname === "/settings") {
     return <Navigate to="/settings/profile" replace />;
   }
 
+  // Which principal group is active = the one owning the current route.
+  const activeGroup =
+    NAV_GROUPS.find((g) =>
+      g.items.some(
+        (it) => pathname === it.to || pathname.startsWith(`${it.to}/`),
+      ),
+    ) ?? NAV_GROUPS[0];
+
   const q = query.trim().toLowerCase();
-  const groups = NAV_GROUPS.map((g) => ({
-    ...g,
-    items: q
-      ? g.items.filter((it) => it.text.toLowerCase().includes(q))
-      : g.items,
-  })).filter((g) => g.items.length > 0);
+  const subItems = q
+    ? activeGroup.items.filter((it) => it.text.toLowerCase().includes(q))
+    : activeGroup.items;
 
   const renderLink = (item: NavLeaf) => {
     const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
@@ -142,8 +128,8 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          height: 32,
+          gap: 9,
+          height: 34,
           padding: "0 10px",
           borderRadius: 6,
           textDecoration: "none",
@@ -159,7 +145,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
         onMouseLeave={() => setHovered(null)}
       >
         <item.Icon
-          size={14}
+          size={15}
           strokeWidth={1.6}
           color={lit ? S.textPrimary : S.textMuted}
         />
@@ -170,10 +156,10 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
 
   return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
-      {/* Settings nav — custom */}
+      {/* Primary group rail */}
       <nav
         style={{
-          width: 248,
+          width: 184,
           flexShrink: 0,
           background: S.navBg,
           borderRight: `1px solid ${S.border}`,
@@ -182,10 +168,9 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           overflow: "hidden",
         }}
       >
-        {/* Brand + back */}
         <div
           style={{
-            padding: "16px 16px 12px",
+            padding: "16px 14px 14px",
             borderBottom: `1px solid ${S.border}`,
           }}
         >
@@ -201,7 +186,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
               marginBottom: 12,
             }}
           >
-            <span style={{ fontSize: 13 }}>←</span> Back to dashboard
+            <span style={{ fontSize: 13 }}>←</span> Back
           </NavLink>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <span
@@ -216,7 +201,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
             />
             <span
               style={{
-                fontSize: 18,
+                fontSize: 17,
                 color: S.textPrimary,
                 fontWeight: 600,
                 letterSpacing: "-0.01em",
@@ -227,83 +212,97 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           </div>
         </div>
 
-        {/* Org / Workspace context switcher */}
-        <div
-          style={{
-            padding: "12px 16px",
-            borderBottom: `1px solid ${S.border}`,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: S.textMuted,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                marginBottom: 4,
-              }}
-            >
-              Organization
-            </div>
-            <select
-              value={org}
-              onChange={(e) => setOrg(e.target.value)}
-              aria-label="Organization"
-              style={ctxSelect}
-            >
-              {ORGS.map((o) => (
-                <option key={o} value={o}>
-                  {o}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <div
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                color: S.textMuted,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                marginBottom: 4,
-              }}
-            >
-              Workspace
-            </div>
-            <select
-              value={workspace}
-              onChange={(e) => setWorkspace(e.target.value)}
-              aria-label="Workspace"
-              style={ctxSelect}
-            >
-              {WORKSPACES.map((w) => (
-                <option key={w} value={w}>
-                  {w}
-                </option>
-              ))}
-            </select>
-          </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 12px" }}>
+          {NAV_GROUPS.map((g) => {
+            const isActive = g.group === activeGroup.group;
+            const lit = isActive || hovered === `grp-${g.group}`;
+            return (
+              <button
+                key={g.group}
+                type="button"
+                onClick={() => navigate(g.items[0].to)}
+                onMouseEnter={() => setHovered(`grp-${g.group}`)}
+                onMouseLeave={() => setHovered(null)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  height: 38,
+                  padding: "0 10px",
+                  borderRadius: 8,
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontSize: 13,
+                  fontWeight: isActive ? 500 : 400,
+                  color: lit ? S.textPrimary : S.textNav,
+                  background: isActive ? S.activeBg : "transparent",
+                  marginBottom: 2,
+                  transition: "background 100ms ease, color 100ms ease",
+                }}
+              >
+                <g.Icon
+                  size={17}
+                  strokeWidth={1.6}
+                  color={lit ? S.textPrimary : S.textMuted}
+                />
+                {g.group}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Search */}
-        <div style={{ padding: "12px 12px 6px" }}>
+        <div
+          style={{ padding: "12px 14px", borderTop: `1px solid ${S.border}` }}
+        >
+          <RoleChip role={role} />
+        </div>
+      </nav>
+
+      {/* Secondary sub-tab sidebar */}
+      <nav
+        style={{
+          width: 216,
+          flexShrink: 0,
+          background: S.pageBg,
+          borderRight: `1px solid ${S.border}`,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ padding: "20px 16px 10px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 12,
+            }}
+          >
+            <activeGroup.Icon
+              size={16}
+              strokeWidth={1.7}
+              color={S.textPrimary}
+            />
+            <span
+              style={{ fontSize: 15, color: S.textPrimary, fontWeight: 600 }}
+            >
+              {activeGroup.group}
+            </span>
+          </div>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search settings…"
+            placeholder={`Search ${activeGroup.group.toLowerCase()}…`}
             aria-label="Search settings"
             style={{
               width: "100%",
-              height: 32,
+              height: 30,
               padding: "0 10px",
-              background: S.pageBg,
+              background: S.navBg,
               border: `1px solid ${S.border}`,
               borderRadius: 6,
               color: S.textPrimary,
@@ -314,64 +313,14 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
             }}
           />
         </div>
-
-        {/* Groups (collapsible) */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px 12px" }}>
-          {groups.length === 0 && (
-            <div
-              style={{ fontSize: 12, color: S.textMuted, padding: "12px 10px" }}
-            >
-              No settings match "{query}".
+        <div style={{ flex: 1, overflowY: "auto", padding: "2px 8px 16px" }}>
+          {subItems.length === 0 ? (
+            <div style={{ fontSize: 12, color: S.textMuted, padding: "10px" }}>
+              No matches.
             </div>
+          ) : (
+            subItems.map(renderLink)
           )}
-          {groups.map((g) => {
-            const isCollapsed = !q && collapsed[g.group];
-            return (
-              <div key={g.group} style={{ marginBottom: 6 }}>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCollapsed((c) => ({ ...c, [g.group]: !c[g.group] }))
-                  }
-                  style={{
-                    width: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "8px 10px 4px",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: 10,
-                    fontWeight: 600,
-                    color: S.textMuted,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: 9,
-                      transform: isCollapsed ? "rotate(-90deg)" : "none",
-                      transition: "transform 120ms",
-                      display: "inline-block",
-                    }}
-                  >
-                    ▾
-                  </span>
-                  {g.group}
-                </button>
-                {!isCollapsed && g.items.map(renderLink)}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Footer: role */}
-        <div
-          style={{ padding: "12px 16px", borderTop: `1px solid ${S.border}` }}
-        >
-          <RoleChip role={role} />
         </div>
       </nav>
 
