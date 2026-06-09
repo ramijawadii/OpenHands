@@ -12,6 +12,9 @@ import {
   Plug2,
   KeyRound,
   Cpu,
+  Bot,
+  Globe,
+  Webhook,
 } from "lucide-react";
 
 const S = {
@@ -41,6 +44,9 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/settings/sandbox-compute", text: "Sandbox Compute", Icon: Cpu },
   { to: "/settings/usage", text: "Usage", Icon: BarChart2 },
   { to: "/settings/limits", text: "Limits", Icon: Gauge },
+  { to: "/settings/service-accounts", text: "Service Accounts", Icon: Bot },
+  { to: "/settings/data-residency", text: "Data Residency", Icon: Globe },
+  { to: "/settings/webhooks", text: "Webhooks", Icon: Webhook },
   null,
   { to: "/settings/connectors", text: "Connectors", Icon: Plug2 },
   { to: "/settings/vault", text: "Secret Vault", Icon: KeyRound },
