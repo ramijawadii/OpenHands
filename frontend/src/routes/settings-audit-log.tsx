@@ -1,4 +1,4 @@
-/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import { ScopeBadge } from "#/components/features/settings/settings-kit";
 
@@ -290,6 +290,7 @@ export default function AuditLogSettings() {
   const [fSource, setFSource] = React.useState("");
   const [fCloud, setFCloud] = React.useState("");
   const [search, setSearch] = React.useState("");
+  const [detail, setDetail] = React.useState<LogEntry | null>(null);
 
   const shown = LOGS.filter((l) => {
     if (fWorkspace && l.workspace !== fWorkspace) return false;
@@ -396,18 +397,44 @@ export default function AuditLogSettings() {
           onChange={setFWorkspace}
           options={WORKSPACES}
         />
-        <Filter
-          label="User"
-          value={fActor}
-          onChange={setFActor}
-          options={USERS}
-        />
-        <Filter
-          label="Service account"
-          value={fActor}
-          onChange={setFActor}
-          options={SERVICE_ACCOUNTS}
-        />
+        <div>
+          <label
+            style={{
+              display: "block",
+              fontSize: 10,
+              fontWeight: 600,
+              color: S.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              marginBottom: 5,
+            }}
+          >
+            Actor
+          </label>
+          <select
+            value={fActor}
+            onChange={(e) => setFActor(e.target.value)}
+            style={selectStyle}
+          >
+            <option value="" style={optBg}>
+              All actors
+            </option>
+            <optgroup label="Users" style={optBg}>
+              {USERS.map((u) => (
+                <option key={u} value={u} style={optBg}>
+                  {u}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Service accounts" style={optBg}>
+              {SERVICE_ACCOUNTS.map((s) => (
+                <option key={s} value={s} style={optBg}>
+                  {s}
+                </option>
+              ))}
+            </optgroup>
+          </select>
+        </div>
         <Filter
           label="Source"
           value={fSource}
@@ -514,10 +541,13 @@ export default function AuditLogSettings() {
         {shown.map((l, i) => (
           <div
             key={i}
+            onClick={() => setDetail(l)}
+            title="View event details"
             style={{
               display: "grid",
               gridTemplateColumns: GRID,
               padding: "10px 16px",
+              cursor: "pointer",
               borderBottom:
                 i < shown.length - 1
                   ? "1px solid var(--cg-border-subtle)"
@@ -605,6 +635,127 @@ export default function AuditLogSettings() {
           </div>
         ))}
       </div>
+
+      {detail && (
+        <div
+          onClick={() => setDetail(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex",
+            justifyContent: "flex-end",
+            zIndex: 1100,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 460,
+              maxWidth: "92vw",
+              height: "100%",
+              overflowY: "auto",
+              background: S.cardBg,
+              borderLeft: `1px solid ${S.borderStrong}`,
+              padding: 24,
+              boxShadow: "-8px 0 24px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 16,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: S.textPrimary,
+                  margin: 0,
+                }}
+              >
+                Event detail
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDetail(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: S.textMuted,
+                  fontSize: 18,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {[
+                ["Time", detail.ts],
+                ["Actor", detail.actor],
+                ["Source", detail.source],
+                ["Action", detail.action],
+                ["Resource", detail.resource],
+                ["Workspace", detail.workspace],
+                ["Cloud", detail.cloud],
+                ["Status", detail.status],
+                ["Source IP", detail.ip],
+                [
+                  "Event ID",
+                  `evt_${detail.ts.replace(/[^0-9]/g, "").slice(-10)}`,
+                ],
+              ].map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    padding: "10px 0",
+                    borderBottom: "1px solid var(--cg-border-subtle)",
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: S.textMuted }}>{k}</span>
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      color: S.textSecondary,
+                      fontFamily: "monospace",
+                      textAlign: "right",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {v}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 16, fontSize: 11, color: S.textMuted }}>
+              Signed entry — integrity verified against the tamper-evident chain
+              (tenant_audit). Raw JSON:
+            </div>
+            <pre
+              style={{
+                marginTop: 8,
+                padding: 12,
+                background: S.inputBg,
+                border: `1px solid ${S.border}`,
+                borderRadius: 6,
+                fontSize: 11,
+                color: S.textSecondary,
+                overflowX: "auto",
+              }}
+            >
+              {JSON.stringify(detail, null, 2)}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
