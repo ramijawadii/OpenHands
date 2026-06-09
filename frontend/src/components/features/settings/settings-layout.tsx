@@ -17,6 +17,15 @@ import {
   Webhook,
   ScrollText,
   Users,
+  UserPlus,
+  CreditCard,
+  Package,
+  Bell,
+  LifeBuoy,
+  Tags,
+  Network,
+  BadgeCheck,
+  Blocks,
 } from "lucide-react";
 import { RoleChip, useCurrentRole } from "./settings-kit";
 
@@ -53,10 +62,15 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Organization",
     Icon: Building2,
     items: [
-      { to: "/settings/org", text: "Organization", Icon: Building2 },
-      { to: "/settings/user-roles", text: "User Roles", Icon: Users },
+      { to: "/settings/org", text: "General", Icon: Building2 },
+      { to: "/settings/members", text: "Members", Icon: UserPlus },
+      { to: "/settings/user-roles", text: "Roles & Permissions", Icon: Users },
+      { to: "/settings/plan", text: "Plan & Add-ons", Icon: Package },
+      { to: "/settings/billing", text: "Billing", Icon: CreditCard },
       { to: "/settings/usage", text: "Usage", Icon: BarChart2 },
       { to: "/settings/limits", text: "Limits", Icon: Gauge },
+      { to: "/settings/notifications", text: "Notifications", Icon: Bell },
+      { to: "/settings/support", text: "Support", Icon: LifeBuoy },
     ],
   },
   {
@@ -64,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
     Icon: LayoutGrid,
     items: [
       { to: "/settings/workspace", text: "Workspace", Icon: LayoutGrid },
+      { to: "/settings/environments", text: "Environments & Tags", Icon: Tags },
       { to: "/settings/sandbox-compute", text: "Sandbox Compute", Icon: Cpu },
       { to: "/settings/audit-log", text: "Audit Log", Icon: ScrollText },
     ],
@@ -73,6 +88,12 @@ const NAV_GROUPS: NavGroup[] = [
     Icon: Globe,
     items: [
       { to: "/settings/data-residency", text: "Data Residency", Icon: Globe },
+      { to: "/settings/network", text: "Network & Access", Icon: Network },
+      {
+        to: "/settings/compliance",
+        text: "Compliance & Trust",
+        Icon: BadgeCheck,
+      },
       { to: "/settings/connectors", text: "Connectors", Icon: Plug2 },
       { to: "/settings/vault", text: "Secret Vault", Icon: KeyRound },
     ],
@@ -83,6 +104,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/settings/service-accounts", text: "Service Accounts", Icon: Bot },
       { to: "/settings/webhooks", text: "Webhooks", Icon: Webhook },
+      { to: "/settings/integrations", text: "Integrations", Icon: Blocks },
     ],
   },
 ];
@@ -189,15 +211,11 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
             <span style={{ fontSize: 13 }}>←</span> Back
           </NavLink>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <span
-              style={{
-                width: 22,
-                height: 22,
-                borderRadius: 6,
-                background:
-                  "linear-gradient(135deg, var(--cg-accent), var(--cg-accent-purple))",
-                flexShrink: 0,
-              }}
+            <ShieldCheck
+              size={20}
+              strokeWidth={1.8}
+              color="var(--cg-accent)"
+              style={{ flexShrink: 0 }}
             />
             <span
               style={{
