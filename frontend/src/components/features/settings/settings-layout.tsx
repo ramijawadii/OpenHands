@@ -15,6 +15,8 @@ import {
   Bot,
   Globe,
   Webhook,
+  ScrollText,
+  Users,
 } from "lucide-react";
 
 const S = {
@@ -38,10 +40,12 @@ type NavItem = { to: string; text: string; Icon: LucideIcon } | null;
 const NAV_ITEMS: NavItem[] = [
   { to: "/settings/profile", text: "Profile", Icon: User },
   { to: "/settings/org", text: "Organization", Icon: Building2 },
+  { to: "/settings/user-roles", text: "User Roles", Icon: Users },
   { to: "/settings/theme", text: "Theme & Language", Icon: SunMoon },
   { to: "/settings/security", text: "Sessions & Security", Icon: ShieldCheck },
   { to: "/settings/workspace", text: "Workspace", Icon: LayoutGrid },
   { to: "/settings/sandbox-compute", text: "Sandbox Compute", Icon: Cpu },
+  { to: "/settings/audit-log", text: "Audit Log", Icon: ScrollText },
   { to: "/settings/usage", text: "Usage", Icon: BarChart2 },
   { to: "/settings/limits", text: "Limits", Icon: Gauge },
   { to: "/settings/service-accounts", text: "Service Accounts", Icon: Bot },

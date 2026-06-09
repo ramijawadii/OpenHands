@@ -1,3 +1,4 @@
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 
 const S = {
@@ -29,8 +30,15 @@ function load(): ProfileData {
   try {
     const raw = localStorage.getItem(LS_KEY);
     if (raw) return JSON.parse(raw) as ProfileData;
-  } catch { /* ignore */ }
-  return { fullName: "Rami Sentinel", displayName: "Rami", role: "", instructions: "" };
+  } catch {
+    /* ignore */
+  }
+  return {
+    fullName: "Rami Sentinel",
+    displayName: "Rami",
+    role: "",
+    instructions: "",
+  };
 }
 
 const ROLES = [
@@ -44,10 +52,26 @@ const ROLES = [
   "Other",
 ];
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div style={{ marginBottom: 36 }}>
-      <h2 style={{ fontSize: 14, fontWeight: 500, color: S.textPrimary, paddingBottom: 12, borderBottom: `1px solid ${S.border}`, marginBottom: 20, marginTop: 0 }}>
+      <h2
+        style={{
+          fontSize: 14,
+          fontWeight: 500,
+          color: S.textPrimary,
+          paddingBottom: 12,
+          borderBottom: `1px solid ${S.border}`,
+          marginBottom: 20,
+          marginTop: 0,
+        }}
+      >
         {title}
       </h2>
       {children}
@@ -55,12 +79,34 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function Row({ label, sublabel, children }: { label: string; sublabel?: string; children: React.ReactNode }) {
+function Row({
+  label,
+  sublabel,
+  children,
+}: {
+  label: string;
+  sublabel?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", minHeight: 44, padding: "10px 0", borderBottom: `1px solid var(--cg-border-subtle)`, gap: 24 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        minHeight: 44,
+        padding: "10px 0",
+        borderBottom: `1px solid var(--cg-border-subtle)`,
+        gap: 24,
+      }}
+    >
       <div style={{ flexShrink: 0, maxWidth: 280 }}>
         <div style={{ fontSize: 14, color: S.textSecondary }}>{label}</div>
-        {sublabel && <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>{sublabel}</div>}
+        {sublabel && (
+          <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
+            {sublabel}
+          </div>
+        )}
       </div>
       <div style={{ flex: 1, maxWidth: 360 }}>{children}</div>
     </div>
@@ -90,8 +136,16 @@ const selectStyle: React.CSSProperties = {
 export default function ProfileSettings() {
   const [data, setData] = React.useState<ProfileData>(load);
   const [saved, setSaved] = React.useState(false);
+  const [avatarUrl, setAvatarUrl] = React.useState<string>("");
+  const fileRef = React.useRef<HTMLInputElement>(null);
 
-  const update = (patch: Partial<ProfileData>) => setData(prev => ({ ...prev, ...patch }));
+  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) setAvatarUrl(URL.createObjectURL(f));
+  };
+
+  const update = (patch: Partial<ProfileData>) =>
+    setData((prev) => ({ ...prev, ...patch }));
 
   const handleSave = () => {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
@@ -101,18 +155,93 @@ export default function ProfileSettings() {
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 700 }}>
-      <h1 style={{ fontSize: 20, fontWeight: 400, color: S.textPrimary, marginBottom: 4, marginTop: 0 }}>Profile</h1>
-      <p style={{ fontSize: 13, color: S.textMuted, marginBottom: 32, marginTop: 0 }}>Manage your personal information and preferences.</p>
+      <h1
+        style={{
+          fontSize: 20,
+          fontWeight: 400,
+          color: S.textPrimary,
+          marginBottom: 4,
+          marginTop: 0,
+        }}
+      >
+        Profile
+      </h1>
+      <p
+        style={{
+          fontSize: 13,
+          color: S.textMuted,
+          marginBottom: 32,
+          marginTop: 0,
+        }}
+      >
+        Manage your personal information and preferences.
+      </p>
 
       <Section title="Profile">
         <Row label="Avatar">
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 48, height: 48, borderRadius: "50%", background: S.purple, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 500, color: "#fff", flexShrink: 0 }}>
-              RS
+            <div
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: "50%",
+                background: S.purple,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 16,
+                fontWeight: 500,
+                color: "#fff",
+                flexShrink: 0,
+                overflow: "hidden",
+              }}
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt="avatar"
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+              ) : (
+                "RS"
+              )}
             </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              onChange={onAvatarPick}
+              style={{ display: "none" }}
+            />
             <div style={{ display: "flex", gap: 12 }}>
-              <button type="button" style={{ background: "none", border: "none", color: S.accent, fontSize: 13, cursor: "pointer", padding: 0 }}>Change avatar</button>
-              <button type="button" style={{ background: "none", border: "none", color: S.textMuted, fontSize: 13, cursor: "pointer", padding: 0 }}>Remove</button>
+              <button
+                type="button"
+                onClick={() => fileRef.current?.click()}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: S.accent,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Change avatar
+              </button>
+              <button
+                type="button"
+                onClick={() => setAvatarUrl("")}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: S.textMuted,
+                  fontSize: 13,
+                  cursor: "pointer",
+                  padding: 0,
+                }}
+              >
+                Remove
+              </button>
             </div>
           </div>
         </Row>
@@ -121,28 +250,49 @@ export default function ProfileSettings() {
           <input
             type="text"
             value={data.fullName}
-            onChange={e => update({ fullName: e.target.value })}
+            onChange={(e) => update({ fullName: e.target.value })}
             style={inputStyle}
           />
         </Row>
 
-        <Row label="Display name" sublabel="Used in the console, notifications and reports.">
+        <Row
+          label="Display name"
+          sublabel="Used in the console, notifications and reports."
+        >
           <input
             type="text"
             value={data.displayName}
-            onChange={e => update({ displayName: e.target.value })}
+            onChange={(e) => update({ displayName: e.target.value })}
             style={inputStyle}
           />
         </Row>
 
-        <Row label="What best describes your role?">
-          <select value={data.role} onChange={e => update({ role: e.target.value })} style={selectStyle}>
-            <option value="">Select role…</option>
-            {ROLES.map(r => <option key={r} value={r} style={{ background: "var(--cg-bg-card)" }}>{r}</option>)}
+        <Row
+          label="Job title (for display)"
+          sublabel="Shown in the console — separate from your access role (managed under Organization)."
+        >
+          <select
+            value={data.role}
+            onChange={(e) => update({ role: e.target.value })}
+            style={selectStyle}
+          >
+            <option value="">Select title…</option>
+            {ROLES.map((r) => (
+              <option
+                key={r}
+                value={r}
+                style={{ background: "var(--cg-bg-card)" }}
+              >
+                {r}
+              </option>
+            ))}
           </select>
         </Row>
 
-        <Row label="Email address">
+        <Row
+          label="Email address"
+          sublabel="Managed by your identity provider (SSO)."
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <input
               type="text"
@@ -150,16 +300,32 @@ export default function ProfileSettings() {
               readOnly
               style={{ ...inputStyle, color: S.textMuted, cursor: "default" }}
             />
-            <span style={{ display: "inline-flex", alignItems: "center", height: 20, padding: "0 8px", borderRadius: 99, fontSize: 11, fontWeight: 500, background: "rgba(76,175,125,0.15)", color: S.success, flexShrink: 0 }}>
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                height: 20,
+                padding: "0 8px",
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 500,
+                background: "rgba(76,175,125,0.15)",
+                color: S.success,
+                flexShrink: 0,
+              }}
+            >
               Verified ✓
             </span>
           </div>
         </Row>
 
-        <Row label="Instructions for CloudGuard" sublabel="CloudGuard will keep these in mind across scans, reports, and coverage analysis.">
+        <Row
+          label="Instructions for CloudGuard"
+          sublabel="CloudGuard will keep these in mind across scans, reports, and coverage analysis."
+        >
           <textarea
             value={data.instructions}
-            onChange={e => update({ instructions: e.target.value })}
+            onChange={(e) => update({ instructions: e.target.value })}
             placeholder="e.g. always prioritize critical findings first"
             style={{
               ...inputStyle,
@@ -172,12 +338,29 @@ export default function ProfileSettings() {
         </Row>
       </Section>
 
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 14 }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 14,
+        }}
+      >
         {saved && <span style={{ fontSize: 12, color: S.success }}>Saved</span>}
         <button
           type="button"
           onClick={handleSave}
-          style={{ height: 34, padding: "0 14px", borderRadius: 6, background: S.accent, color: "#fff", fontSize: 13, fontWeight: 500, border: "none", cursor: "pointer" }}
+          style={{
+            height: 34,
+            padding: "0 14px",
+            borderRadius: 6,
+            background: S.accent,
+            color: "#fff",
+            fontSize: 13,
+            fontWeight: 500,
+            border: "none",
+            cursor: "pointer",
+          }}
         >
           Save changes
         </button>

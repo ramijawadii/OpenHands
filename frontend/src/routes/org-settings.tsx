@@ -278,6 +278,152 @@ const COUNTRIES = [
   "Other",
 ];
 
+// UI role vocabulary — maps to cloudguard/rbac.py: Admin->ADMIN, Security Engineer/Analyst->OPERATOR, Viewer->END_USER
+const ROLE_OPTIONS = ["Admin", "Security Engineer", "Analyst", "Viewer"];
+
+function Modal({
+  title,
+  subtitle,
+  onClose,
+  children,
+  footer,
+}: {
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 460,
+          maxWidth: "92vw",
+          background: S.cardBg,
+          border: `1px solid ${S.borderStrong}`,
+          borderRadius: 12,
+          padding: 24,
+        }}
+      >
+        <h3
+          style={{
+            fontSize: 16,
+            fontWeight: 500,
+            color: S.textPrimary,
+            margin: 0,
+          }}
+        >
+          {title}
+        </h3>
+        {subtitle && (
+          <p
+            style={{
+              fontSize: 13,
+              color: S.textMuted,
+              marginTop: 6,
+              marginBottom: 0,
+            }}
+          >
+            {subtitle}
+          </p>
+        )}
+        <div style={{ marginTop: 18 }}>{children}</div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+            marginTop: 22,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              height: 36,
+              padding: "0 16px",
+              borderRadius: 6,
+              background: "transparent",
+              border: `1px solid ${S.borderStrong}`,
+              color: S.textSecondary,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          {footer}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <label
+        style={{
+          display: "block",
+          fontSize: 12,
+          color: S.textMuted,
+          marginBottom: 6,
+        }}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function Cap({
+  on,
+  editable,
+  onToggle,
+}: {
+  on: boolean;
+  editable: boolean;
+  onToggle: () => void;
+}) {
+  if (!editable) return <Check on={on} />;
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      style={{
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        fontSize: 14,
+        color: on ? S.success : S.textMuted,
+        padding: 0,
+      }}
+    >
+      {on ? "✓" : "—"}
+    </button>
+  );
+}
+
 export default function OrgSettings() {
   const [sso, setSso] = React.useState(true);
   const [scim, setScim] = React.useState(false);
@@ -290,6 +436,47 @@ export default function OrgSettings() {
   });
   const updOrg = (patch: Partial<typeof org>) =>
     setOrg((p) => ({ ...p, ...patch }));
+
+  const [members, setMembers] = React.useState(MEMBERS);
+  const [roles, setRoles] = React.useState(ROLES_TABLE);
+  const [rolesEditable, setRolesEditable] = React.useState(false);
+  const [inviteOpen, setInviteOpen] = React.useState(false);
+  const [invite, setInvite] = React.useState({
+    name: "",
+    email: "",
+    role: "Analyst",
+  });
+
+  const removeMember = (email: string) =>
+    setMembers((p) => p.filter((m) => m.email !== email));
+  const toggleCap = (
+    idx: number,
+    cap: "view" | "scan" | "connectors" | "orgAdmin",
+  ) =>
+    setRoles((p) =>
+      p.map((r, i) => (i === idx ? { ...r, [cap]: !r[cap] } : r)),
+    );
+  const sendInvite = () => {
+    if (!invite.email.trim()) return;
+    const initials = (invite.name || invite.email)
+      .split(/[\s@.]+/)
+      .slice(0, 2)
+      .map((s) => s[0]?.toUpperCase() || "")
+      .join("");
+    setMembers((p) => [
+      ...p,
+      {
+        initials: initials || "?",
+        name: invite.name || invite.email,
+        email: invite.email,
+        role: invite.role,
+        last: "Invited",
+        color: S.accent,
+      },
+    ]);
+    setInvite({ name: "", email: "", role: "Analyst" });
+    setInviteOpen(false);
+  };
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 760 }}>
@@ -448,6 +635,7 @@ export default function OrgSettings() {
         >
           <button
             type="button"
+            onClick={() => setInviteOpen(true)}
             style={{
               height: 34,
               padding: "0 14px",
@@ -513,7 +701,7 @@ export default function OrgSettings() {
               </span>
             ))}
           </div>
-          {MEMBERS.map((m, i) => (
+          {members.map((m, i) => (
             <div
               key={m.email}
               style={{
@@ -521,7 +709,7 @@ export default function OrgSettings() {
                 gridTemplateColumns: "40px 1fr 1fr 120px 80px 32px",
                 padding: "10px 16px",
                 borderBottom:
-                  i < MEMBERS.length - 1
+                  i < members.length - 1
                     ? `1px solid var(--cg-border-subtle)`
                     : "none",
                 alignItems: "center",
@@ -575,16 +763,18 @@ export default function OrgSettings() {
               <span style={{ fontSize: 12, color: S.textMuted }}>{m.last}</span>
               <button
                 type="button"
+                title="Remove member"
+                onClick={() => removeMember(m.email)}
                 style={{
                   background: "none",
                   border: "none",
-                  color: S.textMuted,
+                  color: S.danger,
                   cursor: "pointer",
-                  fontSize: 16,
+                  fontSize: 14,
                   padding: 0,
                 }}
               >
-                ···
+                ✕
               </button>
             </div>
           ))}
@@ -628,7 +818,7 @@ export default function OrgSettings() {
               </span>
             ))}
           </div>
-          {ROLES_TABLE.map((r, i) => (
+          {roles.map((r, i) => (
             <div
               key={r.role}
               style={{
@@ -636,17 +826,33 @@ export default function OrgSettings() {
                 gridTemplateColumns: "140px repeat(4, 1fr)",
                 padding: "10px 16px",
                 borderBottom:
-                  i < ROLES_TABLE.length - 1
+                  i < roles.length - 1
                     ? `1px solid var(--cg-border-subtle)`
                     : "none",
                 alignItems: "center",
               }}
             >
               <RoleBadge role={r.role} />
-              <Check on={r.view} />
-              <Check on={r.scan} />
-              <Check on={r.connectors} />
-              <Check on={r.orgAdmin} />
+              <Cap
+                on={r.view}
+                editable={rolesEditable}
+                onToggle={() => toggleCap(i, "view")}
+              />
+              <Cap
+                on={r.scan}
+                editable={rolesEditable}
+                onToggle={() => toggleCap(i, "scan")}
+              />
+              <Cap
+                on={r.connectors}
+                editable={rolesEditable}
+                onToggle={() => toggleCap(i, "connectors")}
+              />
+              <Cap
+                on={r.orgAdmin}
+                editable={rolesEditable}
+                onToggle={() => toggleCap(i, "orgAdmin")}
+              />
             </div>
           ))}
         </div>
@@ -655,6 +861,7 @@ export default function OrgSettings() {
         >
           <button
             type="button"
+            onClick={() => setRolesEditable((v) => !v)}
             style={{
               background: "none",
               border: "none",
@@ -664,7 +871,7 @@ export default function OrgSettings() {
               padding: 0,
             }}
           >
-            Edit roles
+            {rolesEditable ? "Done editing" : "Edit roles"}
           </button>
         </div>
       </Section>
@@ -833,6 +1040,75 @@ export default function OrgSettings() {
           </div>
         </div>
       </Section>
+
+      {inviteOpen && (
+        <Modal
+          title="Invite member"
+          subtitle="They'll receive an email to join this organization."
+          onClose={() => setInviteOpen(false)}
+          footer={
+            <button
+              type="button"
+              onClick={sendInvite}
+              style={{
+                height: 36,
+                padding: "0 16px",
+                borderRadius: 6,
+                background: S.accent,
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 500,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Send invite
+            </button>
+          }
+        >
+          <MField label="Full name (optional)">
+            <input
+              type="text"
+              value={invite.name}
+              onChange={(e) =>
+                setInvite((p) => ({ ...p, name: e.target.value }))
+              }
+              placeholder="Jane Doe"
+              style={inputStyle}
+            />
+          </MField>
+          <MField label="Email address">
+            <input
+              type="email"
+              value={invite.email}
+              onChange={(e) =>
+                setInvite((p) => ({ ...p, email: e.target.value }))
+              }
+              placeholder="name@sentinel-org.io"
+              style={inputStyle}
+            />
+          </MField>
+          <MField label="Role">
+            <select
+              value={invite.role}
+              onChange={(e) =>
+                setInvite((p) => ({ ...p, role: e.target.value }))
+              }
+              style={selectStyle}
+            >
+              {ROLE_OPTIONS.map((r) => (
+                <option
+                  key={r}
+                  value={r}
+                  style={{ background: "var(--cg-bg-card)" }}
+                >
+                  {r}
+                </option>
+              ))}
+            </select>
+          </MField>
+        </Modal>
+      )}
     </div>
   );
 }

@@ -1,4 +1,4 @@
-/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention -- CloudGuard mock settings UI (local-state only) */
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 
 const S = {
@@ -365,9 +365,34 @@ function PrimaryBtn({
 export default function SecuritySettings() {
   const [reauth, setReauth] = React.useState(true);
   const [timeout, setTimeout_] = React.useState("1 hour");
-  const [modal, setModal] = React.useState<null | "password" | "mfa" | "sso">(
-    null,
-  );
+  const [modal, setModal] = React.useState<
+    null | "password" | "mfa" | "sso" | "token"
+  >(null);
+  const [sessions, setSessions] = React.useState(SESSIONS);
+  const [tokens, setTokens] = React.useState(TOKENS);
+  const [newTokenName, setNewTokenName] = React.useState("");
+  const [createdToken, setCreatedToken] = React.useState("");
+  const revokeSession = (ip: string) =>
+    setSessions((p) => p.filter((s) => s.ip !== ip || s.current));
+  const revokeOthers = () => setSessions((p) => p.filter((s) => s.current));
+  const revokeToken = (name: string) =>
+    setTokens((p) => p.filter((t) => t.name !== name));
+  const createToken = () => {
+    if (!newTokenName.trim()) return;
+    const secret = `cg_sk_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+    setTokens((p) => [
+      ...p,
+      {
+        name: newTokenName.trim(),
+        masked: `cg_sk_••••••••••••••••${secret.slice(-4)}`,
+        created: "Just now",
+        lastUsed: "never",
+        scopes: ["read:findings"],
+      },
+    ]);
+    setCreatedToken(secret);
+    setNewTokenName("");
+  };
   const [mfaOn, setMfaOn] = React.useState(true);
   const [ssoCfg, setSsoCfg] = React.useState({
     provider: "Okta",
@@ -519,7 +544,7 @@ export default function SecuritySettings() {
               ),
             )}
           </div>
-          {SESSIONS.map((s, i) => (
+          {sessions.map((s, i) => (
             <div
               key={i}
               style={{
@@ -527,7 +552,7 @@ export default function SecuritySettings() {
                 gridTemplateColumns: "2fr 1.2fr 1fr 1fr 72px",
                 padding: "10px 16px",
                 borderBottom:
-                  i < SESSIONS.length - 1
+                  i < sessions.length - 1
                     ? `1px solid var(--cg-border-subtle)`
                     : "none",
                 alignItems: "center",
@@ -592,6 +617,7 @@ export default function SecuritySettings() {
                 {!s.current && (
                   <button
                     type="button"
+                    onClick={() => revokeSession(s.ip)}
                     style={{
                       background: "none",
                       border: "none",
@@ -613,6 +639,7 @@ export default function SecuritySettings() {
         >
           <button
             type="button"
+            onClick={revokeOthers}
             style={{
               background: "none",
               border: "none",
@@ -639,7 +666,7 @@ export default function SecuritySettings() {
           Personal API tokens for CLI access and local scripts. For
           service-level keys, see Organization &gt; API Keys.
         </p>
-        {TOKENS.map((tk) => (
+        {tokens.map((tk) => (
           <div
             key={tk.name}
             style={{
@@ -676,6 +703,7 @@ export default function SecuritySettings() {
               </div>
               <button
                 type="button"
+                onClick={() => revokeToken(tk.name)}
                 style={{
                   height: 28,
                   padding: "0 10px",
@@ -726,6 +754,10 @@ export default function SecuritySettings() {
         ))}
         <button
           type="button"
+          onClick={() => {
+            setCreatedToken("");
+            setModal("token");
+          }}
           style={{
             width: "100%",
             height: 40,
@@ -977,6 +1009,84 @@ export default function SecuritySettings() {
               style={{ ...mInput, color: S.textMuted }}
             />
           </MField>
+        </Modal>
+      )}
+
+      {modal === "token" && (
+        <Modal
+          title="Create personal API token"
+          subtitle="A personal token acts as you (your role). For automation, use a Service Account instead."
+          onClose={() => setModal(null)}
+          footer={
+            createdToken ? (
+              <PrimaryBtn onClick={() => setModal(null)}>Done</PrimaryBtn>
+            ) : (
+              <PrimaryBtn onClick={createToken}>Create token</PrimaryBtn>
+            )
+          }
+        >
+          {!createdToken ? (
+            <MField label="Token name">
+              <input
+                value={newTokenName}
+                onChange={(e) => setNewTokenName(e.target.value)}
+                placeholder="e.g. cloudguard-cli-laptop"
+                style={mInput}
+              />
+            </MField>
+          ) : (
+            <div>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  background: S.inputBg,
+                  border: `1px solid ${S.border}`,
+                  borderRadius: 6,
+                  padding: "10px 12px",
+                }}
+              >
+                <code
+                  style={{
+                    flex: 1,
+                    fontSize: 12,
+                    color: S.textPrimary,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {createdToken}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => navigator.clipboard?.writeText(createdToken)}
+                  style={{
+                    height: 28,
+                    padding: "0 10px",
+                    borderRadius: 6,
+                    background: "transparent",
+                    border: `1px solid ${S.borderStrong}`,
+                    color: S.textSecondary,
+                    fontSize: 12,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  Copy
+                </button>
+              </div>
+              <p
+                style={{
+                  fontSize: 12,
+                  color: S.warning,
+                  marginTop: 12,
+                  marginBottom: 0,
+                }}
+              >
+                ⚠ Copy it now — it won't be shown again.
+              </p>
+            </div>
+          )}
         </Modal>
       )}
     </div>

@@ -370,6 +370,20 @@ export default function UsageSettings() {
   const [svcAccount, setSvcAccount] = React.useState("");
   const [metric, setMetric] = React.useState("API calls");
 
+  // Deterministic workspace tagging (parallel to the mock rows) so the workspace filter scopes the tables.
+  const CONN_WS = ["Production Cloud", "Production Cloud", "Sandbox / Dev"];
+  const MEMBER_WS = [
+    "Sentinel Security Workspace",
+    "Production Cloud",
+    "Sandbox / Dev",
+  ];
+  const shownConnectors = CONNECTOR_USAGE.filter(
+    (_, i) => !workspace || CONN_WS[i] === workspace,
+  );
+  const shownMembers = MEMBER_USAGE.filter(
+    (_, i) => !workspace || MEMBER_WS[i] === workspace,
+  );
+
   return (
     <div style={{ padding: "40px 48px", maxWidth: 800 }}>
       <div
@@ -572,7 +586,7 @@ export default function UsageSettings() {
               ),
             )}
           </div>
-          {CONNECTOR_USAGE.map((c, i) => (
+          {shownConnectors.map((c, i) => (
             <div
               key={c.name}
               style={{
@@ -580,7 +594,7 @@ export default function UsageSettings() {
                 gridTemplateColumns: "32px 1fr 80px 80px 80px 100px",
                 padding: "10px 16px",
                 borderBottom:
-                  i < CONNECTOR_USAGE.length - 1
+                  i < shownConnectors.length - 1
                     ? `1px solid var(--cg-border-subtle)`
                     : "none",
                 alignItems: "center",
@@ -674,7 +688,7 @@ export default function UsageSettings() {
               ),
             )}
           </div>
-          {MEMBER_USAGE.map((m, i) => (
+          {shownMembers.map((m, i) => (
             <div
               key={m.name}
               style={{
@@ -682,7 +696,7 @@ export default function UsageSettings() {
                 gridTemplateColumns: "40px 1fr 120px 80px 120px 100px",
                 padding: "10px 16px",
                 borderBottom:
-                  i < MEMBER_USAGE.length - 1
+                  i < shownMembers.length - 1
                     ? `1px solid var(--cg-border-subtle)`
                     : "none",
                 alignItems: "center",

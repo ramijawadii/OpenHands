@@ -243,7 +243,7 @@ export default function DataResidencySettings() {
             margin: 0,
           }}
         >
-          Security &amp; Data Residency
+          Data Residency
         </h1>
         {!editing ? (
           <button
