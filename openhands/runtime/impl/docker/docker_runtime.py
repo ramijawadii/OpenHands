@@ -498,7 +498,15 @@ class DockerRuntime(ActionExecutionClient):
                         'tenant mapping; refusing to spawn runtime (fail-closed).'
                     )
         except ImportError:
-            pass  # cloudguard not importable in this process → single-tenant behaviour
+            # cloudguard not importable here → normally single-tenant behaviour. BUT if the
+            # deployment declares STRICT tenancy, silently spawning a tenant-less sandbox would
+            # drop it into the shared 'default' bucket — a silent cross-tenant exposure. So in
+            # STRICT mode we fail closed even when we cannot import the resolver.
+            if os.environ.get('CLOUDGUARD_TENANCY_STRICT') == '1':
+                raise RuntimeError(
+                    'CloudGuard tenancy STRICT but cloudguard is not importable to resolve the '
+                    'tenant — refusing to spawn runtime (fail-closed).'
+                )
 
         self.log('debug', f'Workspace Base: {self.config.workspace_base}')
 
