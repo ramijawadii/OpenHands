@@ -88,10 +88,35 @@ interface SettingsLayoutProps {
   isSaas?: boolean;
 }
 
+const ORGS = ["Sentinel Security Corp"];
+const WORKSPACES = [
+  "Sentinel Security Workspace",
+  "Production Cloud",
+  "Sandbox / Dev",
+];
+
+const ctxSelect: React.CSSProperties = {
+  width: "100%",
+  height: 30,
+  padding: "0 24px 0 8px",
+  background: "var(--cg-bg-page)",
+  border: "1px solid var(--cg-border)",
+  borderRadius: 6,
+  color: "var(--cg-text-primary)",
+  fontSize: 12.5,
+  outline: "none",
+  appearance: "none",
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+
 export function SettingsLayout({ children }: SettingsLayoutProps) {
   const { pathname } = useLocation();
   const [hovered, setHovered] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
+  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
+  const [org, setOrg] = React.useState(ORGS[0]);
+  const [workspace, setWorkspace] = React.useState(WORKSPACES[0]);
   const role = useCurrentRole();
 
   if (pathname === "/settings") {
@@ -145,10 +170,10 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
 
   return (
     <div style={{ display: "flex", height: "100%", width: "100%" }}>
-      {/* Settings nav */}
+      {/* Settings nav — custom */}
       <nav
         style={{
-          width: 232,
+          width: 248,
           flexShrink: 0,
           background: S.navBg,
           borderRight: `1px solid ${S.border}`,
@@ -157,20 +182,117 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           overflow: "hidden",
         }}
       >
-        <div style={{ padding: "24px 16px 10px" }}>
-          <span
+        {/* Brand + back */}
+        <div
+          style={{
+            padding: "16px 16px 12px",
+            borderBottom: `1px solid ${S.border}`,
+          }}
+        >
+          <NavLink
+            to="/"
             style={{
-              fontSize: 20,
-              color: S.textPrimary,
-              fontWeight: 500,
-              letterSpacing: "-0.01em",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12,
+              color: S.textMuted,
+              textDecoration: "none",
+              marginBottom: 12,
             }}
           >
-            Settings
-          </span>
-          <div style={{ marginTop: 12 }}>
-            <RoleChip role={role} />
+            <span style={{ fontSize: 13 }}>←</span> Back to dashboard
+          </NavLink>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+            <span
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 6,
+                background:
+                  "linear-gradient(135deg, var(--cg-accent), var(--cg-accent-purple))",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: 18,
+                color: S.textPrimary,
+                fontWeight: 600,
+                letterSpacing: "-0.01em",
+              }}
+            >
+              Settings
+            </span>
           </div>
+        </div>
+
+        {/* Org / Workspace context switcher */}
+        <div
+          style={{
+            padding: "12px 16px",
+            borderBottom: `1px solid ${S.border}`,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: S.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 4,
+              }}
+            >
+              Organization
+            </div>
+            <select
+              value={org}
+              onChange={(e) => setOrg(e.target.value)}
+              aria-label="Organization"
+              style={ctxSelect}
+            >
+              {ORGS.map((o) => (
+                <option key={o} value={o}>
+                  {o}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 9,
+                fontWeight: 600,
+                color: S.textMuted,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 4,
+              }}
+            >
+              Workspace
+            </div>
+            <select
+              value={workspace}
+              onChange={(e) => setWorkspace(e.target.value)}
+              aria-label="Workspace"
+              style={ctxSelect}
+            >
+              {WORKSPACES.map((w) => (
+                <option key={w} value={w}>
+                  {w}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div style={{ padding: "12px 12px 6px" }}>
           <input
             type="text"
             value={query}
@@ -180,7 +302,6 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
             style={{
               width: "100%",
               height: 32,
-              marginTop: 12,
               padding: "0 10px",
               background: S.pageBg,
               border: `1px solid ${S.border}`,
@@ -194,7 +315,8 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           />
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px 16px" }}>
+        {/* Groups (collapsible) */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "4px 8px 12px" }}>
           {groups.length === 0 && (
             <div
               style={{ fontSize: 12, color: S.textMuted, padding: "12px 10px" }}
@@ -202,23 +324,54 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
               No settings match "{query}".
             </div>
           )}
-          {groups.map((g) => (
-            <div key={g.group} style={{ marginBottom: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: S.textMuted,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  padding: "8px 10px 4px",
-                }}
-              >
-                {g.group}
+          {groups.map((g) => {
+            const isCollapsed = !q && collapsed[g.group];
+            return (
+              <div key={g.group} style={{ marginBottom: 6 }}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCollapsed((c) => ({ ...c, [g.group]: !c[g.group] }))
+                  }
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "8px 10px 4px",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: S.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 9,
+                      transform: isCollapsed ? "rotate(-90deg)" : "none",
+                      transition: "transform 120ms",
+                      display: "inline-block",
+                    }}
+                  >
+                    ▾
+                  </span>
+                  {g.group}
+                </button>
+                {!isCollapsed && g.items.map(renderLink)}
               </div>
-              {g.items.map(renderLink)}
-            </div>
-          ))}
+            );
+          })}
+        </div>
+
+        {/* Footer: role */}
+        <div
+          style={{ padding: "12px 16px", borderTop: `1px solid ${S.border}` }}
+        >
+          <RoleChip role={role} />
         </div>
       </nav>
 
