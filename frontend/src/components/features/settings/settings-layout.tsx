@@ -1,8 +1,17 @@
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import { NavLink, Navigate, useLocation } from "react-router";
 import {
-  User, SunMoon, ShieldCheck, LayoutGrid, Building2,
-  BarChart2, Gauge, Plug2, KeyRound,
+  User,
+  SunMoon,
+  ShieldCheck,
+  LayoutGrid,
+  Building2,
+  BarChart2,
+  Gauge,
+  Plug2,
+  KeyRound,
+  Cpu,
 } from "lucide-react";
 
 const S = {
@@ -15,16 +24,21 @@ const S = {
   activeBg: "var(--cg-bg-active)",
 } as const;
 
-type LucideIcon = React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
+type LucideIcon = React.ComponentType<{
+  size?: number;
+  strokeWidth?: number;
+  color?: string;
+}>;
 
 type NavItem = { to: string; text: string; Icon: LucideIcon } | null;
 
 const NAV_ITEMS: NavItem[] = [
   { to: "/settings/profile", text: "Profile", Icon: User },
+  { to: "/settings/org", text: "Organization", Icon: Building2 },
   { to: "/settings/theme", text: "Theme & Language", Icon: SunMoon },
   { to: "/settings/security", text: "Sessions & Security", Icon: ShieldCheck },
   { to: "/settings/workspace", text: "Workspace", Icon: LayoutGrid },
-  { to: "/settings/org", text: "Organization", Icon: Building2 },
+  { to: "/settings/sandbox-compute", text: "Sandbox Compute", Icon: Cpu },
   { to: "/settings/usage", text: "Usage", Icon: BarChart2 },
   { to: "/settings/limits", text: "Limits", Icon: Gauge },
   null,
@@ -61,7 +75,14 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
         }}
       >
         <div style={{ padding: "28px 20px 16px" }}>
-          <span style={{ fontSize: 20, color: S.textPrimary, fontWeight: 500, letterSpacing: "-0.01em" }}>
+          <span
+            style={{
+              fontSize: 20,
+              color: S.textPrimary,
+              fontWeight: 500,
+              letterSpacing: "-0.01em",
+            }}
+          >
             Settings
           </span>
         </div>
@@ -76,7 +97,8 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
                 />
               );
             }
-            const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
+            const isActive =
+              pathname === item.to || pathname.startsWith(`${item.to}/`);
             const lit = isActive || hovered === item.to;
             return (
               <NavLink

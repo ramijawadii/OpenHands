@@ -15,6 +15,7 @@ export default [
       route("theme", "routes/settings-theme.tsx"),
       route("security", "routes/settings-security.tsx"),
       route("workspace", "routes/settings-workspace.tsx"),
+      route("sandbox-compute", "routes/settings-sandbox-compute.tsx"),
       route("org", "routes/org-settings.tsx"),
       route("usage", "routes/settings-usage.tsx"),
       route("limits", "routes/settings-limits.tsx"),
