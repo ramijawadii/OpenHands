@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { useTheme } from "#/context/theme-context";
 import {
   ScopeBadge,
   SaveBar,
@@ -261,8 +262,20 @@ export default function ThemeSettings() {
   const [data, setData] = React.useState<ThemeData>(load);
   const [savedAt, setSavedAt] = React.useState(0);
   const { dirty, baseline, reset } = useDirty(data);
+  const { set: setAppTheme } = useTheme();
   const upd = (patch: Partial<ThemeData>) =>
     setData((p) => ({ ...p, ...patch }));
+  // Appearance applies live (instant class of setting), so light/dark switches immediately.
+  const applyAppearance = (v: ThemeData["theme"]) => {
+    upd({ theme: v });
+    if (v === "light" || v === "dark") setAppTheme(v);
+    else if (typeof window !== "undefined") {
+      const prefersDark = window.matchMedia?.(
+        "(prefers-color-scheme: dark)",
+      ).matches;
+      setAppTheme(prefersDark ? "dark" : "light");
+    }
+  };
 
   const handleSave = () => {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
@@ -308,7 +321,7 @@ export default function ThemeSettings() {
           <SegmentedControl
             value={data.theme}
             options={["system", "light", "dark"]}
-            onChange={(v) => upd({ theme: v as ThemeData["theme"] })}
+            onChange={(v) => applyAppearance(v as ThemeData["theme"])}
           />
         </Row>
         <Row label="UI Density">

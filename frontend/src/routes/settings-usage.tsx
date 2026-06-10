@@ -10,7 +10,10 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
-import { ScopeBadge } from "#/components/features/settings/settings-kit";
+import {
+  ScopeBadge,
+  Skeleton,
+} from "#/components/features/settings/settings-kit";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -370,6 +373,12 @@ export default function UsageSettings() {
   const [workspace, setWorkspace] = React.useState("");
   const [svcAccount, setSvcAccount] = React.useState("");
   const [metric, setMetric] = React.useState("API calls");
+  // Simulate the initial metrics fetch so loading skeletons are demonstrated.
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 650);
+    return () => clearTimeout(t);
+  }, []);
 
   // Deterministic workspace tagging (parallel to the mock rows) so the workspace filter scopes the tables.
   const CONN_WS = ["Production Cloud", "Production Cloud", "Sandbox / Dev"];
@@ -543,9 +552,27 @@ export default function UsageSettings() {
           marginBottom: 28,
         }}
       >
-        {STATS.map((s) => (
-          <StatCard key={s.label} {...s} />
-        ))}
+        {loading
+          ? STATS.map((s) => (
+              <div
+                key={s.label}
+                style={{
+                  background: S.cardBg,
+                  border: `1px solid ${S.border}`,
+                  borderRadius: 8,
+                  padding: 16,
+                }}
+              >
+                <Skeleton width={90} height={11} />
+                <div style={{ marginTop: 10 }}>
+                  <Skeleton width={120} height={26} />
+                </div>
+                <div style={{ marginTop: 8 }}>
+                  <Skeleton width={60} height={11} />
+                </div>
+              </div>
+            ))
+          : STATS.map((s) => <StatCard key={s.label} {...s} />)}
       </div>
 
       <UsageChart range={range} />

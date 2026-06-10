@@ -50,6 +50,73 @@ export function roleMeets(current: Role, required: Role): boolean {
   return ROLE_RANK[current] >= ROLE_RANK[required];
 }
 
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/** Dialog accessibility: Esc to close, focus trap, restore focus on close, scroll lock. */
+export function useDialogA11y(open: boolean, onClose: () => void) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const prevFocus = document.activeElement as HTMLElement | null;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const node = ref.current;
+    const first = node?.querySelector<HTMLElement>(FOCUSABLE);
+    (first ?? node)?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      } else if (e.key === "Tab" && node) {
+        const items = Array.from(
+          node.querySelectorAll<HTMLElement>(FOCUSABLE),
+        ).filter((el) => el.offsetParent !== null);
+        if (items.length === 0) return;
+        const firstEl = items[0];
+        const lastEl = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === firstEl) {
+          e.preventDefault();
+          lastEl.focus();
+        } else if (!e.shiftKey && document.activeElement === lastEl) {
+          e.preventDefault();
+          firstEl.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.body.style.overflow = prevOverflow;
+      prevFocus?.focus?.();
+    };
+  }, [open, onClose]);
+  return ref;
+}
+
+/** Loading placeholder block. */
+export function Skeleton({
+  width,
+  height,
+  radius,
+}: {
+  width?: number | string;
+  height?: number | string;
+  radius?: number;
+}) {
+  return (
+    <span
+      className="cg-skel"
+      style={{
+        display: "inline-block",
+        width: width ?? "100%",
+        height: height ?? 14,
+        borderRadius: radius ?? 6,
+      }}
+    />
+  );
+}
+
 export function RoleChip({ role }: { role: Role }) {
   const color =
     role === "Admin" ? K.purple : role === "Viewer" ? K.textMuted : K.accent;
@@ -261,6 +328,7 @@ export function ConfirmButton({
   const [open, setOpen] = React.useState(false);
   const [typed, setTyped] = React.useState("");
   const ok = !confirmWord || typed.trim() === confirmWord;
+  const dialogRef = useDialogA11y(open, () => setOpen(false));
 
   const base: React.CSSProperties =
     variant === "link"
@@ -323,9 +391,12 @@ export function ConfirmButton({
           }}
         >
           <div
+            ref={dialogRef}
+            tabIndex={-1}
             onClick={(e) => e.stopPropagation()}
             role="alertdialog"
             aria-modal="true"
+            aria-label={title}
             style={{
               width: 440,
               maxWidth: "92vw",
@@ -333,6 +404,7 @@ export function ConfirmButton({
               border: `1px solid ${K.borderStrong}`,
               borderRadius: 12,
               padding: 24,
+              outline: "none",
             }}
           >
             <h3

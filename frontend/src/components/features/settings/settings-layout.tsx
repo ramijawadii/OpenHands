@@ -28,6 +28,7 @@ import {
   Blocks,
 } from "lucide-react";
 import { RoleChip, useCurrentRole } from "./settings-kit";
+import "./settings-polish.css";
 
 const S = {
   navBg: "var(--cg-bg-sidebar)",
@@ -177,7 +178,10 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
   };
 
   return (
-    <div style={{ display: "flex", height: "100%", width: "100%" }}>
+    <div
+      className="cg-settings-root"
+      style={{ display: "flex", height: "100%", width: "100%" }}
+    >
       {/* Primary group rail */}
       <nav
         style={{
@@ -210,24 +214,16 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           >
             <span style={{ fontSize: 13 }}>←</span> Back
           </NavLink>
-          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <ShieldCheck
-              size={20}
-              strokeWidth={1.8}
-              color="var(--cg-accent)"
-              style={{ flexShrink: 0 }}
-            />
-            <span
-              style={{
-                fontSize: 17,
-                color: S.textPrimary,
-                fontWeight: 600,
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Settings
-            </span>
-          </div>
+          <span
+            style={{
+              fontSize: 17,
+              color: S.textPrimary,
+              fontWeight: 600,
+              letterSpacing: "-0.01em",
+            }}
+          >
+            Settings
+          </span>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 12px" }}>

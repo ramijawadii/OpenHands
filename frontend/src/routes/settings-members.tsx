@@ -1,10 +1,11 @@
-/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import { Users, Mail } from "lucide-react";
 import {
   ConfirmButton,
   EmptyState,
   ScopeBadge,
+  useDialogA11y,
 } from "#/components/features/settings/settings-kit";
 
 const S = {
@@ -201,6 +202,7 @@ function Modal({
   children: React.ReactNode;
   footer?: React.ReactNode;
 }) {
+  const dref = useDialogA11y(true, onClose);
   return (
     <div
       onClick={onClose}
@@ -215,6 +217,11 @@ function Modal({
       }}
     >
       <div
+        ref={dref}
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 460,
@@ -223,6 +230,7 @@ function Modal({
           border: `1px solid ${S.borderStrong}`,
           borderRadius: 12,
           padding: 24,
+          outline: "none",
         }}
       >
         <h3

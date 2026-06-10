@@ -1,0 +1,80 @@
+/* CloudGuard settings polish — accessibility, micro-interactions, density, motion.
+   Scoped under .cg-settings-root so it never bleeds into the rest of the app.
+   Uses box-shadow / filter / opacity (not set inline) so it wins over inline styles. */
+
+/* ── Keyboard focus rings (visible only for keyboard users) ───────────────── */
+.cg-settings-root :is(button, a, input, select, textarea, [role="switch"], [role="button"], [tabindex]):focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--cg-bg-page),
+    0 0 0 4px var(--cg-accent);
+  border-radius: 6px;
+}
+
+/* ── Micro-interactions ───────────────────────────────────────────────────── */
+.cg-settings-root button,
+.cg-settings-root a {
+  transition:
+    filter 0.12s ease,
+    opacity 0.12s ease,
+    transform 0.08s ease,
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+.cg-settings-root button:not(:disabled):hover {
+  filter: brightness(1.08);
+}
+.cg-settings-root button:not(:disabled):active {
+  transform: translateY(0.5px);
+}
+.cg-settings-root a:hover {
+  opacity: 0.78;
+}
+
+/* Row hover affordance — opt-in via .cg-row (rows have no inline background) */
+.cg-settings-root .cg-row {
+  transition: background 0.1s ease;
+}
+.cg-settings-root .cg-row:hover {
+  background: var(--cg-bg-hover);
+}
+
+/* ── Density: let dense tables scroll instead of squishing ─────────────────── */
+.cg-settings-root .cg-tablewrap {
+  overflow-x: auto;
+}
+.cg-settings-root .cg-tablewrap > * {
+  min-width: 680px;
+}
+
+/* ── Loading skeleton ─────────────────────────────────────────────────────── */
+@keyframes cg-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+.cg-skel {
+  background: linear-gradient(
+    90deg,
+    var(--cg-bg-badge) 25%,
+    var(--cg-bg-hover) 50%,
+    var(--cg-bg-badge) 75%
+  );
+  background-size: 200% 100%;
+  animation: cg-shimmer 1.3s ease-in-out infinite;
+  border-radius: 6px;
+}
+
+/* ── Respect reduced motion ───────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .cg-settings-root *,
+  .cg-settings-root *::before,
+  .cg-settings-root *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -511,9 +511,9 @@ export default function AuditLogSettings() {
       </div>
 
       <div
+        className="cg-tablewrap"
         style={{
           borderRadius: 8,
-          overflow: "hidden",
           border: `1px solid ${S.border}`,
         }}
       >
