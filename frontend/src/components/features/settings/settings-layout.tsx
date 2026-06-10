@@ -26,6 +26,9 @@ import {
   Network,
   BadgeCheck,
   Blocks,
+  Gavel,
+  Box,
+  Lock,
 } from "lucide-react";
 import { RoleChip, useCurrentRole } from "./settings-kit";
 import "./settings-polish.css";
@@ -88,6 +91,13 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Security & Data",
     Icon: Globe,
     items: [
+      {
+        to: "/settings/agent-guardrails",
+        text: "Agent Guardrails",
+        Icon: Gavel,
+      },
+      { to: "/settings/isolation", text: "Isolation & Containment", Icon: Box },
+      { to: "/settings/encryption", text: "Encryption & Keys", Icon: Lock },
       { to: "/settings/data-residency", text: "Data Residency", Icon: Globe },
       { to: "/settings/network", text: "Network & Access", Icon: Network },
       {

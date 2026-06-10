@@ -211,6 +211,8 @@ export default function DataResidencySettings() {
     transcriptRetention: "90 days",
     findingRetention: "3 years",
     auditRetention: "7 years",
+    findingDlp: true,
+    piiDetect: true,
   });
   const [snapshot, setSnapshot] = React.useState(cfg);
   const upd = (patch: Partial<typeof cfg>) =>
@@ -497,8 +499,8 @@ export default function DataResidencySettings() {
               instantly.
             </div>
           </div>
-          <button
-            type="button"
+          <a
+            href="/settings/encryption"
             style={{
               height: 32,
               padding: "0 12px",
@@ -508,10 +510,102 @@ export default function DataResidencySettings() {
               color: S.textSecondary,
               fontSize: 12,
               cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              textDecoration: "none",
             }}
           >
-            Configure key
-          </button>
+            Manage in Encryption & Keys →
+          </a>
+        </div>
+      </Section>
+
+      <div style={{ height: 1, background: S.border, margin: "8px 0 28px" }} />
+
+      <Section
+        title="Data handling & DLP"
+        subtitle="What CloudGuard ingests and how sensitive data is protected in outputs."
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 14px",
+            border: `1px solid ${S.border}`,
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 14, color: S.textSecondary }}>
+              Secret value redaction
+            </div>
+            <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
+              Secret values are never written to the knowledge graph or logs —
+              identifiers only.
+            </div>
+          </div>
+          <span
+            style={{
+              height: 20,
+              padding: "0 8px",
+              borderRadius: 99,
+              fontSize: 11,
+              fontWeight: 500,
+              color: S.success,
+              background: "rgba(76,175,125,0.15)",
+              display: "inline-flex",
+              alignItems: "center",
+            }}
+          >
+            Enforced
+          </span>
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 0",
+            borderBottom: "1px solid var(--cg-border-subtle)",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 14, color: S.textSecondary }}>
+              Redact sensitive data in exports
+            </div>
+            <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
+              Mask secrets/PII in report &amp; finding exports (DLP).
+            </div>
+          </div>
+          <Toggle
+            on={cfg.findingDlp}
+            onChange={(v) => upd({ findingDlp: v })}
+            disabled={!editing}
+          />
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "10px 0",
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 14, color: S.textSecondary }}>
+              PII detection
+            </div>
+            <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
+              Flag personal data discovered during scans.
+            </div>
+          </div>
+          <Toggle
+            on={cfg.piiDetect}
+            onChange={(v) => upd({ piiDetect: v })}
+            disabled={!editing}
+          />
         </div>
       </Section>
     </div>

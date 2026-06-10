@@ -135,6 +135,23 @@ function H2({ children, sub }: { children: React.ReactNode; sub?: string }) {
 
 export default function ComplianceSettings() {
   const [subSubscribed, setSubSubscribed] = React.useState(true);
+  const [siemDest, setSiemDest] = React.useState("Splunk HEC");
+  const [siemFmt, setSiemFmt] = React.useState("JSON");
+  const cSelect: React.CSSProperties = {
+    width: "100%",
+    height: 34,
+    padding: "0 26px 0 10px",
+    background: "var(--cg-input-bg)",
+    border: `1px solid ${S.border}`,
+    borderRadius: 6,
+    color: S.textPrimary,
+    fontSize: 13,
+    outline: "none",
+    appearance: "none",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    boxSizing: "border-box",
+  };
   return (
     <div style={{ padding: "40px 48px", maxWidth: 900 }}>
       <div
@@ -411,6 +428,176 @@ export default function ComplianceSettings() {
               </span>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 30 }}>
+        <H2 sub="Stream the tamper-evident audit log to your SIEM. Every record is hash-chained — gaps and edits are detectable.">
+          Audit streaming (SIEM)
+        </H2>
+        <div
+          style={{
+            border: `1px solid ${S.border}`,
+            borderRadius: 8,
+            padding: 16,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
+          >
+            <div>
+              <div
+                style={{ fontSize: 12, color: S.textMuted, marginBottom: 6 }}
+              >
+                Destination
+              </div>
+              <select
+                value={siemDest}
+                onChange={(e) => setSiemDest(e.target.value)}
+                style={cSelect}
+              >
+                {[
+                  "Splunk HEC",
+                  "Microsoft Sentinel",
+                  "Amazon S3",
+                  "Datadog",
+                  "Google Chronicle",
+                ].map((o) => (
+                  <option
+                    key={o}
+                    value={o}
+                    style={{ background: "var(--cg-bg-card)" }}
+                  >
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div
+                style={{ fontSize: 12, color: S.textMuted, marginBottom: 6 }}
+              >
+                Format
+              </div>
+              <select
+                value={siemFmt}
+                onChange={(e) => setSiemFmt(e.target.value)}
+                style={cSelect}
+              >
+                {["JSON", "CEF", "LEEF"].map((o) => (
+                  <option
+                    key={o}
+                    value={o}
+                    style={{ background: "var(--cg-bg-card)" }}
+                  >
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              paddingTop: 4,
+            }}
+          >
+            <span
+              style={{
+                height: 20,
+                padding: "0 8px",
+                borderRadius: 99,
+                fontSize: 11,
+                fontWeight: 500,
+                color: S.success,
+                background: "rgba(76,175,125,0.15)",
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              Chain verified ✓
+            </span>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                style={{
+                  height: 30,
+                  padding: "0 12px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  border: `1px solid ${S.borderStrong}`,
+                  color: S.textSecondary,
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                Verify integrity
+              </button>
+              <button
+                type="button"
+                style={{
+                  height: 30,
+                  padding: "0 12px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  border: `1px solid ${S.borderStrong}`,
+                  color: S.textSecondary,
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                Send test event
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 30 }}>
+        <H2 sub="Periodically recertify who has access — a SOC 2 / ISO 27001 control.">
+          Access reviews
+        </H2>
+        <div
+          style={{
+            border: `1px solid ${S.border}`,
+            borderRadius: 8,
+            padding: "14px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 13.5, color: S.textSecondary }}>
+              Recertification campaign
+            </div>
+            <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
+              Cadence: <span style={{ color: S.textSecondary }}>Quarterly</span>{" "}
+              · last completed Apr 1, 2026 · next due Jul 1, 2026
+            </div>
+          </div>
+          <button
+            type="button"
+            style={{
+              height: 32,
+              padding: "0 14px",
+              borderRadius: 6,
+              background: S.accent,
+              color: "#fff",
+              fontSize: 13,
+              fontWeight: 500,
+              border: "none",
+              cursor: "pointer",
+            }}
+          >
+            Start access review
+          </button>
         </div>
       </div>
 

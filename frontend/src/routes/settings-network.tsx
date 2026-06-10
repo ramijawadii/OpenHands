@@ -117,6 +117,12 @@ export default function NetworkSettings() {
   const [maxSession, setMaxSession] = React.useState("12 hours");
   const [idle, setIdle] = React.useState("1 hour");
   const [geo, setGeo] = React.useState("Allow all");
+  const [ztna, setZtna] = React.useState("Cloudflare Access");
+  const [ingress, setIngress] = React.useState("AWS PrivateLink");
+  const [domain, setDomain] = React.useState("cloudguard.sentinel-org.io");
+  const [mtls, setMtls] = React.useState(true);
+  const [waf, setWaf] = React.useState(true);
+  const [cae, setCae] = React.useState(true);
 
   const addCidr = () => {
     if (!newCidr.trim()) return;
@@ -358,6 +364,132 @@ export default function NetworkSettings() {
               </option>
             ))}
           </select>
+        </Row>
+      </div>
+
+      <div style={{ marginTop: 36 }}>
+        <H2 sub="Front the portal behind your zero-trust edge so it is never reached directly over the public internet.">
+          Private Access (Zero Trust)
+        </H2>
+        <Row
+          label="Identity-aware proxy"
+          sublabel="Verify identity + device on every request via your ZTNA provider."
+        >
+          <select
+            value={ztna}
+            onChange={(e) => setZtna(e.target.value)}
+            style={selectStyle}
+          >
+            {[
+              "None (public)",
+              "Cloudflare Access",
+              "Entra App Proxy",
+              "Zscaler ZPA",
+              "Tailscale",
+              "Google BeyondCorp",
+            ].map((o) => (
+              <option key={o} value={o} style={optBg}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </Row>
+        {ztna !== "None (public)" && (
+          <Row
+            label="Proxy service token"
+            sublabel="Credential the proxy presents to CloudGuard."
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span
+                style={{
+                  fontSize: 12.5,
+                  color: S.textMuted,
+                  fontFamily: "monospace",
+                }}
+              >
+                svc_••••••••a91b
+              </span>
+              <button
+                type="button"
+                style={{
+                  height: 26,
+                  padding: "0 10px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  border: `1px solid ${S.borderStrong}`,
+                  color: S.textSecondary,
+                  fontSize: 11,
+                  cursor: "pointer",
+                }}
+              >
+                Rotate
+              </button>
+            </div>
+          </Row>
+        )}
+        <Row
+          label="Origin connectivity"
+          sublabel="How CloudGuard reaches your tenant — private removes public exposure."
+        >
+          <select
+            value={ingress}
+            onChange={(e) => setIngress(e.target.value)}
+            style={selectStyle}
+          >
+            {[
+              "Public endpoint",
+              "AWS PrivateLink",
+              "Azure Private Link",
+              "WireGuard tunnel",
+            ].map((o) => (
+              <option key={o} value={o} style={optBg}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row
+          label="Custom domain"
+          sublabel="Serve the portal on your own hostname."
+        >
+          <input
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            placeholder="cloudguard.acme.com"
+            style={{ ...inputStyle, minWidth: 220 }}
+          />
+        </Row>
+        <Row
+          label="Require client certificate (mTLS)"
+          sublabel="Mutual TLS — only devices with a valid cert connect."
+        >
+          <Toggle on={mtls} onChange={setMtls} label="mTLS" />
+        </Row>
+        <Row
+          label="WAF & DDoS protection"
+          sublabel="Edge web-application firewall + volumetric protection."
+        >
+          <Toggle on={waf} onChange={setWaf} label="WAF" />
+        </Row>
+        <Row
+          label="Continuous Access Evaluation"
+          sublabel="Re-evaluate session risk mid-session; revoke on posture change."
+        >
+          <Toggle on={cae} onChange={setCae} label="CAE" />
+        </Row>
+        <Row
+          label="CloudGuard egress IPs"
+          sublabel="Allowlist these on your side so only we can reach your origin."
+        >
+          <span
+            style={{
+              fontSize: 12.5,
+              color: S.textMuted,
+              fontFamily: "monospace",
+            }}
+          >
+            34.120.0.0/24, 35.190.0.0/24
+          </span>
         </Row>
       </div>
     </div>
