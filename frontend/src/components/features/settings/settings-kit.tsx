@@ -165,7 +165,7 @@ export function EmptyState({
   cta,
   onCta,
 }: {
-  icon?: string;
+  icon?: React.ReactNode;
   title: string;
   hint?: string;
   cta?: string;
@@ -180,7 +180,18 @@ export function EmptyState({
         textAlign: "center",
       }}
     >
-      {icon && <div style={{ fontSize: 26, marginBottom: 10 }}>{icon}</div>}
+      {icon && (
+        <div
+          style={{
+            marginBottom: 10,
+            display: "flex",
+            justifyContent: "center",
+            color: K.textMuted,
+          }}
+        >
+          {icon}
+        </div>
+      )}
       <div style={{ fontSize: 14, color: K.textSecondary, fontWeight: 500 }}>
         {title}
       </div>

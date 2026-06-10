@@ -68,7 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/settings/plan", text: "Plan & Add-ons", Icon: Package },
       { to: "/settings/billing", text: "Billing", Icon: CreditCard },
       { to: "/settings/usage", text: "Usage", Icon: BarChart2 },
-      { to: "/settings/limits", text: "Limits", Icon: Gauge },
+      { to: "/settings/limits", text: "Rate Limits", Icon: Gauge },
       { to: "/settings/notifications", text: "Notifications", Icon: Bell },
       { to: "/settings/support", text: "Support", Icon: LifeBuoy },
     ],

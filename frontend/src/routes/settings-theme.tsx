@@ -43,9 +43,12 @@ interface ThemeData {
   dateFormat: string;
   timezone: string;
   numberFormat: string;
-  notifyScanComplete: boolean;
-  notifyCritical: boolean;
-  notifyDigest: boolean;
+  notifyDailyReport: boolean;
+  notifyWeeklyReport: boolean;
+  notifyRoleUpdates: boolean;
+  notifyWorkspaceInvites: boolean;
+  notifyQuota: boolean;
+  notifyNewMember: boolean;
   notifyChannel: string;
 }
 
@@ -64,9 +67,12 @@ function load(): ThemeData {
     dateFormat: "MM/DD/YYYY",
     timezone: "UTC+1 — Europe/Paris",
     numberFormat: "1,000.00",
-    notifyScanComplete: true,
-    notifyCritical: true,
-    notifyDigest: false,
+    notifyDailyReport: true,
+    notifyWeeklyReport: true,
+    notifyRoleUpdates: true,
+    notifyWorkspaceInvites: true,
+    notifyQuota: true,
+    notifyNewMember: false,
     notifyChannel: "In-app",
   };
 }
@@ -412,22 +418,40 @@ export default function ThemeSettings() {
 
       <Section title="Notifications">
         <Toggle
-          on={data.notifyScanComplete}
-          onChange={(v) => upd({ notifyScanComplete: v })}
-          label="Scan completion alerts"
-          sublabel="Notify when a full coverage scan completes."
+          on={data.notifyDailyReport}
+          onChange={(v) => upd({ notifyDailyReport: v })}
+          label="Daily report"
+          sublabel="A morning summary of your security posture."
         />
         <Toggle
-          on={data.notifyCritical}
-          onChange={(v) => upd({ notifyCritical: v })}
-          label="Critical finding alerts"
-          sublabel="Immediate alert on CVSS ≥ 9.0 or P0 findings."
+          on={data.notifyWeeklyReport}
+          onChange={(v) => upd({ notifyWeeklyReport: v })}
+          label="Weekly report"
+          sublabel="Deeper weekly trends, coverage changes and new risks."
         />
         <Toggle
-          on={data.notifyDigest}
-          onChange={(v) => upd({ notifyDigest: v })}
-          label="Weekly digest"
-          sublabel="Summary of coverage changes and new risks."
+          on={data.notifyRoleUpdates}
+          onChange={(v) => upd({ notifyRoleUpdates: v })}
+          label="Role updates"
+          sublabel="When your role or permissions change."
+        />
+        <Toggle
+          on={data.notifyWorkspaceInvites}
+          onChange={(v) => upd({ notifyWorkspaceInvites: v })}
+          label="Workspace invitations"
+          sublabel="When you're invited to a workspace."
+        />
+        <Toggle
+          on={data.notifyQuota}
+          onChange={(v) => upd({ notifyQuota: v })}
+          label="Quota limit updated or reached"
+          sublabel="When a usage limit is changed, or you approach/hit it."
+        />
+        <Toggle
+          on={data.notifyNewMember}
+          onChange={(v) => upd({ notifyNewMember: v })}
+          label="New member joined your workspace"
+          sublabel="When someone joins a workspace you belong to."
         />
         <Row
           label="Notification channel"

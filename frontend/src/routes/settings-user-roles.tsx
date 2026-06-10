@@ -91,6 +91,33 @@ const INITIAL: Role[] = [
     members: ["Auditor (ext.)"],
     perms: ["View findings & coverage"],
   },
+  {
+    id: "wsadmin",
+    name: "Workspace Admin",
+    description: "Full control within assigned workspaces (not org-wide).",
+    builtin: true,
+    rbac: "OPERATOR",
+    members: ["Sam Okoye"],
+    perms: [
+      "View findings & coverage",
+      "Run scans",
+      "Manage connectors",
+      "Manage secrets",
+      "Manage webhooks",
+      "Manage service accounts",
+      "Manage members",
+    ],
+  },
+  {
+    id: "billing",
+    name: "Billing Manager",
+    description:
+      "Manage subscription, invoices and seats — no security access.",
+    builtin: true,
+    rbac: "END_USER",
+    members: ["Lena Park"],
+    perms: ["Manage billing"],
+  },
 ];
 
 const inputStyle: React.CSSProperties = {

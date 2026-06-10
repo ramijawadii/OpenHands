@@ -222,7 +222,7 @@ export default function IntegrationsSettings() {
                     alignItems: "center",
                     gap: 12,
                     background: S.cardBg,
-                    border: `1px solid ${it.connected ? "rgba(76,175,125,0.4)" : S.border}`,
+                    border: `1px solid ${S.border}`,
                     borderRadius: 10,
                     padding: "14px 16px",
                   }}

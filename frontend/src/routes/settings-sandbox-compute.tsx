@@ -33,7 +33,23 @@ interface Alloc {
   cpu: string;
   ram: string;
   autoScale: boolean;
+  geo?: string;
 }
+
+// Each workspace pins its sandbox data-residency region (inherited unless overridden).
+const WS_REGION: Record<string, string> = {
+  "Sentinel Security Workspace": "EU (eu-west-1)",
+  "Production Cloud": "US (us-east-1)",
+  "Sandbox / Dev": "APAC (ap-southeast-1)",
+};
+const REGION_OPTIONS = [
+  "US (us-east-1)",
+  "EU (eu-west-1)",
+  "UK (eu-west-2)",
+  "APAC (ap-southeast-1)",
+];
+const allocGeo = (a: Alloc) =>
+  a.geo ?? WS_REGION[a.workspace] ?? "EU (eu-west-1)";
 
 interface UsageRow {
   date: string;
@@ -471,7 +487,7 @@ export default function SandboxComputeSettings() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "1.4fr 130px 80px 80px 90px 80px",
+              gridTemplateColumns: "1.3fr 120px 64px 70px 150px 78px 60px",
               padding: "8px 16px",
               borderBottom: `1px solid ${S.border}`,
             }}
@@ -480,6 +496,7 @@ export default function SandboxComputeSettings() {
             {th("Role")}
             {th("vCPU")}
             {th("RAM")}
+            {th("Data residency")}
             {th("Auto-scale")}
             {th("", { textAlign: "right" })}
           </div>
@@ -493,7 +510,7 @@ export default function SandboxComputeSettings() {
               key={a.id}
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.4fr 130px 80px 80px 90px 80px",
+                gridTemplateColumns: "1.3fr 120px 64px 70px 150px 78px 60px",
                 padding: "10px 16px",
                 borderBottom:
                   i < shownAllocs.length - 1
@@ -534,6 +551,18 @@ export default function SandboxComputeSettings() {
                 }}
               >
                 {a.ram}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: S.textMuted,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {allocGeo(a)}
               </span>
               <span
                 style={{
@@ -713,6 +742,23 @@ export default function SandboxComputeSettings() {
                 </option>
               ))}
             </select>
+          </MField>
+          <MField label="Data residency (sandbox region)">
+            <select
+              value={allocGeo(draft)}
+              onChange={(e) => setDraft({ ...draft, geo: e.target.value })}
+              style={selectStyle}
+            >
+              {REGION_OPTIONS.map((o) => (
+                <option key={o} value={o} style={optBg}>
+                  {o}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: S.textMuted, marginTop: 5 }}>
+              Sandboxes for {draft.workspace} run in this region. Defaults to
+              the workspace's region.
+            </div>
           </MField>
           <div
             style={{

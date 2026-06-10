@@ -24,7 +24,10 @@ const LS_KEY = "cg_workspace";
 
 interface WorkspaceData {
   name: string;
-  slug: string;
+  workspaceId: string;
+  environment: string;
+  region: string;
+  owner: string;
   description: string;
   cloudScope: string[];
   allowPersonalTokens: boolean;
@@ -33,6 +36,14 @@ interface WorkspaceData {
   sandboxRam: string;
   autoScale: boolean;
 }
+
+const ENV_OPTIONS = ["Production", "Staging", "Development"];
+const REGION_OPTIONS = [
+  "US (us-east-1)",
+  "EU (eu-west-1)",
+  "UK (eu-west-2)",
+  "APAC (ap-southeast-1)",
+];
 
 interface WorkspaceRow {
   name: string;
@@ -90,7 +101,10 @@ function load(): WorkspaceData {
 function defaults(): WorkspaceData {
   return {
     name: "Sentinel Security Workspace",
-    slug: "sentinel-security",
+    workspaceId: "ws_8c2f4a1e9b3d",
+    environment: "Production",
+    region: "EU (eu-west-1)",
+    owner: "Rami Sentinel",
     description: "",
     cloudScope: ["AWS", "Azure"],
     allowPersonalTokens: true,
@@ -466,6 +480,9 @@ export default function WorkspaceSettings() {
     name: "",
     slug: "",
     clouds: [] as string[],
+    region: REGION_OPTIONS[1],
+    sandboxCpu: "4 vCPU",
+    sandboxRam: "8 GB",
   });
   // invite form
   const [invite, setInvite] = React.useState({
@@ -499,7 +516,14 @@ export default function WorkspaceSettings() {
         role: "Admin",
       },
     ]);
-    setNewWs({ name: "", slug: "", clouds: [] });
+    setNewWs({
+      name: "",
+      slug: "",
+      clouds: [],
+      region: REGION_OPTIONS[1],
+      sandboxCpu: "4 vCPU",
+      sandboxRam: "8 GB",
+    });
     setModal(null);
   };
 
@@ -671,49 +695,88 @@ export default function WorkspaceSettings() {
           />
         </Row>
         <Row
-          label="Workspace slug"
-          sublabel="Used in report URLs and API paths."
+          label="Workspace ID"
+          sublabel="Immutable identifier used in API paths and audit logs."
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              ...inputStyle,
-              padding: 0,
-              overflow: "hidden",
-            }}
-          >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
               style={{
-                padding: "0 8px",
-                color: S.textMuted,
                 fontSize: 13,
-                flexShrink: 0,
-                borderRight: `1px solid ${S.border}`,
-                height: "100%",
-                display: "flex",
+                color: S.textMuted,
+                fontFamily: "monospace",
+              }}
+            >
+              {data.workspaceId}
+            </span>
+            <button
+              type="button"
+              onClick={() => navigator.clipboard?.writeText(data.workspaceId)}
+              style={{
+                height: 24,
+                padding: "0 8px",
+                borderRadius: 5,
+                background: "transparent",
+                border: `1px solid ${S.borderStrong}`,
+                color: S.textSecondary,
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              Copy
+            </button>
+          </div>
+        </Row>
+        <Row
+          label="Environment"
+          sublabel="Drives the change-control policy (set under Environments & Tags)."
+        >
+          <select
+            value={data.environment}
+            onChange={(e) => upd({ environment: e.target.value })}
+            style={selectStyle}
+          >
+            {ENV_OPTIONS.map((o) => (
+              <option key={o} value={o} style={optBg}>
+                {o}
+              </option>
+            ))}
+          </select>
+        </Row>
+        <Row
+          label="Data residency region"
+          sublabel="Where this workspace's data is stored. Set at creation, cannot change."
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 14, color: S.textSecondary }}>
+              {data.region}
+            </span>
+            <span
+              style={{
+                height: 18,
+                padding: "0 7px",
+                borderRadius: 99,
+                fontSize: 10,
+                fontWeight: 600,
+                color: S.textMuted,
+                background: S.badgeBg,
+                display: "inline-flex",
                 alignItems: "center",
               }}
             >
-              cloudguard.io/
+              Locked
             </span>
-            <input
-              type="text"
-              value={data.slug}
-              onChange={(e) => upd({ slug: e.target.value })}
-              style={{
-                flex: 1,
-                height: "100%",
-                padding: "0 10px",
-                background: "transparent",
-                border: "none",
-                color: S.textPrimary,
-                fontSize: 14,
-                outline: "none",
-                fontFamily: "inherit",
-              }}
-            />
           </div>
+        </Row>
+        <Row
+          label="Owner"
+          sublabel="Primary point of contact for this workspace."
+        >
+          <input
+            type="text"
+            value={data.owner}
+            onChange={(e) => upd({ owner: e.target.value })}
+            style={inputStyle}
+          />
         </Row>
         <Row label="Description">
           <textarea
@@ -859,6 +922,57 @@ export default function WorkspaceSettings() {
               value={newWs.clouds}
               onChange={(v) => setNewWs((p) => ({ ...p, clouds: v }))}
             />
+          </MField>
+          <MField label="Data residency region">
+            <select
+              value={newWs.region}
+              onChange={(e) =>
+                setNewWs((p) => ({ ...p, region: e.target.value }))
+              }
+              style={selectStyle}
+            >
+              {REGION_OPTIONS.map((o) => (
+                <option key={o} value={o} style={optBg}>
+                  {o}
+                </option>
+              ))}
+            </select>
+            <div style={{ fontSize: 11, color: S.textMuted, marginTop: 5 }}>
+              Where this workspace's data is stored — cannot be changed later.
+            </div>
+          </MField>
+          <MField label="Sandbox capacity">
+            <div style={{ display: "flex", gap: 8 }}>
+              <select
+                value={newWs.sandboxCpu}
+                onChange={(e) =>
+                  setNewWs((p) => ({ ...p, sandboxCpu: e.target.value }))
+                }
+                style={{ ...selectStyle, flex: 1 }}
+              >
+                {CPU_OPTIONS.map((o) => (
+                  <option key={o} value={o} style={optBg}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={newWs.sandboxRam}
+                onChange={(e) =>
+                  setNewWs((p) => ({ ...p, sandboxRam: e.target.value }))
+                }
+                style={{ ...selectStyle, flex: 1 }}
+              >
+                {RAM_OPTIONS.map((o) => (
+                  <option key={o} value={o} style={optBg}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ fontSize: 11, color: S.textMuted, marginTop: 5 }}>
+              Default per-session sandbox size for this workspace.
+            </div>
           </MField>
         </Modal>
       )}

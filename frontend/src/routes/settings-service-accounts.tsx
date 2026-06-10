@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { Bot } from "lucide-react";
 import {
   ConfirmButton,
   EmptyState,
@@ -533,7 +534,7 @@ export default function ServiceAccountsSettings() {
         {rows.length === 0 && (
           <div style={{ padding: 16 }}>
             <EmptyState
-              icon="🤖"
+              icon={<Bot size={24} />}
               title="No service accounts yet"
               hint="Create a scoped, non-human identity for CI/CD pipelines or scheduled scans."
               cta="Create service account"

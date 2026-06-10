@@ -1,6 +1,14 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import {
+  ShieldCheck,
+  FileText,
+  Globe,
+  HeartPulse,
+  CreditCard,
+  Cloud,
+} from "lucide-react";
+import {
   ConfirmButton,
   ScopeBadge,
 } from "#/components/features/settings/settings-kit";
@@ -24,18 +32,33 @@ const ATTESTATIONS = [
     name: "SOC 2 Type II",
     status: "Valid",
     until: "Audited through Dec 2026",
-    icon: "🛡️",
+    Icon: ShieldCheck,
   },
   {
     name: "ISO/IEC 27001",
     status: "Valid",
     until: "Certified to Sep 2027",
-    icon: "📋",
+    Icon: FileText,
   },
-  { name: "GDPR", status: "Compliant", until: "DPA available", icon: "🇪🇺" },
-  { name: "HIPAA", status: "Available", until: "BAA on request", icon: "🏥" },
-  { name: "PCI-DSS", status: "SAQ-D", until: "Attestation 2026", icon: "💳" },
-  { name: "CSA STAR", status: "Level 2", until: "Registry listed", icon: "☁️" },
+  { name: "GDPR", status: "Compliant", until: "DPA available", Icon: Globe },
+  {
+    name: "HIPAA",
+    status: "Available",
+    until: "BAA on request",
+    Icon: HeartPulse,
+  },
+  {
+    name: "PCI-DSS",
+    status: "SAQ-D",
+    until: "Attestation 2026",
+    Icon: CreditCard,
+  },
+  {
+    name: "CSA STAR",
+    status: "Level 2",
+    until: "Registry listed",
+    Icon: Cloud,
+  },
 ];
 
 const LEGAL = [
@@ -195,7 +218,7 @@ export default function ComplianceSettings() {
                   marginBottom: 8,
                 }}
               >
-                <span style={{ fontSize: 20 }}>{a.icon}</span>
+                <a.Icon size={20} strokeWidth={1.7} color={S.accent} />
                 <span
                   style={{
                     height: 18,
@@ -321,7 +344,7 @@ export default function ComplianceSettings() {
               background: subSubscribed
                 ? "rgba(76,175,125,0.15)"
                 : "transparent",
-              border: `1px solid ${subSubscribed ? "rgba(76,175,125,0.4)" : S.borderStrong}`,
+              border: `1px solid ${S.borderStrong}`,
               color: subSubscribed ? S.success : S.textSecondary,
               fontSize: 12,
               cursor: "pointer",

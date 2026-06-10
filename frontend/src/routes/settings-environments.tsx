@@ -245,7 +245,6 @@ export default function EnvironmentsSettings() {
               style={{
                 background: S.cardBg,
                 border: `1px solid ${S.border}`,
-                borderLeft: `3px solid ${e.color}`,
                 borderRadius: 8,
                 padding: "12px 16px",
               }}
@@ -257,7 +256,16 @@ export default function EnvironmentsSettings() {
                   justifyContent: "space-between",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: e.color,
+                      flexShrink: 0,
+                    }}
+                  />
                   <span
                     style={{
                       fontSize: 13.5,

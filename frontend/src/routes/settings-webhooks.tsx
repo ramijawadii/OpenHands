@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { Bell } from "lucide-react";
 import {
   ConfirmButton,
   EmptyState,
@@ -461,7 +462,7 @@ export default function WebhooksSettings() {
         ))}
         {hooks.length === 0 && (
           <EmptyState
-            icon="🔔"
+            icon={<Bell size={24} />}
             title="No webhook endpoints"
             hint="Add an endpoint to push scan and finding events to your SIEM, SOAR, Slack or PagerDuty."
             cta="Add endpoint"

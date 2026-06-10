@@ -1,10 +1,65 @@
-/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import {
+  ConfirmButton,
   ScopeBadge,
   SaveBar,
   useDirty,
 } from "#/components/features/settings/settings-kit";
+
+interface CustomLimit {
+  id: string;
+  name: string;
+  type: "Model tokens" | "API requests" | "Sandbox runtime";
+  scope: "Workspace" | "User" | "Service account";
+  target: string;
+  perMin: string;
+  perDay: string;
+}
+const LIMIT_TYPES = [
+  "Model tokens",
+  "API requests",
+  "Sandbox runtime",
+] as const;
+const LIMIT_SCOPES = ["Workspace", "User", "Service account"] as const;
+const SCOPE_TARGETS: Record<string, string[]> = {
+  Workspace: [
+    "Sentinel Security Workspace",
+    "Production Cloud",
+    "Sandbox / Dev",
+  ],
+  User: ["Rami Sentinel", "Jana Doe", "Marc Tarek"],
+  "Service account": ["ci-scanner", "terraform-bot", "nightly-audit"],
+};
+const INITIAL_CUSTOM: CustomLimit[] = [
+  {
+    id: "c1",
+    name: "CI token budget",
+    type: "Model tokens",
+    scope: "Service account",
+    target: "ci-scanner",
+    perMin: "50,000",
+    perDay: "5,000,000",
+  },
+  {
+    id: "c2",
+    name: "Analyst API throttle",
+    type: "API requests",
+    scope: "User",
+    target: "Marc Tarek",
+    perMin: "120",
+    perDay: "20,000",
+  },
+  {
+    id: "c3",
+    name: "Dev sandbox cap",
+    type: "Sandbox runtime",
+    scope: "Workspace",
+    target: "Sandbox / Dev",
+    perMin: "—",
+    perDay: "40 vCPU-hrs",
+  },
+];
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -286,14 +341,59 @@ export default function LimitsSettings() {
   const upd = (patch: Partial<LimitsData>) =>
     setData((p) => ({ ...p, ...patch }));
 
+  const [custom, setCustom] = React.useState<CustomLimit[]>(INITIAL_CUSTOM);
+  const [modalOpen, setModalOpen] = React.useState(false);
+  const [form, setForm] = React.useState<{
+    name: string;
+    type: CustomLimit["type"];
+    scope: CustomLimit["scope"];
+    target: string;
+    perMin: string;
+    perDay: string;
+  }>({
+    name: "",
+    type: "Model tokens",
+    scope: "Workspace",
+    target: SCOPE_TARGETS.Workspace[0],
+    perMin: "",
+    perDay: "",
+  });
+  const isRuntime = form.type === "Sandbox runtime";
+
   const handleSave = () => {
     localStorage.setItem(LS_KEY, JSON.stringify(data));
     reset(data);
     setSavedAt(Date.now());
   };
+  const createLimit = () => {
+    if (!form.name.trim()) return;
+    setCustom((p) => [
+      ...p,
+      {
+        id: `c${Date.now()}`,
+        name: form.name.trim(),
+        type: form.type,
+        scope: form.scope,
+        target: form.target,
+        perMin: isRuntime ? "—" : form.perMin || "—",
+        perDay: form.perDay || "—",
+      },
+    ]);
+    setForm({
+      name: "",
+      type: "Model tokens",
+      scope: "Workspace",
+      target: SCOPE_TARGETS.Workspace[0],
+      perMin: "",
+      perDay: "",
+    });
+    setModalOpen(false);
+  };
+  const removeLimit = (id: string) =>
+    setCustom((p) => p.filter((c) => c.id !== id));
 
   return (
-    <div style={{ padding: "40px 48px", maxWidth: 700 }}>
+    <div style={{ padding: "40px 48px", maxWidth: 760 }}>
       <div
         style={{
           display: "flex",
@@ -310,7 +410,7 @@ export default function LimitsSettings() {
             margin: 0,
           }}
         >
-          Limits
+          Rate Limits
         </h1>
         <ScopeBadge scope="Organization" />
       </div>
@@ -570,12 +670,424 @@ export default function LimitsSettings() {
         />
       </Section>
 
+      <Section title="Custom Limits">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: S.textMuted }}>
+            Targeted limits for a specific workspace, user or service account —
+            tokens, API requests or sandbox runtime.
+          </span>
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            style={{
+              height: 30,
+              padding: "0 12px",
+              borderRadius: 6,
+              background: S.accent,
+              color: "#fff",
+              fontSize: 12.5,
+              fontWeight: 500,
+              border: "none",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            + Create limit
+          </button>
+        </div>
+        <div
+          style={{
+            borderRadius: 8,
+            overflow: "hidden",
+            border: `1px solid ${S.border}`,
+          }}
+        >
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.2fr 1fr 1.2fr 1fr 1fr 28px",
+              padding: "8px 14px",
+              borderBottom: `1px solid ${S.border}`,
+            }}
+          >
+            {["Name", "Type", "Applies to", "Per minute", "Per day", ""].map(
+              (h) => (
+                <span
+                  key={h}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: S.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {h}
+                </span>
+              ),
+            )}
+          </div>
+          {custom.map((c, i) => (
+            <div
+              key={c.id}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1.2fr 1fr 1.2fr 1fr 1fr 28px",
+                padding: "10px 14px",
+                borderBottom:
+                  i < custom.length - 1
+                    ? "1px solid var(--cg-border-subtle)"
+                    : "none",
+                alignItems: "center",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12.5,
+                  color: S.textSecondary,
+                  fontWeight: 500,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.name}
+              </span>
+              <span style={{ fontSize: 12, color: S.textMuted }}>{c.type}</span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: S.textMuted,
+                  minWidth: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {c.scope}: {c.target}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: S.textSecondary,
+                  fontFamily: "monospace",
+                }}
+              >
+                {c.perMin}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: S.textSecondary,
+                  fontFamily: "monospace",
+                }}
+              >
+                {c.perDay}
+              </span>
+              <ConfirmButton
+                variant="link"
+                label="✕"
+                title={`Delete limit "${c.name}"?`}
+                body="This targeted limit will no longer apply."
+                confirmLabel="Delete limit"
+                onConfirm={() => removeLimit(c.id)}
+              />
+            </div>
+          ))}
+          {custom.length === 0 && (
+            <div style={{ padding: 14, fontSize: 12.5, color: S.textMuted }}>
+              No custom limits — only the org-wide rate limits above apply.
+            </div>
+          )}
+        </div>
+      </Section>
+
       <SaveBar
         dirty={dirty}
         savedAt={savedAt}
         onSave={handleSave}
         onDiscard={() => setData(baseline)}
       />
+
+      {modalOpen && (
+        <div
+          onClick={() => setModalOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 460,
+              maxWidth: "92vw",
+              background: "var(--cg-bg-card)",
+              border: `1px solid var(--cg-border-strong)`,
+              borderRadius: 12,
+              padding: 24,
+            }}
+          >
+            <h3
+              style={{
+                fontSize: 16,
+                fontWeight: 500,
+                color: S.textPrimary,
+                margin: 0,
+              }}
+            >
+              Create custom limit
+            </h3>
+            <p
+              style={{
+                fontSize: 13,
+                color: S.textMuted,
+                marginTop: 6,
+                marginBottom: 18,
+              }}
+            >
+              Throttle a specific target. Sandbox-runtime limits are expressed
+              per day.
+            </p>
+            <div style={{ marginBottom: 12 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: S.textMuted,
+                  marginBottom: 6,
+                }}
+              >
+                Name
+              </label>
+              <input
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+                placeholder="e.g. CI token budget"
+                style={inputStyle}
+              />
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+                marginBottom: 12,
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: S.textMuted,
+                    marginBottom: 6,
+                  }}
+                >
+                  Limit type
+                </label>
+                <select
+                  value={form.type}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      type: e.target.value as CustomLimit["type"],
+                    }))
+                  }
+                  style={selectStyle}
+                >
+                  {LIMIT_TYPES.map((t) => (
+                    <option
+                      key={t}
+                      value={t}
+                      style={{ background: "var(--cg-bg-card)" }}
+                    >
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: S.textMuted,
+                    marginBottom: 6,
+                  }}
+                >
+                  Scope
+                </label>
+                <select
+                  value={form.scope}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      scope: e.target.value as CustomLimit["scope"],
+                      target: SCOPE_TARGETS[e.target.value][0],
+                    }))
+                  }
+                  style={selectStyle}
+                >
+                  {LIMIT_SCOPES.map((sc) => (
+                    <option
+                      key={sc}
+                      value={sc}
+                      style={{ background: "var(--cg-bg-card)" }}
+                    >
+                      {sc}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  color: S.textMuted,
+                  marginBottom: 6,
+                }}
+              >
+                Target {form.scope.toLowerCase()}
+              </label>
+              <select
+                value={form.target}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, target: e.target.value }))
+                }
+                style={selectStyle}
+              >
+                {SCOPE_TARGETS[form.scope].map((t) => (
+                  <option
+                    key={t}
+                    value={t}
+                    style={{ background: "var(--cg-bg-card)" }}
+                  >
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 10,
+              }}
+            >
+              {!isRuntime && (
+                <div>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      color: S.textMuted,
+                      marginBottom: 6,
+                    }}
+                  >
+                    Per minute
+                  </label>
+                  <input
+                    value={form.perMin}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, perMin: e.target.value }))
+                    }
+                    placeholder={
+                      form.type === "Model tokens" ? "50,000 tokens" : "120 req"
+                    }
+                    style={inputStyle}
+                  />
+                </div>
+              )}
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: 12,
+                    color: S.textMuted,
+                    marginBottom: 6,
+                  }}
+                >
+                  Per day
+                </label>
+                <input
+                  value={form.perDay}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, perDay: e.target.value }))
+                  }
+                  placeholder={
+                    isRuntime
+                      ? "40 vCPU-hrs"
+                      : form.type === "Model tokens"
+                        ? "5,000,000 tokens"
+                        : "20,000 req"
+                  }
+                  style={inputStyle}
+                />
+              </div>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 22,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                style={{
+                  height: 36,
+                  padding: "0 16px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  border: `1px solid var(--cg-border-strong)`,
+                  color: S.textSecondary,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={createLimit}
+                style={{
+                  height: 36,
+                  padding: "0 16px",
+                  borderRadius: 6,
+                  background: S.accent,
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Create limit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { Users, Mail } from "lucide-react";
 import {
   ConfirmButton,
   EmptyState,
@@ -712,7 +713,7 @@ export default function MembersSettings() {
             {shown.length === 0 && (
               <div style={{ padding: 16 }}>
                 <EmptyState
-                  icon="🧑‍🤝‍🧑"
+                  icon={<Users size={24} />}
                   title="No members match"
                   hint="Adjust the filters or invite someone new."
                 />
@@ -812,7 +813,7 @@ export default function MembersSettings() {
           {invites.length === 0 && (
             <div style={{ padding: 16 }}>
               <EmptyState
-                icon="✉️"
+                icon={<Mail size={24} />}
                 title="No pending invites"
                 hint="Invite teammates to collaborate in this organization."
                 cta="Invite member"

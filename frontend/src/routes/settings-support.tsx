@@ -150,7 +150,7 @@ export default function SupportSettings() {
           padding: "10px 14px",
           borderRadius: 8,
           background: "rgba(76,175,125,0.10)",
-          border: "1px solid rgba(76,175,125,0.3)",
+          border: `1px solid ${S.border}`,
           marginBottom: 20,
         }}
       >
