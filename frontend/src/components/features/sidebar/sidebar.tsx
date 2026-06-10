@@ -1497,8 +1497,59 @@ export function Sidebar() {
               );
             })}
 
-            {/* Divider before Settings */}
+            {/* Divider before Agent Control Plane + Settings */}
             <div style={{ height: 1, background: T.border, margin: "6px 0" }} />
+
+            {/* Agent Control Plane */}
+            <button
+              type="button"
+              aria-label="Agent Control Plane"
+              onClick={() => {
+                navigate("/agent-control-plane");
+                setActiveSubPanel(null);
+              }}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                gap: 10,
+                width: "calc(100% - 12px)",
+                margin: "1px 6px",
+                padding: "10px 12px",
+                background: pathname.startsWith("/agent-control-plane")
+                  ? T.bgActive
+                  : "transparent",
+                border: "none",
+                cursor: "pointer",
+                textAlign: "left",
+                borderRadius: 6,
+                transition: "background 0.12s",
+              }}
+              {...railHover(
+                "Agent Control Plane",
+                pathname.startsWith("/agent-control-plane"),
+              )}
+            >
+              <span
+                style={{ color: T.textPrimary, display: "flex", flexShrink: 0 }}
+              >
+                <Bot size={15} />
+              </span>
+              {!collapsed && (
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 400,
+                    color: T.textPrimary,
+                    opacity: 1,
+                    transition: labelOpacityTransition,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Agent Control Plane
+                </span>
+              )}
+            </button>
 
             {/* Settings — last tab */}
             <button
