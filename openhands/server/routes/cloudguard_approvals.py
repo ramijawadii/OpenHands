@@ -17,6 +17,8 @@ CLOUDGUARD_CLARIFICATIONS_DIR) — a volume the app writes and the runtime reads
 
 from __future__ import annotations
 
+import importlib
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -67,6 +69,27 @@ def _scope(records: list, conversation_id: str | None, id_getter) -> list:
     return [r for r in records if id_getter(r) in (conversation_id, "", None)]
 
 
+def _audit(principal, action, *, resource="", decision="", category="action", **extra):
+    """Best-effort append to the tenant's tamper-evident audit log for a privileged action.
+    Never fails the action on an audit-store error (logged), so availability isn't coupled to
+    the audit volume — the chain's `verify()` still surfaces any gap."""
+    try:
+        audit = importlib.import_module("cloudguard.tenant_audit")
+        audit.append(
+            principal.tenant_id,
+            action,
+            actor=principal.subject,
+            resource=resource,
+            decision=decision,
+            category=category,
+            **extra,
+        )
+    except Exception as exc:  # noqa: BLE001
+        import logging
+
+        logging.getLogger("openhands").warning("cloudguard audit append failed: %s", exc)
+
+
 # ── Approvals ─────────────────────────────────────────────────────────────────
 @app.get("/approvals")
 async def list_approvals(
@@ -101,10 +124,19 @@ async def decide_approval(rid: str, body: ApprovalDecision, p=Depends(require_ca
     rec = approval.get_request(rid)
     if rec is None:
         raise HTTPException(status_code=404, detail="approval not found")
-    gate_conversation(p, (rec.get("context") or {}).get("conversation_id"))
+    cid = (rec.get("context") or {}).get("conversation_id")
+    gate_conversation(p, cid)
     ok = approval.decide(rid, approved=body.approved, reviewer=body.reviewer, reason=body.reason)
     if not ok:
         raise HTTPException(status_code=409, detail="approval not found or already decided")
+    _audit(
+        p,
+        "approval.approved" if body.approved else "approval.denied",
+        resource=rid,
+        decision="approved" if body.approved else "denied",
+        category="approval",
+        conversation_id=cid,
+    )
     return approval.get_request(rid)
 
 
@@ -120,7 +152,16 @@ async def get_mode_route(conversation_id: str | None = None, p=Depends(require_p
 async def set_mode_route(body: ModeBody, p=Depends(require_cap("remediate"))):
     gate_conversation(p, body.conversation_id or None)
     modes = _safe("cloudguard.modes")
-    return modes.set_mode(body.conversation_id or None, body.mode)
+    record = modes.set_mode(body.conversation_id or None, body.mode)
+    _audit(
+        p,
+        f"mode.set.{body.mode}",
+        resource=body.conversation_id or "",
+        decision=body.mode,
+        category="policy_decision",
+        conversation_id=body.conversation_id or None,
+    )
+    return record
 
 
 @app.post("/plan/decision")
@@ -129,7 +170,16 @@ async def decide_plan_route(body: PlanDecisionBody, p=Depends(require_cap("remed
     changes -> stay in plan mode and re-plan. Returns the new mode record."""
     gate_conversation(p, body.conversation_id or None)
     modes = _safe("cloudguard.modes")
-    return modes.decide_plan(body.conversation_id or None, body.decision)
+    record = modes.decide_plan(body.conversation_id or None, body.decision)
+    _audit(
+        p,
+        f"plan.{body.decision}",
+        resource=body.conversation_id or "",
+        decision=body.decision,
+        category="policy_decision",
+        conversation_id=body.conversation_id or None,
+    )
+    return record
 
 
 # ── Tasks (Plane T — the single task plan, conversation-scoped) ───────────────
@@ -211,8 +261,17 @@ async def answer_clarification(
     rec = clarification.get_request(cid)
     if rec is None:
         raise HTTPException(status_code=404, detail="clarification not found")
-    gate_conversation(principal, rec.get("session_id"))
+    sid = rec.get("session_id")
+    gate_conversation(principal, sid)
     ok = clarification.answer(cid, body.answers)
     if not ok:
         raise HTTPException(status_code=409, detail="clarification not found or already answered")
+    _audit(
+        principal,
+        "clarification.answered",
+        resource=cid,
+        decision="answered",
+        category="action",
+        conversation_id=sid,
+    )
     return clarification.get_request(cid)
