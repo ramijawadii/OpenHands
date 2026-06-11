@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CloudGuardService } from "#/api/cloudguard-service";
 
 // `/me` bootstrap — cached app-wide by react-query so every <Capable> / session read shares it.
@@ -39,3 +39,29 @@ export const useAuditVerify = () =>
     queryFn: CloudGuardService.auditVerify,
     retry: false,
   });
+
+export const useApprovals = (status = "pending") =>
+  useQuery({
+    queryKey: ["cloudguard", "approvals", status],
+    queryFn: () => CloudGuardService.approvals(status),
+    retry: false,
+  });
+
+export const useDecideApproval = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      approved,
+      reason,
+    }: {
+      id: string;
+      approved: boolean;
+      reason?: string;
+    }) => CloudGuardService.decideApproval(id, approved, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "approvals"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};

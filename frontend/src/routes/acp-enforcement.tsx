@@ -22,6 +22,19 @@ import {
   ConfirmButton,
   Toggle,
 } from "#/components/features/settings/settings-kit";
+import { useApprovals, useDecideApproval } from "#/hooks/query/use-cloudguard";
+import type { CGApproval } from "#/api/cloudguard-service";
+
+// Map a live approval record → the row shape the queue renders (context is free-form).
+const mapApproval = (a: CGApproval) => ({
+  id: a.id,
+  action: a.command,
+  run: String(a.context?.conversation_id ?? a.context?.run ?? "—"),
+  ws: String(a.context?.workspace ?? a.context?.ws ?? "—"),
+  who: String(a.context?.actor ?? a.context?.owner ?? "—"),
+  risk: String(a.context?.risk ?? "Medium"),
+  wait: a.created_at ? new Date(a.created_at).toLocaleTimeString() : "—",
+});
 
 const POLICY = [
   {
@@ -116,7 +129,18 @@ export default function AcpEnforcement() {
       wait: "22m 04s",
     },
   ]);
-  const decide = (id: string) => setQueue((p) => p.filter((x) => x.id !== id));
+  const decideMock = (id: string) =>
+    setQueue((p) => p.filter((x) => x.id !== id));
+
+  // Live pending approvals; fall back to the mock queue when the endpoint isn't reachable.
+  const approvalsQ = useApprovals();
+  const decideMut = useDecideApproval();
+  const usingRealApprovals = !!approvalsQ.data && !approvalsQ.isError;
+  const rows = usingRealApprovals ? approvalsQ.data.map(mapApproval) : queue;
+  const onDecide = (id: string, approved: boolean) => {
+    if (usingRealApprovals) decideMut.mutate({ id, approved });
+    else decideMock(id);
+  };
 
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
@@ -320,7 +344,7 @@ export default function AcpEnforcement() {
                 </span>
               ))}
             </div>
-            {queue.map((x, i) => (
+            {rows.map((x, i) => (
               <div
                 key={x.id}
                 className="cg-row"
@@ -330,7 +354,7 @@ export default function AcpEnforcement() {
                     "120px 110px 1fr 2fr 80px 90px 100px 120px",
                   padding: "11px 16px",
                   borderBottom:
-                    i < queue.length - 1
+                    i < rows.length - 1
                       ? "1px solid var(--cg-border-subtle)"
                       : "none",
                   alignItems: "center",
@@ -370,7 +394,7 @@ export default function AcpEnforcement() {
                     title="Approve this action?"
                     body={`The agent executes: ${x.action}. Signed into the audit ledger.`}
                     confirmLabel="Approve & sign"
-                    onConfirm={() => decide(x.id)}
+                    onConfirm={() => onDecide(x.id, true)}
                     style={{ color: A.success }}
                   />
                   <ConfirmButton
@@ -379,12 +403,12 @@ export default function AcpEnforcement() {
                     title="Deny this action?"
                     body="The run continues with the action skipped. Reason required."
                     confirmLabel="Deny"
-                    onConfirm={() => decide(x.id)}
+                    onConfirm={() => onDecide(x.id, false)}
                   />
                 </span>
               </div>
             ))}
-            {queue.length === 0 && (
+            {rows.length === 0 && (
               <div style={{ padding: 16, fontSize: 12.5, color: A.textMuted }}>
                 No pending approvals. The queue is clear.
               </div>

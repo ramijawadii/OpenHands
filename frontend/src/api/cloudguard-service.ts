@@ -38,6 +38,14 @@ export interface CGChain {
   reason: string;
 }
 
+export interface CGApproval {
+  id: string;
+  command: string;
+  status: string;
+  created_at: string;
+  context?: Record<string, unknown>;
+}
+
 const BASE = "/api/cloudguard";
 
 export const CloudGuardService = {
@@ -52,4 +60,14 @@ export const CloudGuardService = {
       .then((r) => r.data),
   auditVerify: () =>
     openHands.get<CGChain>(`${BASE}/audit/verify`).then((r) => r.data),
+  approvals: (status = "pending") =>
+    openHands
+      .get<{ approvals: CGApproval[] }>(`${BASE}/approvals`, {
+        params: { status },
+      })
+      .then((r) => r.data.approvals),
+  decideApproval: (id: string, approved: boolean, reason = "") =>
+    openHands
+      .post(`${BASE}/approvals/${id}/decision`, { approved, reason })
+      .then((r) => r.data),
 };
