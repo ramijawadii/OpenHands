@@ -361,7 +361,7 @@ function DiffDrawer({
               height: 30,
               padding: "0 12px",
               borderRadius: 6,
-              background: "transparent",
+              background: A.cardBg,
               border: `1px solid ${A.borderStrong}`,
               color: A.textSecondary,
               fontSize: 12.5,
