@@ -17,6 +17,7 @@ import {
   Table,
   mono,
   Icon,
+  primaryBtn,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
 
@@ -689,7 +690,7 @@ export default function AcpRuns() {
               body="The agent executes the approved steps; the decision is signed into the audit ledger."
               confirmLabel="Approve & sign"
               onConfirm={() => {}}
-              style={{ background: A.accent }}
+              style={primaryBtn}
             />
             <ConfirmButton
               variant="ghost"

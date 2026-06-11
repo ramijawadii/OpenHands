@@ -16,6 +16,7 @@ import {
   Table,
   mono,
   acpInput,
+  primaryBtn,
 } from "#/components/features/acp/acp-ui";
 import {
   ConfirmButton,
@@ -218,20 +219,7 @@ export default function AcpEnforcement() {
             search={q}
             onSearch={setQ}
             right={
-              <button
-                type="button"
-                style={{
-                  height: 32,
-                  padding: "0 12px",
-                  borderRadius: 6,
-                  background: A.accent,
-                  color: "#fff",
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" style={primaryBtn}>
                 + New Override
               </button>
             }
@@ -632,20 +620,7 @@ export default function AcpEnforcement() {
             search={q}
             onSearch={setQ}
             right={
-              <button
-                type="button"
-                style={{
-                  height: 32,
-                  padding: "0 12px",
-                  borderRadius: 6,
-                  background: A.accent,
-                  color: "#fff",
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" style={primaryBtn}>
                 + New Exception
               </button>
             }

@@ -632,3 +632,21 @@ export const acpSelect: React.CSSProperties = {
 };
 export const acpOpt = { background: "var(--cg-bg-card)" } as const;
 export const mono: React.CSSProperties = { fontFamily: "monospace" };
+
+// High-contrast primary button (white pill + dark text in dark mode; inverts
+// in light mode). Replaces the old solid-blue accent buttons.
+export const primaryBtn: React.CSSProperties = {
+  height: 32,
+  padding: "0 14px",
+  borderRadius: 7,
+  background: "var(--cg-text-primary)",
+  color: "var(--cg-bg-card)",
+  fontSize: 12.5,
+  fontWeight: 600,
+  border: "none",
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  whiteSpace: "nowrap",
+};

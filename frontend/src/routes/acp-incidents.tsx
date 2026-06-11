@@ -14,6 +14,7 @@ import {
   Hash,
   Table,
   mono,
+  primaryBtn,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
 
@@ -130,20 +131,7 @@ export default function AcpIncidents() {
           right={
             <>
               <ExportBtn />
-              <button
-                type="button"
-                style={{
-                  height: 32,
-                  padding: "0 12px",
-                  borderRadius: 6,
-                  background: A.accent,
-                  color: "#fff",
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  border: "none",
-                  cursor: "pointer",
-                }}
-              >
+              <button type="button" style={primaryBtn}>
                 + New Incident
               </button>
             </>
