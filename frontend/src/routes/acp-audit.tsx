@@ -13,6 +13,29 @@ import {
   Hash,
   mono,
 } from "#/components/features/acp/acp-ui";
+import { useAuditLedger, useAuditVerify } from "#/hooks/query/use-cloudguard";
+import type { CGAuditEntry } from "#/api/cloudguard-service";
+
+// Map the backend category slug → the UI facet label.
+const CAT_LABEL: Record<string, string> = {
+  action: "Actions",
+  policy_decision: "Policy Decisions",
+  approval: "Approvals",
+  break_glass: "Break-glass",
+  kill_switch: "Kill Switch",
+};
+const apiToRow = (e: CGAuditEntry) => ({
+  seq: e.seq,
+  ts: e.ts,
+  actor: e.actor,
+  cat: CAT_LABEL[e.category] ?? e.category,
+  action: e.action,
+  res: e.resource,
+  dec: e.decision ? e.decision[0].toUpperCase() + e.decision.slice(1) : "",
+  hash: e.entry_hash,
+  prev: e.prev_hash,
+  link: e.link ?? "",
+});
 
 type Facet =
   | "All"
@@ -162,7 +185,16 @@ export default function AcpAudit() {
   const [tab, setTab] = React.useState("Ledger");
   const [facet, setFacet] = React.useState<Facet>("All");
   const [q, setQ] = React.useState("");
-  const rows = LEDGER.filter(
+
+  // Real per-tenant ledger; fall back to the mock when the endpoint isn't reachable yet
+  // (backend not deployed) so the surface keeps rendering during the wiring rollout.
+  const ledger = useAuditLedger();
+  const verify = useAuditVerify();
+  const apiEntries = ledger.data?.entries;
+  const usingReal = !!apiEntries && !ledger.isError;
+  const source = usingReal ? apiEntries.map(apiToRow) : LEDGER;
+
+  const rows = source.filter(
     (l) =>
       (facet === "All" || l.cat === facet) &&
       (!q ||
@@ -170,6 +202,9 @@ export default function AcpAudit() {
           .toLowerCase()
           .includes(q.toLowerCase())),
   );
+
+  const headSeq = usingReal ? (ledger.data?.total ?? 0) : 48293;
+  const chainOk = usingReal ? (verify.data?.ok ?? true) : true;
 
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1160 }}>
@@ -213,12 +248,22 @@ export default function AcpAudit() {
             }}
           >
             <span style={{ fontSize: 12.5, color: A.textMuted }}>
-              Chain: <span style={mono}>seq 1 → 48,293</span> ·{" "}
-              <Badge text="✓ Chain verified" tone="ok" />
+              Chain:{" "}
+              <span style={mono}>seq 1 → {headSeq.toLocaleString()}</span> ·{" "}
+              <Badge
+                text={chainOk ? "✓ Chain verified" : "✗ Chain broken"}
+                tone={chainOk ? "ok" : "danger"}
+              />
+              {!usingReal && (
+                <span style={{ marginLeft: 8, opacity: 0.7 }}>
+                  (sample data)
+                </span>
+              )}
             </span>
             <div style={{ display: "flex", gap: 8 }}>
               <button
                 type="button"
+                onClick={() => verify.refetch()}
                 style={{
                   height: 28,
                   padding: "0 10px",

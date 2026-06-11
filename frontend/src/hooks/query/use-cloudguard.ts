@@ -1,0 +1,41 @@
+import { useQuery } from "@tanstack/react-query";
+import { CloudGuardService } from "#/api/cloudguard-service";
+
+// `/me` bootstrap — cached app-wide by react-query so every <Capable> / session read shares it.
+export const useCloudGuardSession = () => {
+  const query = useQuery({
+    queryKey: ["cloudguard", "me"],
+    queryFn: CloudGuardService.me,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const capabilities = query.data?.capabilities ?? [];
+  return {
+    data: query.data,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    refetch: query.refetch,
+    capabilities,
+    role: query.data?.role,
+    tenantId: query.data?.tenant_id,
+    can: (cap: string) => capabilities.includes(cap),
+  };
+};
+
+export const useAuditLedger = (params?: {
+  category?: string;
+  actor?: string;
+  limit?: number;
+}) =>
+  useQuery({
+    queryKey: ["cloudguard", "audit", "ledger", params],
+    queryFn: () => CloudGuardService.auditLedger(params),
+    retry: false,
+  });
+
+export const useAuditVerify = () =>
+  useQuery({
+    queryKey: ["cloudguard", "audit", "verify"],
+    queryFn: CloudGuardService.auditVerify,
+    retry: false,
+  });
