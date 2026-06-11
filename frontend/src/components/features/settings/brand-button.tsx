@@ -22,6 +22,15 @@ export function BrandButton({
   onClick,
   startContent,
 }: React.PropsWithChildren<BrandButtonProps>) {
+  const style: React.CSSProperties | undefined = {
+    primary: {
+      background: "var(--cg-text-primary)",
+      borderColor: "var(--cg-text-primary)",
+    },
+    secondary: { borderColor: "var(--cg-border)" },
+    danger: undefined,
+    "ghost-danger": undefined,
+  }[variant];
   return (
     <button
       name={name}
@@ -33,14 +42,15 @@ export function BrandButton({
       onClick={onClick}
       className={cn(
         "w-fit p-2 text-sm rounded-sm disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 cursor-pointer",
-        variant === "primary" && "bg-primary text-[#0D0F11]",
-        variant === "secondary" && "border border-primary text-primary",
+        variant === "primary" && "text-[var(--cg-bg-card)] font-medium",
+        variant === "secondary" && "border text-[var(--cg-text-nav)]",
         variant === "danger" && "bg-red-600 text-white hover:bg-red-700",
         variant === "ghost-danger" &&
           "bg-transparent text-red-600 underline hover:text-red-700 hover:no-underline font-medium",
         startContent && "flex items-center justify-center gap-2",
         className,
       )}
+      style={style}
     >
       {startContent}
       {children}
