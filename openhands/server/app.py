@@ -94,4 +94,14 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
 
     _logging.getLogger("openhands").warning("CloudGuard approval routes unavailable: %s", _cg_exc)
 
+# CloudGuard edge auth: tenant+RBAC principal resolution + GET /api/cloudguard/me.
+try:
+    from openhands.server.routes.cloudguard_principal import router as cloudguard_principal_router
+
+    app.include_router(cloudguard_principal_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning("CloudGuard principal routes unavailable: %s", _cg_exc)
+
 add_health_endpoints(app)
