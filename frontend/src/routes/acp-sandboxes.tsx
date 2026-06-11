@@ -12,6 +12,7 @@ import {
   Decision,
   Hash,
   mono,
+  Icon,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
 
@@ -156,25 +157,67 @@ const EGRESS: React.ReactNode[][] = [
     "—",
   ],
 ];
-const FSDIFF: React.ReactNode[][] = [
-  [
-    <Badge text="+" tone="ok" />,
-    <span style={mono}>/tmp/cloudguard/report-2025-01-14.json</span>,
-    "added",
-    "4.2 KB",
-  ],
-  [
-    <Badge text="~" tone="warn" />,
-    <span style={mono}>/tmp/cloudguard/policy-analysis.yaml</span>,
-    "modified",
-    <span style={{ color: A.accent, cursor: "pointer" }}>diff →</span>,
-  ],
-  [
-    <Badge text="−" tone="danger" />,
-    <span style={mono}>/tmp/cloudguard/old-scan.json</span>,
-    "deleted",
-    "—",
-  ],
+type DiffLine = {
+  k: "ctx" | "add" | "del";
+  n1: string;
+  n2: string;
+  text: string;
+};
+interface FileDiff {
+  path: string;
+  change: "added" | "modified" | "deleted";
+  size: string;
+  add: number;
+  del: number;
+  hunk: string;
+  lines: DiffLine[];
+}
+const FSDIFF: FileDiff[] = [
+  {
+    path: "/tmp/cloudguard/report-2025-01-14.json",
+    change: "added",
+    size: "4.2 KB",
+    add: 5,
+    del: 0,
+    hunk: "@@ -0,0 +1,5 @@",
+    lines: [
+      { k: "add", n1: "", n2: "1", text: "{" },
+      { k: "add", n1: "", n2: "2", text: '  "account": "4044…1029",' },
+      { k: "add", n1: "", n2: "3", text: '  "findings": 4,' },
+      { k: "add", n1: "", n2: "4", text: '  "critical": 1' },
+      { k: "add", n1: "", n2: "5", text: "}" },
+    ],
+  },
+  {
+    path: "/tmp/cloudguard/policy-analysis.yaml",
+    change: "modified",
+    size: "1.8 KB",
+    add: 2,
+    del: 2,
+    hunk: "@@ -3,6 +3,6 @@ rules:",
+    lines: [
+      { k: "ctx", n1: "3", n2: "3", text: "rules:" },
+      { k: "ctx", n1: "4", n2: "4", text: "  - id: iam-least-privilege" },
+      { k: "del", n1: "5", n2: "", text: "    severity: medium" },
+      { k: "add", n1: "", n2: "5", text: "    severity: high" },
+      { k: "del", n1: "6", n2: "", text: "    action: warn" },
+      { k: "add", n1: "", n2: "6", text: "    action: block" },
+      { k: "ctx", n1: "7", n2: "7", text: "  - id: egress-allowlist" },
+    ],
+  },
+  {
+    path: "/tmp/cloudguard/old-scan.json",
+    change: "deleted",
+    size: "—",
+    add: 0,
+    del: 3,
+    hunk: "@@ -1,3 +0,0 @@",
+    lines: [
+      { k: "del", n1: "1", n2: "", text: "{" },
+      { k: "del", n1: "2", n2: "", text: '  "stale": true' },
+      { k: "del", n1: "3", n2: "", text: "}" },
+    ],
+  },
 ];
 const CREDS: React.ReactNode[][] = [
   [
@@ -215,11 +258,206 @@ const CREDS: React.ReactNode[][] = [
   ],
 ];
 
+function DiffDrawer({
+  file,
+  onClose,
+}: {
+  file: FileDiff;
+  onClose: () => void;
+}) {
+  React.useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const bg = (k: DiffLine["k"]) =>
+    k === "add"
+      ? "rgba(76,175,125,0.13)"
+      : k === "del"
+        ? "rgba(224,82,82,0.13)"
+        : "transparent";
+  const sign = (k: DiffLine["k"]) =>
+    k === "add" ? "+" : k === "del" ? "−" : " ";
+  const fg = (k: DiffLine["k"]) =>
+    k === "add" ? A.success : k === "del" ? A.danger : A.textMuted;
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        zIndex: 1000,
+        display: "flex",
+        justifyContent: "flex-end",
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Diff for ${file.path}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "min(720px, 92vw)",
+          height: "100%",
+          background: A.cardBg,
+          borderLeft: `1px solid ${A.border}`,
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "-12px 0 32px rgba(0,0,0,0.3)",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "14px 18px",
+            borderBottom: `1px solid ${A.border}`,
+          }}
+        >
+          <Badge
+            text={
+              file.change === "added"
+                ? "+"
+                : file.change === "deleted"
+                  ? "−"
+                  : "~"
+            }
+            tone={
+              file.change === "added"
+                ? "ok"
+                : file.change === "deleted"
+                  ? "danger"
+                  : "warn"
+            }
+          />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                ...mono,
+                fontSize: 13,
+                color: A.textPrimary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {file.path}
+            </div>
+            <div style={{ fontSize: 11.5, color: A.textMuted, marginTop: 2 }}>
+              {file.change} ·{" "}
+              <span style={{ color: A.success }}>+{file.add}</span>{" "}
+              <span style={{ color: A.danger }}>−{file.del}</span> · {file.size}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close diff"
+            style={{
+              height: 30,
+              padding: "0 12px",
+              borderRadius: 6,
+              background: "transparent",
+              border: `1px solid ${A.borderStrong}`,
+              color: A.textSecondary,
+              fontSize: 12.5,
+              cursor: "pointer",
+            }}
+          >
+            Close
+          </button>
+        </div>
+        <div style={{ flex: 1, overflow: "auto", padding: 16 }}>
+          <div
+            style={{
+              border: `1px solid ${A.border}`,
+              borderRadius: 8,
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                ...mono,
+                fontSize: 11.5,
+                color: A.textMuted,
+                padding: "6px 12px",
+                background: A.inputBg,
+                borderBottom: `1px solid ${A.border}`,
+              }}
+            >
+              {file.hunk}
+            </div>
+            {file.lines.map((ln, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "38px 38px 18px 1fr",
+                  background: bg(ln.k),
+                  ...mono,
+                  fontSize: 12.5,
+                  lineHeight: 1.7,
+                }}
+              >
+                <span
+                  style={{
+                    textAlign: "right",
+                    paddingRight: 8,
+                    color: A.textMuted,
+                    opacity: 0.6,
+                    userSelect: "none",
+                  }}
+                >
+                  {ln.n1}
+                </span>
+                <span
+                  style={{
+                    textAlign: "right",
+                    paddingRight: 8,
+                    color: A.textMuted,
+                    opacity: 0.6,
+                    userSelect: "none",
+                  }}
+                >
+                  {ln.n2}
+                </span>
+                <span
+                  style={{
+                    textAlign: "center",
+                    color: fg(ln.k),
+                    userSelect: "none",
+                  }}
+                >
+                  {sign(ln.k)}
+                </span>
+                <span
+                  style={{
+                    color: ln.k === "ctx" ? A.textSecondary : fg(ln.k),
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {ln.text}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AcpSandboxes() {
   const [sel, setSel] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState("Activity");
   const [q, setQ] = React.useState("");
   const [tier, setTier] = React.useState("");
+  const [diffFile, setDiffFile] = React.useState<FileDiff | null>(null);
   const s = SESSIONS.find((x) => x.id === sel);
 
   if (!s) {
@@ -465,11 +703,106 @@ export default function AcpSandboxes() {
         />
       )}
       {tab === "Filesystem Diff" && (
-        <Table
-          grid="50px 2.4fr 1fr 90px"
-          cols={["", "Path", "Change", "Size"]}
-          rows={FSDIFF}
-        />
+        <>
+          <div style={{ marginBottom: 10, fontSize: 12, color: A.textMuted }}>
+            Changes the agent made inside the sandbox. Select a file to view its
+            diff.
+          </div>
+          <div
+            className="cg-tablewrap"
+            style={{ borderRadius: 8, border: `1px solid ${A.border}` }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "40px 2.4fr 110px 90px 110px",
+                padding: "8px 16px",
+                borderBottom: `1px solid ${A.border}`,
+              }}
+            >
+              {["", "Path", "Change", "Size", "± lines"].map((c) => (
+                <span
+                  key={c}
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: A.textMuted,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                  }}
+                >
+                  {c}
+                </span>
+              ))}
+            </div>
+            {FSDIFF.map((f, i) => (
+              <div
+                key={f.path}
+                className="cg-row"
+                onClick={() => setDiffFile(f)}
+                title="View diff"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "40px 2.4fr 110px 90px 110px",
+                  padding: "10px 16px",
+                  borderBottom:
+                    i < FSDIFF.length - 1
+                      ? "1px solid var(--cg-border-subtle)"
+                      : "none",
+                  alignItems: "center",
+                  cursor: "pointer",
+                }}
+              >
+                <Badge
+                  text={
+                    f.change === "added"
+                      ? "+"
+                      : f.change === "deleted"
+                        ? "−"
+                        : "~"
+                  }
+                  tone={
+                    f.change === "added"
+                      ? "ok"
+                      : f.change === "deleted"
+                        ? "danger"
+                        : "warn"
+                  }
+                />
+                <span
+                  style={{
+                    ...mono,
+                    fontSize: 12.5,
+                    color: A.accent,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {f.path}
+                </span>
+                <span style={{ fontSize: 12, color: A.textMuted }}>
+                  {f.change}
+                </span>
+                <span style={{ fontSize: 12, color: A.textMuted }}>
+                  {f.size}
+                </span>
+                <span style={{ fontSize: 11.5, ...mono }}>
+                  {f.add > 0 && (
+                    <span style={{ color: A.success }}>+{f.add}</span>
+                  )}
+                  {f.add > 0 && f.del > 0 && " "}
+                  {f.del > 0 && (
+                    <span style={{ color: A.danger }}>−{f.del}</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+          {diffFile && (
+            <DiffDrawer file={diffFile} onClose={() => setDiffFile(null)} />
+          )}
+        </>
       )}
       {tab === "Network Egress" && (
         <>

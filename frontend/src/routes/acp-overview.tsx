@@ -42,47 +42,41 @@ const STATS = [
     to: "/settings/isolation",
     pulse: false,
   },
-  {
-    label: "Spend vs Cap",
-    value: "$2,140 / $5,000",
-    sub: "43%",
-    to: "/settings/billing",
-    pulse: false,
-    bar: 43,
-  },
 ];
-const RISKS: React.ReactNode[][] = [
+const POLICY = [
+  { k: "Autonomy", v: "Supervised", tone: "warn" as const },
+  { k: "Action gates", v: "Writes/IAM → Ask", tone: "info" as const },
+  { k: "Egress", v: "Allowlist (12)", tone: "ok" as const },
+  { k: "Key custody", v: "HYOK · KMS", tone: "ok" as const },
+  { k: "Rate limits", v: "$5k/mo cap", tone: "muted" as const },
+];
+const SANDBOXES: React.ReactNode[][] = [
   [
-    <Sev s="Critical" />,
-    "Agent attempted IAM privilege escalation on payments-deployer",
+    <Hash h="sess-3f9b1c" link />,
     <Hash h="run-8f3a2c" link />,
     "prod-aws-east",
-    "4m",
-    <span style={{ color: A.accent, cursor: "pointer" }}>Approve →</span>,
+    <Badge text="Isolated" tone="ok" />,
+    "eu-west-1",
+    "42%",
+    <Badge text="Active" tone="info" />,
   ],
   [
-    <Sev s="High" />,
-    "Public S3 bucket created outside change window",
-    <Hash h="change-77de01" link />,
-    "prod-aws-east",
-    "1h",
-    <span style={{ color: A.accent, cursor: "pointer" }}>Investigate →</span>,
-  ],
-  [
-    <Sev s="High" />,
-    "Sandbox egress to unrecognized host (blocked)",
-    <Hash h="sess-3f9b1c" link />,
-    "sandbox-dev",
-    "2h",
-    <span style={{ color: A.accent, cursor: "pointer" }}>View run →</span>,
-  ],
-  [
-    <Sev s="Medium" />,
-    "Abnormal API volume — ci-scanner 4× baseline",
+    <Hash h="sess-7a2e90" link />,
     <Hash h="run-2d8e44" link />,
+    "sentinel-sec",
+    <Badge text="Standard" tone="warn" />,
+    "us-east-1",
+    "18%",
+    <Badge text="Active" tone="info" />,
+  ],
+  [
+    <Hash h="sess-1c4d83" link />,
+    <Hash h="run-4e6f10" link />,
     "prod-aws-east",
-    "5h",
-    <span style={{ color: A.accent, cursor: "pointer" }}>Investigate →</span>,
+    <Badge text="Isolated" tone="ok" />,
+    "eu-west-1",
+    "—",
+    <Badge text="Terminated" tone="muted" />,
   ],
 ];
 const APPROVALS: React.ReactNode[][] = [
@@ -185,9 +179,9 @@ export default function AcpOverview() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(4, 1fr)",
           gap: 12,
-          marginBottom: 24,
+          marginBottom: 18,
         }}
       >
         {STATS.map((s) => (
@@ -235,28 +229,45 @@ export default function AcpOverview() {
             <div style={{ fontSize: 11.5, color: A.textMuted, marginTop: 4 }}>
               {s.sub}
             </div>
-            {s.bar !== undefined && (
-              <div
-                style={{
-                  height: 5,
-                  borderRadius: 99,
-                  background: A.badgeBg,
-                  overflow: "hidden",
-                  marginTop: 8,
-                }}
-              >
-                <div
-                  style={{
-                    height: "100%",
-                    width: `${s.bar}%`,
-                    background: A.accent,
-                  }}
-                />
-              </div>
-            )}
           </div>
         ))}
       </div>
+
+      <button
+        type="button"
+        onClick={() => navigate("/agent-control-plane/enforcement")}
+        style={{
+          width: "100%",
+          textAlign: "left",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          flexWrap: "wrap",
+          background: A.cardBg,
+          border: `1px solid ${A.border}`,
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginBottom: 24,
+          cursor: "pointer",
+        }}
+        className="cg-row"
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: A.textPrimary }}>
+          Active policy
+        </span>
+        {POLICY.map((p) => (
+          <span
+            key={p.k}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <span style={{ fontSize: 11.5, color: A.textMuted }}>{p.k}</span>
+            <Badge text={p.v} tone={p.tone} />
+          </span>
+        ))}
+        <span style={{ marginLeft: "auto", fontSize: 12, color: A.accent }}>
+          View enforcement →
+        </span>
+      </button>
 
       <div style={{ marginBottom: 28 }}>
         <div
@@ -267,10 +278,10 @@ export default function AcpOverview() {
             marginBottom: 12,
           }}
         >
-          <H2>Active risks</H2>
+          <H2>Recent runs</H2>
           <button
             type="button"
-            onClick={() => navigate("/agent-control-plane/monitoring")}
+            onClick={() => navigate("/agent-control-plane/runs")}
             style={{
               background: "none",
               border: "none",
@@ -279,13 +290,21 @@ export default function AcpOverview() {
               cursor: "pointer",
             }}
           >
-            View all →
+            Open Runs →
           </button>
         </div>
         <Table
-          grid="90px 2.2fr 110px 1.1fr 60px 110px"
-          cols={["Severity", "Risk", "Source", "Workspace", "Age", "Action"]}
-          rows={RISKS}
+          grid="110px 1.2fr 120px 150px 90px 90px 1.2fr"
+          cols={[
+            "Run ID",
+            "Workspace",
+            "Mode",
+            "Status",
+            "Risk",
+            "Duration",
+            "Owner",
+          ]}
+          rows={RUNS}
         />
       </div>
 
@@ -336,10 +355,10 @@ export default function AcpOverview() {
             marginBottom: 12,
           }}
         >
-          <H2>Recent runs</H2>
+          <H2>Recent sandboxes</H2>
           <button
             type="button"
-            onClick={() => navigate("/agent-control-plane/runs")}
+            onClick={() => navigate("/agent-control-plane/sandboxes")}
             style={{
               background: "none",
               border: "none",
@@ -348,21 +367,21 @@ export default function AcpOverview() {
               cursor: "pointer",
             }}
           >
-            Open Runs →
+            Open Sandboxes →
           </button>
         </div>
         <Table
-          grid="110px 1.2fr 120px 150px 90px 90px 1.2fr"
+          grid="120px 110px 1.2fr 110px 110px 70px 110px"
           cols={[
-            "Run ID",
+            "Session",
+            "Run",
             "Workspace",
-            "Mode",
+            "Tier",
+            "Region",
+            "CPU",
             "Status",
-            "Risk",
-            "Duration",
-            "Owner",
           ]}
-          rows={RUNS}
+          rows={SANDBOXES}
         />
       </div>
     </div>

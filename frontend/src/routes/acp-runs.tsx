@@ -16,8 +16,40 @@ import {
   Hash,
   Table,
   mono,
+  Icon,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
+
+const CHECKPOINTS = [
+  {
+    id: "ckpt-04",
+    step: "Step 4 · before iam:PutRolePolicy",
+    t: "02:14:24Z",
+    state: "Pending — blocked at approval gate",
+    current: true,
+  },
+  {
+    id: "ckpt-03",
+    step: "Step 3 · after iam:GetRole",
+    t: "02:14:21Z",
+    state: "Restorable",
+    current: false,
+  },
+  {
+    id: "ckpt-02",
+    step: "Step 2 · after env_intel.query",
+    t: "02:14:11Z",
+    state: "Restorable",
+    current: false,
+  },
+  {
+    id: "ckpt-01",
+    step: "Step 1 · initial context snapshot",
+    t: "02:14:02Z",
+    state: "Restorable",
+    current: false,
+  },
+];
 
 interface Run {
   id: string;
@@ -780,18 +812,29 @@ export default function AcpRuns() {
               color: A.textSecondary,
             }}
           >
-            ⚠ REPLAY MODE — read-only, no side effects · Original
+            <Icon name="warn" size={15} color={A.warning} />
+            REPLAY MODE — read-only, no side effects · Original
             2025-01-14T02:14Z
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ display: "flex", gap: 4 }}>
-              {["⏮", "⏪", "⏩", "⏭"].map((b) => (
+              {[
+                { ic: "skipBack", t: "Jump to start" },
+                { ic: "stepBack", t: "Step back" },
+                { ic: "stepFwd", t: "Step forward" },
+                { ic: "skipFwd", t: "Jump to end" },
+              ].map((b) => (
                 <button
-                  key={b}
+                  key={b.ic}
                   type="button"
+                  title={b.t}
+                  aria-label={b.t}
                   style={{
                     height: 32,
                     width: 36,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
                     borderRadius: 6,
                     background: "transparent",
                     border: `1px solid ${A.borderStrong}`,
@@ -799,7 +842,7 @@ export default function AcpRuns() {
                     cursor: "pointer",
                   }}
                 >
-                  {b}
+                  <Icon name={b.ic} size={15} />
                 </button>
               ))}
             </div>
@@ -809,7 +852,106 @@ export default function AcpRuns() {
               all="1×"
               options={["2×", "5×"]}
             />
-            <Badge text="Event chain verified ✓" tone="ok" />
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 11.5,
+                color: A.success,
+              }}
+            >
+              <Icon name="check" size={13} color={A.success} />
+              Event chain verified
+            </span>
+          </div>
+
+          <div
+            style={{
+              marginTop: 22,
+              paddingTop: 16,
+              borderTop: `1px solid ${A.border}`,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 4,
+              }}
+            >
+              <Icon name="rollback" size={15} color={A.textSecondary} />
+              <h3
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: A.textPrimary,
+                  margin: 0,
+                }}
+              >
+                Rollback checkpoints
+              </h3>
+            </div>
+            <p
+              style={{
+                fontSize: 12,
+                color: A.textMuted,
+                margin: "0 0 12px",
+                lineHeight: 1.5,
+              }}
+            >
+              Per-step state snapshots. Restoring rewinds the run to a
+              checkpoint; the action is reason-logged to the audit ledger.
+            </p>
+            <div style={{ position: "relative" }}>
+              {CHECKPOINTS.map((c, i) => (
+                <div
+                  key={c.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "9px 0",
+                    borderBottom:
+                      i < CHECKPOINTS.length - 1
+                        ? "1px solid var(--cg-border-subtle)"
+                        : "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: c.current ? A.warning : A.success,
+                    }}
+                  />
+                  <Hash h={c.id} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12.5, color: A.textSecondary }}>
+                      {c.step}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: A.textMuted }}>
+                      <span style={{ ...mono }}>{c.t}</span> · {c.state}
+                    </div>
+                  </div>
+                  {c.current ? (
+                    <Badge text="Current" tone="warn" />
+                  ) : (
+                    <ConfirmButton
+                      variant="ghost"
+                      label="Restore"
+                      title={`Restore to ${c.id}?`}
+                      body={`Rewinds the run to "${c.step}". A reason is required and the rollback is signed into the audit ledger.`}
+                      confirmLabel="Restore checkpoint"
+                      onConfirm={() => {}}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       )}

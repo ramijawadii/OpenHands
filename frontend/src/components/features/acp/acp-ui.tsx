@@ -195,10 +195,10 @@ export function Badge({
       style={{
         display: "inline-flex",
         alignItems: "center",
-        height: 19,
-        padding: "0 8px",
+        padding: "2px 7px",
         borderRadius: 99,
         fontSize: 10.5,
+        lineHeight: 1.1,
         fontWeight: 600,
         color: c,
         background: bg,
@@ -207,6 +207,88 @@ export function Badge({
     >
       {text}
     </span>
+  );
+}
+
+// Theme-aware inline SVG icon set (replaces emoji in the ACP UI).
+const ICONS: Record<string, React.ReactNode> = {
+  warn: (
+    <path
+      d="M12 3 2 20h20L12 3Zm0 6v5m0 3v.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  check: (
+    <path
+      d="M4 12.5 9 17.5 20 6.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  skipBack: (
+    <path
+      d="M19 5v14L9 12l10-7ZM5 5v14"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  stepBack: (
+    <path
+      d="M15 5v14L5 12l10-7Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  stepFwd: (
+    <path d="M9 5v14l10-7L9 5Z" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+  skipFwd: (
+    <path
+      d="M5 5v14l10-7L5 5ZM19 5v14"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  rollback: (
+    <path
+      d="M4 8h9a5 5 0 0 1 0 10H6M4 8l4-4M4 8l4 4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ),
+  block: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="m6 6 12 12" strokeLinecap="round" />
+    </>
+  ),
+  diff: (
+    <path d="M12 5v14M5 12h14" strokeLinecap="round" strokeLinejoin="round" />
+  ),
+};
+export function Icon({
+  name,
+  size = 14,
+  color = "currentColor",
+}: {
+  name: keyof typeof ICONS | string;
+  size?: number;
+  color?: string;
+}) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth={1.7}
+      aria-hidden="true"
+      style={{ flexShrink: 0, display: "block" }}
+    >
+      {ICONS[name] ?? null}
+    </svg>
   );
 }
 
@@ -417,7 +499,7 @@ export function KillBanner() {
         marginBottom: 18,
       }}
     >
-      <span style={{ fontSize: 14 }}>⛔</span>
+      <Icon name="block" size={16} color={A.danger} />
       <span style={{ fontSize: 13, color: A.textSecondary }}>
         <strong style={{ color: A.danger }}>Org-wide kill switch ACTIVE</strong>{" "}
         — set by alice@acme 14m ago · Reason: "Investigating anomaly"
