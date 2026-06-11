@@ -104,4 +104,14 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
 
     _logging.getLogger("openhands").warning("CloudGuard principal routes unavailable: %s", _cg_exc)
 
+# CloudGuard audit ledger (read API over the tamper-evident per-tenant chain).
+try:
+    from openhands.server.routes.cloudguard_audit import router as cloudguard_audit_router
+
+    app.include_router(cloudguard_audit_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning("CloudGuard audit routes unavailable: %s", _cg_exc)
+
 add_health_endpoints(app)
