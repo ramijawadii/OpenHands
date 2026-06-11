@@ -131,6 +131,32 @@ def require_cap(capability: str):
     return _dep
 
 
+def gate_conversation(principal, conversation_id: "str | None") -> None:
+    """Ensure `principal` is allowed to act on `conversation_id`'s tenant. Used to retrofit the
+    conversation-scoped routes (approvals/mode/tasks/...) that were tenant-blind.
+
+    Backward-compatible by policy:
+      • tenancy OFF        → no scoping (single-tenant; today's behaviour).
+      • ON + bound conv    → cross-tenant gate (404 on mismatch, role-independent).
+      • ON + unbound conv  → STRICT: 404 (fail-closed); non-strict: allowed (rollout tolerance,
+        matching the existing `_scope` that keeps unstamped records during rollout).
+    """
+    tenancy = _safe("cloudguard.tenancy")
+    if not tenancy.is_enabled():
+        return
+    conv_tenant = _safe("cloudguard.conversation_tenant")
+    owner = conv_tenant.get_conversation_tenant(conversation_id) if conversation_id else None
+    if not owner:
+        if tenancy.is_strict():
+            raise HTTPException(status_code=404, detail="not found")
+        return
+    principal_mod = _safe("cloudguard.principal")
+    try:
+        principal_mod.gate_resource_tenant(principal, owner)
+    except principal_mod.PrincipalError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
 @router.get("/me")
 async def me_route(p=Depends(require_principal)):
     """Bootstrap the SPA: returns {tenant_id, role, subject, capabilities, max_tier}."""
