@@ -210,18 +210,236 @@ export function Badge({
   );
 }
 
+// §1.2 severity palette: critical=red · high=amber · medium=green · low=blue · info=grey
 export function Sev({ s }: { s: string }) {
+  const k = s.toLowerCase();
   const t =
-    s === "Critical"
+    k === "critical"
       ? "danger"
-      : s === "High"
+      : k === "high"
         ? "warn"
-        : s === "Medium"
-          ? "info"
-          : s === "Low"
-            ? "muted"
+        : k === "medium"
+          ? "ok"
+          : k === "low"
+            ? "info"
             : "muted";
-  return <Badge text={s} tone={t as "danger" | "warn" | "info" | "muted"} />;
+  return (
+    <Badge text={s} tone={t as "danger" | "warn" | "ok" | "info" | "muted"} />
+  );
+}
+
+// §1.2 mode badges: auto=red · supervised=amber · plan=blue · read-only=green
+export function Mode({ m }: { m: string }) {
+  const k = m.toLowerCase();
+  const t =
+    k === "auto"
+      ? "danger"
+      : k === "supervised"
+        ? "warn"
+        : k === "plan"
+          ? "info"
+          : k === "read-only"
+            ? "ok"
+            : "muted";
+  return <Badge text={m} tone={t as "danger" | "warn" | "info" | "ok"} />;
+}
+
+export function Breadcrumb({
+  items,
+  status,
+}: {
+  items: { label: string; onClick?: () => void }[];
+  status?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 7,
+        fontSize: 12,
+        color: A.textMuted,
+        marginBottom: 14,
+        flexWrap: "wrap",
+      }}
+    >
+      {items.map((it, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span style={{ opacity: 0.6 }}>›</span>}
+          {it.onClick && i < items.length - 1 ? (
+            <button
+              type="button"
+              onClick={it.onClick}
+              style={{
+                background: "none",
+                border: "none",
+                color: A.accent,
+                fontSize: 12,
+                cursor: "pointer",
+                padding: 0,
+              }}
+            >
+              {it.label}
+            </button>
+          ) : (
+            <span
+              style={{
+                color: i === items.length - 1 ? A.textSecondary : A.textMuted,
+              }}
+            >
+              {it.label}
+            </span>
+          )}
+        </React.Fragment>
+      ))}
+      {status && <span style={{ marginLeft: 4 }}>{status}</span>}
+    </div>
+  );
+}
+
+export function FilterBar({
+  placeholder,
+  search,
+  onSearch,
+  children,
+  right,
+}: {
+  placeholder: string;
+  search: string;
+  onSearch: (v: string) => void;
+  children?: React.ReactNode;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 16,
+        flexWrap: "wrap",
+      }}
+    >
+      <input
+        value={search}
+        onChange={(e) => onSearch(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        style={{ ...acpInput, flex: 1, minWidth: 220 }}
+      />
+      {children}
+      {right && (
+        <div style={{ display: "flex", gap: 8, marginLeft: "auto" }}>
+          {right}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function FSelect({
+  value,
+  onChange,
+  all,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  all: string;
+  options: string[];
+}) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={acpSelect}
+    >
+      <option value="" style={acpOpt}>
+        {all}
+      </option>
+      {options.map((o) => (
+        <option key={o} value={o} style={acpOpt}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+export function ExportBtn({ label = "Export CSV" }: { label?: string }) {
+  return (
+    <button
+      type="button"
+      style={{
+        height: 32,
+        padding: "0 12px",
+        borderRadius: 6,
+        background: "transparent",
+        border: `1px solid ${A.borderStrong}`,
+        color: A.textSecondary,
+        fontSize: 12.5,
+        cursor: "pointer",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+export function Hash({ h, link }: { h: string; link?: boolean }) {
+  const short = h.length > 10 ? `${h.slice(0, 8)}…` : h;
+  return (
+    <span
+      title={h}
+      style={{
+        fontFamily: "monospace",
+        fontSize: 12,
+        color: link ? A.accent : A.textMuted,
+        cursor: link ? "pointer" : "default",
+      }}
+    >
+      {short}
+    </span>
+  );
+}
+
+export function KillBanner() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "10px 16px",
+        borderRadius: 8,
+        background: "rgba(224,82,82,0.12)",
+        border: "1px solid rgba(224,82,82,0.4)",
+        marginBottom: 18,
+      }}
+    >
+      <span style={{ fontSize: 14 }}>⛔</span>
+      <span style={{ fontSize: 13, color: A.textSecondary }}>
+        <strong style={{ color: A.danger }}>Org-wide kill switch ACTIVE</strong>{" "}
+        — set by alice@acme 14m ago · Reason: "Investigating anomaly"
+      </span>
+      <button
+        type="button"
+        style={{
+          marginLeft: "auto",
+          height: 28,
+          padding: "0 12px",
+          borderRadius: 6,
+          background: "transparent",
+          border: `1px solid ${A.danger}`,
+          color: A.danger,
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        Resume
+      </button>
+    </div>
+  );
 }
 
 export function Decision({ d }: { d: string }) {

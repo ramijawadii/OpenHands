@@ -2,202 +2,450 @@
 import React from "react";
 import {
   A,
-  PageHeader,
+  Breadcrumb,
+  FilterBar,
+  FSelect,
+  ExportBtn,
   SubTabs,
   Table,
   Badge,
   Sev,
   Decision,
+  Hash,
   mono,
 } from "#/components/features/acp/acp-ui";
 
 const HEALTH = [
-  { sub: "Agent orchestrator", state: "Operational" },
-  { sub: "Sandbox runtime (cells)", state: "Operational" },
-  { sub: "Knowledge graph (Neo4j)", state: "Operational" },
-  { sub: "Approval service", state: "Operational" },
-  { sub: "Audit chain", state: "Operational" },
-  { sub: "Egress proxy", state: "Degraded" },
-  { sub: "Model inference (Vertex)", state: "Operational" },
-  { sub: "Cloud connectors", state: "Operational" },
+  {
+    sub: "Agent Loop",
+    a: "p50 1.2s · p99 4.8s",
+    b: "Error rate 0.3%",
+    st: "Healthy",
+  },
+  {
+    sub: "Approval Service",
+    a: "Queue depth 3",
+    b: "p50 approval 6m",
+    st: "Healthy",
+  },
+  {
+    sub: "Write Broker",
+    a: "Staged edits 2",
+    b: "p50 commit 240ms",
+    st: "Healthy",
+  },
+  {
+    sub: "Audit Service",
+    a: "Chain verified 2m ago",
+    b: "Write 8ms",
+    st: "Healthy",
+  },
+  {
+    sub: "Sandbox Runtime",
+    a: "Active sessions 3",
+    b: "Eviction 0/h",
+    st: "Degraded",
+  },
+  {
+    sub: "KG / Env Intel",
+    a: "Staleness 6m",
+    b: "Last sync 02:08Z",
+    st: "Healthy",
+  },
 ];
 const VIOLATIONS: React.ReactNode[][] = [
   [
-    "12:04:24",
-    "IAM widening on payments-deployer",
-    <span style={mono}>run_8c2f</span>,
-    "Cloud guardrail: IAM writes need approval",
+    "02:14:24Z",
+    <Hash h="rule-iam-write" link />,
+    "prod-aws-east",
+    <Hash h="run-8f3a2c" link />,
+    "Add s3:* to payments-deployer",
+    "aws:iam · …/payments-deployer",
+    <Sev s="Critical" />,
     <Decision d="Blocked" />,
+    <Hash h="seq-48291" link />,
   ],
   [
-    "12:04:23",
-    "Sandbox egress to pastebin.com",
-    <span style={mono}>sbx_7f3c</span>,
-    "Egress default-deny",
+    "02:14:23Z",
+    <Hash h="rule-egress" link />,
+    "prod-aws-east",
+    <Hash h="sess-3f9b1c" link />,
+    "Egress to pastebin.com:443",
+    "network · pastebin.com",
+    <Sev s="High" />,
     <Decision d="Blocked" />,
+    <Hash h="seq-48289" link />,
   ],
   [
-    "11:31:55",
-    "Delete S3 bucket outside change window",
-    <span style={mono}>run_4e6f</span>,
-    "Change window: business hours only",
-    <Decision d="Blocked" />,
-  ],
-  [
-    "09:51:39",
-    "Service account write via API",
-    <span style={mono}>ci-scanner</span>,
-    "Role: read-only",
-    <Decision d="Deny" />,
+    "11:31:55Z",
+    <Hash h="rule-window" link />,
+    "prod-aws-east",
+    <Hash h="run-4e6f10" link />,
+    "Delete S3 bucket outside window",
+    "aws:s3 · audit-logs-eu",
+    <Sev s="Medium" />,
+    <Badge text="Rate-limited" tone="warn" />,
+    <Hash h="seq-48201" link />,
   ],
 ];
 const ANOMALIES: React.ReactNode[][] = [
   [
+    "02:11:02Z",
+    <Badge text="Abnormal API Volume" tone="warn" />,
+    "run-8f3a2c made 847 IAM calls in 3 min",
+    <Hash h="run-8f3a2c" link />,
+    "12/hr",
+    "847/3m",
     <Sev s="High" />,
-    "Impossible travel",
-    "Sign-in from Paris then Singapore in 9 min",
-    "Marc Tarek",
-    "open",
+    <Badge text="Investigating" tone="warn" />,
   ],
   [
-    <Sev s="Medium" />,
-    "Abnormal API volume",
-    "ci-scanner 4× normal call rate",
-    "ci-scanner",
-    "watching",
+    "09:40:11Z",
+    <Badge text="Impossible Travel" tone="warn" />,
+    "Sign-in Paris then Singapore in 9 min",
+    "marc@acme",
+    "—",
+    "9 min gap",
+    <Sev s="High" />,
+    <Badge text="New" tone="info" />,
   ],
 ];
-const DRIFT: React.ReactNode[][] = [
+const CHANGES: React.ReactNode[][] = [
   [
+    "01:01:10Z",
+    "4044…1029",
+    "s3",
+    <span style={mono}>prod-payments-exports</span>,
+    <Badge text="Policy Change" tone="warn" />,
+    "External: user/alice",
     <Sev s="High" />,
-    "S3 bucket made public",
-    "prod-payments-exports",
-    "Outside CloudGuard (console)",
-    "1h ago",
+    <span style={{ color: A.accent, cursor: "pointer" }}>View diff →</span>,
+    <Badge text="⚠ Drift from IaC" tone="danger" />,
   ],
   [
-    <Sev s="Medium" />,
-    "Security group opened 0.0.0.0/0:22",
-    "sg-0a1b (bastion)",
-    "Terraform pipeline",
-    "3h ago",
-  ],
-  [
+    "11:46:30Z",
+    "4044…1029",
+    "iam",
+    <span style={mono}>payments-deployer</span>,
+    <Badge text="Modify" tone="info" />,
+    <Hash h="run-4e6f10" link />,
     <Sev s="Low" />,
-    "New IAM role created",
-    "data-export-readonly",
-    "CloudGuard remediation",
-    "1h ago",
+    <span style={{ color: A.accent, cursor: "pointer" }}>View diff →</span>,
+    "—",
   ],
 ];
-const ALERTS: React.ReactNode[][] = [
+const ALERT_RULES: React.ReactNode[][] = [
   [
-    "12:04:24",
+    "Critical finding",
+    "severity = critical",
     <Sev s="Critical" />,
-    "finding.critical → Slack #soc-alerts, PagerDuty",
+    "Slack #soc-alerts, PagerDuty",
+    <Badge text="Enabled" tone="ok" />,
+  ],
+  [
+    "Scan failure",
+    "event = scan.failed",
+    <Sev s="High" />,
+    "Email Admins",
+    <Badge text="Enabled" tone="ok" />,
+  ],
+];
+const FIRED: React.ReactNode[][] = [
+  [
+    "02:14:24Z",
+    "Critical finding",
+    "finding.critical",
+    <Sev s="Critical" />,
+    "Slack, PagerDuty",
     <Badge text="Delivered" tone="ok" />,
   ],
   [
-    "11:31:55",
+    "11:30:02Z",
+    "Drift detected",
+    "drift.detected",
     <Sev s="High" />,
-    "scan.failed → Email Admins",
-    <Badge text="Delivered" tone="ok" />,
-  ],
-  [
-    "11:30:02",
-    <Sev s="High" />,
-    "drift.detected → PagerDuty",
+    "PagerDuty",
     <Badge text="Retrying (503)" tone="warn" />,
   ],
 ];
 
 export default function AcpMonitoring() {
   const [tab, setTab] = React.useState("Health");
+  const [q, setQ] = React.useState("");
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 1080 }}>
-      <PageHeader
-        title="Monitoring"
-        sub="Real-time health, policy enforcement in action, anomalies, and cloud drift — across the agent and your environment."
+    <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
+      <Breadcrumb
+        items={[{ label: "Agent Control Plane" }, { label: "Monitoring" }]}
       />
+      <h1
+        style={{
+          fontSize: 20,
+          fontWeight: 400,
+          color: A.textPrimary,
+          margin: "0 0 14px",
+        }}
+      >
+        Monitoring
+      </h1>
       <SubTabs
-        tabs={[
-          "Health",
-          "Policy violations",
-          "Anomalies",
-          "Cloud change monitor",
-          "Alerts",
-        ]}
+        tabs={["Health", "Violations", "Anomalies", "Cloud Changes", "Alerts"]}
         value={tab}
         onChange={setTab}
       />
+
       {tab === "Health" && (
         <div
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: 12,
+          }}
         >
           {HEALTH.map((h) => (
             <div
               key={h.sub}
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
                 background: A.cardBg,
                 border: `1px solid ${A.border}`,
-                borderRadius: 8,
-                padding: "12px 14px",
+                borderRadius: 10,
+                padding: 16,
               }}
             >
-              <span style={{ fontSize: 13, color: A.textSecondary }}>
-                {h.sub}
-              </span>
-              <Badge
-                text={h.state}
-                tone={h.state === "Operational" ? "ok" : "warn"}
-              />
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13.5,
+                    color: A.textPrimary,
+                    fontWeight: 500,
+                  }}
+                >
+                  {h.sub}
+                </span>
+                <Badge
+                  text={h.st === "Healthy" ? "● Healthy" : "⚠ Degraded"}
+                  tone={h.st === "Healthy" ? "ok" : "warn"}
+                />
+              </div>
+              <div style={{ fontSize: 12, color: A.textMuted }}>{h.a}</div>
+              <div style={{ fontSize: 12, color: A.textMuted, marginTop: 2 }}>
+                {h.b}
+              </div>
+              {h.st !== "Healthy" && (
+                <a
+                  href="/agent-control-plane/incidents"
+                  style={{
+                    display: "inline-block",
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: A.accent,
+                    textDecoration: "none",
+                  }}
+                >
+                  View incident →
+                </a>
+              )}
             </div>
           ))}
         </div>
       )}
-      {tab === "Policy violations" && (
+      {tab === "Violations" && (
         <>
-          <div style={{ marginBottom: 12, fontSize: 12, color: A.textMuted }}>
+          <FilterBar
+            placeholder="Search by rule ID, workspace, actor…"
+            search={q}
+            onSearch={setQ}
+            right={<ExportBtn />}
+          >
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Severity"
+              options={["Critical", "High", "Medium", "Low"]}
+            />
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Policy"
+              options={[
+                "Action",
+                "Egress",
+                "Data",
+                "Rate Limit",
+                "Authentication",
+              ]}
+            />
+          </FilterBar>
+          <div style={{ marginBottom: 10, fontSize: 12, color: A.textMuted }}>
             A blocked action is a{" "}
             <strong style={{ color: A.success }}>good</strong> signal — the
-            guardrails worked. 12 blocks in the last 24h.
+            policy worked.
           </div>
           <Table
-            grid="90px 2fr 110px 1.8fr 90px"
+            grid="90px 120px 1fr 110px 1.6fr 1.4fr 80px 100px 90px"
             cols={[
               "Time",
-              "Attempted action",
+              "Rule",
+              "Workspace",
               "Actor",
-              "Why blocked",
+              "Attempted action",
+              "Service · Resource",
+              "Severity",
               "Decision",
+              "Audit",
             ]}
             rows={VIOLATIONS}
           />
         </>
       )}
       {tab === "Anomalies" && (
-        <Table
-          grid="80px 1.2fr 2fr 1fr 80px"
-          cols={["Severity", "Type", "Detail", "Subject", "Status"]}
-          rows={ANOMALIES}
-        />
+        <>
+          <FilterBar
+            placeholder="Search anomalies…"
+            search={q}
+            onSearch={setQ}
+            right={<ExportBtn />}
+          >
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Types"
+              options={[
+                "Impossible Travel",
+                "Abnormal API Volume",
+                "Off-hours Change",
+                "Credential Reuse",
+                "Data Volume",
+              ]}
+            />
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Status"
+              options={["New", "Investigating", "Dismissed"]}
+            />
+          </FilterBar>
+          <Table
+            grid="90px 160px 1.8fr 130px 90px 100px 80px 110px"
+            cols={[
+              "Time",
+              "Type",
+              "Description",
+              "Affected",
+              "Baseline",
+              "Observed",
+              "Severity",
+              "Status",
+            ]}
+            rows={ANOMALIES}
+          />
+        </>
       )}
-      {tab === "Cloud change monitor" && (
-        <Table
-          grid="80px 1.6fr 1.4fr 1.6fr 80px"
-          cols={["Severity", "Change", "Resource", "Source", "Age"]}
-          rows={DRIFT}
-        />
+      {tab === "Cloud Changes" && (
+        <>
+          <FilterBar
+            placeholder="Search by resource ID, account…"
+            search={q}
+            onSearch={setQ}
+            right={<ExportBtn />}
+          >
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Sources"
+              options={["Agent (by run)", "External"]}
+            />
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Changes"
+              options={[
+                "Create",
+                "Modify",
+                "Delete",
+                "Policy Change",
+                "Permission Escalation",
+              ]}
+            />
+          </FilterBar>
+          <Table
+            grid="90px 100px 60px 1.4fr 120px 1.3fr 80px 100px 130px"
+            cols={[
+              "Time",
+              "Account",
+              "Svc",
+              "Resource",
+              "Change",
+              "Source",
+              "Risk",
+              "Diff",
+              "Drift",
+            ]}
+            rows={CHANGES}
+          />
+        </>
       )}
       {tab === "Alerts" && (
-        <Table
-          grid="90px 90px 2fr 130px"
-          cols={["Time", "Severity", "Route", "Delivery"]}
-          rows={ALERTS}
-        />
+        <>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <h2
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: A.textPrimary,
+                margin: 0,
+              }}
+            >
+              Configured alert rules
+            </h2>
+            <a
+              href="/settings/notifications"
+              style={{ fontSize: 12, color: A.accent, textDecoration: "none" }}
+            >
+              Manage alert rules →
+            </a>
+          </div>
+          <Table
+            grid="1.3fr 1.4fr 90px 1.6fr 100px"
+            cols={["Rule", "Condition", "Severity", "Destinations", "Status"]}
+            rows={ALERT_RULES}
+          />
+          <h2
+            style={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: A.textPrimary,
+              margin: "24px 0 12px",
+            }}
+          >
+            Recent fired alerts
+          </h2>
+          <Table
+            grid="90px 1.3fr 1.2fr 90px 1.4fr 120px"
+            cols={[
+              "Fired at",
+              "Rule",
+              "Condition met",
+              "Severity",
+              "Delivered to",
+              "Status",
+            ]}
+            rows={FIRED}
+          />
+        </>
       )}
     </div>
   );

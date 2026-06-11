@@ -1,14 +1,19 @@
-/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unescaped-entities, @typescript-eslint/naming-convention, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions, @typescript-eslint/no-unused-vars, react/jsx-key, unused-imports/no-unused-imports, @typescript-eslint/no-unused-vars -- CloudGuard ACP (mock) */
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unescaped-entities, @typescript-eslint/naming-convention, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions, @typescript-eslint/no-unused-vars, react/jsx-key, unused-imports/no-unused-imports, jsx-a11y/label-has-associated-control, radix -- CloudGuard ACP (mock) */
 import React from "react";
 import {
   A,
-  PageHeader,
+  Breadcrumb,
+  FilterBar,
+  FSelect,
+  ExportBtn,
   SubTabs,
   Card,
   H2,
   Badge,
+  Mode,
   Sev,
   Decision,
+  Hash,
   Table,
   mono,
 } from "#/components/features/acp/acp-ui";
@@ -21,213 +26,319 @@ interface Run {
   status: string;
   risk: string;
   step: string;
+  dur: string;
+  cost: string;
+  owner: string;
   started: string;
 }
 const RUNS: Run[] = [
   {
-    id: "run_8c2f",
-    mode: "Ask-first",
-    workspace: "Production Cloud",
-    status: "Awaiting approval",
+    id: "run-8f3a2c",
+    mode: "Supervised",
+    workspace: "prod-aws-east",
+    status: "Awaiting Approval",
     risk: "Critical",
     step: "Remediate: widen IAM policy",
-    started: "now",
+    dur: "14m 23s",
+    cost: "$0.42",
+    owner: "svc-scanner@acme",
+    started: "14m ago",
   },
   {
-    id: "run_2d8e",
-    mode: "Autonomous",
-    workspace: "Sentinel Security Workspace",
+    id: "run-2d8e44",
+    mode: "Auto",
+    workspace: "sentinel-sec",
     status: "Running",
     risk: "Low",
     step: "Scan: CIS benchmark",
+    dur: "2m 04s",
+    cost: "$0.11",
+    owner: "svc-scanner@acme",
     started: "2m ago",
   },
   {
-    id: "run_9b1a",
-    mode: "Plan-only",
-    workspace: "Sandbox / Dev",
+    id: "run-9b1a07",
+    mode: "Plan",
+    workspace: "sandbox-dev",
     status: "Running",
     risk: "Low",
     step: "Plan: S3 exposure review",
+    dur: "8m 41s",
+    cost: "$0.06",
+    owner: "rami@acme",
     started: "8m ago",
   },
   {
-    id: "run_4e6f",
-    mode: "Ask-first",
-    workspace: "Production Cloud",
+    id: "run-4e6f10",
+    mode: "Read-only",
+    workspace: "prod-aws-east",
     status: "Completed",
     risk: "Medium",
     step: "Done · 3 changes applied",
+    dur: "1h 12m",
+    cost: "$0.88",
+    owner: "nightly-audit@acme",
     started: "1h ago",
   },
 ];
 
 const TIMELINE = [
   {
-    t: "12:04:02",
-    step: "Run started · Ask-first · actor ci-scanner",
-    state: "ok",
+    n: 1,
+    t: "2025-01-14T02:14:02Z",
+    type: "Model call",
+    d: "Plan synthesis from IAM context",
+    st: "completed",
+    dur: "2.1s",
+    rd: "",
   },
   {
-    t: "12:04:05",
-    step: "Loaded context: AWS Prod (842 resources)",
-    state: "ok",
+    n: 2,
+    t: "2025-01-14T02:14:11Z",
+    type: "Tool call",
+    d: "env_intel.query(scope=iam)",
+    st: "completed",
+    dur: "120ms",
+    rd: "",
   },
-  { t: "12:04:11", step: "Scan: IAM over-privilege — 4 findings", state: "ok" },
-  { t: "12:04:19", step: "Proposed plan: 3 remediations", state: "ok" },
-  { t: "12:04:21", step: "Tool: iam:GetRole payments-deployer", state: "ok" },
   {
-    t: "12:04:24",
-    step: "Tool: iam:PutRolePolicy — BLOCKED, needs approval",
-    state: "warn",
+    n: 3,
+    t: "2025-01-14T02:14:21Z",
+    type: "Cloud API",
+    d: "aws:iam:GetRole on payments-deployer",
+    st: "completed",
+    dur: "90ms",
+    rd: "",
   },
-  { t: "12:04:24", step: "Paused — awaiting human approval", state: "pause" },
+  {
+    n: 4,
+    t: "2025-01-14T02:14:24Z",
+    type: "Approval gate",
+    d: "aws:iam:PutRolePolicy — blocked, needs approval",
+    st: "awaiting_approval",
+    dur: "—",
+    rd: "medium → high ↑",
+  },
 ];
 const TRACE = [
-  { span: "agent.loop", kind: "model", lat: "—", tok: "18.4k", cost: "$0.21" },
   {
-    span: "↳ tool: env_intel.query",
-    kind: "tool",
+    id: "sp-0001",
+    name: "agent.loop",
+    type: "Internal",
+    lat: "—",
+    tok: "—",
+    cost: "—",
+    st: "ok",
+    d: 0,
+  },
+  {
+    id: "sp-0002",
+    name: "model: plan synthesis",
+    type: "Model Call",
+    lat: "2.1s",
+    tok: "6.2k/1.1k",
+    cost: "$0.08",
+    st: "ok",
+    d: 1,
+  },
+  {
+    id: "sp-0003",
+    name: "tool: env_intel.query",
+    type: "Tool Call",
     lat: "120ms",
     tok: "—",
     cost: "—",
+    st: "ok",
+    d: 1,
   },
   {
-    span: "↳ tool: iam.analyze",
-    kind: "tool",
-    lat: "340ms",
-    tok: "—",
-    cost: "—",
-  },
-  {
-    span: "↳ model: plan synthesis",
-    kind: "model",
-    lat: "2.1s",
-    tok: "6.2k",
-    cost: "$0.08",
-  },
-  {
-    span: "↳ cloud: iam:GetRole",
-    kind: "cloud",
+    id: "sp-0004",
+    name: "cloud: iam:GetRole",
+    type: "Cloud API",
     lat: "90ms",
     tok: "—",
     cost: "—",
+    st: "ok",
+    d: 1,
   },
   {
-    span: "↳ cloud: iam:PutRolePolicy",
-    kind: "cloud",
+    id: "sp-0005",
+    name: "cloud: iam:PutRolePolicy",
+    type: "Cloud API",
     lat: "blocked",
     tok: "—",
     cost: "—",
+    st: "error",
+    d: 1,
   },
 ];
+const latColor = (l: string) =>
+  l.includes("ms") && parseInt(l) < 500
+    ? A.success
+    : l.includes("s") || l === "blocked"
+      ? A.warning
+      : A.textMuted;
 const TOOLS: React.ReactNode[][] = [
   [
+    "1",
     <span style={mono}>env_intel.query</span>,
-    "list IAM roles in 842-resource account",
-    <Decision d="Allow" />,
+    "{scope:'iam', account:'4044…1029'}",
     "200 · 1 row set",
-  ],
-  [
-    <span style={mono}>iam.analyze</span>,
-    "score over-privilege on payments-deployer",
     <Decision d="Allow" />,
-    "4 findings",
+    "120ms",
   ],
   [
-    <span style={mono}>cloud.iam.PutRolePolicy</span>,
-    "add s3:* to payments-deployer",
-    <Decision d="Ask" />,
+    "2",
+    <span style={mono}>iam.analyze</span>,
+    "{role:'payments-deployer'}",
+    "4 findings",
+    <Decision d="Allow" />,
+    "340ms",
+  ],
+  [
+    "3",
+    <span style={mono}>aws_iam_update</span>,
+    "{policy_arn:'arn:aws:…', effect:'[REDACTED]'}",
     "held for approval",
+    <Decision d="Ask" />,
+    "—",
   ],
 ];
 const CLOUD: React.ReactNode[][] = [
-  ["AWS · 4044…1029", "iam:GetRole", <Decision d="Allow" />, "read-only", "—"],
   [
-    "AWS · 4044…1029",
-    "iam:ListAttachedRolePolicies",
+    "1",
+    "4044…1029",
+    "iam",
+    "aws:iam:GetRole",
+    <span title="arn:aws:iam::4044:role/payments-deployer" style={mono}>
+      arn:…/payments-deployer
+    </span>,
     <Decision d="Allow" />,
-    "read-only",
     "—",
+    <span style={{ color: A.accent, cursor: "pointer" }}>View diff →</span>,
   ],
   [
-    "AWS · 4044…1029",
-    "iam:PutRolePolicy",
+    "2",
+    "4044…1029",
+    "iam",
+    "aws:iam:PutRolePolicy",
+    <span style={mono}>arn:…/payments-deployer</span>,
     <Decision d="Ask" />,
-    "WRITE",
-    "+ s3:* on payments-deployer",
+    <Hash h="approval-7e1b4d" link />,
+    <span style={{ color: A.accent, cursor: "pointer" }}>View diff →</span>,
   ],
 ];
 const DATA: React.ReactNode[][] = [
   [
-    "Knowledge graph",
-    "EAccount, EIAMRole, EIAMPolicy (read)",
-    <Decision d="Allow" />,
+    <span style={mono}>EIAMRole/payments-deployer</span>,
+    <Badge text="Knowledge Graph" tone="muted" />,
+    <Badge text="Read" tone="info" />,
+    "02:14:21Z",
+    <Hash h="tc-0002" link />,
   ],
   [
-    "Secret reference",
-    "AWS_ACCESS_KEY_ID (by-ref, never materialized)",
-    <Decision d="Allow" />,
+    <span style={mono}>vault://prod/aws-access-key</span>,
+    <Badge text="Secret Reference" tone="muted" />,
+    <Badge text="Read" tone="info" />,
+    "02:14:05Z",
+    <Hash h="tc-0001" link />,
   ],
   [
-    "Findings store",
-    "wrote 4 finding snapshots (encrypted)",
-    <Decision d="Allow" />,
+    <span style={mono}>findings/run-8f3a2c.json</span>,
+    <Badge text="File" tone="muted" />,
+    <Badge text="Write" tone="warn" />,
+    "02:14:30Z",
+    <Hash h="tc-0004" link />,
   ],
 ];
 
 export default function AcpRuns() {
   const [sel, setSel] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState("Timeline");
+  const [q, setQ] = React.useState("");
+  const [status, setStatus] = React.useState("");
+  const [modeF, setModeF] = React.useState("");
   const run = RUNS.find((r) => r.id === sel);
 
   if (!run) {
+    const rows = RUNS.filter(
+      (r) =>
+        (!q ||
+          `${r.id} ${r.workspace} ${r.owner}`
+            .toLowerCase()
+            .includes(q.toLowerCase())) &&
+        (!status || r.status === status) &&
+        (!modeF || r.mode === modeF),
+    );
     return (
-      <div style={{ padding: "32px 40px", maxWidth: 1080 }}>
-        <PageHeader
-          title="Runs"
-          sub="Every agent run, live and historical. Click a run to inspect its full trace, the actions it took, and replay it."
-          right={
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 12,
-                color: A.textMuted,
-              }}
-            >
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: A.success,
-                }}
-              />{" "}
-              streaming · updated 2s ago
-            </span>
-          }
+      <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
+        <Breadcrumb
+          items={[{ label: "Agent Control Plane" }, { label: "Runs" }]}
         />
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: A.textPrimary,
+            margin: "0 0 14px",
+          }}
+        >
+          Runs
+        </h1>
+        <FilterBar
+          placeholder="Search by run ID, workspace, owner…"
+          search={q}
+          onSearch={setQ}
+          right={<ExportBtn />}
+        >
+          <FSelect
+            value={status}
+            onChange={setStatus}
+            all="All Status"
+            options={[
+              "Running",
+              "Paused",
+              "Awaiting Approval",
+              "Completed",
+              "Failed",
+            ]}
+          />
+          <FSelect
+            value={modeF}
+            onChange={setModeF}
+            all="All Modes"
+            options={["Auto", "Supervised", "Plan", "Read-only"]}
+          />
+          <FSelect
+            value=""
+            onChange={() => {}}
+            all="Last 24h"
+            options={["6h", "7d", "30d", "Custom"]}
+          />
+        </FilterBar>
         <div
-          style={{ borderRadius: 8, border: `1px solid ${A.border}` }}
           className="cg-tablewrap"
+          style={{ borderRadius: 8, border: `1px solid ${A.border}` }}
         >
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "100px 120px 1.5fr 1.6fr 130px 80px 90px",
+              gridTemplateColumns:
+                "110px 1.1fr 120px 1.5fr 80px 90px 70px 1.1fr 90px 70px",
               padding: "8px 16px",
               borderBottom: `1px solid ${A.border}`,
             }}
           >
             {[
-              "Run",
-              "Mode",
+              "Run ID",
               "Workspace",
-              "Current step",
-              "Status",
+              "Mode",
+              "Current Step / Status",
               "Risk",
+              "Duration",
+              "Cost",
+              "Owner",
+              "Started",
               "",
             ].map((c) => (
               <span
@@ -244,7 +355,7 @@ export default function AcpRuns() {
               </span>
             ))}
           </div>
-          {RUNS.map((r, i) => (
+          {rows.map((r, i) => (
             <div
               key={r.id}
               className="cg-row"
@@ -255,32 +366,21 @@ export default function AcpRuns() {
               title="Open run detail"
               style={{
                 display: "grid",
-                gridTemplateColumns: "100px 120px 1.5fr 1.6fr 130px 80px 90px",
+                gridTemplateColumns:
+                  "110px 1.1fr 120px 1.5fr 80px 90px 70px 1.1fr 90px 70px",
                 padding: "11px 16px",
                 borderBottom:
-                  i < RUNS.length - 1
+                  i < rows.length - 1
                     ? "1px solid var(--cg-border-subtle)"
                     : "none",
                 alignItems: "center",
                 cursor: "pointer",
               }}
             >
-              <span style={{ ...mono, fontSize: 12.5, color: A.accent }}>
-                {r.id}
-              </span>
-              <Badge
-                text={r.mode}
-                tone={
-                  r.mode === "Autonomous"
-                    ? "purple"
-                    : r.mode === "Plan-only"
-                      ? "muted"
-                      : "info"
-                }
-              />
+              <Hash h={r.id} link />
               <span
                 style={{
-                  fontSize: 13,
+                  fontSize: 12.5,
                   color: A.textSecondary,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -289,35 +389,52 @@ export default function AcpRuns() {
               >
                 {r.workspace}
               </span>
+              <Mode m={r.mode} />
+              {r.status === "Running" || r.status === "Awaiting Approval" ? (
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: A.textMuted,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {r.step}
+                </span>
+              ) : (
+                <Badge
+                  text={r.status}
+                  tone={r.status === "Completed" ? "ok" : "danger"}
+                />
+              )}
+              <Sev s={r.risk} />
+              <span style={{ fontSize: 12, color: A.textMuted }}>{r.dur}</span>
+              <span style={{ fontSize: 12, color: A.textMuted }}>{r.cost}</span>
               <span
                 style={{
-                  fontSize: 12.5,
+                  fontSize: 12,
                   color: A.textMuted,
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
                 }}
               >
-                {r.step}
+                {r.owner}
               </span>
-              <Badge
-                text={r.status}
-                tone={
-                  r.status === "Awaiting approval"
-                    ? "warn"
-                    : r.status === "Completed"
-                      ? "ok"
-                      : "info"
-                }
-              />
-              <Sev s={r.risk} />
+              <span
+                title={r.started}
+                style={{ fontSize: 12, color: A.textMuted }}
+              >
+                {r.started}
+              </span>
               <span style={{ justifySelf: "end" }}>
-                {r.status === "Running" || r.status === "Awaiting approval" ? (
+                {r.status === "Running" || r.status === "Awaiting Approval" ? (
                   <ConfirmButton
                     variant="link"
                     label="Stop"
                     title={`Stop ${r.id}?`}
-                    body="The agent halts immediately and its sandbox session is revoked."
+                    body="Graceful stop. The agent halts after the current step."
                     confirmLabel="Stop run"
                     onConfirm={() => {}}
                   />
@@ -327,35 +444,64 @@ export default function AcpRuns() {
               </span>
             </div>
           ))}
+          {rows.length === 0 && (
+            <div style={{ padding: 16, fontSize: 12.5, color: A.textMuted }}>
+              No runs match these filters. Adjust filters or widen the time
+              range.
+            </div>
+          )}
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 1080 }}>
-      <button
-        type="button"
-        onClick={() => setSel(null)}
+    <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
+      <Breadcrumb
+        items={[
+          { label: "Agent Control Plane" },
+          { label: "Runs", onClick: () => setSel(null) },
+          { label: run.id },
+        ]}
+        status={
+          <Badge
+            text={`${run.status} · ${run.risk.toLowerCase()} risk`}
+            tone={run.status === "Awaiting Approval" ? "warn" : "info"}
+          />
+        }
+      />
+      <div
         style={{
-          background: "none",
-          border: "none",
-          color: A.textMuted,
-          fontSize: 12,
-          cursor: "pointer",
-          padding: 0,
-          marginBottom: 12,
+          background: A.cardBg,
+          border: `1px solid ${A.border}`,
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 18,
         }}
       >
-        ← All runs
-      </button>
-      <PageHeader
-        title={run.id}
-        sub={`${run.mode} · ${run.workspace} · started ${run.started}`}
-        right={
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Hash h={run.id} />
+            <Badge
+              text={run.status}
+              tone={run.status === "Awaiting Approval" ? "warn" : "info"}
+            />
+            <Sev s={run.risk} />
+            <Mode m={run.mode} />
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
+            <ExportBtn label="Export Run Evidence" />
             <button
               type="button"
+              onClick={() => setTab("Replay")}
               style={{
                 height: 32,
                 padding: "0 12px",
@@ -367,31 +513,22 @@ export default function AcpRuns() {
                 cursor: "pointer",
               }}
             >
-              Export evidence
+              View in Audit →
             </button>
             <ConfirmButton
               variant="ghost"
-              label="Stop run"
+              label="Stop"
               title={`Stop ${run.id}?`}
-              body="The agent halts immediately and its sandbox session is revoked."
+              body="Graceful stop after the current step."
               confirmLabel="Stop run"
               onConfirm={() => {}}
             />
           </div>
-        }
-      />
-      <div
-        style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}
-      >
-        <Badge
-          text={`Status: ${run.status}`}
-          tone={run.status === "Awaiting approval" ? "warn" : "info"}
-        />
-        <Badge
-          text={`Risk: ${run.risk}`}
-          tone={run.risk === "Critical" ? "danger" : "muted"}
-        />
-        <Badge text="18.4k tokens · $0.29" tone="muted" />
+        </div>
+        <div style={{ fontSize: 12.5, color: A.textMuted, marginTop: 8 }}>
+          Workspace: {run.workspace} · Owner: {run.owner} · Started:{" "}
+          {run.started} · Cost: {run.cost} · Steps: 4 / est. 12
+        </div>
       </div>
 
       <SubTabs
@@ -400,7 +537,7 @@ export default function AcpRuns() {
           "Trace",
           "Agent Plan",
           "Tool Calls",
-          "Cloud Activity",
+          "Cloud API Activity",
           "Prompt & Context",
           "Data Access",
           "Artifacts",
@@ -411,77 +548,83 @@ export default function AcpRuns() {
       />
 
       {tab === "Timeline" && (
-        <div
-          style={{
-            borderLeft: `2px solid ${A.border}`,
-            marginLeft: 6,
-            paddingLeft: 18,
-          }}
-        >
-          {TIMELINE.map((e, i) => (
-            <div key={i} style={{ position: "relative", paddingBottom: 16 }}>
-              <span
-                style={{
-                  position: "absolute",
-                  left: -25,
-                  top: 3,
-                  width: 9,
-                  height: 9,
-                  borderRadius: "50%",
-                  background:
-                    e.state === "warn"
-                      ? A.warning
-                      : e.state === "pause"
-                        ? A.danger
-                        : A.success,
-                }}
-              />
-              <div style={{ fontSize: 11, color: A.textMuted, ...mono }}>
-                {e.t}
-              </div>
-              <div
-                style={{ fontSize: 13, color: A.textSecondary, marginTop: 1 }}
-              >
-                {e.step}
-              </div>
-            </div>
-          ))}
-        </div>
+        <Table
+          grid="40px 180px 110px 2fr 130px 70px 110px"
+          cols={[
+            "#",
+            "Timestamp",
+            "Type",
+            "Description",
+            "Status",
+            "Dur",
+            "Risk Δ",
+          ]}
+          rows={TIMELINE.map((e) => [
+            String(e.n),
+            <span style={{ ...mono, fontSize: 11 }}>{e.t}</span>,
+            e.type,
+            e.d,
+            <Badge text={e.st} tone={e.st === "completed" ? "ok" : "warn"} />,
+            e.dur,
+            e.rd ? <span style={{ color: A.warning }}>{e.rd}</span> : "—",
+          ])}
+        />
       )}
       {tab === "Trace" && (
         <Table
-          grid="2.2fr 80px 90px 80px 80px"
-          cols={["Span", "Kind", "Latency", "Tokens", "Cost"]}
+          grid="90px 1.8fr 100px 90px 100px 80px 70px"
+          cols={[
+            "Span ID",
+            "Name",
+            "Type",
+            "Latency",
+            "Tokens",
+            "Cost",
+            "Status",
+          ]}
           rows={TRACE.map((s) => [
+            <Hash h={s.id} />,
             <span
               style={{
+                paddingLeft: s.d * 16,
+                color: s.d ? A.textMuted : A.textPrimary,
                 ...mono,
-                color: s.span.startsWith("↳") ? A.textMuted : A.textPrimary,
               }}
             >
-              {s.span}
+              {s.name}
             </span>,
             <Badge
-              text={s.kind}
+              text={s.type}
               tone={
-                s.kind === "cloud"
+                s.type === "Cloud API"
                   ? "info"
-                  : s.kind === "model"
+                  : s.type === "Model Call"
                     ? "purple"
                     : "muted"
               }
             />,
-            s.lat,
+            <span style={{ color: latColor(s.lat) }}>{s.lat}</span>,
             s.tok,
             s.cost,
+            <Badge text={s.st} tone={s.st === "ok" ? "ok" : "danger"} />,
           ])}
         />
       )}
       {tab === "Agent Plan" && (
         <Card>
-          <H2 sub="The plan the agent proposed. In Ask-first mode it does not execute writes until approved.">
-            Proposed plan · 3 steps
-          </H2>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 12,
+            }}
+          >
+            <Badge text="v1 (original)" tone="muted" />
+            <span style={{ fontSize: 12.5, color: A.textMuted }}>
+              Pending approval · <Hash h="approval-7e1b4d" link />
+            </span>
+          </div>
           <ol
             style={{
               margin: 0,
@@ -492,42 +635,68 @@ export default function AcpRuns() {
             }}
           >
             <li>
-              Tighten <span style={mono}>payments-deployer</span>: remove unused{" "}
-              <span style={mono}>ec2:*</span> (read-only, auto) —{" "}
+              Remove unused <span style={mono}>ec2:*</span> from
+              payments-deployer · risk low · approval: no —{" "}
               <Decision d="Allow" />
             </li>
             <li>
-              Rotate stale access key <span style={mono}>AKIA…7E</span> (90d
-              old) — <Decision d="Ask" />
+              Rotate stale access key (90d) · risk medium · approval: yes —{" "}
+              <Decision d="Ask" />
             </li>
             <li>
-              Add <span style={mono}>s3:*</span> to{" "}
-              <span style={mono}>payments-deployer</span> — <Decision d="Ask" />{" "}
-              <span style={{ color: A.danger }}>
-                (blocked: IAM widening gate)
-              </span>
+              Add <span style={mono}>s3:*</span> to payments-deployer · risk
+              high · approval: yes — <Decision d="Ask" />{" "}
+              <span style={{ color: A.danger }}>(blocked)</span>
             </li>
           </ol>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <ConfirmButton
+              variant="danger"
+              label="Approve Plan"
+              title="Approve this plan?"
+              body="The agent executes the approved steps; the decision is signed into the audit ledger."
+              confirmLabel="Approve & sign"
+              onConfirm={() => {}}
+              style={{ background: A.accent }}
+            />
+            <ConfirmButton
+              variant="ghost"
+              label="Deny Plan"
+              title="Deny this plan?"
+              body="The run continues with these steps skipped."
+              confirmLabel="Deny"
+              onConfirm={() => {}}
+            />
+          </div>
         </Card>
       )}
       {tab === "Tool Calls" && (
         <Table
-          grid="1.4fr 2fr 110px 1fr"
-          cols={["Tool", "Arguments", "Decision", "Result"]}
+          grid="50px 1.2fr 1.8fr 1fr 110px 80px"
+          cols={["Seq", "Tool", "Args (redacted)", "Result", "Decision", "Dur"]}
           rows={TOOLS}
         />
       )}
-      {tab === "Cloud Activity" && (
+      {tab === "Cloud API Activity" && (
         <Table
-          grid="1.3fr 1.4fr 90px 80px 1.6fr"
-          cols={["Account", "Action", "Decision", "Type", "Diff"]}
+          grid="40px 100px 70px 1.4fr 1.4fr 90px 120px 100px"
+          cols={[
+            "Seq",
+            "Account",
+            "Svc",
+            "Action",
+            "Resource",
+            "Decision",
+            "Approval",
+            "Diff",
+          ]}
           rows={CLOUD}
         />
       )}
       {tab === "Prompt & Context" && (
         <Card>
-          <H2 sub="Secret values are redacted at source; reveal is break-glass (reason-logged).">
-            Context window
+          <H2 sub="System · User · Injected Context · Full window. Secrets redacted; reveal is Admin break-glass (reason-logged).">
+            Context window · 18,412 tokens
           </H2>
           <pre
             style={{
@@ -541,10 +710,10 @@ export default function AcpRuns() {
               whiteSpace: "pre-wrap",
               lineHeight: 1.6,
             }}
-          >{`system: You are CloudGuard's remediation agent. Mode=Ask-first.
-context: account=4044…1029 region=eu-west-1 resources=842
-secrets: AWS_ACCESS_KEY_ID=••••••••(redacted) [by-reference]
-task: reduce IAM over-privilege on payments-deployer`}</pre>
+          >{`[System] CloudGuard remediation agent · mode=Supervised
+[User] reduce IAM over-privilege on payments-deployer
+[Context] account=4044…1029 region=eu-west-1 resources=842
+[Secret] AWS_ACCESS_KEY_ID = [REDACTED: vault://prod/aws-access-key]`}</pre>
           <button
             type="button"
             style={{
@@ -556,36 +725,40 @@ task: reduce IAM over-privilege on payments-deployer`}</pre>
               cursor: "pointer",
             }}
           >
-            Reveal redacted values (break-glass) →
+            Reveal secrets (break-glass) →
           </button>
         </Card>
       )}
       {tab === "Data Access" && (
         <Table
-          grid="1.2fr 2fr 110px"
-          cols={["Source", "What was accessed", "Decision"]}
+          grid="2fr 150px 80px 120px 90px"
+          cols={["Resource", "Data Type", "Access", "Timestamp", "Context"]}
           rows={DATA}
         />
       )}
       {tab === "Artifacts" && (
         <Table
-          grid="2fr 1fr 1fr 90px"
-          cols={["Artifact", "Type", "Stored", ""]}
+          grid="2fr 90px 80px 120px 130px 90px"
+          cols={["Name", "Type", "Size", "Created", "SHA-256", "Storage"]}
           rows={[
             [
-              "IAM over-privilege report",
-              "PDF",
-              "Encrypted (tenant key)",
+              "iam-overprivilege-report.pdf",
+              <Badge text="report" tone="muted" />,
+              "1.2 MB",
+              "02:14:30Z",
+              <Hash h="a3f9b2e1c4" />,
               <span style={{ color: A.accent, cursor: "pointer" }}>
-                Download
+                Signed URL
               </span>,
             ],
             [
-              "Proposed change set (diff)",
-              "JSON",
-              "Encrypted (tenant key)",
+              "changeset.json",
+              <Badge text="diff" tone="muted" />,
+              "3 KB",
+              "02:14:24Z",
+              <Hash h="7e1b4d99af" />,
               <span style={{ color: A.accent, cursor: "pointer" }}>
-                Download
+                Signed URL
               </span>,
             ],
           ]}
@@ -593,26 +766,49 @@ task: reduce IAM over-privilege on payments-deployer`}</pre>
       )}
       {tab === "Replay" && (
         <Card>
-          <H2 sub="Deterministically re-walk this run from its signed event stream. Read-only — no tools execute, nothing changes.">
-            Replay
-          </H2>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <button
-              type="button"
-              style={{
-                height: 34,
-                padding: "0 16px",
-                borderRadius: 6,
-                background: A.accent,
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 500,
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              ▶ Start replay
-            </button>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "8px 12px",
+              borderRadius: 6,
+              background: "rgba(224,154,45,0.1)",
+              border: "1px solid rgba(224,154,45,0.3)",
+              marginBottom: 14,
+              fontSize: 12.5,
+              color: A.textSecondary,
+            }}
+          >
+            ⚠ REPLAY MODE — read-only, no side effects · Original
+            2025-01-14T02:14Z
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {["⏮", "⏪", "⏩", "⏭"].map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  style={{
+                    height: 32,
+                    width: 36,
+                    borderRadius: 6,
+                    background: "transparent",
+                    border: `1px solid ${A.borderStrong}`,
+                    color: A.textSecondary,
+                    cursor: "pointer",
+                  }}
+                >
+                  {b}
+                </button>
+              ))}
+            </div>
+            <FSelect
+              value="1×"
+              onChange={() => {}}
+              all="1×"
+              options={["2×", "5×"]}
+            />
             <Badge text="Event chain verified ✓" tone="ok" />
           </div>
         </Card>

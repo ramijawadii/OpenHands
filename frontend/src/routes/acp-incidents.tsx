@@ -1,88 +1,179 @@
-/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unescaped-entities, @typescript-eslint/naming-convention, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions, @typescript-eslint/no-unused-vars, react/jsx-key, unused-imports/no-unused-imports, @typescript-eslint/no-unused-vars -- CloudGuard ACP (mock) */
+/* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unescaped-entities, @typescript-eslint/naming-convention, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions, @typescript-eslint/no-unused-vars, react/jsx-key, unused-imports/no-unused-imports -- CloudGuard ACP (mock) */
 import React from "react";
 import {
   A,
-  PageHeader,
+  Breadcrumb,
+  FilterBar,
+  FSelect,
+  ExportBtn,
   SubTabs,
   Card,
   H2,
   Badge,
   Sev,
+  Hash,
   Table,
   mono,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
 
-const INCIDENTS = [
+interface Inc {
+  id: string;
+  sev: string;
+  title: string;
+  status: string;
+  type: string;
+  owner: string;
+  runs: string[];
+  viol: number;
+  created: string;
+  updated: string;
+}
+const INCIDENTS: Inc[] = [
   {
-    id: "INC-204",
+    id: "INC-0042",
     sev: "Critical",
-    title: "Agent attempted IAM widening on prod-payments",
-    status: "Contained",
-    run: "run_8c2f",
-    opened: "12m ago",
-    owner: "Jana Doe",
+    title: "Unauthorized IAM privilege escalation attempt — prod-aws-east",
+    status: "Open",
+    type: "Unauthorized Action",
+    owner: "alice@acme",
+    runs: ["run-8f3a2c"],
+    viol: 3,
+    created: "2h ago",
+    updated: "14m ago",
   },
   {
-    id: "INC-203",
+    id: "INC-0041",
     sev: "Medium",
     title: "Sandbox egress attempts to unknown host",
     status: "Investigating",
-    run: "sbx_7f3c",
-    opened: "2h ago",
-    owner: "Rami Sentinel",
+    type: "Policy Violation Cluster",
+    owner: "rami@acme",
+    runs: ["run-8f3a2c"],
+    viol: 2,
+    created: "2h ago",
+    updated: "1h ago",
   },
   {
-    id: "INC-201",
+    id: "INC-0039",
     sev: "High",
     title: "Public S3 bucket created (cloud drift)",
     status: "Resolved",
-    run: "—",
-    opened: "yesterday",
-    owner: "Sam Okoye",
+    type: "External Compromise",
+    owner: "sam@acme",
+    runs: [],
+    viol: 1,
+    created: "yesterday",
+    updated: "yesterday",
   },
 ];
-
 const TIMELINE = [
   {
-    t: "12:04:24",
-    e: "Policy blocked iam:PutRolePolicy on payments-deployer",
+    t: "2025-01-14T02:14:24Z",
+    type: "policy violation",
+    e: "Blocked iam:PutRolePolicy on payments-deployer",
+    a: "run-8f3a2c",
     tone: "ok",
   },
   {
-    t: "12:04:25",
-    e: "Auto-incident opened (INC-204) · severity Critical",
+    t: "2025-01-14T02:14:25Z",
+    type: "system event",
+    e: "Auto-incident opened (INC-0042) · severity Critical",
+    a: "system",
     tone: "warn",
   },
   {
-    t: "12:05:01",
-    e: "Run run_8c2f paused; sandbox sbx_7f3c session revoked",
+    t: "2025-01-14T02:15:01Z",
+    type: "manual action",
+    e: "Run paused; sandbox sess-3f9b1c session revoked",
+    a: "alice@acme",
     tone: "ok",
   },
   {
-    t: "12:06:10",
-    e: "Jana Doe acknowledged · began investigation",
+    t: "2025-01-14T02:16:10Z",
+    type: "manual action",
+    e: "alice@acme acknowledged · began investigation",
+    a: "alice@acme",
     tone: "info",
-  },
-  {
-    t: "12:09:40",
-    e: "Confirmed: over-broad plan from stale context; no change applied",
-    tone: "ok",
   },
 ];
 
 export default function AcpIncidents() {
   const [sel, setSel] = React.useState<string | null>(null);
-  const [tab, setTab] = React.useState("Investigation timeline");
+  const [tab, setTab] = React.useState("Timeline");
+  const [q, setQ] = React.useState("");
   const inc = INCIDENTS.find((i) => i.id === sel);
 
   if (!inc) {
+    const rows = INCIDENTS.filter(
+      (i) => !q || `${i.id} ${i.title}`.toLowerCase().includes(q.toLowerCase()),
+    );
     return (
-      <div style={{ padding: "32px 40px", maxWidth: 1080 }}>
-        <PageHeader
-          title="Incidents"
-          sub="When the agent misbehaves or cloud drift is detected, an incident is opened with a defined response path — contain, roll back, learn."
+      <div style={{ padding: "32px 40px", maxWidth: 1160 }}>
+        <Breadcrumb
+          items={[{ label: "Agent Control Plane" }, { label: "Incidents" }]}
         />
+        <h1
+          style={{
+            fontSize: 20,
+            fontWeight: 400,
+            color: A.textPrimary,
+            margin: "0 0 14px",
+          }}
+        >
+          Incidents
+        </h1>
+        <FilterBar
+          placeholder="Search by incident ID, title, run ID…"
+          search={q}
+          onSearch={setQ}
+          right={
+            <>
+              <ExportBtn />
+              <button
+                type="button"
+                style={{
+                  height: 32,
+                  padding: "0 12px",
+                  borderRadius: 6,
+                  background: A.accent,
+                  color: "#fff",
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                + New Incident
+              </button>
+            </>
+          }
+        >
+          <FSelect
+            value=""
+            onChange={() => {}}
+            all="Open + Active"
+            options={[
+              "Open",
+              "Contained",
+              "Investigating",
+              "Resolved",
+              "Closed",
+            ]}
+          />
+          <FSelect
+            value=""
+            onChange={() => {}}
+            all="All Types"
+            options={[
+              "Unauthorized Action",
+              "Policy Violation Cluster",
+              "Anomaly",
+              "Agent Misbehavior",
+              "External Compromise",
+            ]}
+          />
+        </FilterBar>
         <div
           className="cg-tablewrap"
           style={{ borderRadius: 8, border: `1px solid ${A.border}` }}
@@ -90,19 +181,21 @@ export default function AcpIncidents() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "90px 90px 2.2fr 130px 100px 90px 1fr",
+              gridTemplateColumns:
+                "100px 2fr 90px 120px 160px 110px 110px 90px",
               padding: "8px 16px",
               borderBottom: `1px solid ${A.border}`,
             }}
           >
             {[
-              "ID",
-              "Severity",
+              "Incident",
               "Title",
+              "Severity",
               "Status",
-              "Source",
-              "Opened",
+              "Type",
               "Owner",
+              "Linked",
+              "Updated",
             ].map((c) => (
               <span
                 key={c}
@@ -118,31 +211,29 @@ export default function AcpIncidents() {
               </span>
             ))}
           </div>
-          {INCIDENTS.map((i, idx) => (
+          {rows.map((i, idx) => (
             <div
               key={i.id}
               className="cg-row"
               onClick={() => {
                 setSel(i.id);
-                setTab("Investigation timeline");
+                setTab("Timeline");
               }}
               title="Open incident"
               style={{
                 display: "grid",
-                gridTemplateColumns: "90px 90px 2.2fr 130px 100px 90px 1fr",
+                gridTemplateColumns:
+                  "100px 2fr 90px 120px 160px 110px 110px 90px",
                 padding: "11px 16px",
                 borderBottom:
-                  idx < INCIDENTS.length - 1
+                  idx < rows.length - 1
                     ? "1px solid var(--cg-border-subtle)"
                     : "none",
                 alignItems: "center",
                 cursor: "pointer",
               }}
             >
-              <span style={{ ...mono, fontSize: 12.5, color: A.accent }}>
-                {i.id}
-              </span>
-              <Sev s={i.sev} />
+              <Hash h={i.id} link />
               <span
                 style={{
                   fontSize: 13,
@@ -154,24 +245,42 @@ export default function AcpIncidents() {
               >
                 {i.title}
               </span>
+              <Sev s={i.sev} />
               <Badge
                 text={i.status}
                 tone={
                   i.status === "Resolved"
                     ? "ok"
-                    : i.status === "Contained"
-                      ? "info"
+                    : i.status === "Open"
+                      ? "danger"
                       : "warn"
                 }
               />
-              <span style={{ ...mono, fontSize: 12, color: A.textMuted }}>
-                {i.run}
+              <span
+                style={{
+                  fontSize: 12,
+                  color: A.textMuted,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {i.type}
+              </span>
+              <span
+                style={{
+                  fontSize: 12,
+                  color: i.owner === "Unassigned" ? A.danger : A.textSecondary,
+                }}
+              >
+                {i.owner}
               </span>
               <span style={{ fontSize: 12, color: A.textMuted }}>
-                {i.opened}
+                {i.runs.length ? <Hash h={i.runs[0]} link /> : "—"} · {i.viol}{" "}
+                viol
               </span>
-              <span style={{ fontSize: 12.5, color: A.textSecondary }}>
-                {i.owner}
+              <span style={{ fontSize: 12, color: A.textMuted }}>
+                {i.updated}
               </span>
             </div>
           ))}
@@ -181,91 +290,172 @@ export default function AcpIncidents() {
   }
 
   return (
-    <div style={{ padding: "32px 40px", maxWidth: 1080 }}>
-      <button
-        type="button"
-        onClick={() => setSel(null)}
-        style={{
-          background: "none",
-          border: "none",
-          color: A.textMuted,
-          fontSize: 12,
-          cursor: "pointer",
-          padding: 0,
-          marginBottom: 12,
-        }}
-      >
-        ← All incidents
-      </button>
-      <PageHeader
-        title={`${inc.id} · ${inc.title}`}
-        sub={`Severity ${inc.sev} · ${inc.status} · owner ${inc.owner} · opened ${inc.opened}`}
-        right={
+    <div style={{ padding: "32px 40px", maxWidth: 1160 }}>
+      <Breadcrumb
+        items={[
+          { label: "Agent Control Plane" },
+          { label: "Incidents", onClick: () => setSel(null) },
+          { label: inc.id },
+        ]}
+        status={
           <Badge
-            text={inc.status}
-            tone={inc.status === "Resolved" ? "ok" : "info"}
+            text={`${inc.status} · ${inc.sev.toLowerCase()}`}
+            tone={inc.status === "Resolved" ? "ok" : "danger"}
           />
         }
       />
+      <div
+        style={{
+          background: A.cardBg,
+          border: `1px solid ${A.border}`,
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 18,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginBottom: 6,
+          }}
+        >
+          <Hash h={inc.id} />
+          <Badge
+            text={inc.status}
+            tone={inc.status === "Resolved" ? "ok" : "danger"}
+          />
+          <Sev s={inc.sev} />
+        </div>
+        <div
+          style={{
+            fontSize: 14,
+            color: A.textPrimary,
+            fontWeight: 500,
+            marginBottom: 8,
+          }}
+        >
+          {inc.title}
+        </div>
+        <div style={{ fontSize: 12.5, color: A.textMuted, marginBottom: 12 }}>
+          Owner: {inc.owner} · Created {inc.created} · Updated {inc.updated}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {[
+            "Assign Owner",
+            "Escalate",
+            "Contain Agent",
+            "Close Incident",
+            "Create Postmortem",
+          ].map((b) => (
+            <button
+              key={b}
+              type="button"
+              style={{
+                height: 30,
+                padding: "0 12px",
+                borderRadius: 6,
+                background: "transparent",
+                border: `1px solid ${A.borderStrong}`,
+                color: A.textSecondary,
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {b}
+            </button>
+          ))}
+          <ExportBtn label="Export IR Package" />
+        </div>
+      </div>
       <SubTabs
-        tabs={[
-          "Investigation timeline",
-          "Containment",
-          "Rollbacks",
-          "Postmortem",
-        ]}
+        tabs={["Timeline", "Containment", "Rollbacks", "Postmortem"]}
         value={tab}
         onChange={setTab}
       />
 
-      {tab === "Investigation timeline" && (
-        <div
-          style={{
-            borderLeft: `2px solid ${A.border}`,
-            marginLeft: 6,
-            paddingLeft: 18,
-          }}
-        >
-          {TIMELINE.map((e, i) => (
-            <div key={i} style={{ position: "relative", paddingBottom: 16 }}>
-              <span
-                style={{
-                  position: "absolute",
-                  left: -25,
-                  top: 3,
-                  width: 9,
-                  height: 9,
-                  borderRadius: "50%",
-                  background:
-                    e.tone === "warn"
-                      ? A.warning
-                      : e.tone === "info"
-                        ? A.accent
-                        : A.success,
-                }}
-              />
-              <div style={{ fontSize: 11, color: A.textMuted, ...mono }}>
-                {e.t}
+      {tab === "Timeline" && (
+        <>
+          <FilterBar placeholder="Search events…" search={q} onSearch={setQ}>
+            <FSelect
+              value=""
+              onChange={() => {}}
+              all="All Events"
+              options={[
+                "Agent Events",
+                "Policy Violations",
+                "Cloud Changes",
+                "Anomalies",
+                "Manual Actions",
+                "System Events",
+              ]}
+            />
+          </FilterBar>
+          <div
+            style={{
+              borderLeft: `2px solid ${A.border}`,
+              marginLeft: 6,
+              paddingLeft: 18,
+            }}
+          >
+            {TIMELINE.map((e, i) => (
+              <div key={i} style={{ position: "relative", paddingBottom: 16 }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: -25,
+                    top: 3,
+                    width: 9,
+                    height: 9,
+                    borderRadius: "50%",
+                    background:
+                      e.tone === "warn"
+                        ? A.warning
+                        : e.tone === "info"
+                          ? A.accent
+                          : A.success,
+                  }}
+                />
+                <div style={{ fontSize: 11, color: A.textMuted, ...mono }}>
+                  {e.t} · {e.type}
+                </div>
+                <div
+                  style={{ fontSize: 13, color: A.textSecondary, marginTop: 1 }}
+                >
+                  {e.e} <span style={{ color: A.textMuted }}>— {e.a}</span>
+                </div>
               </div>
-              <div
-                style={{ fontSize: 13, color: A.textSecondary, marginTop: 1 }}
-              >
-                {e.e}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            style={{
+              marginTop: 8,
+              height: 30,
+              padding: "0 12px",
+              borderRadius: 6,
+              background: "transparent",
+              border: `1px solid ${A.borderStrong}`,
+              color: A.textSecondary,
+              fontSize: 12,
+              cursor: "pointer",
+            }}
+          >
+            + Add note
+          </button>
+        </>
       )}
       {tab === "Containment" && (
-        <Card style={{ maxWidth: 640 }}>
-          <H2 sub="Actions taken — and available — to contain this incident.">
+        <Card style={{ maxWidth: 720 }}>
+          <H2 sub="Currently contained: run paused · 1 sandbox revoked.">
             Containment actions
           </H2>
           {[
-            ["Run paused", "run_8c2f halted", true],
-            ["Sandbox revoked", "sbx_7f3c credentials destroyed", true],
-            ["Freeze workspace", "Production Cloud", false],
-            ["Revoke service account", "ci-scanner", false],
+            ["Kill agent", "Run-scoped", true],
+            ["Isolate sandbox", "sess-3f9b1c", true],
+            ["Revoke credentials", "aws-audit-role", true],
+            ["Freeze workspace", "prod-aws-east", false],
           ].map(([t, d, done], i) => (
             <div
               key={i}
@@ -286,13 +476,13 @@ export default function AcpIncidents() {
                 </div>
               </div>
               {done ? (
-                <Badge text="Done ✓" tone="ok" />
+                <Badge text="Active" tone="ok" />
               ) : (
                 <ConfirmButton
                   variant="ghost"
                   label={t as string}
                   title={`${t}?`}
-                  body="This containment action is logged to the audit ledger."
+                  body="Requires a reason; logged to the audit ledger linked to this incident."
                   confirmLabel="Confirm"
                   onConfirm={() => {}}
                 />
@@ -304,82 +494,112 @@ export default function AcpIncidents() {
       {tab === "Rollbacks" && (
         <>
           <div style={{ marginBottom: 12, fontSize: 12, color: A.textMuted }}>
-            Agent changes are staged through the write-broker, so they can be
-            reverted with a verified diff.
+            ℹ Rollbacks are irreversible and generate their own audit entries.
           </div>
           <Table
-            grid="1.6fr 1.4fr 100px 110px"
-            cols={["Change", "Resource", "Status", ""]}
+            grid="100px 110px 70px 1.4fr 1.4fr 90px 120px 110px"
+            cols={[
+              "Change",
+              "Run",
+              "Svc",
+              "Resource",
+              "Description",
+              "Risk",
+              "Rollback status",
+              "",
+            ]}
             rows={[
               [
-                "Removed ec2:* from payments-deployer",
-                "IAM role",
-                <Badge text="Applied" tone="info" />,
+                <Hash h="change-46990" link />,
+                <Hash h="run-4e6f10" link />,
+                "iam",
+                <span style={mono}>payments-deployer</span>,
+                "Removed ec2:*",
+                <Sev s="Low" />,
+                <Badge text="Eligible" tone="info" />,
                 <ConfirmButton
                   variant="link"
-                  label="Roll back"
+                  label="Rollback"
                   title="Roll back this change?"
                   body="Restores the previous IAM policy from the staged diff."
-                  confirmLabel="Roll back"
+                  confirmLabel="Rollback"
                   onConfirm={() => {}}
                 />,
               ],
               [
-                "Rotated access key AKIA…7E",
-                "Access key",
-                <Badge text="Applied" tone="info" />,
-                <span style={{ fontSize: 12, color: A.textMuted }}>
-                  Not reversible
-                </span>,
+                <Hash h="change-46985" link />,
+                <Hash h="run-4e6f10" link />,
+                "iam",
+                <span style={mono}>AKIA…7E</span>,
+                "Rotated access key",
+                <Sev s="Medium" />,
+                <Badge text="Not eligible" tone="muted" />,
+                <span style={{ fontSize: 12, color: A.textMuted }}>—</span>,
               ],
             ]}
           />
         </>
       )}
       {tab === "Postmortem" && (
-        <Card style={{ maxWidth: 760 }}>
-          <H2 sub="Linked to the run, violations and evidence above.">
-            Postmortem (draft)
-          </H2>
+        <Card style={{ maxWidth: 800 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 12,
+            }}
+          >
+            <H2>Postmortem</H2>
+            <Badge text="Draft" tone="muted" />
+          </div>
           <div
             style={{ fontSize: 13, color: A.textSecondary, lineHeight: 1.8 }}
           >
             <p style={{ margin: "0 0 10px" }}>
-              <strong>Summary:</strong> The agent proposed widening{" "}
+              <strong>Summary:</strong> Agent proposed widening{" "}
               <span style={mono}>payments-deployer</span> with{" "}
-              <span style={mono}>s3:*</span> based on stale context. The
-              IAM-write approval gate blocked execution; no change was applied.
-            </p>
-            <p style={{ margin: "0 0 10px" }}>
-              <strong>Impact:</strong> None — defense-in-depth held (gate +
-              Ask-first mode).
+              <span style={mono}>s3:*</span> from stale context. The IAM-write
+              gate blocked execution; no change applied.
             </p>
             <p style={{ margin: "0 0 10px" }}>
               <strong>Root cause:</strong> Context cache served a 6h-old IAM
-              snapshot; plan over-scoped.
+              snapshot; the planner over-scoped.
+            </p>
+            <p style={{ margin: "0 0 10px" }}>
+              <strong>Detection:</strong> Auto-incident on policy block · MTTD
+              &lt; 1s.
             </p>
             <p style={{ margin: 0 }}>
-              <strong>Action items:</strong> shorten context TTL for IAM; add
-              least-privilege lint to the planner; keep IAM-write gate
-              mandatory.
+              <strong>Action items:</strong> shorten IAM context TTL; add
+              least-privilege lint to planner; keep IAM-write gate mandatory.
             </p>
           </div>
-          <button
-            type="button"
-            style={{
-              marginTop: 14,
-              height: 32,
-              padding: "0 14px",
-              borderRadius: 6,
-              background: "transparent",
-              border: `1px solid ${A.borderStrong}`,
-              color: A.textSecondary,
-              fontSize: 12.5,
-              cursor: "pointer",
-            }}
-          >
-            Export postmortem
-          </button>
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            {[
+              "Save draft",
+              "Submit for review",
+              "Export PDF",
+              "Export Markdown",
+            ].map((b) => (
+              <button
+                key={b}
+                type="button"
+                style={{
+                  height: 30,
+                  padding: "0 12px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  border: `1px solid ${A.borderStrong}`,
+                  color: A.textSecondary,
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                {b}
+              </button>
+            ))}
+          </div>
         </Card>
       )}
     </div>
