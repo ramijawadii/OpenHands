@@ -7,6 +7,7 @@ import {
   ScopeBadge,
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
+import { LiveCollectionCard } from "#/components/features/settings/live-collection-card";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -378,6 +379,13 @@ export default function ServiceAccountsSettings() {
         Non-human identities for CI/CD, IaC pipelines and scheduled scans. Scope
         each to least privilege, rotate keys, and set expiry.
       </p>
+
+      <LiveCollectionCard
+        seg="service-accounts"
+        title="Service accounts"
+        field="name"
+        placeholder="name — e.g. ci-scanner@svc"
+      />
 
       <div
         style={{
