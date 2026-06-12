@@ -40,6 +40,14 @@ export const useAuditVerify = () =>
     retry: false,
   });
 
+export const useOrgRoles = () =>
+  useQuery({
+    queryKey: ["cloudguard", "org", "roles"],
+    queryFn: CloudGuardService.orgRoles,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useApprovals = (status = "pending") =>
   useQuery({
     queryKey: ["cloudguard", "approvals", status],

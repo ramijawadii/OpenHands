@@ -5,6 +5,7 @@ import {
   ScopeBadge,
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
+import { useOrgRoles } from "#/hooks/query/use-cloudguard";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -21,6 +22,102 @@ const S = {
   badgeBg: "var(--cg-bg-badge)",
   cardBg: "var(--cg-bg-card)",
 } as const;
+
+// Live authoritative RBAC matrix from cloudguard/rbac.py (the enforced model the UI roles map
+// onto). Purely additive — renders only when the backend endpoint is reachable.
+function RbacModelCard() {
+  const { data, isError, isLoading } = useOrgRoles();
+  if (isLoading || isError || !data) return null;
+  return (
+    <div
+      style={{
+        background: S.cardBg,
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 20,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 4,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Enforced RBAC model
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      <p style={{ fontSize: 12, color: S.textMuted, margin: "0 0 12px" }}>
+        The authoritative capability + tier each role grants, read from the
+        backend (cloudguard/rbac.py). Built-in roles above map onto these.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {data.roles.map((r) => (
+          <div
+            key={r.role}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "140px 1fr 90px",
+              alignItems: "center",
+              gap: 10,
+              padding: "8px 0",
+              borderBottom: "1px solid var(--cg-border-subtle)",
+            }}
+          >
+            <span
+              style={{ fontSize: 13, color: S.textPrimary, fontWeight: 500 }}
+            >
+              {r.role}
+              {r.is_default && (
+                <span style={{ color: S.textMuted, fontWeight: 400 }}>
+                  {" "}
+                  · default
+                </span>
+              )}
+            </span>
+            <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {r.capabilities.map((c) => (
+                <span
+                  key={c}
+                  style={{
+                    fontSize: 11,
+                    color: S.accent,
+                    background: "rgba(45,134,212,0.12)",
+                    borderRadius: 99,
+                    padding: "2px 8px",
+                  }}
+                >
+                  {c}
+                </span>
+              ))}
+            </span>
+            <span style={{ fontSize: 12, color: S.textMuted }}>
+              max tier {r.max_tier}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p style={{ fontSize: 11.5, color: S.textMuted, margin: "10px 0 0" }}>
+        Tier 4 is never grantable to any role.
+      </p>
+    </div>
+  );
+}
 
 // Permission catalog — the custom capabilities a role can grant. Maps to cloudguard/rbac.py capabilities.
 const PERMISSIONS = [
@@ -441,6 +538,8 @@ export default function UserRolesSettings() {
         Define roles and their custom permissions, and see which members hold
         each role. Built-in roles map to CloudGuard's RBAC tiers.
       </p>
+
+      <RbacModelCard />
 
       <div style={{ marginBottom: 24, maxWidth: 320 }}>
         <label

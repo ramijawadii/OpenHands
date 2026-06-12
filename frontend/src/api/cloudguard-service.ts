@@ -46,6 +46,13 @@ export interface CGApproval {
   context?: Record<string, unknown>;
 }
 
+export interface CGRole {
+  role: string;
+  capabilities: string[];
+  max_tier: number;
+  is_default: boolean;
+}
+
 const BASE = "/api/cloudguard";
 
 export const CloudGuardService = {
@@ -69,5 +76,9 @@ export const CloudGuardService = {
   decideApproval: (id: string, approved: boolean, reason = "") =>
     openHands
       .post(`${BASE}/approvals/${id}/decision`, { approved, reason })
+      .then((r) => r.data),
+  orgRoles: () =>
+    openHands
+      .get<{ roles: CGRole[]; tier4_grantable: boolean }>(`${BASE}/org/roles`)
       .then((r) => r.data),
 };
