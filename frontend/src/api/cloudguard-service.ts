@@ -53,6 +53,17 @@ export interface CGRole {
   is_default: boolean;
 }
 
+export interface CGKeyPosture {
+  provider: string;
+  custody: string;
+  per_tenant_keys: boolean;
+  master_kek_configured: boolean;
+  audit_hmac_configured: boolean;
+  audit_integrity: string;
+  tenancy: { enabled: boolean; strict: boolean };
+  tenant_id: string;
+}
+
 export interface CGOverview {
   pending_approvals: number;
   violations: number;
@@ -109,4 +120,6 @@ export const CloudGuardService = {
       .then((r) => r.data),
   overview: () =>
     openHands.get<CGOverview>(`${BASE}/overview`).then((r) => r.data),
+  encryptionKeys: () =>
+    openHands.get<CGKeyPosture>(`${BASE}/encryption/keys`).then((r) => r.data),
 };

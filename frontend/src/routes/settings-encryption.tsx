@@ -7,6 +7,97 @@ import {
   Toggle,
   useDirty,
 } from "#/components/features/settings/settings-kit";
+import { useEncryptionKeys } from "#/hooks/query/use-cloudguard";
+
+// Live key-custody + audit-integrity posture from the backend (cloudguard.tenant_crypto /
+// tenant_audit). Posture only — no key material. Additive; renders only when reachable.
+function KeyPostureCard() {
+  const { data, isError, isLoading } = useEncryptionKeys();
+  if (isLoading || isError || !data) return null;
+  const items: [string, string, boolean][] = [
+    ["Key provider", data.custody, true],
+    [
+      "Per-tenant keys",
+      data.per_tenant_keys ? "Yes" : "No",
+      data.per_tenant_keys,
+    ],
+    [
+      "Master KEK",
+      data.master_kek_configured ? "Configured" : "Not configured",
+      data.master_kek_configured,
+    ],
+    ["Audit integrity", data.audit_integrity, data.audit_hmac_configured],
+    [
+      "Tenancy",
+      data.tenancy.enabled
+        ? data.tenancy.strict
+          ? "Enabled · strict (fail-closed)"
+          : "Enabled"
+        : "Off (single-tenant)",
+      data.tenancy.strict,
+    ],
+  ];
+  return (
+    <div
+      style={{
+        background: S.cardBg,
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 28,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Key custody & integrity
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+        {items.map(([k, v, ok]) => (
+          <div
+            key={k}
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "8px 0",
+              borderBottom: "1px solid var(--cg-border-subtle)",
+            }}
+          >
+            <span style={{ fontSize: 12.5, color: S.textMuted }}>{k}</span>
+            <span
+              style={{
+                fontSize: 12.5,
+                color: ok ? S.textPrimary : S.warning,
+              }}
+            >
+              {v}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -199,6 +290,8 @@ export default function EncryptionSettings() {
         </a>
         .
       </p>
+
+      <KeyPostureCard />
 
       <div style={{ marginBottom: 32 }}>
         <H2>Encryption</H2>
