@@ -1,6 +1,22 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import { ScopeBadge } from "#/components/features/settings/settings-kit";
+import { useAuditLedger } from "#/hooks/query/use-cloudguard";
+import type { CGAuditEntry } from "#/api/cloudguard-service";
+
+const auditToLog = (e: CGAuditEntry): LogEntry => ({
+  ts: e.ts,
+  actor: e.actor || "system",
+  source: "API",
+  action: e.action,
+  resource: e.resource || "—",
+  workspace: "—",
+  cloud: "—",
+  status: ["blocked", "denied"].includes((e.decision || "").toLowerCase())
+    ? "denied"
+    : "ok",
+  ip: "—",
+});
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -292,7 +308,12 @@ export default function AuditLogSettings() {
   const [search, setSearch] = React.useState("");
   const [detail, setDetail] = React.useState<LogEntry | null>(null);
 
-  const shown = LOGS.filter((l) => {
+  // Real per-tenant audit entries; fall back to sample when the endpoint isn't reachable.
+  const ledgerQ = useAuditLedger();
+  const liveLogs = ledgerQ.data?.entries.map(auditToLog);
+  const source = liveLogs && !ledgerQ.isError ? liveLogs : LOGS;
+
+  const shown = source.filter((l) => {
     if (fWorkspace && l.workspace !== fWorkspace) return false;
     if (fActor && l.actor !== fActor) return false;
     if (fSource && l.source !== fSource) return false;
