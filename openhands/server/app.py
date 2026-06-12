@@ -222,4 +222,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard erasure routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard kill switch (W4 — emergency halt state + audit).
+try:
+    from openhands.server.routes.cloudguard_killswitch import (
+        router as cloudguard_killswitch_router,
+    )
+
+    app.include_router(cloudguard_killswitch_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard kill-switch routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)
