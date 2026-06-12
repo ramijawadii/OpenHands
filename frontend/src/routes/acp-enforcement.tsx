@@ -22,8 +22,21 @@ import {
   ConfirmButton,
   Toggle,
 } from "#/components/features/settings/settings-kit";
-import { useApprovals, useDecideApproval } from "#/hooks/query/use-cloudguard";
+import {
+  useApprovals,
+  useDecideApproval,
+  useKillSwitch,
+  useKillActivate,
+  useKillResume,
+} from "#/hooks/query/use-cloudguard";
 import type { CGApproval } from "#/api/cloudguard-service";
+
+// UI scope label → backend kill-switch scope.
+const KILL_SCOPE: Record<string, string> = {
+  "Org-wide": "org",
+  Workspace: "workspace:default",
+  Run: "run:default",
+};
 
 // Map a live approval record → the row shape the queue renders (context is free-form).
 const mapApproval = (a: CGApproval) => ({
@@ -135,6 +148,10 @@ export default function AcpEnforcement() {
   // Live pending approvals; fall back to the mock queue when the endpoint isn't reachable.
   const approvalsQ = useApprovals();
   const decideMut = useDecideApproval();
+  const killQ = useKillSwitch();
+  const killActivate = useKillActivate();
+  const killResume = useKillResume();
+  const killActive = killQ.data?.any_active ?? false;
   const usingRealApprovals = !!approvalsQ.data && !approvalsQ.isError;
   const rows = usingRealApprovals ? approvalsQ.data.map(mapApproval) : queue;
   const onDecide = (id: string, approved: boolean) => {
@@ -441,18 +458,54 @@ export default function AcpEnforcement() {
                   width: 9,
                   height: 9,
                   borderRadius: "50%",
-                  background: A.success,
+                  background: killActive ? A.danger : A.success,
                 }}
               />
               <span
                 style={{ fontSize: 14, color: A.textPrimary, fontWeight: 600 }}
               >
-                AGENT RUNNING
+                {killActive ? "KILL SWITCH ACTIVE" : "AGENT RUNNING"}
               </span>
               <span style={{ fontSize: 12.5, color: A.textMuted }}>
-                — all activity within configured policy.
+                {killActive
+                  ? `— ${killQ.data?.active.map((k) => k.scope).join(", ")} halted.`
+                  : "— all activity within configured policy."}
               </span>
             </div>
+            {killActive && (
+              <div style={{ marginBottom: 14 }}>
+                {killQ.data?.active.map((k) => (
+                  <div
+                    key={k.scope}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 0",
+                      borderBottom: "1px solid var(--cg-border-subtle)",
+                    }}
+                  >
+                    <span style={{ fontSize: 12.5, color: A.textSecondary }}>
+                      <strong>{k.scope}</strong> · {k.reason} —{" "}
+                      <span style={{ color: A.textMuted }}>{k.actor}</span>
+                    </span>
+                    <ConfirmButton
+                      variant="ghost"
+                      label="Resume"
+                      title={`Resume ${k.scope}?`}
+                      body="Lifts the halt for this scope. A reason is required and logged to the audit ledger."
+                      confirmLabel="Resume"
+                      onConfirm={() =>
+                        killResume.mutate({
+                          scope: k.scope,
+                          reason: "resumed from console",
+                        })
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ marginBottom: 12 }}>
               <div
                 style={{ fontSize: 12, color: A.textMuted, marginBottom: 6 }}
@@ -513,7 +566,12 @@ export default function AcpEnforcement() {
                 confirmWord="STOP"
                 disabled={!killReason.trim()}
                 disabledReason="Enter a reason first"
-                onConfirm={() => {}}
+                onConfirm={() =>
+                  killActivate.mutate({
+                    scope: KILL_SCOPE[killScope] ?? "org",
+                    reason: killReason,
+                  })
+                }
               />
               <label
                 style={{

@@ -74,6 +74,13 @@ export interface CGResidency {
   retention_days: number;
 }
 
+export interface CGKill {
+  scope: string;
+  actor: string;
+  reason: string;
+  activated_at: string;
+}
+
 export interface CGSandbox {
   id: string;
   tenant: string;
@@ -178,4 +185,19 @@ export const CloudGuardService = {
     openHands.get<CGLimits>(`${BASE}/workspace/limits`).then((r) => r.data),
   dataResidency: () =>
     openHands.get<CGResidency>(`${BASE}/data-residency`).then((r) => r.data),
+  killSwitchStatus: () =>
+    openHands
+      .get<{
+        active: CGKill[];
+        any_active: boolean;
+      }>(`${BASE}/enforcement/kill-switch`)
+      .then((r) => r.data),
+  killSwitchActivate: (scope: string, reason: string) =>
+    openHands
+      .post(`${BASE}/enforcement/kill-switch/activate`, { scope, reason })
+      .then((r) => r.data),
+  killSwitchResume: (scope: string, reason: string) =>
+    openHands
+      .post(`${BASE}/enforcement/kill-switch/resume`, { scope, reason })
+      .then((r) => r.data),
 };

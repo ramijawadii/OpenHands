@@ -64,6 +64,37 @@ export const useLimits = () =>
     staleTime: 30 * 1000,
   });
 
+export const useKillSwitch = () =>
+  useQuery({
+    queryKey: ["cloudguard", "kill-switch"],
+    queryFn: CloudGuardService.killSwitchStatus,
+    retry: false,
+  });
+
+export const useKillActivate = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ scope, reason }: { scope: string; reason: string }) =>
+      CloudGuardService.killSwitchActivate(scope, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "kill-switch"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useKillResume = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ scope, reason }: { scope: string; reason: string }) =>
+      CloudGuardService.killSwitchResume(scope, reason),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "kill-switch"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
 export const useDataResidency = () =>
   useQuery({
     queryKey: ["cloudguard", "data-residency"],
