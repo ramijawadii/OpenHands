@@ -118,8 +118,14 @@ export default function NetworkSettings() {
   const [maxSession, setMaxSession] = React.useState("12 hours");
   const [idle, setIdle] = React.useState("1 hour");
   const [geo, setGeo] = React.useState("Allow all");
+  const [ztna, setZtna] = React.useState("Cloudflare Access");
+  const [ingress, setIngress] = React.useState("AWS PrivateLink");
+  const [domain, setDomain] = React.useState("cloudguard.sentinel-org.io");
+  const [mtls, setMtls] = React.useState(true);
+  const [waf, setWaf] = React.useState(true);
+  const [cae, setCae] = React.useState(true);
 
-  // Backend persistence (hydrate on load + debounced autosave of every field).
+  // Backend persistence (hydrate on load + debounced autosave of EVERY field).
   const docQ = useSettingsDoc("network");
   const [ready, setReady] = React.useState(false);
   React.useEffect(() => {
@@ -140,6 +146,12 @@ export default function NetworkSettings() {
       if (typeof d.maxSession === "string") setMaxSession(d.maxSession);
       if (typeof d.idle === "string") setIdle(d.idle);
       if (typeof d.geo === "string") setGeo(d.geo);
+      if (typeof d.ztna === "string") setZtna(d.ztna);
+      if (typeof d.ingress === "string") setIngress(d.ingress);
+      if (typeof d.domain === "string") setDomain(d.domain);
+      if (typeof d.mtls === "boolean") setMtls(d.mtls);
+      if (typeof d.waf === "boolean") setWaf(d.waf);
+      if (typeof d.cae === "boolean") setCae(d.cae);
       setReady(true);
     }
   }, [docQ.data, docQ.isError, ready]);
@@ -155,15 +167,15 @@ export default function NetworkSettings() {
       maxSession,
       idle,
       geo,
+      ztna,
+      ingress,
+      domain,
+      mtls,
+      waf,
+      cae,
     },
     ready,
   );
-  const [ztna, setZtna] = React.useState("Cloudflare Access");
-  const [ingress, setIngress] = React.useState("AWS PrivateLink");
-  const [domain, setDomain] = React.useState("cloudguard.sentinel-org.io");
-  const [mtls, setMtls] = React.useState(true);
-  const [waf, setWaf] = React.useState(true);
-  const [cae, setCae] = React.useState(true);
 
   const addCidr = () => {
     if (!newCidr.trim()) return;
