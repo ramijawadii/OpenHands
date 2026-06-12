@@ -31,8 +31,11 @@ import {
   useGuardrails,
   useIsolation,
   useLimits,
+  useOverrides,
+  useCreateOverride,
+  useRevokeOverride,
 } from "#/hooks/query/use-cloudguard";
-import type { CGApproval } from "#/api/cloudguard-service";
+import type { CGApproval, CGOverride } from "#/api/cloudguard-service";
 
 // UI scope label → backend kill-switch scope.
 const KILL_SCOPE: Record<string, string> = {
@@ -160,6 +163,29 @@ export default function AcpEnforcement() {
   const gr = useGuardrails();
   const iso = useIsolation();
   const lim = useLimits();
+
+  const overridesQ = useOverrides();
+  const createOverride = useCreateOverride();
+  const revokeOverride = useRevokeOverride();
+  const overrideRows: React.ReactNode[][] = (overridesQ.data ?? []).map(
+    (o: CGOverride) => [
+      <Hash h={o.id} />,
+      <span>{o.scope}</span>,
+      <Badge text={o.type.replace(/_/g, " ")} tone="info" />,
+      `${o.original} → ${o.overridden}`,
+      o.created_by,
+      o.expires,
+      <Badge text={o.status} tone="ok" />,
+      <span
+        onClick={() => revokeOverride.mutate(o.id)}
+        style={{ color: A.danger, cursor: "pointer", fontSize: 12 }}
+      >
+        Revoke
+      </span>,
+    ],
+  );
+  const overridesSource =
+    overridesQ.data && !overridesQ.isError ? overrideRows : OVERRIDES;
   const livePolicy =
     gr.data && iso.data && lim.data
       ? [
@@ -306,7 +332,18 @@ export default function AcpEnforcement() {
             search={q}
             onSearch={setQ}
             right={
-              <button type="button" style={primaryBtn}>
+              <button
+                type="button"
+                style={primaryBtn}
+                onClick={() =>
+                  createOverride.mutate({
+                    scope: "run:current",
+                    type: "tighten_mode",
+                    original: "autonomous",
+                    overridden: "ask",
+                  })
+                }
+              >
                 + New Override
               </button>
             }
@@ -344,7 +381,7 @@ export default function AcpEnforcement() {
               "Status",
               "",
             ]}
-            rows={OVERRIDES}
+            rows={overridesSource}
           />
         </>
       )}

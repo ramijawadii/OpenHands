@@ -139,6 +139,33 @@ export const useErasureCancel = () => {
   });
 };
 
+export const useOverrides = () =>
+  useQuery({
+    queryKey: ["cloudguard", "overrides"],
+    queryFn: CloudGuardService.overrides,
+    retry: false,
+  });
+
+export const useCreateOverride = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.createOverride,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "overrides"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useRevokeOverride = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => CloudGuardService.revokeOverride(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["cloudguard", "overrides"] }),
+  });
+};
+
 export const useDataResidency = () =>
   useQuery({
     queryKey: ["cloudguard", "data-residency"],

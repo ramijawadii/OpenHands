@@ -90,6 +90,18 @@ export interface CGErasurePending {
   created_at: string;
 }
 
+export interface CGOverride {
+  id: string;
+  scope: string;
+  type: string;
+  original: string;
+  overridden: string;
+  created_by: string;
+  expires: string;
+  status: string;
+  created_at: string;
+}
+
 export interface CGSandbox {
   id: string;
   tenant: string;
@@ -227,4 +239,17 @@ export const CloudGuardService = {
     openHands
       .delete(`${BASE}/data-residency/erasure/${id}`)
       .then((r) => r.data),
+  overrides: () =>
+    openHands
+      .get<{ overrides: CGOverride[] }>(`${BASE}/enforcement/overrides`)
+      .then((r) => r.data.overrides),
+  createOverride: (body: {
+    scope: string;
+    type: string;
+    original: string;
+    overridden: string;
+  }) =>
+    openHands.post(`${BASE}/enforcement/overrides`, body).then((r) => r.data),
+  revokeOverride: (id: string) =>
+    openHands.delete(`${BASE}/enforcement/overrides/${id}`).then((r) => r.data),
 };

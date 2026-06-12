@@ -9,7 +9,7 @@ from __future__ import annotations
 import importlib
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/cloudguard")
 
@@ -110,3 +110,43 @@ async def get_residency(p=Depends(require_cap("read"))):
 @router.put("/data-residency")
 async def put_residency(body: ResidencyBody, p=Depends(require_cap("admin"))):
     return _update(p, "residency", body.dict(), "policy.residency.updated")
+
+
+# ── Per-run overrides (tighten-only) ──────────────────────────────────────────
+class OverrideBody(BaseModel):
+    scope: str = Field(default="", max_length=200)
+    type: str = Field(default="tighten_mode", max_length=40)
+    original: str = Field(default="", max_length=200)
+    overridden: str = Field(default="", max_length=200)
+    expires: str = Field(default="", max_length=100)
+
+
+@router.get("/enforcement/overrides")
+async def list_overrides(p=Depends(require_cap("read"))):
+    ro = _safe("cloudguard.run_overrides")
+    return {"overrides": ro.list_active(p.tenant_id)}
+
+
+@router.post("/enforcement/overrides")
+async def create_override(body: OverrideBody, p=Depends(require_cap("remediate"))):
+    ro = _safe("cloudguard.run_overrides")
+    try:
+        return ro.create(
+            p.tenant_id,
+            scope=body.scope,
+            otype=body.type,
+            original=body.original,
+            overridden=body.overridden,
+            created_by=p.subject,
+            expires=body.expires,
+        )
+    except ro.OverrideError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
+@router.delete("/enforcement/overrides/{oid}")
+async def revoke_override(oid: str, p=Depends(require_cap("remediate"))):
+    ro = _safe("cloudguard.run_overrides")
+    if not ro.revoke(p.tenant_id, oid, p.subject):
+        raise HTTPException(status_code=404, detail="override not found")
+    return {"revoked": True, "id": oid}
