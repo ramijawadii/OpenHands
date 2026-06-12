@@ -53,6 +53,11 @@ export interface CGRole {
   is_default: boolean;
 }
 
+export interface CGGuardrails {
+  autonomy_mode: string;
+  action_gates: Record<string, string>;
+}
+
 export interface CGSandbox {
   id: string;
   tenant: string;
@@ -149,4 +154,6 @@ export const CloudGuardService = {
     openHands
       .get<{ sandboxes: CGSandbox[]; total: number }>(`${BASE}/sandboxes`)
       .then((r) => r.data),
+  guardrails: () =>
+    openHands.get<CGGuardrails>(`${BASE}/guardrails`).then((r) => r.data),
 };

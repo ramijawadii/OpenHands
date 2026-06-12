@@ -194,4 +194,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard sandboxes routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard tenant-policy (guardrails / isolation / limits — read + admin write).
+try:
+    from openhands.server.routes.cloudguard_policy import (
+        router as cloudguard_policy_router,
+    )
+
+    app.include_router(cloudguard_policy_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard policy routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)

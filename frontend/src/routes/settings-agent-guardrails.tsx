@@ -6,6 +6,82 @@ import {
   Toggle,
   useDirty,
 } from "#/components/features/settings/settings-kit";
+import { useGuardrails } from "#/hooks/query/use-cloudguard";
+
+// Live effective guardrails from the backend tenant_policy (the value runs actually seed from).
+// Additive; renders only when reachable.
+function EffectiveGuardrailsCard() {
+  const { data, isError, isLoading } = useGuardrails();
+  if (isLoading || isError || !data) return null;
+  const gates = Object.entries(data.action_gates || {});
+  return (
+    <div
+      style={{
+        background: S.cardBg,
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 28,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Effective guardrails
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          padding: "8px 0",
+          borderBottom: "1px solid var(--cg-border-subtle)",
+        }}
+      >
+        <span style={{ fontSize: 12.5, color: S.textMuted }}>
+          Autonomy mode
+        </span>
+        <span style={{ fontSize: 12.5, color: S.textPrimary }}>
+          {data.autonomy_mode}
+        </span>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+        {gates.map(([k, v]) => (
+          <span
+            key={k}
+            style={{
+              fontSize: 11,
+              color: v === "ask" || v === "deny" ? S.warning : S.textMuted,
+              background: S.badgeBg,
+              borderRadius: 99,
+              padding: "2px 8px",
+            }}
+          >
+            {k} → {v}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -256,6 +332,8 @@ export default function AgentGuardrailsSettings() {
         </a>
         .
       </p>
+
+      <EffectiveGuardrailsCard />
 
       <div style={{ marginBottom: 32 }}>
         <H2 sub="The default for new conversations. Individual runs can be more restrictive, never more permissive.">
