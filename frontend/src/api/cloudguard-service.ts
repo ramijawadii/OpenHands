@@ -153,6 +153,16 @@ export interface CGKeyPosture {
   tenant_id: string;
 }
 
+export interface CGUsage {
+  runs: number;
+  actions: number;
+  violations: number;
+  by_category: Record<string, number>;
+  by_actor: { actor: string; count: number }[];
+  period: string;
+  tenant_id: string;
+}
+
 export interface CGOverview {
   pending_approvals: number;
   violations: number;
@@ -289,4 +299,5 @@ export const CloudGuardService = {
     openHands
       .post(`${BASE}/incidents/${id}/status`, { status })
       .then((r) => r.data),
+  usage: () => openHands.get<CGUsage>(`${BASE}/usage`).then((r) => r.data),
 };

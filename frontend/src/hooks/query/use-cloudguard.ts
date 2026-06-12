@@ -139,6 +139,13 @@ export const useErasureCancel = () => {
   });
 };
 
+export const useUsage = () =>
+  useQuery({
+    queryKey: ["cloudguard", "usage"],
+    queryFn: CloudGuardService.usage,
+    retry: false,
+  });
+
 export const useIncidents = () =>
   useQuery({
     queryKey: ["cloudguard", "incidents"],

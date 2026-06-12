@@ -14,6 +14,83 @@ import {
   ScopeBadge,
   Skeleton,
 } from "#/components/features/settings/settings-kit";
+import { useUsage } from "#/hooks/query/use-cloudguard";
+
+// Live activity aggregates from the backend (audit chain + runs). Additive card.
+function LiveActivityCard() {
+  const { data, isError, isLoading } = useUsage();
+  if (isLoading || isError || !data) return null;
+  const stats: [string, string][] = [
+    ["Runs", String(data.runs)],
+    ["Audit actions", String(data.actions)],
+    ["Violations", String(data.violations)],
+  ];
+  const cats = Object.entries(data.by_category);
+  return (
+    <div
+      style={{
+        background: S.cardBg,
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 24,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Live activity ({data.period})
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 24, marginBottom: 12 }}>
+        {stats.map(([k, v]) => (
+          <div key={k}>
+            <div
+              style={{ fontSize: 20, fontWeight: 500, color: S.textPrimary }}
+            >
+              {v}
+            </div>
+            <div style={{ fontSize: 11.5, color: S.textMuted }}>{k}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {cats.map(([k, n]) => (
+          <span
+            key={k}
+            style={{
+              fontSize: 11,
+              color: S.textMuted,
+              background: "var(--cg-bg-badge)",
+              borderRadius: 99,
+              padding: "2px 8px",
+            }}
+          >
+            {k.replace(/_/g, " ")}: {n}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -436,6 +513,7 @@ export default function UsageSettings() {
             Monitor API, token, and sandbox-compute usage across workspaces.
           </p>
         </div>
+        <LiveActivityCard />
         <div
           style={{
             display: "flex",
