@@ -306,6 +306,15 @@ export const CloudGuardService = {
       .post(`${BASE}/incidents/${id}/status`, { status })
       .then((r) => r.data),
   usage: () => openHands.get<CGUsage>(`${BASE}/usage`).then((r) => r.data),
+  settingsDoc: (tab: string) =>
+    openHands
+      .get<{
+        tab: string;
+        doc: Record<string, unknown>;
+      }>(`${BASE}/settings/${tab}`)
+      .then((r) => r.data.doc),
+  saveSettingsDoc: (tab: string, doc: Record<string, unknown>) =>
+    openHands.put(`${BASE}/settings/${tab}`, doc).then((r) => r.data),
   collection: (seg: string) =>
     openHands
       .get<{ items: CGCollectionItem[] }>(`${BASE}/collections/${seg}`)

@@ -6,7 +6,11 @@ import {
   Toggle,
   useDirty,
 } from "#/components/features/settings/settings-kit";
-import { useGuardrails } from "#/hooks/query/use-cloudguard";
+import {
+  useGuardrails,
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 // Live effective guardrails from the backend tenant_policy (the value runs actually seed from).
 // Additive; renders only when reachable.
@@ -276,13 +280,33 @@ export default function AgentGuardrailsSettings() {
   });
   const [savedAt, setSavedAt] = React.useState(0);
   const { dirty, baseline, reset } = useDirty(cfg);
+  const docQ = useSettingsDoc("guardrails");
+  const saveMut = useSaveSettingsDoc("guardrails");
+  const hydrated = React.useRef(false);
+  // Hydrate the form from the persisted backend doc (every field), then re-baseline so it
+  // isn't shown dirty on load.
+  React.useEffect(() => {
+    const d = docQ.data;
+    if (!hydrated.current && d && Object.keys(d).length) {
+      hydrated.current = true;
+      setCfg((p) => {
+        const merged = { ...p, ...(d as Partial<typeof p>) };
+        reset(merged);
+        return merged;
+      });
+    }
+  }, [docQ.data, reset]);
   const upd = (patch: Partial<typeof cfg>) =>
     setCfg((p) => ({ ...p, ...patch }));
   const setAction = (k: string, v: PolicyState) =>
     setCfg((p) => ({ ...p, actions: { ...p.actions, [k]: v } }));
   const save = () => {
-    reset(cfg);
-    setSavedAt(Date.now());
+    saveMut.mutate(cfg as unknown as Record<string, unknown>, {
+      onSuccess: () => {
+        reset(cfg);
+        setSavedAt(Date.now());
+      },
+    });
   };
 
   return (

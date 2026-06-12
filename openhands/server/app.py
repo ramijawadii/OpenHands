@@ -278,4 +278,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard collections routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard settings documents (full-fidelity per-tab form persistence).
+try:
+    from openhands.server.routes.cloudguard_settings import (
+        router as cloudguard_settings_router,
+    )
+
+    app.include_router(cloudguard_settings_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard settings routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)

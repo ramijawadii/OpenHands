@@ -165,6 +165,27 @@ export const useRemoveCollectionItem = (seg: string) => {
   });
 };
 
+// Full-fidelity per-tab settings persistence. usePersistedForm hydrates a form's state from the
+// backend doc and gives a save() that PUTs the whole state (every field round-trips).
+export const useSettingsDoc = (tab: string) =>
+  useQuery({
+    queryKey: ["cloudguard", "settings", tab],
+    queryFn: () => CloudGuardService.settingsDoc(tab),
+    retry: false,
+  });
+
+export const useSaveSettingsDoc = (tab: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (doc: Record<string, unknown>) =>
+      CloudGuardService.saveSettingsDoc(tab, doc),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "settings", tab] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
 export const useUsage = () =>
   useQuery({
     queryKey: ["cloudguard", "usage"],
