@@ -208,4 +208,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard policy routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard tenant erasure (W4 — two-person crypto-shred + deletion certificate).
+try:
+    from openhands.server.routes.cloudguard_erasure import (
+        router as cloudguard_erasure_router,
+    )
+
+    app.include_router(cloudguard_erasure_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard erasure routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)
