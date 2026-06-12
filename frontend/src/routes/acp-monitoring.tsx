@@ -14,7 +14,10 @@ import {
   Hash,
   mono,
 } from "#/components/features/acp/acp-ui";
-import { useViolations } from "#/hooks/query/use-cloudguard";
+import {
+  useViolations,
+  useMonitoringHealth,
+} from "#/hooks/query/use-cloudguard";
 import type { CGViolation } from "#/api/cloudguard-service";
 
 const vToRow = (v: CGViolation): React.ReactNode[] => [
@@ -193,6 +196,8 @@ export default function AcpMonitoring() {
   const vrows = usingRealViol
     ? violationsQ.data.violations.map(vToRow)
     : VIOLATIONS;
+  const healthQ = useMonitoringHealth();
+  const healthCards = healthQ.data && !healthQ.isError ? healthQ.data : HEALTH;
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
       <Breadcrumb
@@ -222,7 +227,7 @@ export default function AcpMonitoring() {
             gap: 12,
           }}
         >
-          {HEALTH.map((h) => (
+          {healthCards.map((h) => (
             <div
               key={h.sub}
               style={{

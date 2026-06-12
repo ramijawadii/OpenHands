@@ -297,6 +297,21 @@ export const useOverview = () =>
     retry: false,
   });
 
+export const useMonitoringHealth = () =>
+  useQuery({
+    queryKey: ["cloudguard", "monitoring", "health"],
+    queryFn: CloudGuardService.monitoringHealth,
+    retry: false,
+  });
+
+export const useRunDetail = (id: string | null) =>
+  useQuery({
+    queryKey: ["cloudguard", "run", id],
+    queryFn: () => CloudGuardService.runDetail(id as string),
+    enabled: !!id,
+    retry: false,
+  });
+
 export const useViolations = () =>
   useQuery({
     queryKey: ["cloudguard", "monitoring", "violations"],

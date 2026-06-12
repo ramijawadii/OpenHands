@@ -69,3 +69,43 @@ async def runs(p=Depends(require_cap("read"))):
         )
     out.sort(key=lambda x: x["started"] or "", reverse=True)
     return {"runs": out, "total": len(out), "tenant_id": p.tenant_id}
+
+
+@router.get("/runs/{rid}")
+async def run_detail(rid: str, p=Depends(require_cap("read"))):
+    """One run: its mode record + a timeline derived from the audit chain (the events stamped
+    with this conversation id). Trace/tool-call/artifact tabs need richer trajectory data and
+    remain illustrative."""
+    modes = _safe("cloudguard.modes")
+    audit = _safe("cloudguard.tenant_audit")
+    rec = modes.get_record(rid)
+
+    timeline = []
+    try:
+        for e in audit.read(p.tenant_id):
+            if (e.get("extra") or {}).get("conversation_id") != rid:
+                continue
+            timeline.append(
+                {
+                    "seq": e.get("seq"),
+                    "ts": e.get("ts"),
+                    "type": (e.get("extra") or {}).get("category") or "action",
+                    "action": e.get("action"),
+                    "resource": e.get("resource"),
+                    "decision": e.get("decision"),
+                    "actor": e.get("actor") or "system",
+                }
+            )
+    except Exception:  # noqa: BLE001
+        pass
+
+    return {
+        "id": rid,
+        "mode": rec.get("mode"),
+        "status": _status(rec),
+        "started": rec.get("updated_at", ""),
+        "plan_status": rec.get("plan_status"),
+        "timeline": timeline,
+        "activity": len(timeline),
+        "tenant_id": p.tenant_id,
+    }

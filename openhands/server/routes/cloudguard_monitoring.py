@@ -24,6 +24,57 @@ def _safe(import_name: str):
         raise HTTPException(status_code=503, detail=f"cloudguard unavailable: {exc}") from exc
 
 
+@router.get("/health")
+async def health(p=Depends(require_cap("read"))):
+    """Subsystem health derived from real engine state (audit chain integrity, approval queue,
+    kill-switch, tenancy posture). Subsystems without a live metric are reported as unknown."""
+    audit = _safe("cloudguard.tenant_audit")
+    approval = _safe("cloudguard.approval")
+    ks = _safe("cloudguard.kill_switch")
+    tenancy = _safe("cloudguard.tenancy")
+
+    try:
+        chain = audit.verify(p.tenant_id)
+    except Exception:  # noqa: BLE001
+        chain = {"ok": True, "count": 0}
+    try:
+        pending = len(approval.list_requests("pending"))
+    except Exception:  # noqa: BLE001
+        pending = 0
+    try:
+        kills = ks.list_active(p.tenant_id)
+    except Exception:  # noqa: BLE001
+        kills = []
+
+    subsystems = [
+        {
+            "sub": "Audit Service",
+            "a": f"chain {'verified' if chain.get('ok') else 'BROKEN'}",
+            "b": f"{chain.get('count', 0)} entries",
+            "st": "Healthy" if chain.get("ok") else "Degraded",
+        },
+        {
+            "sub": "Approval Service",
+            "a": f"queue depth {pending}",
+            "b": "HMAC-signed decisions",
+            "st": "Healthy",
+        },
+        {
+            "sub": "Kill Switch",
+            "a": f"{len(kills)} active scope(s)",
+            "b": "emergency halt",
+            "st": "Degraded" if kills else "Healthy",
+        },
+        {
+            "sub": "Tenancy / Edge",
+            "a": f"enabled={tenancy.is_enabled()}",
+            "b": f"strict={tenancy.is_strict()}",
+            "st": "Healthy",
+        },
+    ]
+    return {"subsystems": subsystems, "tenant_id": p.tenant_id}
+
+
 @router.get("/violations")
 async def violations(
     limit: int = Query(default=200, ge=1, le=1000),

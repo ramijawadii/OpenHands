@@ -159,6 +159,33 @@ export interface CGCollectionItem {
   [k: string]: unknown;
 }
 
+export interface CGHealthSub {
+  sub: string;
+  a: string;
+  b: string;
+  st: string;
+}
+
+export interface CGRunEvent {
+  seq: number;
+  ts: string;
+  type: string;
+  action: string;
+  resource: string;
+  decision: string;
+  actor: string;
+}
+
+export interface CGRunDetail {
+  id: string;
+  mode: string;
+  status: string;
+  started: string;
+  plan_status: string;
+  timeline: CGRunEvent[];
+  activity: number;
+}
+
 export interface CGUsage {
   runs: number;
   actions: number;
@@ -306,6 +333,12 @@ export const CloudGuardService = {
       .post(`${BASE}/incidents/${id}/status`, { status })
       .then((r) => r.data),
   usage: () => openHands.get<CGUsage>(`${BASE}/usage`).then((r) => r.data),
+  monitoringHealth: () =>
+    openHands
+      .get<{ subsystems: CGHealthSub[] }>(`${BASE}/monitoring/health`)
+      .then((r) => r.data.subsystems),
+  runDetail: (id: string) =>
+    openHands.get<CGRunDetail>(`${BASE}/runs/${id}`).then((r) => r.data),
   settingsDoc: (tab: string) =>
     openHands
       .get<{

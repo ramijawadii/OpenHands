@@ -20,7 +20,7 @@ import {
   primaryBtn,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
-import { useRuns } from "#/hooks/query/use-cloudguard";
+import { useRuns, useRunDetail } from "#/hooks/query/use-cloudguard";
 import type { CGRun } from "#/api/cloudguard-service";
 
 const CHECKPOINTS = [
@@ -317,6 +317,19 @@ export default function AcpRuns() {
   const source =
     runsQ.data && !runsQ.isError ? runsQ.data.runs.map(mapRun) : RUNS;
   const run = source.find((r) => r.id === sel);
+  const detailQ = useRunDetail(sel);
+  const liveTimeline =
+    detailQ.data && !detailQ.isError && detailQ.data.timeline.length
+      ? detailQ.data.timeline.map((e) => ({
+          n: e.seq,
+          t: e.ts,
+          type: e.type,
+          d: `${e.action} ${e.resource || ""}`.trim(),
+          st: e.decision || "completed",
+          dur: "—",
+          rd: "",
+        }))
+      : TIMELINE;
 
   if (!run) {
     const rows = source.filter(
@@ -617,7 +630,7 @@ export default function AcpRuns() {
             "Dur",
             "Risk Δ",
           ]}
-          rows={TIMELINE.map((e) => [
+          rows={liveTimeline.map((e) => [
             String(e.n),
             <span style={{ ...mono, fontSize: 11 }}>{e.t}</span>,
             e.type,
