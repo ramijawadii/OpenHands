@@ -153,6 +153,12 @@ export interface CGKeyPosture {
   tenant_id: string;
 }
 
+export interface CGCollectionItem {
+  id: string;
+  created_at: string;
+  [k: string]: unknown;
+}
+
 export interface CGUsage {
   runs: number;
   actions: number;
@@ -300,4 +306,12 @@ export const CloudGuardService = {
       .post(`${BASE}/incidents/${id}/status`, { status })
       .then((r) => r.data),
   usage: () => openHands.get<CGUsage>(`${BASE}/usage`).then((r) => r.data),
+  collection: (seg: string) =>
+    openHands
+      .get<{ items: CGCollectionItem[] }>(`${BASE}/collections/${seg}`)
+      .then((r) => r.data.items),
+  collectionAdd: (seg: string, body: Record<string, unknown>) =>
+    openHands.post(`${BASE}/collections/${seg}`, body).then((r) => r.data),
+  collectionRemove: (seg: string, id: string) =>
+    openHands.delete(`${BASE}/collections/${seg}/${id}`).then((r) => r.data),
 };

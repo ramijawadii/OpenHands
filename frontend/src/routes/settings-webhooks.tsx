@@ -7,6 +7,129 @@ import {
   ScopeBadge,
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
+import {
+  useCollection,
+  useAddCollectionItem,
+  useRemoveCollectionItem,
+} from "#/hooks/query/use-cloudguard";
+import { Capable } from "#/components/features/acp/capable";
+
+// Live webhook endpoints from the backend collections store. Read for all; add/delete admin.
+function LiveWebhooks() {
+  const listQ = useCollection("webhooks");
+  const addMut = useAddCollectionItem("webhooks");
+  const delMut = useRemoveCollectionItem("webhooks");
+  const [url, setUrl] = React.useState("");
+  if (listQ.isLoading || listQ.isError) return null;
+  const items = listQ.data ?? [];
+  return (
+    <div
+      style={{
+        background: S.cardBg,
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 24,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Configured endpoints
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      {items.length === 0 && (
+        <div style={{ fontSize: 12.5, color: S.textMuted, marginBottom: 10 }}>
+          No webhook endpoints configured yet.
+        </div>
+      )}
+      {items.map((w) => (
+        <div
+          key={w.id}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 0",
+            borderBottom: "1px solid var(--cg-border-subtle)",
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: S.textPrimary }}>
+            {String(w.url ?? w.id)}
+          </span>
+          <Capable cap="admin">
+            <span
+              onClick={() => delMut.mutate(w.id)}
+              style={{ color: S.danger, cursor: "pointer", fontSize: 12 }}
+            >
+              Delete
+            </span>
+          </Capable>
+        </div>
+      ))}
+      <Capable cap="admin">
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://hooks.example.com/cloudguard"
+            style={{
+              flex: 1,
+              height: 32,
+              padding: "0 10px",
+              background: S.inputBg,
+              border: `1px solid ${S.border}`,
+              borderRadius: 6,
+              color: S.textPrimary,
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+          <button
+            type="button"
+            disabled={!url.trim()}
+            onClick={() => {
+              addMut.mutate({ url: url.trim(), events: ["finding.critical"] });
+              setUrl("");
+            }}
+            style={{
+              height: 32,
+              padding: "0 12px",
+              borderRadius: 6,
+              background: "var(--cg-text-primary)",
+              color: "var(--cg-bg-card)",
+              border: "none",
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: url.trim() ? "pointer" : "not-allowed",
+              opacity: url.trim() ? 1 : 0.5,
+            }}
+          >
+            Add endpoint
+          </button>
+        </div>
+      </Capable>
+    </div>
+  );
+}
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -349,6 +472,8 @@ export default function WebhooksSettings() {
         delivery is signed (HMAC-SHA256) with the endpoint secret; verify it
         before trusting the payload.
       </p>
+
+      <LiveWebhooks />
 
       <div
         style={{

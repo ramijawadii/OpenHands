@@ -139,6 +139,32 @@ export const useErasureCancel = () => {
   });
 };
 
+export const useCollection = (seg: string) =>
+  useQuery({
+    queryKey: ["cloudguard", "collection", seg],
+    queryFn: () => CloudGuardService.collection(seg),
+    retry: false,
+  });
+
+export const useAddCollectionItem = (seg: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      CloudGuardService.collectionAdd(seg, body),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["cloudguard", "collection", seg] }),
+  });
+};
+
+export const useRemoveCollectionItem = (seg: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => CloudGuardService.collectionRemove(seg, id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["cloudguard", "collection", seg] }),
+  });
+};
+
 export const useUsage = () =>
   useQuery({
     queryKey: ["cloudguard", "usage"],
