@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
 import {
   ScopeBadge,
   useDialogA11y,
@@ -390,6 +391,22 @@ export default function SandboxComputeSettings() {
   const [allocs, setAllocs] = React.useState<Alloc[]>(INITIAL_ALLOCS);
   const [editing, setEditing] = React.useState<Alloc | null>(null);
   const [draft, setDraft] = React.useState<Alloc | null>(null);
+
+  const _docQ = useSettingsDoc("sandbox-compute");
+  const [_ready, _setReady] = React.useState(false);
+  React.useEffect(() => {
+    if (_ready) return;
+    if (_docQ.isError) {
+      _setReady(true);
+      return;
+    }
+    const d = _docQ.data;
+    if (d) {
+      if (Array.isArray(d.allocs)) setAllocs(d.allocs as Alloc[]);
+      _setReady(true);
+    }
+  }, [_docQ.data, _docQ.isError, _ready]);
+  useAutosaveDoc("sandbox-compute", { allocs }, _ready);
 
   const match = <T extends { workspace: string; role: string }>(r: T) =>
     (!fWorkspace || r.workspace === fWorkspace) && (!fRole || r.role === fRole);

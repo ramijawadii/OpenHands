@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
 import {
   ScopeBadge,
   Toggle,
@@ -161,6 +162,31 @@ export default function NotificationsSettings() {
   const [escalate, setEscalate] = React.useState(true);
   const [escMins, setEscMins] = React.useState("30");
   const [quiet, setQuiet] = React.useState(false);
+
+  const _docQ = useSettingsDoc("notifications");
+  const [_ready, _setReady] = React.useState(false);
+  React.useEffect(() => {
+    if (_ready) return;
+    if (_docQ.isError) {
+      _setReady(true);
+      return;
+    }
+    const d = _docQ.data;
+    if (d) {
+      if (Array.isArray(d.rules)) setRules(d.rules as Rule[]);
+      if (typeof d.digest === "boolean") setDigest(d.digest);
+      if (typeof d.digestDay === "string") setDigestDay(d.digestDay);
+      if (typeof d.escalate === "boolean") setEscalate(d.escalate);
+      if (typeof d.escMins === "string") setEscMins(d.escMins);
+      if (typeof d.quiet === "boolean") setQuiet(d.quiet);
+      _setReady(true);
+    }
+  }, [_docQ.data, _docQ.isError, _ready]);
+  useAutosaveDoc(
+    "notifications",
+    { rules, digest, digestDay, escalate, escMins, quiet },
+    _ready,
+  );
 
   const toggleCh = (ev: string, ch: Channel) =>
     setRules((p) =>

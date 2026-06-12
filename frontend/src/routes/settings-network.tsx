@@ -5,6 +5,7 @@ import {
   ScopeBadge,
   Toggle,
 } from "#/components/features/settings/settings-kit";
+import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -117,6 +118,46 @@ export default function NetworkSettings() {
   const [maxSession, setMaxSession] = React.useState("12 hours");
   const [idle, setIdle] = React.useState("1 hour");
   const [geo, setGeo] = React.useState("Allow all");
+
+  // Backend persistence (hydrate on load + debounced autosave of every field).
+  const docQ = useSettingsDoc("network");
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    if (ready) return;
+    if (docQ.isError) {
+      setReady(true);
+      return;
+    }
+    const d = docQ.data;
+    if (d) {
+      if (Array.isArray(d.cidrs)) setCidrs(d.cidrs as string[]);
+      if (typeof d.enforceAllowlist === "boolean")
+        setEnforceAllowlist(d.enforceAllowlist);
+      if (typeof d.enforceSso === "boolean") setEnforceSso(d.enforceSso);
+      if (typeof d.requireMfa === "boolean") setRequireMfa(d.requireMfa);
+      if (typeof d.deviceTrust === "boolean") setDeviceTrust(d.deviceTrust);
+      if (typeof d.reauth === "boolean") setReauth(d.reauth);
+      if (typeof d.maxSession === "string") setMaxSession(d.maxSession);
+      if (typeof d.idle === "string") setIdle(d.idle);
+      if (typeof d.geo === "string") setGeo(d.geo);
+      setReady(true);
+    }
+  }, [docQ.data, docQ.isError, ready]);
+  useAutosaveDoc(
+    "network",
+    {
+      cidrs,
+      enforceAllowlist,
+      enforceSso,
+      requireMfa,
+      deviceTrust,
+      reauth,
+      maxSession,
+      idle,
+      geo,
+    },
+    ready,
+  );
   const [ztna, setZtna] = React.useState("Cloudflare Access");
   const [ingress, setIngress] = React.useState("AWS PrivateLink");
   const [domain, setDomain] = React.useState("cloudguard.sentinel-org.io");

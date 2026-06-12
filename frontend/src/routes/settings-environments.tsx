@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
 import {
   ConfirmButton,
   ScopeBadge,
@@ -154,6 +155,23 @@ export default function EnvironmentsSettings() {
   const [tags, setTags] = React.useState<TagKey[]>(INITIAL_TAGS);
   const [newEnv, setNewEnv] = React.useState("");
   const [newTag, setNewTag] = React.useState("");
+
+  const _docQ = useSettingsDoc("environments");
+  const [_ready, _setReady] = React.useState(false);
+  React.useEffect(() => {
+    if (_ready) return;
+    if (_docQ.isError) {
+      _setReady(true);
+      return;
+    }
+    const d = _docQ.data;
+    if (d) {
+      if (Array.isArray(d.envs)) setEnvs(d.envs as Env[]);
+      if (Array.isArray(d.tags)) setTags(d.tags as TagKey[]);
+      _setReady(true);
+    }
+  }, [_docQ.data, _docQ.isError, _ready]);
+  useAutosaveDoc("environments", { envs, tags }, _ready);
 
   const addEnv = () => {
     if (!newEnv.trim()) return;

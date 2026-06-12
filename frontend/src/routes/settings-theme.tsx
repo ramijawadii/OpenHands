@@ -6,6 +6,10 @@ import {
   SaveBar,
   useDirty,
 } from "#/components/features/settings/settings-kit";
+import {
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 const TIMEZONES = [
   "UTC",
@@ -263,6 +267,20 @@ export default function ThemeSettings() {
   const [savedAt, setSavedAt] = React.useState(0);
   const { dirty, baseline, reset } = useDirty(data);
   const { set: setAppTheme } = useTheme();
+  const docQ = useSettingsDoc("theme");
+  const saveMut = useSaveSettingsDoc("theme");
+  const hydrated = React.useRef(false);
+  React.useEffect(() => {
+    const d = docQ.data;
+    if (!hydrated.current && d && Object.keys(d).length) {
+      hydrated.current = true;
+      setData((p) => {
+        const merged = { ...p, ...(d as Partial<typeof p>) };
+        reset(merged);
+        return merged;
+      });
+    }
+  }, [docQ.data, reset]);
   const upd = (patch: Partial<ThemeData>) =>
     setData((p) => ({ ...p, ...patch }));
   // Appearance applies live (instant class of setting), so light/dark switches immediately.
@@ -278,9 +296,12 @@ export default function ThemeSettings() {
   };
 
   const handleSave = () => {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
-    reset(data);
-    setSavedAt(Date.now());
+    saveMut.mutate(data as unknown as Record<string, unknown>, {
+      onSuccess: () => {
+        reset(data);
+        setSavedAt(Date.now());
+      },
+    });
   };
 
   return (

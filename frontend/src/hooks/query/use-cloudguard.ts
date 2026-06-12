@@ -1,5 +1,27 @@
+import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CloudGuardService } from "#/api/cloudguard-service";
+
+// Debounced autosave of a settings doc — for tabs with many fields and no explicit Save button.
+// Only fires after `ready` (the form has hydrated from the backend), so it never overwrites the
+// stored doc with defaults on first render.
+export const useAutosaveDoc = (
+  tab: string,
+  doc: Record<string, unknown>,
+  ready: boolean,
+) => {
+  // eslint-disable-next-line @typescript-eslint/no-use-before-define
+  const save = useSaveSettingsDoc(tab);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const json = JSON.stringify(doc);
+  useEffect(() => {
+    if (!ready) return undefined;
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => save.mutate(JSON.parse(json)), 600);
+    return () => clearTimeout(timer.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [json, ready]);
+};
 
 // `/me` bootstrap — cached app-wide by react-query so every <Capable> / session read shares it.
 export const useCloudGuardSession = () => {
