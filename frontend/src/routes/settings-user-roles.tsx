@@ -6,6 +6,7 @@ import {
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
 import { useOrgRoles } from "#/hooks/query/use-cloudguard";
+import { useLiveCollection } from "#/hooks/use-live-collection";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -420,7 +421,13 @@ function PermChecklist({
 
 export default function UserRolesSettings() {
   const [org, setOrg] = React.useState(ORGS[0]);
-  const [roles, setRoles] = React.useState<Role[]>(INITIAL);
+  // Live, backend-persisted (admin) — survives refresh. Custom roles are a collection; create/
+  // edit/delete hit /collections/roles and are audited.
+  const rolesC = useLiveCollection(
+    "roles",
+    INITIAL as unknown as Record<string, unknown>[],
+  );
+  const roles = rolesC.items as unknown as Role[];
   const [expanded, setExpanded] = React.useState<string | null>(null);
   const [modal, setModal] = React.useState<null | "create" | "edit">(null);
   const [editId, setEditId] = React.useState<string | null>(null);
@@ -451,40 +458,29 @@ export default function UserRolesSettings() {
   const save = () => {
     if (!form.name.trim()) return;
     if (modal === "create") {
-      setRoles((p) => [
-        ...p,
-        {
-          id: `r${Date.now()}`,
-          name: form.name.trim(),
-          description: form.description,
-          builtin: false,
-          rbac: form.perms.includes("Org admin")
-            ? "ADMIN"
-            : form.perms.includes("Run scans")
-              ? "OPERATOR"
-              : "END_USER",
-          members: [],
-          perms: form.perms,
-        },
-      ]);
+      rolesC.add({
+        name: form.name.trim(),
+        description: form.description,
+        builtin: false,
+        rbac: form.perms.includes("Org admin")
+          ? "ADMIN"
+          : form.perms.includes("Run scans")
+            ? "OPERATOR"
+            : "END_USER",
+        members: [],
+        perms: form.perms,
+      });
     } else if (modal === "edit" && editId) {
-      setRoles((p) =>
-        p.map((r) =>
-          r.id === editId
-            ? {
-                ...r,
-                name: form.name.trim(),
-                description: form.description,
-                perms: form.perms,
-              }
-            : r,
-        ),
-      );
+      rolesC.update(editId, {
+        name: form.name.trim(),
+        description: form.description,
+        perms: form.perms,
+      });
     }
     setModal(null);
     setEditId(null);
   };
-  const remove = (id: string) => setRoles((p) => p.filter((r) => r.id !== id));
+  const remove = (id: string) => rolesC.remove(id);
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 900 }}>

@@ -354,6 +354,10 @@ export const CloudGuardService = {
       .then((r) => r.data.items),
   collectionAdd: (seg: string, body: Record<string, unknown>) =>
     openHands.post(`${BASE}/collections/${seg}`, body).then((r) => r.data),
+  collectionUpdate: (seg: string, id: string, body: Record<string, unknown>) =>
+    openHands
+      .patch(`${BASE}/collections/${seg}/${id}`, body)
+      .then((r) => r.data),
   collectionRemove: (seg: string, id: string) =>
     openHands.delete(`${BASE}/collections/${seg}/${id}`).then((r) => r.data),
 };

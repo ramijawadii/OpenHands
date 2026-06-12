@@ -5,6 +5,11 @@ import {
   ScopeBadge,
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
+import { useLiveCollection } from "#/hooks/use-live-collection";
+import {
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -449,8 +454,55 @@ export default function OrgSettings() {
   const updOrg = (patch: Partial<typeof org>) =>
     setOrg((p) => ({ ...p, ...patch }));
 
-  const [members, setMembers] = React.useState(MEMBERS);
+  // Members share the canonical, backend-persisted (admin) "members" collection with the
+  // dedicated Members tab — invite/remove survive refresh. Seed (mapped to the rich shape so
+  // both tabs stay compatible) only runs once if the collection is still empty.
+  const deriveInitials = (name: string, email: string) =>
+    (name || email)
+      .split(/[\s@.]+/)
+      .slice(0, 2)
+      .map((s) => s[0]?.toUpperCase() || "")
+      .join("") || "?";
+  const ORG_MEMBER_SEED = MEMBERS.map((m) => ({
+    name: m.name,
+    email: m.email,
+    role: m.role,
+    status: "active",
+    lastActive: m.last,
+    mfa: false,
+    provisioned: "Manual",
+    color: m.color,
+  }));
+  const membersC = useLiveCollection(
+    "members",
+    ORG_MEMBER_SEED as unknown as Record<string, unknown>[],
+  );
+  const members = membersC.items.map((m) => ({
+    ...(m as Record<string, unknown>),
+    id: m.id as string,
+    initials:
+      (m.initials as string) ||
+      deriveInitials(m.name as string, m.email as string),
+    last: (m.last as string) || (m.lastActive as string) || "—",
+  })) as unknown as ((typeof MEMBERS)[number] & { id: string })[];
+
+  // Role-capability matrix persisted as one settings doc (admin console writes it).
   const [roles, setRoles] = React.useState(ROLES_TABLE);
+  const rolesDocQ = useSettingsDoc("org-role-matrix");
+  const rolesSave = useSaveSettingsDoc("org-role-matrix");
+  const rolesHydrated = React.useRef(false);
+  React.useEffect(() => {
+    if (rolesHydrated.current) return;
+    const d = rolesDocQ.data as { roles?: typeof ROLES_TABLE } | undefined;
+    if (rolesDocQ.isError) {
+      rolesHydrated.current = true;
+      return;
+    }
+    if (d) {
+      rolesHydrated.current = true;
+      if (Array.isArray(d.roles) && d.roles.length) setRoles(d.roles);
+    }
+  }, [rolesDocQ.data, rolesDocQ.isError]);
   const [rolesEditable, setRolesEditable] = React.useState(false);
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [invite, setInvite] = React.useState({
@@ -459,33 +511,28 @@ export default function OrgSettings() {
     role: "Analyst",
   });
 
-  const removeMember = (email: string) =>
-    setMembers((p) => p.filter((m) => m.email !== email));
+  const removeMember = (id: string) => membersC.remove(id);
   const toggleCap = (
     idx: number,
     cap: "view" | "scan" | "connectors" | "orgAdmin",
   ) =>
-    setRoles((p) =>
-      p.map((r, i) => (i === idx ? { ...r, [cap]: !r[cap] } : r)),
-    );
+    setRoles((p) => {
+      const next = p.map((r, i) => (i === idx ? { ...r, [cap]: !r[cap] } : r));
+      rolesSave.mutate({ roles: next });
+      return next;
+    });
   const sendInvite = () => {
     if (!invite.email.trim()) return;
-    const initials = (invite.name || invite.email)
-      .split(/[\s@.]+/)
-      .slice(0, 2)
-      .map((s) => s[0]?.toUpperCase() || "")
-      .join("");
-    setMembers((p) => [
-      ...p,
-      {
-        initials: initials || "?",
-        name: invite.name || invite.email,
-        email: invite.email,
-        role: invite.role,
-        last: "Invited",
-        color: S.accent,
-      },
-    ]);
+    membersC.add({
+      name: invite.name || invite.email,
+      email: invite.email,
+      role: invite.role,
+      status: "active",
+      lastActive: "Invited",
+      mfa: false,
+      provisioned: "Manual",
+      color: S.accent,
+    });
     setInvite({ name: "", email: "", role: "Analyst" });
     setInviteOpen(false);
   };
@@ -722,9 +769,9 @@ export default function OrgSettings() {
               </span>
             ))}
           </div>
-          {members.map((m, i) => (
+          {members.map((m: (typeof MEMBERS)[number] & { id: string }, i) => (
             <div
-              key={m.email}
+              key={m.id}
               style={{
                 display: "grid",
                 gridTemplateColumns: "40px 1fr 1fr 120px 80px 32px",
@@ -788,7 +835,7 @@ export default function OrgSettings() {
                 title={`Remove ${m.name}?`}
                 body={`${m.name} will lose access to this organization. You can re-invite them later.`}
                 confirmLabel="Remove member"
-                onConfirm={() => removeMember(m.email)}
+                onConfirm={() => removeMember(m.id)}
               />
             </div>
           ))}

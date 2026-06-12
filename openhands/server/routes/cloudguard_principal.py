@@ -108,11 +108,29 @@ async def require_principal(authorization: "str | None" = Header(default=None)):
     """FastAPI dependency: the trusted Principal for this request (fail-closed under STRICT)."""
     principal = _safe("cloudguard.principal")
     claims, authenticated = _resolve_claims(authorization)
+    # Self-hosted single-tenant console (tenancy OFF, no IdP / unauthenticated): the sole local
+    # user administers their own instance — like a self-hosted GitLab/Grafana root — so the
+    # default HUMAN console role is ADMIN, enabling member/token/role management.
+    #
+    # NOTE: this is the human-at-the-browser identity, deliberately SEPARATE from `CLOUDGUARD_ROLE`
+    # (which pins the autonomous AGENT WORKER to least privilege — operator — and must stay that
+    # way; the agent must never self-elevate). A dedicated `CLOUDGUARD_CONSOLE_ROLE` can pin the
+    # console explicitly (e.g. set to `operator` to lock it down). Under tenancy ON, the verified
+    # token's role governs and unauthenticated callers are rejected by resolve_principal
+    # (fail-closed), so this never widens a real multi-tenant deployment.
+    default_role = None
+    if not authenticated:
+        tenancy = _safe("cloudguard.tenancy")
+        if not tenancy.is_enabled():
+            rbac = _safe("cloudguard.rbac")
+            console_role = os.environ.get("CLOUDGUARD_CONSOLE_ROLE", "").strip()
+            default_role = rbac.coerce_role(console_role) if console_role else rbac.Role.ADMIN
     try:
         return principal.resolve_principal(
             claims,
             authenticated=authenticated,
             client_id=os.environ.get(_CLIENT_ID_ENV) or None,
+            default_role=default_role,
         )
     except principal.PrincipalError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc

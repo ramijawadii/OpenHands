@@ -1,6 +1,7 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
+import { useLiveCollection } from "#/hooks/use-live-collection";
 import {
   ConfirmButton,
   ScopeBadge,
@@ -381,29 +382,33 @@ export default function SecuritySettings() {
   const [modal, setModal] = React.useState<
     null | "password" | "mfa" | "sso" | "token"
   >(null);
-  const [sessions, setSessions] = React.useState(SESSIONS);
-  const [tokens, setTokens] = React.useState(TOKENS);
+  // Live, backend-persisted (admin) — survives refresh. Sessions & personal tokens are
+  // collections; revoke/create hit /collections/{sessions,api-tokens} and are audited.
+  const sessionsC = useLiveCollection("sessions", SESSIONS);
+  const sessions = sessionsC.items as unknown as ((typeof SESSIONS)[number] & {
+    id: string;
+  })[];
+  const tokensC = useLiveCollection("api-tokens", TOKENS);
+  const tokens = tokensC.items as unknown as ((typeof TOKENS)[number] & {
+    id: string;
+  })[];
   const [newTokenName, setNewTokenName] = React.useState("");
   const [createdToken, setCreatedToken] = React.useState("");
 
-  const revokeSession = (ip: string) =>
-    setSessions((p) => p.filter((s) => s.ip !== ip || s.current));
-  const revokeOthers = () => setSessions((p) => p.filter((s) => s.current));
-  const revokeToken = (name: string) =>
-    setTokens((p) => p.filter((t) => t.name !== name));
+  const revokeSession = (id: string) => sessionsC.remove(id);
+  const revokeOthers = () =>
+    sessions.filter((s) => !s.current).forEach((s) => sessionsC.remove(s.id));
+  const revokeToken = (id: string) => tokensC.remove(id);
   const createToken = () => {
     if (!newTokenName.trim()) return;
     const secret = `cg_sk_${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
-    setTokens((p) => [
-      ...p,
-      {
-        name: newTokenName.trim(),
-        masked: `cg_sk_••••••••••••••••${secret.slice(-4)}`,
-        created: "Just now",
-        lastUsed: "never",
-        scopes: ["read:findings"],
-      },
-    ]);
+    tokensC.add({
+      name: newTokenName.trim(),
+      masked: `cg_sk_••••••••••••••••${secret.slice(-4)}`,
+      created: "Just now",
+      lastUsed: "never",
+      scopes: ["read:findings"],
+    });
     setCreatedToken(secret);
     setNewTokenName("");
   };
@@ -640,7 +645,7 @@ export default function SecuritySettings() {
                 {!s.current && (
                   <button
                     type="button"
-                    onClick={() => revokeSession(s.ip)}
+                    onClick={() => revokeSession(s.id)}
                     style={{
                       background: "none",
                       border: "none",
@@ -685,7 +690,7 @@ export default function SecuritySettings() {
         </p>
         {tokens.map((tk) => (
           <div
-            key={tk.name}
+            key={tk.id}
             style={{
               background: S.cardBg,
               border: `1px solid ${S.border}`,
@@ -720,7 +725,7 @@ export default function SecuritySettings() {
               </div>
               <button
                 type="button"
-                onClick={() => revokeToken(tk.name)}
+                onClick={() => revokeToken(tk.id)}
                 style={{
                   height: 28,
                   padding: "0 10px",

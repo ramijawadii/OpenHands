@@ -19,6 +19,12 @@ _MAP = {
     "webhooks": "webhooks",
     "service-accounts": "service_accounts",
     "connectors": "connectors",
+    # Identity / access management (members, invites, personal API tokens, sessions, roles).
+    "members": "members",
+    "member-invites": "member_invites",
+    "api-tokens": "api_tokens",
+    "sessions": "sessions",
+    "roles": "roles",
 }
 
 
@@ -58,6 +64,22 @@ async def create_item(seg: str, body: ItemBody, p=Depends(require_cap("admin")))
         return tc.add(p.tenant_id, _MAP[seg], body.dict(), actor=p.subject)
     except tc.CollectionError as exc:
         raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+
+
+@router.patch("/{seg}/{item_id}")
+async def update_item(
+    seg: str, item_id: str, body: ItemBody, p=Depends(require_cap("admin"))
+):
+    if seg not in _MAP:
+        raise HTTPException(status_code=404, detail="not found")
+    tc = _safe("cloudguard.tenant_collections")
+    try:
+        rec = tc.update(p.tenant_id, _MAP[seg], item_id, body.dict(), actor=p.subject)
+    except tc.CollectionError as exc:
+        raise HTTPException(status_code=exc.status, detail=str(exc)) from exc
+    if rec is None:
+        raise HTTPException(status_code=404, detail="item not found")
+    return rec
 
 
 @router.delete("/{seg}/{item_id}")

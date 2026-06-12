@@ -178,12 +178,26 @@ export const useAddCollectionItem = (seg: string) => {
   });
 };
 
+export const useUpdateCollectionItem = (seg: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
+      CloudGuardService.collectionUpdate(seg, id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "collection", seg] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
 export const useRemoveCollectionItem = (seg: string) => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => CloudGuardService.collectionRemove(seg, id),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["cloudguard", "collection", seg] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "collection", seg] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
   });
 };
 

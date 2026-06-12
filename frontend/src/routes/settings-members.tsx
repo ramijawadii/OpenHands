@@ -7,6 +7,7 @@ import {
   ScopeBadge,
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
+import { useLiveCollection } from "#/hooks/use-live-collection";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -288,8 +289,19 @@ function Modal({
 }
 
 export default function MembersSettings() {
-  const [members, setMembers] = React.useState<Member[]>(INITIAL_MEMBERS);
-  const [invites, setInvites] = React.useState<Invite[]>(INITIAL_INVITES);
+  // Live, backend-persisted (admin) — survives refresh. Members & pending invites are
+  // collections; role change / suspend / offboard / invite / revoke hit /collections/{members,
+  // member-invites} and are audited.
+  const membersC = useLiveCollection(
+    "members",
+    INITIAL_MEMBERS as unknown as Record<string, unknown>[],
+  );
+  const members = membersC.items as unknown as Member[];
+  const invitesC = useLiveCollection(
+    "member-invites",
+    INITIAL_INVITES as unknown as Record<string, unknown>[],
+  );
+  const invites = invitesC.items as unknown as (Invite & { id: string })[];
   const [tab, setTab] = React.useState<"active" | "pending">("active");
   const [search, setSearch] = React.useState("");
   const [fRole, setFRole] = React.useState("");
@@ -309,35 +321,25 @@ export default function MembersSettings() {
     return true;
   });
 
-  const setRole = (id: string, role: string) =>
-    setMembers((p) => p.map((m) => (m.id === id ? { ...m, role } : m)));
-  const toggleSuspend = (id: string) =>
-    setMembers((p) =>
-      p.map((m) =>
-        m.id === id
-          ? { ...m, status: m.status === "active" ? "suspended" : "active" }
-          : m,
-      ),
-    );
-  const offboard = (id: string) =>
-    setMembers((p) => p.filter((m) => m.id !== id));
+  const setRole = (id: string, role: string) => membersC.update(id, { role });
+  const toggleSuspend = (id: string, current: "active" | "suspended") =>
+    membersC.update(id, {
+      status: current === "active" ? "suspended" : "active",
+    });
+  const offboard = (id: string) => membersC.remove(id);
   const sendInvite = () => {
     if (!invite.email.trim()) return;
-    setInvites((p) => [
-      ...p,
-      {
-        email: invite.email.trim(),
-        role: invite.role,
-        invitedBy: "Rami Sentinel",
-        sent: "just now",
-      },
-    ]);
+    invitesC.add({
+      email: invite.email.trim(),
+      role: invite.role,
+      invitedBy: "Rami Sentinel",
+      sent: "just now",
+    });
     setInvite({ email: "", role: "Analyst" });
     setInviteOpen(false);
     setTab("pending");
   };
-  const revokeInvite = (email: string) =>
-    setInvites((p) => p.filter((i) => i.email !== email));
+  const revokeInvite = (id: string) => invitesC.remove(id);
 
   const th = (h: string) => (
     <span
@@ -695,7 +697,7 @@ export default function MembersSettings() {
                   <button
                     type="button"
                     title={m.status === "active" ? "Suspend" : "Reactivate"}
-                    onClick={() => toggleSuspend(m.id)}
+                    onClick={() => toggleSuspend(m.id, m.status)}
                     style={{
                       background: "none",
                       border: "none",
@@ -753,9 +755,9 @@ export default function MembersSettings() {
             {th("Sent")}
             {th("")}
           </div>
-          {invites.map((iv, i) => (
+          {invites.map((iv: Invite & { id: string }, i) => (
             <div
-              key={iv.email}
+              key={iv.id}
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.6fr 120px 1fr 90px 120px",
@@ -803,7 +805,7 @@ export default function MembersSettings() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => revokeInvite(iv.email)}
+                  onClick={() => revokeInvite(iv.id)}
                   style={{
                     background: "none",
                     border: "none",
