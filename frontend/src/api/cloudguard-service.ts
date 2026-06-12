@@ -53,6 +53,14 @@ export interface CGRole {
   is_default: boolean;
 }
 
+export interface CGOverview {
+  pending_approvals: number;
+  violations: number;
+  audit: { ok: boolean; count: number };
+  tenancy: { enabled: boolean; strict: boolean };
+  tenant_id: string;
+}
+
 export interface CGViolation {
   seq: number;
   ts: string;
@@ -99,4 +107,6 @@ export const CloudGuardService = {
         total: number;
       }>(`${BASE}/monitoring/violations`)
       .then((r) => r.data),
+  overview: () =>
+    openHands.get<CGOverview>(`${BASE}/overview`).then((r) => r.data),
 };

@@ -12,6 +12,7 @@ import {
   Sev,
   Hash,
 } from "#/components/features/acp/acp-ui";
+import { useOverview } from "#/hooks/query/use-cloudguard";
 
 const STATS = [
   {
@@ -144,6 +145,24 @@ const RUNS: React.ReactNode[][] = [
 
 export default function AcpOverview() {
   const navigate = useNavigate();
+  const ov = useOverview();
+  const live = ov.data && !ov.isError ? ov.data : null;
+  const stats = STATS.map((s) => {
+    if (!live) return s;
+    if (s.label === "Pending Approvals")
+      return {
+        ...s,
+        value: String(live.pending_approvals),
+        sub: live.pending_approvals === 0 ? "queue clear" : s.sub,
+      };
+    if (s.label === "Violations (24h)")
+      return {
+        ...s,
+        value: String(live.violations),
+        sub: `chain ${live.audit.ok ? "✓" : "✗"} · ${live.audit.count} entries`,
+      };
+    return s;
+  });
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
       <Breadcrumb
@@ -184,7 +203,7 @@ export default function AcpOverview() {
           marginBottom: 18,
         }}
       >
-        {STATS.map((s) => (
+        {stats.map((s) => (
           <div
             key={s.label}
             onClick={() => navigate(s.to)}

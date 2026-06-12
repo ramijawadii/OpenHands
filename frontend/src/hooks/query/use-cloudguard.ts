@@ -40,6 +40,13 @@ export const useAuditVerify = () =>
     retry: false,
   });
 
+export const useOverview = () =>
+  useQuery({
+    queryKey: ["cloudguard", "overview"],
+    queryFn: CloudGuardService.overview,
+    retry: false,
+  });
+
 export const useViolations = () =>
   useQuery({
     queryKey: ["cloudguard", "monitoring", "violations"],
