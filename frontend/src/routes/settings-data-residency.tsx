@@ -10,6 +10,8 @@ import {
   useErasureRequest,
   useErasureApprove,
   useErasureCancel,
+  useSettingsDoc,
+  useSaveSettingsDoc,
 } from "#/hooks/query/use-cloudguard";
 import { Capable } from "#/components/features/acp/capable";
 
@@ -414,6 +416,18 @@ export default function DataResidencySettings() {
   const upd = (patch: Partial<typeof cfg>) =>
     setCfg((p) => ({ ...p, ...patch }));
 
+  const docQ = useSettingsDoc("data-residency");
+  const saveMut = useSaveSettingsDoc("data-residency");
+  const hydrated = React.useRef(false);
+  React.useEffect(() => {
+    const d = docQ.data;
+    if (!hydrated.current && d && Object.keys(d).length) {
+      hydrated.current = true;
+      setCfg((p) => ({ ...p, ...(d as Partial<typeof p>) }));
+      setSnapshot((p) => ({ ...p, ...(d as Partial<typeof p>) }));
+    }
+  }, [docQ.data]);
+
   const startEdit = () => {
     setSnapshot(cfg);
     setEditing(true);
@@ -422,7 +436,11 @@ export default function DataResidencySettings() {
     setCfg(snapshot);
     setEditing(false);
   };
-  const save = () => setEditing(false);
+  const save = () => {
+    saveMut.mutate(cfg as unknown as Record<string, unknown>, {
+      onSuccess: () => setEditing(false),
+    });
+  };
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 880 }}>

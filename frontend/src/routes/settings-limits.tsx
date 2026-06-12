@@ -6,7 +6,11 @@ import {
   SaveBar,
   useDirty,
 } from "#/components/features/settings/settings-kit";
-import { useLimits } from "#/hooks/query/use-cloudguard";
+import {
+  useLimits,
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 // Live effective rate/spend limits from the backend tenant_policy. Additive read card.
 function EffectiveLimitsCard() {
@@ -404,6 +408,20 @@ export default function LimitsSettings() {
     setData((p) => ({ ...p, ...patch }));
 
   const [custom, setCustom] = React.useState<CustomLimit[]>(INITIAL_CUSTOM);
+  const docQ = useSettingsDoc("limits");
+  const saveMut = useSaveSettingsDoc("limits");
+  const hydrated = React.useRef(false);
+  React.useEffect(() => {
+    const d = docQ.data;
+    if (!hydrated.current && d && Object.keys(d).length) {
+      hydrated.current = true;
+      if (d.data) {
+        setData(d.data as LimitsData);
+        reset(d.data as LimitsData);
+      }
+      if (Array.isArray(d.custom)) setCustom(d.custom as CustomLimit[]);
+    }
+  }, [docQ.data, reset]);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [form, setForm] = React.useState<{
     name: string;
@@ -423,9 +441,12 @@ export default function LimitsSettings() {
   const isRuntime = form.type === "Sandbox runtime";
 
   const handleSave = () => {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
-    reset(data);
-    setSavedAt(Date.now());
+    saveMut.mutate({ data, custom } as unknown as Record<string, unknown>, {
+      onSuccess: () => {
+        reset(data);
+        setSavedAt(Date.now());
+      },
+    });
   };
   const createLimit = () => {
     if (!form.name.trim()) return;

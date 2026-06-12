@@ -6,6 +6,10 @@ import {
   useDirty,
   useDialogA11y,
 } from "#/components/features/settings/settings-kit";
+import {
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -502,10 +506,29 @@ export default function WorkspaceSettings() {
   const upd = (patch: Partial<WorkspaceData>) =>
     setData((p) => ({ ...p, ...patch }));
 
+  const docQ = useSettingsDoc("workspace");
+  const saveMut = useSaveSettingsDoc("workspace");
+  const hydrated = React.useRef(false);
+  React.useEffect(() => {
+    const d = docQ.data;
+    if (!hydrated.current && d && Object.keys(d).length) {
+      hydrated.current = true;
+      if (d.data) {
+        setData(d.data as WorkspaceData);
+        reset(d.data as WorkspaceData);
+      }
+      if (Array.isArray(d.workspaces))
+        setWorkspaces(d.workspaces as WorkspaceRow[]);
+    }
+  }, [docQ.data, reset]);
+
   const handleSave = () => {
-    localStorage.setItem(LS_KEY, JSON.stringify(data));
-    reset(data);
-    setSavedAt(Date.now());
+    saveMut.mutate({ data, workspaces } as unknown as Record<string, unknown>, {
+      onSuccess: () => {
+        reset(data);
+        setSavedAt(Date.now());
+      },
+    });
   };
 
   const createWorkspace = () => {

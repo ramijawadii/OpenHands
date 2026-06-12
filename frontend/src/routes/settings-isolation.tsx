@@ -6,7 +6,11 @@ import {
   Toggle,
   useDirty,
 } from "#/components/features/settings/settings-kit";
-import { useIsolation } from "#/hooks/query/use-cloudguard";
+import {
+  useIsolation,
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 // Live effective isolation policy from the backend tenant_policy. Additive read card.
 function EffectiveIsolationCard() {
@@ -215,6 +219,20 @@ export default function IsolationSettings() {
   const [newDest, setNewDest] = React.useState("");
   const [savedAt, setSavedAt] = React.useState(0);
   const { dirty, baseline, reset } = useDirty(cfg);
+  const docQ = useSettingsDoc("isolation");
+  const saveMut = useSaveSettingsDoc("isolation");
+  const hydrated = React.useRef(false);
+  React.useEffect(() => {
+    const d = docQ.data;
+    if (!hydrated.current && d && Object.keys(d).length) {
+      hydrated.current = true;
+      if (d.cfg) {
+        setCfg(d.cfg as typeof cfg);
+        reset(d.cfg as typeof cfg);
+      }
+      if (Array.isArray(d.allow)) setAllow(d.allow as string[]);
+    }
+  }, [docQ.data, reset]);
   const upd = (patch: Partial<typeof cfg>) =>
     setCfg((p) => ({ ...p, ...patch }));
   const addDest = () => {
@@ -585,8 +603,12 @@ export default function IsolationSettings() {
         dirty={dirty}
         savedAt={savedAt}
         onSave={() => {
-          reset(cfg);
-          setSavedAt(Date.now());
+          saveMut.mutate({ cfg, allow } as unknown as Record<string, unknown>, {
+            onSuccess: () => {
+              reset(cfg);
+              setSavedAt(Date.now());
+            },
+          });
         }}
         onDiscard={() => setCfg(baseline)}
       />
