@@ -6,6 +6,67 @@ import {
   Toggle,
   useDirty,
 } from "#/components/features/settings/settings-kit";
+import { useIsolation } from "#/hooks/query/use-cloudguard";
+
+// Live effective isolation policy from the backend tenant_policy. Additive read card.
+function EffectiveIsolationCard() {
+  const { data, isError, isLoading } = useIsolation();
+  if (isLoading || isError || !data) return null;
+  const rows: [string, string][] = [
+    ["Isolation tier", data.tier],
+    ["Egress policy", data.egress],
+  ];
+  return (
+    <div
+      style={{
+        background: S.cardBg,
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 28,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Effective isolation
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      {rows.map(([k, v]) => (
+        <div
+          key={k}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "8px 0",
+            borderBottom: "1px solid var(--cg-border-subtle)",
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: S.textMuted }}>{k}</span>
+          <span style={{ fontSize: 12.5, color: S.textPrimary }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -202,6 +263,8 @@ export default function IsolationSettings() {
         </a>
         .
       </p>
+
+      <EffectiveIsolationCard />
 
       <div style={{ marginBottom: 32 }}>
         <H2 sub="Your data-separation guarantee. Higher tiers reduce shared surface — T4 is leak-proof by construction.">

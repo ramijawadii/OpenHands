@@ -58,6 +58,17 @@ export interface CGGuardrails {
   action_gates: Record<string, string>;
 }
 
+export interface CGIsolation {
+  tier: string;
+  egress: string;
+}
+
+export interface CGLimits {
+  tokens_per_run: number;
+  tools_per_run: number;
+  monthly_spend_cap_usd: number;
+}
+
 export interface CGSandbox {
   id: string;
   tenant: string;
@@ -156,4 +167,8 @@ export const CloudGuardService = {
       .then((r) => r.data),
   guardrails: () =>
     openHands.get<CGGuardrails>(`${BASE}/guardrails`).then((r) => r.data),
+  isolation: () =>
+    openHands.get<CGIsolation>(`${BASE}/isolation`).then((r) => r.data),
+  limits: () =>
+    openHands.get<CGLimits>(`${BASE}/workspace/limits`).then((r) => r.data),
 };

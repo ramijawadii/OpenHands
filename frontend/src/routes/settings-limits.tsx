@@ -6,6 +6,68 @@ import {
   SaveBar,
   useDirty,
 } from "#/components/features/settings/settings-kit";
+import { useLimits } from "#/hooks/query/use-cloudguard";
+
+// Live effective rate/spend limits from the backend tenant_policy. Additive read card.
+function EffectiveLimitsCard() {
+  const { data, isError, isLoading } = useLimits();
+  if (isLoading || isError || !data) return null;
+  const rows: [string, string][] = [
+    ["Tokens / run", data.tokens_per_run.toLocaleString()],
+    ["Tool calls / run", String(data.tools_per_run)],
+    ["Monthly spend cap", `$${data.monthly_spend_cap_usd.toLocaleString()}`],
+  ];
+  return (
+    <div
+      style={{
+        background: "var(--cg-bg-card)",
+        border: `1px solid ${S.border}`,
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 28,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          marginBottom: 10,
+        }}
+      >
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          Effective limits
+        </span>
+        <span
+          style={{
+            fontSize: 10.5,
+            fontWeight: 600,
+            color: S.success,
+            background: "rgba(76,175,125,0.15)",
+            borderRadius: 99,
+            padding: "2px 7px",
+          }}
+        >
+          live
+        </span>
+      </div>
+      {rows.map(([k, v]) => (
+        <div
+          key={k}
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            padding: "8px 0",
+            borderBottom: "1px solid var(--cg-border-subtle)",
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: S.textMuted }}>{k}</span>
+          <span style={{ fontSize: 12.5, color: S.textPrimary }}>{v}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 interface CustomLimit {
   id: string;
@@ -424,6 +486,8 @@ export default function LimitsSettings() {
       >
         Configure rate limits, quotas, and thresholds for your organization.
       </p>
+
+      <EffectiveLimitsCard />
 
       <Section title="API Rate Limits">
         <SliderRow

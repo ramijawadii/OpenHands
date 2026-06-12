@@ -48,6 +48,22 @@ export const useGuardrails = () =>
     staleTime: 30 * 1000,
   });
 
+export const useIsolation = () =>
+  useQuery({
+    queryKey: ["cloudguard", "isolation"],
+    queryFn: CloudGuardService.isolation,
+    retry: false,
+    staleTime: 30 * 1000,
+  });
+
+export const useLimits = () =>
+  useQuery({
+    queryKey: ["cloudguard", "limits"],
+    queryFn: CloudGuardService.limits,
+    retry: false,
+    staleTime: 30 * 1000,
+  });
+
 export const useSandboxes = () =>
   useQuery({
     queryKey: ["cloudguard", "sandboxes"],
