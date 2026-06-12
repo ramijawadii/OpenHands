@@ -12,7 +12,7 @@ import {
   ConfirmButton,
   ScopeBadge,
 } from "#/components/features/settings/settings-kit";
-import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
+import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -139,24 +139,6 @@ export default function ComplianceSettings() {
   const [siemDest, setSiemDest] = React.useState("Splunk HEC");
   const [siemFmt, setSiemFmt] = React.useState("JSON");
 
-  const _docQ = useSettingsDoc("compliance");
-  const [_ready, _setReady] = React.useState(false);
-  React.useEffect(() => {
-    if (_ready) return;
-    if (_docQ.isError) {
-      _setReady(true);
-      return;
-    }
-    const d = _docQ.data;
-    if (d) {
-      if (typeof d.subSubscribed === "boolean")
-        setSubSubscribed(d.subSubscribed);
-      if (typeof d.siemDest === "string") setSiemDest(d.siemDest);
-      if (typeof d.siemFmt === "string") setSiemFmt(d.siemFmt);
-      _setReady(true);
-    }
-  }, [_docQ.data, _docQ.isError, _ready]);
-  useAutosaveDoc("compliance", { subSubscribed, siemDest, siemFmt }, _ready);
   const cSelect: React.CSSProperties = {
     width: "100%",
     height: 34,
@@ -667,6 +649,17 @@ export default function ComplianceSettings() {
           />
         </div>
       </div>
+
+      <SettingsSaveBar
+        tab="compliance"
+        doc={{ subSubscribed, siemDest, siemFmt }}
+        onLoad={(d) => {
+          if (typeof d.subSubscribed === "boolean")
+            setSubSubscribed(d.subSubscribed);
+          if (typeof d.siemDest === "string") setSiemDest(d.siemDest);
+          if (typeof d.siemFmt === "string") setSiemFmt(d.siemFmt);
+        }}
+      />
     </div>
   );
 }

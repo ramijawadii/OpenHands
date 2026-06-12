@@ -1,6 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
-import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
+import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 import {
   ConfirmButton,
   ScopeBadge,
@@ -386,24 +386,6 @@ export default function SecuritySettings() {
   const [newTokenName, setNewTokenName] = React.useState("");
   const [createdToken, setCreatedToken] = React.useState("");
 
-  // Persist the session-policy config (reauth + timeout). Live sessions/tokens need a real
-  // session/token backend (IdP) — left as runtime state for now.
-  const _docQ = useSettingsDoc("security");
-  const [_ready, _setReady] = React.useState(false);
-  React.useEffect(() => {
-    if (_ready) return;
-    if (_docQ.isError) {
-      _setReady(true);
-      return;
-    }
-    const d = _docQ.data;
-    if (d) {
-      if (typeof d.reauth === "boolean") setReauth(d.reauth);
-      if (typeof d.timeout === "string") setTimeout_(d.timeout);
-      _setReady(true);
-    }
-  }, [_docQ.data, _docQ.isError, _ready]);
-  useAutosaveDoc("security", { reauth, timeout }, _ready);
   const revokeSession = (ip: string) =>
     setSessions((p) => p.filter((s) => s.ip !== ip || s.current));
   const revokeOthers = () => setSessions((p) => p.filter((s) => s.current));
@@ -1124,6 +1106,15 @@ export default function SecuritySettings() {
           )}
         </Modal>
       )}
+
+      <SettingsSaveBar
+        tab="security"
+        doc={{ reauth, timeout }}
+        onLoad={(d) => {
+          if (typeof d.reauth === "boolean") setReauth(d.reauth);
+          if (typeof d.timeout === "string") setTimeout_(d.timeout);
+        }}
+      />
     </div>
   );
 }

@@ -5,7 +5,7 @@ import {
   ScopeBadge,
   Toggle,
 } from "#/components/features/settings/settings-kit";
-import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
+import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -124,58 +124,6 @@ export default function NetworkSettings() {
   const [mtls, setMtls] = React.useState(true);
   const [waf, setWaf] = React.useState(true);
   const [cae, setCae] = React.useState(true);
-
-  // Backend persistence (hydrate on load + debounced autosave of EVERY field).
-  const docQ = useSettingsDoc("network");
-  const [ready, setReady] = React.useState(false);
-  React.useEffect(() => {
-    if (ready) return;
-    if (docQ.isError) {
-      setReady(true);
-      return;
-    }
-    const d = docQ.data;
-    if (d) {
-      if (Array.isArray(d.cidrs)) setCidrs(d.cidrs as string[]);
-      if (typeof d.enforceAllowlist === "boolean")
-        setEnforceAllowlist(d.enforceAllowlist);
-      if (typeof d.enforceSso === "boolean") setEnforceSso(d.enforceSso);
-      if (typeof d.requireMfa === "boolean") setRequireMfa(d.requireMfa);
-      if (typeof d.deviceTrust === "boolean") setDeviceTrust(d.deviceTrust);
-      if (typeof d.reauth === "boolean") setReauth(d.reauth);
-      if (typeof d.maxSession === "string") setMaxSession(d.maxSession);
-      if (typeof d.idle === "string") setIdle(d.idle);
-      if (typeof d.geo === "string") setGeo(d.geo);
-      if (typeof d.ztna === "string") setZtna(d.ztna);
-      if (typeof d.ingress === "string") setIngress(d.ingress);
-      if (typeof d.domain === "string") setDomain(d.domain);
-      if (typeof d.mtls === "boolean") setMtls(d.mtls);
-      if (typeof d.waf === "boolean") setWaf(d.waf);
-      if (typeof d.cae === "boolean") setCae(d.cae);
-      setReady(true);
-    }
-  }, [docQ.data, docQ.isError, ready]);
-  useAutosaveDoc(
-    "network",
-    {
-      cidrs,
-      enforceAllowlist,
-      enforceSso,
-      requireMfa,
-      deviceTrust,
-      reauth,
-      maxSession,
-      idle,
-      geo,
-      ztna,
-      ingress,
-      domain,
-      mtls,
-      waf,
-      cae,
-    },
-    ready,
-  );
 
   const addCidr = () => {
     if (!newCidr.trim()) return;
@@ -545,6 +493,45 @@ export default function NetworkSettings() {
           </span>
         </Row>
       </div>
+
+      <SettingsSaveBar
+        tab="network"
+        doc={{
+          cidrs,
+          enforceAllowlist,
+          enforceSso,
+          requireMfa,
+          deviceTrust,
+          reauth,
+          maxSession,
+          idle,
+          geo,
+          ztna,
+          ingress,
+          domain,
+          mtls,
+          waf,
+          cae,
+        }}
+        onLoad={(d) => {
+          if (Array.isArray(d.cidrs)) setCidrs(d.cidrs as string[]);
+          if (typeof d.enforceAllowlist === "boolean")
+            setEnforceAllowlist(d.enforceAllowlist);
+          if (typeof d.enforceSso === "boolean") setEnforceSso(d.enforceSso);
+          if (typeof d.requireMfa === "boolean") setRequireMfa(d.requireMfa);
+          if (typeof d.deviceTrust === "boolean") setDeviceTrust(d.deviceTrust);
+          if (typeof d.reauth === "boolean") setReauth(d.reauth);
+          if (typeof d.maxSession === "string") setMaxSession(d.maxSession);
+          if (typeof d.idle === "string") setIdle(d.idle);
+          if (typeof d.geo === "string") setGeo(d.geo);
+          if (typeof d.ztna === "string") setZtna(d.ztna);
+          if (typeof d.ingress === "string") setIngress(d.ingress);
+          if (typeof d.domain === "string") setDomain(d.domain);
+          if (typeof d.mtls === "boolean") setMtls(d.mtls);
+          if (typeof d.waf === "boolean") setWaf(d.waf);
+          if (typeof d.cae === "boolean") setCae(d.cae);
+        }}
+      />
     </div>
   );
 }

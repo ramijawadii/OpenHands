@@ -1,6 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
-import { useSettingsDoc, useAutosaveDoc } from "#/hooks/query/use-cloudguard";
+import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 import {
   ConfirmButton,
   ScopeBadge,
@@ -123,21 +123,6 @@ const CATEGORIES = [
 
 export default function IntegrationsSettings() {
   const [items, setItems] = React.useState<Integ[]>(INITIAL);
-  const _docQ = useSettingsDoc("integrations");
-  const [_ready, _setReady] = React.useState(false);
-  React.useEffect(() => {
-    if (_ready) return;
-    if (_docQ.isError) {
-      _setReady(true);
-      return;
-    }
-    const d = _docQ.data;
-    if (d) {
-      if (Array.isArray(d.items)) setItems(d.items as Integ[]);
-      _setReady(true);
-    }
-  }, [_docQ.data, _docQ.isError, _ready]);
-  useAutosaveDoc("integrations", { items }, _ready);
   const toast = useUndoToast();
   const connect = (id: string) => {
     setItems((p) =>
@@ -365,6 +350,14 @@ export default function IntegrationsSettings() {
         </div>
       ))}
       {toast.node}
+
+      <SettingsSaveBar
+        tab="integrations"
+        doc={{ items }}
+        onLoad={(d) => {
+          if (Array.isArray(d.items)) setItems(d.items as Integ[]);
+        }}
+      />
     </div>
   );
 }
