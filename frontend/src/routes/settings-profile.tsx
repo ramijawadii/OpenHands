@@ -33,6 +33,7 @@ interface ProfileData {
   displayName: string;
   role: string;
   instructions: string;
+  avatar?: string; // base64 data URL so it persists to the backend doc + survives refresh
 }
 
 function load(): ProfileData {
@@ -146,16 +147,25 @@ export default function ProfileSettings() {
   const [data, setData] = React.useState<ProfileData>(load);
   const [savedAt, setSavedAt] = React.useState(0);
   const { dirty, baseline, reset } = useDirty(data);
-  const [avatarUrl, setAvatarUrl] = React.useState<string>("");
   const fileRef = React.useRef<HTMLInputElement>(null);
-
-  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) setAvatarUrl(URL.createObjectURL(f));
-  };
+  const avatarUrl = data.avatar || "";
 
   const update = (patch: Partial<ProfileData>) =>
     setData((prev) => ({ ...prev, ...patch }));
+
+  const onAvatarPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 1_500_000) {
+      // keep the doc small; base64 inflates ~33%
+      // eslint-disable-next-line no-alert
+      alert("Please choose an image under 1.5 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => update({ avatar: String(reader.result) });
+    reader.readAsDataURL(f);
+  };
 
   const docQ = useSettingsDoc("profile");
   const saveMut = useSaveSettingsDoc("profile");
@@ -267,7 +277,7 @@ export default function ProfileSettings() {
               </button>
               <button
                 type="button"
-                onClick={() => setAvatarUrl("")}
+                onClick={() => update({ avatar: "" })}
                 style={{
                   background: "none",
                   border: "none",

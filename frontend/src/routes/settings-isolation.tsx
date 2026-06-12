@@ -218,7 +218,8 @@ export default function IsolationSettings() {
   ]);
   const [newDest, setNewDest] = React.useState("");
   const [savedAt, setSavedAt] = React.useState(0);
-  const { dirty, baseline, reset } = useDirty(cfg);
+  // Track BOTH the config and the egress allowlist so allowlist edits trigger the Save button.
+  const { dirty, baseline, reset } = useDirty({ cfg, allow });
   const docQ = useSettingsDoc("isolation");
   const saveMut = useSaveSettingsDoc("isolation");
   const hydrated = React.useRef(false);
@@ -226,12 +227,13 @@ export default function IsolationSettings() {
     const d = docQ.data;
     if (!hydrated.current && d && Object.keys(d).length) {
       hydrated.current = true;
-      if (d.cfg) {
-        setCfg(d.cfg as typeof cfg);
-        reset(d.cfg as typeof cfg);
-      }
-      if (Array.isArray(d.allow)) setAllow(d.allow as string[]);
+      const nextCfg = (d.cfg as typeof cfg) ?? cfg;
+      const nextAllow = Array.isArray(d.allow) ? (d.allow as string[]) : allow;
+      if (d.cfg) setCfg(nextCfg);
+      if (Array.isArray(d.allow)) setAllow(nextAllow);
+      reset({ cfg: nextCfg, allow: nextAllow });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docQ.data, reset]);
   const upd = (patch: Partial<typeof cfg>) =>
     setCfg((p) => ({ ...p, ...patch }));
@@ -605,12 +607,15 @@ export default function IsolationSettings() {
         onSave={() => {
           saveMut.mutate({ cfg, allow } as unknown as Record<string, unknown>, {
             onSuccess: () => {
-              reset(cfg);
+              reset({ cfg, allow });
               setSavedAt(Date.now());
             },
           });
         }}
-        onDiscard={() => setCfg(baseline)}
+        onDiscard={() => {
+          setCfg(baseline.cfg);
+          setAllow(baseline.allow);
+        }}
       />
     </div>
   );

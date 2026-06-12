@@ -7,8 +7,17 @@
   outline: none;
   box-shadow:
     0 0 0 2px var(--cg-bg-page),
-    0 0 0 4px var(--cg-accent);
+    0 0 0 4px var(--cg-text-primary);
   border-radius: 6px;
+}
+
+/* Active/focused text fields & hover: white border, never the blue accent. */
+.cg-settings-root :is(input, select, textarea):focus {
+  border-color: var(--cg-text-primary) !important;
+  outline: none;
+}
+.cg-settings-root :is(input, select, textarea):hover {
+  border-color: var(--cg-border-strong) !important;
 }
 
 /* ── Micro-interactions ───────────────────────────────────────────────────── */

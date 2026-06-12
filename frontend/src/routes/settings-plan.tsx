@@ -4,6 +4,7 @@ import {
   ScopeBadge,
   Toggle,
 } from "#/components/features/settings/settings-kit";
+import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -229,6 +230,7 @@ export default function PlanSettings() {
             border: `1px solid ${S.border}`,
             borderRadius: 10,
             overflow: "hidden",
+            background: S.cardBg,
           }}
         >
           {ENTITLEMENTS.map((g, gi) => (
@@ -399,6 +401,15 @@ export default function PlanSettings() {
           ))}
         </div>
       </div>
+
+      <SettingsSaveBar
+        tab="plan"
+        doc={{ addons, flags }}
+        onLoad={(d) => {
+          if (Array.isArray(d.addons)) setAddons(d.addons as AddOn[]);
+          if (Array.isArray(d.flags)) setFlags(d.flags as Flag[]);
+        }}
+      />
     </div>
   );
 }

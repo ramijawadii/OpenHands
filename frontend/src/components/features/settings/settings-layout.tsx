@@ -213,7 +213,8 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           <NavLink
             to="/"
             style={{
-              display: "inline-flex",
+              display: "flex",
+              width: "fit-content",
               alignItems: "center",
               gap: 6,
               fontSize: 12,
@@ -226,6 +227,7 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           </NavLink>
           <span
             style={{
+              display: "block",
               fontSize: 17,
               color: S.textPrimary,
               fontWeight: 600,

@@ -1,6 +1,10 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
 import { ScopeBadge } from "#/components/features/settings/settings-kit";
+import {
+  useSettingsDoc,
+  useSaveSettingsDoc,
+} from "#/hooks/query/use-cloudguard";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -126,8 +130,60 @@ function KV({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   );
 }
 
+const DEFAULT_PAY = {
+  method: "Visa ···· 4242 (exp 08/28)",
+  email: "billing@sentinel-org.io",
+  po: "PO-2026-SENTINEL-CG",
+  tax: "FR 12 345 678 901",
+  address: "100 Market St, San Francisco, CA",
+};
+
 export default function BillingSettings() {
   const nextInvoice = USAGE_COST.reduce((s, r) => s + r.cost, 0) + 3000; // base + overage/add-ons
+
+  // Payment & billing details persisted to the `billing` settings doc (admin console).
+  const [pay, setPay] = React.useState(DEFAULT_PAY);
+  const payDocQ = useSettingsDoc("billing");
+  const paySave = useSaveSettingsDoc("billing");
+  const payHydrated = React.useRef(false);
+  React.useEffect(() => {
+    if (payHydrated.current) return;
+    if (payDocQ.isError) {
+      payHydrated.current = true;
+      return;
+    }
+    const d = payDocQ.data as Partial<typeof DEFAULT_PAY> | undefined;
+    if (d) {
+      payHydrated.current = true;
+      if (Object.keys(d).length) setPay((p) => ({ ...p, ...d }));
+    }
+  }, [payDocQ.data, payDocQ.isError]);
+  const [payOpen, setPayOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState(DEFAULT_PAY);
+  const openPay = () => {
+    setDraft(pay);
+    setPayOpen(true);
+  };
+  const savePay = () => {
+    setPay(draft);
+    paySave.mutate(draft as unknown as Record<string, unknown>);
+    setPayOpen(false);
+  };
+
+  const payInput: React.CSSProperties = {
+    width: "100%",
+    height: 36,
+    padding: "0 12px",
+    background: S.inputBg,
+    border: `1px solid ${S.border}`,
+    borderRadius: 6,
+    color: S.textPrimary,
+    fontSize: 13,
+    outline: "none",
+    boxSizing: "border-box",
+    fontFamily: "inherit",
+  };
+
   return (
     <div style={{ padding: "40px 48px", maxWidth: 960 }}>
       <div
@@ -216,13 +272,14 @@ export default function BillingSettings() {
         </Card>
         <Card>
           <H2>Payment & billing details</H2>
-          <KV k="Payment method" v="Visa ···· 4242 (exp 08/28)" />
-          <KV k="Billing email" v="billing@sentinel-org.io" />
-          <KV k="PO number" v="PO-2026-SENTINEL-CG" />
-          <KV k="Tax ID (VAT)" v="FR 12 345 678 901" />
-          <KV k="Billing address" v="100 Market St, San Francisco, CA" />
+          <KV k="Payment method" v={pay.method} />
+          <KV k="Billing email" v={pay.email} />
+          <KV k="PO number" v={pay.po} />
+          <KV k="Tax ID (VAT)" v={pay.tax} />
+          <KV k="Billing address" v={pay.address} />
           <button
             type="button"
+            onClick={openPay}
             style={{
               marginTop: 14,
               height: 32,
@@ -445,6 +502,110 @@ export default function BillingSettings() {
           ))}
         </div>
       </div>
+
+      {payOpen && (
+        <div
+          onClick={() => setPayOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: 440,
+              maxWidth: "92vw",
+              background: S.cardBg,
+              border: `1px solid ${S.borderStrong}`,
+              borderRadius: 12,
+              padding: 24,
+            }}
+          >
+            <h3
+              style={{
+                fontSize: 16,
+                fontWeight: 500,
+                color: S.textPrimary,
+                margin: "0 0 18px",
+              }}
+            >
+              Update payment & billing details
+            </h3>
+            {(
+              [
+                ["Payment method", "method"],
+                ["Billing email", "email"],
+                ["PO number", "po"],
+                ["Tax ID (VAT)", "tax"],
+                ["Billing address", "address"],
+              ] as [string, keyof typeof DEFAULT_PAY][]
+            ).map(([label, key]) => (
+              <div key={key} style={{ marginBottom: 12 }}>
+                <div
+                  style={{ fontSize: 12, color: S.textMuted, marginBottom: 6 }}
+                >
+                  {label}
+                </div>
+                <input
+                  value={draft[key]}
+                  onChange={(e) =>
+                    setDraft((d) => ({ ...d, [key]: e.target.value }))
+                  }
+                  style={payInput}
+                />
+              </div>
+            ))}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: 10,
+                marginTop: 20,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setPayOpen(false)}
+                style={{
+                  height: 36,
+                  padding: "0 16px",
+                  borderRadius: 6,
+                  background: "transparent",
+                  border: `1px solid ${S.borderStrong}`,
+                  color: S.textSecondary,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={savePay}
+                style={{
+                  height: 36,
+                  padding: "0 16px",
+                  borderRadius: 6,
+                  background: "var(--cg-text-primary)",
+                  color: "var(--cg-bg-card)",
+                  fontSize: 13,
+                  fontWeight: 500,
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Save changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

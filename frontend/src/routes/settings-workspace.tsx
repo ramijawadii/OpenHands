@@ -483,7 +483,8 @@ export default function WorkspaceSettings() {
   const [workspaces, setWorkspaces] =
     React.useState<WorkspaceRow[]>(INITIAL_WORKSPACES);
   const [savedAt, setSavedAt] = React.useState(0);
-  const { dirty, baseline, reset } = useDirty(data);
+  // Track BOTH the settings and the workspace list so workspace add/edit triggers the Save button.
+  const { dirty, baseline, reset } = useDirty({ data, workspaces });
   const [modal, setModal] = React.useState<null | "create" | "invite">(null);
   const [inviteTarget, setInviteTarget] = React.useState<string>("");
 
@@ -513,19 +514,21 @@ export default function WorkspaceSettings() {
     const d = docQ.data;
     if (!hydrated.current && d && Object.keys(d).length) {
       hydrated.current = true;
-      if (d.data) {
-        setData(d.data as WorkspaceData);
-        reset(d.data as WorkspaceData);
-      }
-      if (Array.isArray(d.workspaces))
-        setWorkspaces(d.workspaces as WorkspaceRow[]);
+      const nextData = (d.data as WorkspaceData) ?? data;
+      const nextWs = Array.isArray(d.workspaces)
+        ? (d.workspaces as WorkspaceRow[])
+        : workspaces;
+      if (d.data) setData(nextData);
+      if (Array.isArray(d.workspaces)) setWorkspaces(nextWs);
+      reset({ data: nextData, workspaces: nextWs });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docQ.data, reset]);
 
   const handleSave = () => {
     saveMut.mutate({ data, workspaces } as unknown as Record<string, unknown>, {
       onSuccess: () => {
-        reset(data);
+        reset({ data, workspaces });
         setSavedAt(Date.now());
       },
     });
@@ -899,7 +902,10 @@ export default function WorkspaceSettings() {
         dirty={dirty}
         savedAt={savedAt}
         onSave={handleSave}
-        onDiscard={() => setData(baseline)}
+        onDiscard={() => {
+          setData(baseline.data);
+          setWorkspaces(baseline.workspaces);
+        }}
       />
 
       {modal === "create" && (

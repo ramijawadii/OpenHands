@@ -237,7 +237,7 @@ export default function ComplianceSettings() {
                   marginBottom: 8,
                 }}
               >
-                <a.Icon size={20} strokeWidth={1.7} color={S.accent} />
+                <a.Icon size={20} strokeWidth={1.7} color={S.textPrimary} />
                 <span
                   style={{
                     height: 18,

@@ -464,7 +464,7 @@ export default function MembersSettings() {
           </div>
         </div>
         <a
-          href="/settings/billing"
+          href="/settings/plan"
           style={{
             fontSize: 12,
             color: S.accent,

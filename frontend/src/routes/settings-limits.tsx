@@ -402,12 +402,14 @@ function Toggle({
 
 export default function LimitsSettings() {
   const [data, setData] = React.useState<LimitsData>(load);
+  const [custom, setCustom] = React.useState<CustomLimit[]>(INITIAL_CUSTOM);
   const [savedAt, setSavedAt] = React.useState(0);
-  const { dirty, baseline, reset } = useDirty(data);
+  // Track BOTH the rate-limit fields and the custom-limit list so adding/editing/removing a
+  // custom limit makes the form dirty and the Save button appears.
+  const { dirty, baseline, reset } = useDirty({ data, custom });
   const upd = (patch: Partial<LimitsData>) =>
     setData((p) => ({ ...p, ...patch }));
 
-  const [custom, setCustom] = React.useState<CustomLimit[]>(INITIAL_CUSTOM);
   const docQ = useSettingsDoc("limits");
   const saveMut = useSaveSettingsDoc("limits");
   const hydrated = React.useRef(false);
@@ -415,12 +417,15 @@ export default function LimitsSettings() {
     const d = docQ.data;
     if (!hydrated.current && d && Object.keys(d).length) {
       hydrated.current = true;
-      if (d.data) {
-        setData(d.data as LimitsData);
-        reset(d.data as LimitsData);
-      }
-      if (Array.isArray(d.custom)) setCustom(d.custom as CustomLimit[]);
+      const nextData = (d.data as LimitsData) ?? data;
+      const nextCustom = Array.isArray(d.custom)
+        ? (d.custom as CustomLimit[])
+        : custom;
+      if (d.data) setData(nextData);
+      if (Array.isArray(d.custom)) setCustom(nextCustom);
+      reset({ data: nextData, custom: nextCustom });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docQ.data, reset]);
   const [modalOpen, setModalOpen] = React.useState(false);
   const [form, setForm] = React.useState<{
@@ -443,7 +448,7 @@ export default function LimitsSettings() {
   const handleSave = () => {
     saveMut.mutate({ data, custom } as unknown as Record<string, unknown>, {
       onSuccess: () => {
-        reset(data);
+        reset({ data, custom });
         setSavedAt(Date.now());
       },
     });
@@ -899,7 +904,10 @@ export default function LimitsSettings() {
         dirty={dirty}
         savedAt={savedAt}
         onSave={handleSave}
-        onDiscard={() => setData(baseline)}
+        onDiscard={() => {
+          setData(baseline.data);
+          setCustom(baseline.custom);
+        }}
       />
 
       {modalOpen && (

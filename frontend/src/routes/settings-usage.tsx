@@ -513,34 +513,43 @@ export default function UsageSettings() {
             Monitor API, token, and sandbox-compute usage across workspaces.
           </p>
         </div>
-        <LiveActivityCard />
         <div
           style={{
             display: "flex",
-            border: `1px solid ${S.border}`,
-            borderRadius: 6,
-            overflow: "hidden",
+            alignItems: "center",
+            gap: 12,
+            flexShrink: 0,
           }}
         >
-          {DATE_RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRange(r)}
-              style={{
-                height: 32,
-                padding: "0 14px",
-                background: range === r ? S.inputBg : "transparent",
-                border: "none",
-                borderRight: r !== "90d" ? `1px solid ${S.border}` : "none",
-                color: range === r ? S.textPrimary : S.textMuted,
-                fontSize: 13,
-                cursor: "pointer",
-              }}
-            >
-              {r}
-            </button>
-          ))}
+          <LiveActivityCard />
+          <div
+            style={{
+              display: "flex",
+              border: `1px solid ${S.border}`,
+              borderRadius: 6,
+              overflow: "hidden",
+            }}
+          >
+            {DATE_RANGES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                style={{
+                  height: 32,
+                  padding: "0 14px",
+                  background: range === r ? S.inputBg : "transparent",
+                  border: "none",
+                  borderRight: r !== "90d" ? `1px solid ${S.border}` : "none",
+                  color: range === r ? S.textPrimary : S.textMuted,
+                  fontSize: 13,
+                  cursor: "pointer",
+                }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

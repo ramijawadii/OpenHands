@@ -335,6 +335,16 @@ export default function AuditLogSettings() {
   };
   const anyFilter = fWorkspace || fActor || fSource || fCloud || search;
 
+  // Pagination — keep the table bounded regardless of how many entries the ledger returns.
+  const PAGE_SIZE = 25;
+  const [page, setPage] = React.useState(0);
+  const pageCount = Math.max(1, Math.ceil(shown.length / PAGE_SIZE));
+  React.useEffect(() => {
+    setPage(0);
+  }, [fWorkspace, fActor, fSource, fCloud, search, shown.length]);
+  const safePage = Math.min(page, pageCount - 1);
+  const paged = shown.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+
   const th = (h: string) => (
     <span
       style={{
@@ -559,7 +569,7 @@ export default function AuditLogSettings() {
             No events match the current filters.
           </div>
         )}
-        {shown.map((l, i) => (
+        {paged.map((l, i) => (
           <div
             key={i}
             onClick={() => setDetail(l)}
@@ -656,6 +666,73 @@ export default function AuditLogSettings() {
           </div>
         ))}
       </div>
+
+      {shown.length > PAGE_SIZE && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: 12,
+          }}
+        >
+          <span style={{ fontSize: 12, color: S.textMuted }}>
+            {safePage * PAGE_SIZE + 1}–
+            {Math.min((safePage + 1) * PAGE_SIZE, shown.length)} of{" "}
+            {shown.length}
+          </span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              disabled={safePage === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              style={{
+                height: 30,
+                padding: "0 12px",
+                borderRadius: 6,
+                background: "transparent",
+                border: `1px solid ${S.borderStrong}`,
+                color: safePage === 0 ? S.textMuted : S.textSecondary,
+                fontSize: 12.5,
+                cursor: safePage === 0 ? "default" : "pointer",
+                opacity: safePage === 0 ? 0.5 : 1,
+              }}
+            >
+              ← Prev
+            </button>
+            <span
+              style={{
+                fontSize: 12.5,
+                color: S.textSecondary,
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "0 4px",
+              }}
+            >
+              Page {safePage + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              disabled={safePage >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              style={{
+                height: 30,
+                padding: "0 12px",
+                borderRadius: 6,
+                background: "transparent",
+                border: `1px solid ${S.borderStrong}`,
+                color:
+                  safePage >= pageCount - 1 ? S.textMuted : S.textSecondary,
+                fontSize: 12.5,
+                cursor: safePage >= pageCount - 1 ? "default" : "pointer",
+                opacity: safePage >= pageCount - 1 ? 0.5 : 1,
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
 
       {detail && (
         <div
