@@ -28,6 +28,9 @@ import {
   useKillSwitch,
   useKillActivate,
   useKillResume,
+  useGuardrails,
+  useIsolation,
+  useLimits,
 } from "#/hooks/query/use-cloudguard";
 import type { CGApproval } from "#/api/cloudguard-service";
 
@@ -152,6 +155,49 @@ export default function AcpEnforcement() {
   const killActivate = useKillActivate();
   const killResume = useKillResume();
   const killActive = killQ.data?.any_active ?? false;
+
+  // Live effective policy (reads work for any role) → the Active Policy cards.
+  const gr = useGuardrails();
+  const iso = useIsolation();
+  const lim = useLimits();
+  const livePolicy =
+    gr.data && iso.data && lim.data
+      ? [
+          {
+            k: "Autonomy Mode",
+            v: gr.data.autonomy_mode,
+            src: "Tenant policy",
+            link: "/settings/agent-guardrails",
+          },
+          {
+            k: "Action Gates",
+            v: Object.entries(gr.data.action_gates)
+              .map(([a, d]) => `${a}→${d}`)
+              .join(" · "),
+            src: "Tenant policy",
+            link: "/settings/agent-guardrails",
+          },
+          {
+            k: "Isolation Tier",
+            v: iso.data.tier,
+            src: "Tenant policy",
+            link: "/settings/isolation",
+          },
+          {
+            k: "Egress Policy",
+            v: iso.data.egress,
+            src: "Tenant policy",
+            link: "/settings/isolation",
+          },
+          {
+            k: "Rate Limits",
+            v: `${lim.data.tokens_per_run.toLocaleString()} tok/run · ${lim.data.tools_per_run} tools/run · $${lim.data.monthly_spend_cap_usd.toLocaleString()}/mo`,
+            src: "Tenant policy",
+            link: "/settings/limits",
+          },
+        ]
+      : null;
+  const policyCards = livePolicy ?? POLICY;
   const usingRealApprovals = !!approvalsQ.data && !approvalsQ.isError;
   const rows = usingRealApprovals ? approvalsQ.data.map(mapApproval) : queue;
   const onDecide = (id: string, approved: boolean) => {
@@ -196,7 +242,7 @@ export default function AcpEnforcement() {
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
-            {POLICY.map((p) => (
+            {policyCards.map((p) => (
               <div
                 key={p.k}
                 style={{
