@@ -139,6 +139,24 @@ export const useErasureCancel = () => {
   });
 };
 
+export const useIncidents = () =>
+  useQuery({
+    queryKey: ["cloudguard", "incidents"],
+    queryFn: CloudGuardService.incidents,
+    retry: false,
+  });
+
+export const useCreateIncident = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.createIncident,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "incidents"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
 export const useOverrides = () =>
   useQuery({
     queryKey: ["cloudguard", "overrides"],

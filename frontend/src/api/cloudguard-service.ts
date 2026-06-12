@@ -90,6 +90,27 @@ export interface CGErasurePending {
   created_at: string;
 }
 
+export interface CGIncidentEvent {
+  ts: string;
+  type: string;
+  event: string;
+  actor: string;
+}
+
+export interface CGIncident {
+  id: string;
+  title: string;
+  severity: string;
+  status: string;
+  type: string;
+  owner: string;
+  linked_runs: string[];
+  linked_violations: number;
+  created_at: string;
+  updated_at: string;
+  timeline: CGIncidentEvent[];
+}
+
 export interface CGOverride {
   id: string;
   scope: string;
@@ -252,4 +273,20 @@ export const CloudGuardService = {
     openHands.post(`${BASE}/enforcement/overrides`, body).then((r) => r.data),
   revokeOverride: (id: string) =>
     openHands.delete(`${BASE}/enforcement/overrides/${id}`).then((r) => r.data),
+  incidents: () =>
+    openHands
+      .get<{ incidents: CGIncident[] }>(`${BASE}/incidents`)
+      .then((r) => r.data.incidents),
+  incident: (id: string) =>
+    openHands.get<CGIncident>(`${BASE}/incidents/${id}`).then((r) => r.data),
+  createIncident: (body: {
+    title: string;
+    severity: string;
+    type: string;
+    owner: string;
+  }) => openHands.post(`${BASE}/incidents`, body).then((r) => r.data),
+  incidentStatus: (id: string, status: string) =>
+    openHands
+      .post(`${BASE}/incidents/${id}/status`, { status })
+      .then((r) => r.data),
 };

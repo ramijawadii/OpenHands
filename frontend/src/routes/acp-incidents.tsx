@@ -17,6 +17,30 @@ import {
   primaryBtn,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
+import { useIncidents, useCreateIncident } from "#/hooks/query/use-cloudguard";
+import type { CGIncident } from "#/api/cloudguard-service";
+
+const rel = (iso: string) => {
+  if (!iso) return "—";
+  const d = new Date(iso).getTime();
+  const m = Math.round((Date.now() - d) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  if (m < 1440) return `${Math.round(m / 60)}h ago`;
+  return `${Math.round(m / 1440)}d ago`;
+};
+const mapInc = (c: CGIncident): Inc => ({
+  id: c.id,
+  sev: c.severity,
+  title: c.title,
+  status: c.status,
+  type: c.type,
+  owner: c.owner || "Unassigned",
+  runs: c.linked_runs,
+  viol: c.linked_violations,
+  created: rel(c.created_at),
+  updated: rel(c.updated_at),
+});
 
 interface Inc {
   id: string;
@@ -103,10 +127,25 @@ export default function AcpIncidents() {
   const [sel, setSel] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState("Timeline");
   const [q, setQ] = React.useState("");
-  const inc = INCIDENTS.find((i) => i.id === sel);
+  const incidentsQ = useIncidents();
+  const createInc = useCreateIncident();
+  const usingReal = !!incidentsQ.data && !incidentsQ.isError;
+  const realList = incidentsQ.data ?? [];
+  const source = usingReal ? realList.map(mapInc) : INCIDENTS;
+  const realSel = usingReal ? realList.find((i) => i.id === sel) : undefined;
+  const timeline = realSel
+    ? realSel.timeline.map((e) => ({
+        t: e.ts,
+        type: e.type,
+        e: e.event,
+        a: e.actor,
+        tone: "info",
+      }))
+    : TIMELINE;
+  const inc = source.find((i) => i.id === sel);
 
   if (!inc) {
-    const rows = INCIDENTS.filter(
+    const rows = source.filter(
       (i) => !q || `${i.id} ${i.title}`.toLowerCase().includes(q.toLowerCase()),
     );
     return (
@@ -131,7 +170,18 @@ export default function AcpIncidents() {
           right={
             <>
               <ExportBtn />
-              <button type="button" style={primaryBtn}>
+              <button
+                type="button"
+                style={primaryBtn}
+                onClick={() =>
+                  createInc.mutate({
+                    title: "New incident (from console)",
+                    severity: "Medium",
+                    type: "Manual",
+                    owner: "",
+                  })
+                }
+              >
                 + New Incident
               </button>
             </>
@@ -387,7 +437,7 @@ export default function AcpIncidents() {
               paddingLeft: 18,
             }}
           >
-            {TIMELINE.map((e, i) => (
+            {timeline.map((e, i) => (
               <div key={i} style={{ position: "relative", paddingBottom: 16 }}>
                 <span
                   style={{
