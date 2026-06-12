@@ -69,6 +69,11 @@ export interface CGLimits {
   monthly_spend_cap_usd: number;
 }
 
+export interface CGResidency {
+  region: string;
+  retention_days: number;
+}
+
 export interface CGSandbox {
   id: string;
   tenant: string;
@@ -171,4 +176,6 @@ export const CloudGuardService = {
     openHands.get<CGIsolation>(`${BASE}/isolation`).then((r) => r.data),
   limits: () =>
     openHands.get<CGLimits>(`${BASE}/workspace/limits`).then((r) => r.data),
+  dataResidency: () =>
+    openHands.get<CGResidency>(`${BASE}/data-residency`).then((r) => r.data),
 };

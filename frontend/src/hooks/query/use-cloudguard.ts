@@ -64,6 +64,14 @@ export const useLimits = () =>
     staleTime: 30 * 1000,
   });
 
+export const useDataResidency = () =>
+  useQuery({
+    queryKey: ["cloudguard", "data-residency"],
+    queryFn: CloudGuardService.dataResidency,
+    retry: false,
+    staleTime: 30 * 1000,
+  });
+
 export const useSandboxes = () =>
   useQuery({
     queryKey: ["cloudguard", "sandboxes"],

@@ -56,6 +56,11 @@ class LimitsBody(BaseModel):
     monthly_spend_cap_usd: int | None = None
 
 
+class ResidencyBody(BaseModel):
+    region: str | None = None
+    retention_days: int | None = None
+
+
 def _section(p, name: str) -> dict:
     return _safe("cloudguard.tenant_policy").get_policy(p.tenant_id)[name]
 
@@ -95,3 +100,13 @@ async def get_limits(p=Depends(require_cap("read"))):
 @router.put("/workspace/limits")
 async def put_limits(body: LimitsBody, p=Depends(require_cap("admin"))):
     return _update(p, "limits", body.dict(), "policy.limits.updated")
+
+
+@router.get("/data-residency")
+async def get_residency(p=Depends(require_cap("read"))):
+    return _section(p, "residency")
+
+
+@router.put("/data-residency")
+async def put_residency(body: ResidencyBody, p=Depends(require_cap("admin"))):
+    return _update(p, "residency", body.dict(), "policy.residency.updated")
