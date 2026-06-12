@@ -40,6 +40,13 @@ export const useAuditVerify = () =>
     retry: false,
   });
 
+export const useRuns = () =>
+  useQuery({
+    queryKey: ["cloudguard", "runs"],
+    queryFn: CloudGuardService.runs,
+    retry: false,
+  });
+
 export const useEncryptionKeys = () =>
   useQuery({
     queryKey: ["cloudguard", "encryption", "keys"],

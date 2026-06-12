@@ -53,6 +53,15 @@ export interface CGRole {
   is_default: boolean;
 }
 
+export interface CGRun {
+  id: string;
+  mode: string;
+  status: string;
+  started: string;
+  activity: number;
+  last_decision: string;
+}
+
 export interface CGKeyPosture {
   provider: string;
   custody: string;
@@ -122,4 +131,8 @@ export const CloudGuardService = {
     openHands.get<CGOverview>(`${BASE}/overview`).then((r) => r.data),
   encryptionKeys: () =>
     openHands.get<CGKeyPosture>(`${BASE}/encryption/keys`).then((r) => r.data),
+  runs: () =>
+    openHands
+      .get<{ runs: CGRun[]; total: number }>(`${BASE}/runs`)
+      .then((r) => r.data),
 };

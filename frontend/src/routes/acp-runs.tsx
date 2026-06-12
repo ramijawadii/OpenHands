@@ -20,6 +20,8 @@ import {
   primaryBtn,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
+import { useRuns } from "#/hooks/query/use-cloudguard";
+import type { CGRun } from "#/api/cloudguard-service";
 
 const CHECKPOINTS = [
   {
@@ -285,16 +287,39 @@ const DATA: React.ReactNode[][] = [
   ],
 ];
 
+const mapRun = (r: CGRun): Run => ({
+  id: r.id,
+  mode:
+    r.mode === "autonomous"
+      ? "Auto"
+      : r.mode === "plan"
+        ? "Plan"
+        : r.mode === "ask"
+          ? "Supervised"
+          : r.mode,
+  workspace: "—",
+  status: r.status.startsWith("Plan ready") ? "Awaiting Approval" : "Running",
+  risk: "Low",
+  step: r.status,
+  dur: r.activity ? `${r.activity} events` : "—",
+  cost: "—",
+  owner: r.last_decision ? `last: ${r.last_decision}` : "—",
+  started: r.started ? new Date(r.started).toLocaleString() : "—",
+});
+
 export default function AcpRuns() {
   const [sel, setSel] = React.useState<string | null>(null);
   const [tab, setTab] = React.useState("Timeline");
   const [q, setQ] = React.useState("");
   const [status, setStatus] = React.useState("");
   const [modeF, setModeF] = React.useState("");
-  const run = RUNS.find((r) => r.id === sel);
+  const runsQ = useRuns();
+  const source =
+    runsQ.data && !runsQ.isError ? runsQ.data.runs.map(mapRun) : RUNS;
+  const run = source.find((r) => r.id === sel);
 
   if (!run) {
-    const rows = RUNS.filter(
+    const rows = source.filter(
       (r) =>
         (!q ||
           `${r.id} ${r.workspace} ${r.owner}`
