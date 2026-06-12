@@ -1,7 +1,142 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
-import { ScopeBadge } from "#/components/features/settings/settings-kit";
-import { useDataResidency } from "#/hooks/query/use-cloudguard";
+import {
+  ConfirmButton,
+  ScopeBadge,
+} from "#/components/features/settings/settings-kit";
+import {
+  useDataResidency,
+  useErasurePending,
+  useErasureRequest,
+  useErasureApprove,
+  useErasureCancel,
+} from "#/hooks/query/use-cloudguard";
+import { Capable } from "#/components/features/acp/capable";
+
+// Admin-only crypto-erasure (GDPR Art.17): request → a DIFFERENT admin approves with type-to-
+// confirm → destroy_dek + deletion certificate. Hidden for non-admins (RBAC hide-not-disable).
+function ErasureSection() {
+  const pendingQ = useErasurePending();
+  const reqMut = useErasureRequest();
+  const approveMut = useErasureApprove();
+  const cancelMut = useErasureCancel();
+  const [reason, setReason] = React.useState("");
+  const pending = pendingQ.data ?? [];
+  return (
+    <Capable cap="admin">
+      <div
+        style={{
+          background: S.cardBg,
+          border: "1px solid var(--cg-danger)",
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 28,
+        }}
+      >
+        <div
+          style={{ fontSize: 13.5, fontWeight: 600, color: "var(--cg-danger)" }}
+        >
+          Crypto-erasure (right to be forgotten)
+        </div>
+        <p style={{ fontSize: 12, color: S.textMuted, margin: "6px 0 12px" }}>
+          Destroys this tenant&apos;s encryption key — every copy of its data
+          becomes permanently unrecoverable, with a signed deletion certificate.
+          Two-person: a <strong>different</strong> admin must approve.
+        </p>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason (required) — e.g. tenant offboarding"
+            style={{
+              flex: 1,
+              height: 34,
+              padding: "0 10px",
+              background: S.inputBg,
+              border: `1px solid ${S.border}`,
+              borderRadius: 6,
+              color: S.textPrimary,
+              fontSize: 13,
+              outline: "none",
+            }}
+          />
+          <ConfirmButton
+            variant="danger"
+            label="Request erasure"
+            title="Request tenant erasure?"
+            body="Opens a pending erasure. A different admin must approve it with a type-to-confirm before any data is destroyed."
+            confirmLabel="Request"
+            disabled={!reason.trim()}
+            disabledReason="Enter a reason first"
+            onConfirm={() => {
+              reqMut.mutate(reason);
+              setReason("");
+            }}
+          />
+        </div>
+        {pending.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, color: S.textMuted, marginBottom: 6 }}>
+              Pending erasure requests
+            </div>
+            {pending.map((p) => (
+              <div
+                key={p.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "8px 0",
+                  borderBottom: "1px solid var(--cg-border-subtle)",
+                }}
+              >
+                <span style={{ fontSize: 12.5, color: S.textSecondary }}>
+                  {p.reason} —{" "}
+                  <span style={{ color: S.textMuted }}>
+                    requested by {p.requested_by}
+                  </span>
+                </span>
+                <span style={{ display: "flex", gap: 8 }}>
+                  <ConfirmButton
+                    variant="danger"
+                    label="Approve & erase"
+                    title="Approve erasure (second person)?"
+                    body="You must be a different admin than the requester. This destroys the tenant key — irreversible."
+                    confirmLabel="Erase permanently"
+                    confirmWord="ERASE"
+                    onConfirm={() =>
+                      approveMut.mutate({
+                        id: p.id,
+                        reason: "approved from console",
+                        confirm: "ERASE",
+                      })
+                    }
+                  />
+                  <ConfirmButton
+                    variant="ghost"
+                    label="Cancel"
+                    title="Cancel this erasure request?"
+                    body="Removes the pending request. No data is affected."
+                    confirmLabel="Cancel request"
+                    onConfirm={() => cancelMut.mutate(p.id)}
+                  />
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {approveMut.isError && (
+          <div
+            style={{ marginTop: 10, fontSize: 12, color: "var(--cg-danger)" }}
+          >
+            Erasure could not execute — the active key provider has no
+            per-tenant DEKs (needs HYOK / WrappedKeyProvider).
+          </div>
+        )}
+      </div>
+    </Capable>
+  );
+}
 
 // Live effective residency from the backend tenant_policy. Additive read card.
 function EffectiveResidencyCard() {
@@ -380,6 +515,7 @@ export default function DataResidencySettings() {
       </p>
 
       <EffectiveResidencyCard />
+      <ErasureSection />
 
       <Section
         title="Inference Geo"

@@ -81,6 +81,15 @@ export interface CGKill {
   activated_at: string;
 }
 
+export interface CGErasurePending {
+  id: string;
+  tenant: string;
+  requested_by: string;
+  reason: string;
+  status: string;
+  created_at: string;
+}
+
 export interface CGSandbox {
   id: string;
   tenant: string;
@@ -199,5 +208,23 @@ export const CloudGuardService = {
   killSwitchResume: (scope: string, reason: string) =>
     openHands
       .post(`${BASE}/enforcement/kill-switch/resume`, { scope, reason })
+      .then((r) => r.data),
+  erasurePending: () =>
+    openHands
+      .get<{
+        pending: CGErasurePending[];
+      }>(`${BASE}/data-residency/erasure/pending`)
+      .then((r) => r.data.pending),
+  erasureRequest: (reason: string) =>
+    openHands
+      .post(`${BASE}/data-residency/erasure/request`, { reason })
+      .then((r) => r.data),
+  erasureApprove: (id: string, reason: string, confirm: string) =>
+    openHands
+      .post(`${BASE}/data-residency/erasure/${id}/approve`, { reason, confirm })
+      .then((r) => r.data),
+  erasureCancel: (id: string) =>
+    openHands
+      .delete(`${BASE}/data-residency/erasure/${id}`)
       .then((r) => r.data),
 };

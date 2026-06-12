@@ -95,6 +95,50 @@ export const useKillResume = () => {
   });
 };
 
+export const useErasurePending = () =>
+  useQuery({
+    queryKey: ["cloudguard", "erasure", "pending"],
+    queryFn: CloudGuardService.erasurePending,
+    retry: false,
+  });
+
+export const useErasureRequest = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reason: string) => CloudGuardService.erasureRequest(reason),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["cloudguard", "erasure"] }),
+  });
+};
+
+export const useErasureApprove = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      reason,
+      confirm,
+    }: {
+      id: string;
+      reason: string;
+      confirm: string;
+    }) => CloudGuardService.erasureApprove(id, reason, confirm),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "erasure"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useErasureCancel = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => CloudGuardService.erasureCancel(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["cloudguard", "erasure"] }),
+  });
+};
+
 export const useDataResidency = () =>
   useQuery({
     queryKey: ["cloudguard", "data-residency"],
