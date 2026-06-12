@@ -14,6 +14,22 @@ import {
   Hash,
   mono,
 } from "#/components/features/acp/acp-ui";
+import { useViolations } from "#/hooks/query/use-cloudguard";
+import type { CGViolation } from "#/api/cloudguard-service";
+
+const vToRow = (v: CGViolation): React.ReactNode[] => [
+  <span style={{ ...mono, fontSize: 11 }}>{v.ts}</span>,
+  <span style={mono}>{v.rule}</span>,
+  v.workspace || "—",
+  v.actor,
+  <span style={mono}>{v.rule}</span>,
+  v.resource || "—",
+  <Sev s={v.severity} />,
+  <Decision
+    d={v.decision ? v.decision[0].toUpperCase() + v.decision.slice(1) : ""}
+  />,
+  <Hash h={`#${v.seq}`} />,
+];
 
 const HEALTH = [
   {
@@ -172,6 +188,11 @@ const FIRED: React.ReactNode[][] = [
 export default function AcpMonitoring() {
   const [tab, setTab] = React.useState("Health");
   const [q, setQ] = React.useState("");
+  const violationsQ = useViolations();
+  const usingRealViol = !!violationsQ.data && !violationsQ.isError;
+  const vrows = usingRealViol
+    ? violationsQ.data.violations.map(vToRow)
+    : VIOLATIONS;
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
       <Breadcrumb
@@ -300,7 +321,7 @@ export default function AcpMonitoring() {
               "Decision",
               "Audit",
             ]}
-            rows={VIOLATIONS}
+            rows={vrows}
           />
         </>
       )}

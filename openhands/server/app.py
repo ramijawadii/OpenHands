@@ -124,4 +124,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
 
     _logging.getLogger("openhands").warning("CloudGuard org routes unavailable: %s", _cg_exc)
 
+# CloudGuard monitoring read API (violations from the audit chain, ...).
+try:
+    from openhands.server.routes.cloudguard_monitoring import (
+        router as cloudguard_monitoring_router,
+    )
+
+    app.include_router(cloudguard_monitoring_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard monitoring routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)

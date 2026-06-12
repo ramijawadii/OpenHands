@@ -53,6 +53,17 @@ export interface CGRole {
   is_default: boolean;
 }
 
+export interface CGViolation {
+  seq: number;
+  ts: string;
+  actor: string;
+  rule: string;
+  resource: string;
+  decision: string;
+  severity: string;
+  workspace: string;
+}
+
 const BASE = "/api/cloudguard";
 
 export const CloudGuardService = {
@@ -80,5 +91,12 @@ export const CloudGuardService = {
   orgRoles: () =>
     openHands
       .get<{ roles: CGRole[]; tier4_grantable: boolean }>(`${BASE}/org/roles`)
+      .then((r) => r.data),
+  violations: () =>
+    openHands
+      .get<{
+        violations: CGViolation[];
+        total: number;
+      }>(`${BASE}/monitoring/violations`)
       .then((r) => r.data),
 };
