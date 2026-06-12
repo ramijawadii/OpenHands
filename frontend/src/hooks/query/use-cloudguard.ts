@@ -40,6 +40,13 @@ export const useAuditVerify = () =>
     retry: false,
   });
 
+export const useSandboxes = () =>
+  useQuery({
+    queryKey: ["cloudguard", "sandboxes"],
+    queryFn: CloudGuardService.sandboxes,
+    retry: false,
+  });
+
 export const useRuns = () =>
   useQuery({
     queryKey: ["cloudguard", "runs"],

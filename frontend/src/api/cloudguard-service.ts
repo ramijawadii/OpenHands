@@ -53,6 +53,16 @@ export interface CGRole {
   is_default: boolean;
 }
 
+export interface CGSandbox {
+  id: string;
+  tenant: string;
+  status: string;
+  network: string;
+  volume: string;
+  kg_service: string;
+  updated_at: string;
+}
+
 export interface CGRun {
   id: string;
   mode: string;
@@ -134,5 +144,9 @@ export const CloudGuardService = {
   runs: () =>
     openHands
       .get<{ runs: CGRun[]; total: number }>(`${BASE}/runs`)
+      .then((r) => r.data),
+  sandboxes: () =>
+    openHands
+      .get<{ sandboxes: CGSandbox[]; total: number }>(`${BASE}/sandboxes`)
       .then((r) => r.data),
 };

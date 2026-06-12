@@ -15,6 +15,23 @@ import {
   Icon,
 } from "#/components/features/acp/acp-ui";
 import { ConfirmButton } from "#/components/features/settings/settings-kit";
+import { useSandboxes } from "#/hooks/query/use-cloudguard";
+import type { CGSandbox } from "#/api/cloudguard-service";
+
+// Map a provisioned cell record → the sandbox row shape (cells are per-tenant isolation
+// environments; per-run session telemetry is a deeper runtime integration, shown as —).
+const mapCell = (c: CGSandbox): Sess => ({
+  id: c.id,
+  run: "—",
+  ws: c.tenant,
+  tier: "Isolated",
+  region: c.network || "—",
+  cpu: 0,
+  ram: 0,
+  egress: "default-deny",
+  lifetime: c.updated_at ? new Date(c.updated_at).toLocaleString() : "—",
+  status: c.status === "provisioned" ? "Active" : c.status || "—",
+});
 
 interface Sess {
   id: string;
@@ -458,10 +475,17 @@ export default function AcpSandboxes() {
   const [q, setQ] = React.useState("");
   const [tier, setTier] = React.useState("");
   const [diffFile, setDiffFile] = React.useState<FileDiff | null>(null);
-  const s = SESSIONS.find((x) => x.id === sel);
+  const sbQ = useSandboxes();
+  // Real provisioned cells when present; keep the illustrative sample until a cell exists
+  // (the dev/OFF stack provisions no per-tenant cells).
+  const source =
+    sbQ.data && !sbQ.isError && sbQ.data.sandboxes.length > 0
+      ? sbQ.data.sandboxes.map(mapCell)
+      : SESSIONS;
+  const s = source.find((x) => x.id === sel);
 
   if (!s) {
-    const rows = SESSIONS.filter(
+    const rows = source.filter(
       (x) =>
         (!q ||
           `${x.id} ${x.ws} ${x.run}`.toLowerCase().includes(q.toLowerCase())) &&
