@@ -393,6 +393,87 @@ export const useHealthProbe = () => {
   });
 };
 
+// ── Models & Inference ──
+export const useLlmConfig = () =>
+  useQuery({
+    queryKey: ["cloudguard", "llm", "config"],
+    queryFn: CloudGuardService.llmConfig,
+    retry: false,
+  });
+
+export const useSaveLlmConfig = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Record<string, unknown>) =>
+      CloudGuardService.llmSaveConfig(patch),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "llm"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useLlmRegistry = () =>
+  useQuery({
+    queryKey: ["cloudguard", "llm", "registry"],
+    queryFn: CloudGuardService.llmRegistry,
+    retry: false,
+  });
+
+export const useLlmMigrate = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      toModel,
+      toVersion,
+    }: {
+      toModel: string;
+      toVersion: string;
+    }) => CloudGuardService.llmMigrate(toModel, toVersion),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "llm"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useLlmRollback = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.llmRollback,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "llm"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useLlmOverview = () =>
+  useQuery({
+    queryKey: ["cloudguard", "llm", "overview"],
+    queryFn: CloudGuardService.llmOverview,
+    retry: false,
+    refetchInterval: 30000,
+  });
+
+export const useLlmAnalytics = (
+  section: string,
+  params?: Record<string, string | number>,
+) =>
+  useQuery({
+    queryKey: ["cloudguard", "llm", section, params],
+    queryFn: () => CloudGuardService.llmAnalytics(section, params),
+    retry: false,
+    refetchInterval: 30000,
+  });
+
+export const useLlmLogs = (params?: Record<string, string | number>) =>
+  useQuery({
+    queryKey: ["cloudguard", "llm", "logs", params],
+    queryFn: () => CloudGuardService.llmLogs(params),
+    retry: false,
+  });
+
 export const useDecideApproval = () => {
   const qc = useQueryClient();
   return useMutation({

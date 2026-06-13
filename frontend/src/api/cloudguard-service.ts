@@ -257,6 +257,28 @@ export interface CGStoredSnapshot {
   }[];
 }
 
+export interface CGLlmModel {
+  id: string;
+  label: string;
+  provider: string;
+  versions: string[];
+  context_window: number;
+  max_output: number;
+  capabilities: string[];
+  price: {
+    input_per_1m: number;
+    output_per_1m: number;
+    cached_input_per_1m: number;
+  };
+  status: string;
+  vendor_default: boolean;
+}
+export interface CGLlmRegistry {
+  models: CGLlmModel[];
+  vendor_default: CGLlmModel | null;
+  scheduled_upgrade: Record<string, unknown> | null;
+}
+
 const BASE = "/api/cloudguard";
 
 export const CloudGuardService = {
@@ -443,5 +465,38 @@ export const CloudGuardService = {
   healthAlertTest: (rule: Record<string, unknown>) =>
     openHands
       .post(`${BASE}/monitoring/health/alerts/test`, rule)
+      .then((r) => r.data),
+  // ── Models & Inference ──
+  llmConfig: () =>
+    openHands
+      .get<Record<string, unknown>>(`${BASE}/llm/config`)
+      .then((r) => r.data),
+  llmSaveConfig: (patch: Record<string, unknown>) =>
+    openHands.put(`${BASE}/llm/config`, patch).then((r) => r.data),
+  llmRegistry: () =>
+    openHands.get<CGLlmRegistry>(`${BASE}/llm/registry`).then((r) => r.data),
+  llmMigrate: (toModel: string, toVersion: string) =>
+    openHands
+      .post(`${BASE}/llm/models/migrate`, {
+        to_model: toModel,
+        to_version: toVersion,
+      })
+      .then((r) => r.data),
+  llmRollback: () =>
+    openHands.post(`${BASE}/llm/models/rollback`).then((r) => r.data),
+  llmOverview: () =>
+    openHands
+      .get<Record<string, unknown>>(`${BASE}/llm/overview`)
+      .then((r) => r.data),
+  llmAnalytics: (section: string, params?: Record<string, string | number>) =>
+    openHands
+      .get<Record<string, unknown>>(`${BASE}/llm/${section}`, { params })
+      .then((r) => r.data),
+  llmLogs: (params?: Record<string, string | number>) =>
+    openHands
+      .get<{
+        rows: Record<string, unknown>[];
+        total: number;
+      }>(`${BASE}/llm/logs`, { params })
       .then((r) => r.data),
 };

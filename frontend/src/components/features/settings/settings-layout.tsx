@@ -31,6 +31,7 @@ import {
   Lock,
   HeartPulse,
   Activity,
+  Brain,
 } from "lucide-react";
 import { RoleChip, useCurrentRole } from "./settings-kit";
 import { useHealth } from "#/hooks/query/use-cloudguard";
@@ -126,6 +127,31 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/settings/service-accounts", text: "Service Accounts", Icon: Bot },
       { to: "/settings/webhooks", text: "Webhooks", Icon: Webhook },
       { to: "/settings/integrations", text: "Integrations", Icon: Blocks },
+    ],
+  },
+  {
+    group: "Models & Inference",
+    Icon: Brain,
+    items: [
+      { to: "/settings/llm", text: "Overview", Icon: Brain },
+      { to: "/settings/llm/models", text: "Models", Icon: Package },
+      { to: "/settings/llm/inference", text: "Inference", Icon: Gauge },
+      {
+        to: "/settings/llm/routing",
+        text: "Routing & Fallbacks",
+        Icon: Network,
+      },
+      { to: "/settings/llm/usage", text: "Usage", Icon: BarChart2 },
+      { to: "/settings/llm/performance", text: "Performance", Icon: Activity },
+      {
+        to: "/settings/llm/reliability",
+        text: "Reliability",
+        Icon: ShieldCheck,
+      },
+      { to: "/settings/llm/quality", text: "Quality", Icon: BadgeCheck },
+      { to: "/settings/llm/cost", text: "Cost", Icon: CreditCard },
+      { to: "/settings/llm/quotas", text: "Quotas & Limits", Icon: Gauge },
+      { to: "/settings/llm/logs", text: "Logs & Traces", Icon: ScrollText },
     ],
   },
   {

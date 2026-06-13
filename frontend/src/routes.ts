@@ -31,6 +31,10 @@ export default [
       route("health/:section", "routes/settings-health.tsx", {
         id: "settings-health-section",
       }),
+      route("llm", "routes/settings-llm.tsx"),
+      route("llm/:section", "routes/settings-llm.tsx", {
+        id: "settings-llm-section",
+      }),
       route("org", "routes/org-settings.tsx"),
       route("members", "routes/settings-members.tsx"),
       route("user-roles", "routes/settings-user-roles.tsx"),
