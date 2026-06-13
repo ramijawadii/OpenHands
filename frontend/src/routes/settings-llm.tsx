@@ -3,6 +3,19 @@ import React from "react";
 import { useParams } from "react-router";
 import { Brain, ArrowUpCircle } from "lucide-react";
 import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RTooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
   ScopeBadge,
   LiveCardSkeleton,
   ConfirmButton,
@@ -17,6 +30,7 @@ import {
   useLlmOverview,
   useLlmAnalytics,
   useLlmLogs,
+  useLlmSeed,
 } from "#/hooks/query/use-cloudguard";
 import type { CGLlmModel } from "#/api/cloudguard-service";
 
@@ -198,23 +212,173 @@ function Chips({ items }: { items: string[] }) {
   );
 }
 
-// key→number record rendered as a small table (by_model, by_workflow, errors_by_category…)
-function Breakdown({
+const CHART_GRID = "var(--cg-border-subtle)";
+const TT_STYLE = {
+  background: "var(--cg-bg-card)",
+  border: "1px solid var(--cg-border-strong)",
+  borderRadius: 6,
+  fontSize: 12,
+};
+
+// Area trend over days. `keys` are the series to stack/overlay.
+function TrendChart({
   title,
   data,
+  keys,
+  colors,
+}: {
+  title: string;
+  data: Record<string, unknown>[];
+  keys: string[];
+  colors: string[];
+}) {
+  return (
+    <Card title={title}>
+      {data.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: S.textMuted }}>No data yet.</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={200}>
+          <AreaChart
+            data={data}
+            margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid stroke={CHART_GRID} vertical={false} />
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 10, fill: "var(--cg-text-muted)" }}
+              tickLine={false}
+              minTickGap={28}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "var(--cg-text-muted)" }}
+              tickLine={false}
+              width={44}
+            />
+            <RTooltip contentStyle={TT_STYLE} />
+            {keys.map((k, i) => (
+              <Area
+                key={k}
+                type="monotone"
+                dataKey={k}
+                stroke={colors[i]}
+                fill={colors[i]}
+                fillOpacity={0.18}
+                strokeWidth={1.6}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
+    </Card>
+  );
+}
+
+function LineSeries({
+  title,
+  data,
+  keys,
+  colors,
+}: {
+  title: string;
+  data: Record<string, unknown>[];
+  keys: string[];
+  colors: string[];
+}) {
+  return (
+    <Card title={title}>
+      {data.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: S.textMuted }}>No data yet.</div>
+      ) : (
+        <ResponsiveContainer width="100%" height={200}>
+          <LineChart
+            data={data}
+            margin={{ top: 6, right: 8, left: 0, bottom: 0 }}
+          >
+            <CartesianGrid stroke={CHART_GRID} vertical={false} />
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 10, fill: "var(--cg-text-muted)" }}
+              tickLine={false}
+              minTickGap={28}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: "var(--cg-text-muted)" }}
+              tickLine={false}
+              width={44}
+            />
+            <RTooltip contentStyle={TT_STYLE} />
+            {keys.map((k, i) => (
+              <Line
+                key={k}
+                type="monotone"
+                dataKey={k}
+                stroke={colors[i]}
+                strokeWidth={1.6}
+                dot={false}
+              />
+            ))}
+          </LineChart>
+        </ResponsiveContainer>
+      )}
+    </Card>
+  );
+}
+
+// Horizontal-ish bar of a key→number record.
+function BarBreakdown({
+  title,
+  data,
+  color,
   fmt = num,
 }: {
   title: string;
   data: Record<string, unknown> | undefined;
+  color: string;
   fmt?: (v: unknown) => string;
 }) {
-  const entries = Object.entries(data || {});
+  const rows = Object.entries(data || {}).map(([name, value]) => ({
+    name,
+    value: typeof value === "number" ? value : Number(value) || 0,
+  }));
   return (
     <Card title={title}>
-      {entries.length === 0 ? (
+      {rows.length === 0 ? (
         <div style={{ fontSize: 12.5, color: S.textMuted }}>No data yet.</div>
       ) : (
-        entries.map(([k, v]) => <KV key={k} k={k} v={fmt(v)} />)
+        <ResponsiveContainer
+          width="100%"
+          height={Math.max(120, rows.length * 38)}
+        >
+          <BarChart
+            data={rows}
+            layout="vertical"
+            margin={{ top: 4, right: 12, left: 8, bottom: 0 }}
+          >
+            <CartesianGrid stroke={CHART_GRID} horizontal={false} />
+            <XAxis
+              type="number"
+              tick={{ fontSize: 10, fill: "var(--cg-text-muted)" }}
+              tickLine={false}
+            />
+            <YAxis
+              type="category"
+              dataKey="name"
+              tick={{ fontSize: 11, fill: "var(--cg-text-nav)" }}
+              tickLine={false}
+              width={130}
+            />
+            <RTooltip
+              contentStyle={TT_STYLE}
+              formatter={(v) => fmt(v as number)}
+            />
+            <Bar
+              dataKey="value"
+              fill={color}
+              radius={[0, 3, 3, 0]}
+              barSize={16}
+            />
+          </BarChart>
+        </ResponsiveContainer>
       )}
     </Card>
   );
@@ -252,9 +416,13 @@ function WindowSelect({
 // ── Overview ────────────────────────────────────────────────────────────────
 function Overview() {
   const { data, isLoading } = useLlmOverview();
+  const cfgQ = useLlmConfig();
+  const seed = useLlmSeed();
   if (isLoading) return <LiveCardSkeleton lines={4} />;
   if (!data) return null;
   const up = data.scheduled_upgrade as Record<string, unknown> | null;
+  const cfg = (cfgQ.data || {}) as Record<string, unknown>;
+  const empty = !data.requests;
   return (
     <div>
       {up && (
@@ -309,9 +477,78 @@ function Overview() {
         <Stat label="Output tokens" value={num(data.output_tokens)} />
         <Stat label="Est. cost (30d)" value={usd(data.estimated_cost_usd)} />
       </div>
+
+      {/* CISO-facing governance posture — what a security buyer must be able to prove */}
+      <div style={{ marginTop: 16 }}>
+        <Card title="Governance & data">
+          <KV
+            k="Model control"
+            v="Pinned · controlled migration (no silent vendor change)"
+            accent
+          />
+          <KV
+            k="Provider · region (residency)"
+            v={`${cfg.provider} · ${cfg.region}`}
+          />
+          <KV
+            k="Prompt/response logging"
+            v={
+              cfg.logging_policy === "content"
+                ? "content captured"
+                : "metadata only"
+            }
+          />
+          <KV k="Fallback model" v={String(data.fallback_model)} />
+          <KV
+            k="Inference preset"
+            v={`${cfg.preset} (temp ${cfg.temperature})`}
+          />
+          <KV k="Change control" v="audited — see Models › change history" />
+        </Card>
+      </div>
+
+      {empty && (
+        <Capable cap="remediate">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginTop: 4,
+              fontSize: 12.5,
+              color: S.textMuted,
+            }}
+          >
+            No live inference telemetry yet.
+            <button
+              type="button"
+              disabled={seed.isPending}
+              onClick={() => seed.mutate(600)}
+              style={{
+                height: 32,
+                padding: "0 14px",
+                borderRadius: 6,
+                background: "var(--cg-text-primary)",
+                color: "var(--cg-bg-card)",
+                border: "none",
+                fontSize: 12.5,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              {seed.isPending ? "Loading…" : "Load sample data"}
+            </button>
+            <span>
+              — populates the analytics + charts with synthetic records
+              (demo/eval).
+            </span>
+          </div>
+        </Capable>
+      )}
       <p style={{ fontSize: 12, color: S.textMuted, marginTop: 14 }}>
-        Operational metrics populate from live inference telemetry; they read
-        0/— until the inference pipeline is emitting for this tenant.
+        Operational metrics derive from live inference telemetry; they read 0/—
+        until the inference pipeline emits for this tenant (or sample data is
+        loaded).
       </p>
     </div>
   );
@@ -679,45 +916,72 @@ function AnalyticsView({ section }: { section: string }) {
           </div>
           {section === "usage" && (
             <>
-              <Breakdown
+              <TrendChart
+                title="Requests & tokens over time"
+                data={(d.over_time as Record<string, unknown>[]) || []}
+                keys={["requests", "output_tokens"]}
+                colors={[S.accent, "#9b87f5"]}
+              />
+              <BarBreakdown
                 title="Requests by model"
                 data={d.by_model as Record<string, unknown>}
+                color={S.accent}
               />
-              <Breakdown
+              <BarBreakdown
                 title="Requests by workflow"
                 data={d.by_workflow as Record<string, unknown>}
+                color="#9b87f5"
               />
             </>
           )}
+          {section === "performance" && (
+            <LineSeries
+              title="Latency over time (p95 / p50)"
+              data={(d.latency_series as Record<string, unknown>[]) || []}
+              keys={["p95_ms", "p50_ms"]}
+              colors={[S.warning, S.accent]}
+            />
+          )}
           {section === "reliability" && (
-            <Breakdown
+            <BarBreakdown
               title="Errors by category"
               data={d.errors_by_category as Record<string, unknown>}
+              color={S.danger}
             />
           )}
           {section === "cost" && (
             <>
-              <Breakdown
+              <TrendChart
+                title="Cost over time"
+                data={(d.over_time as Record<string, unknown>[]) || []}
+                keys={["cost"]}
+                colors={[S.success]}
+              />
+              <BarBreakdown
                 title="Cost by model"
                 data={d.by_model as Record<string, unknown>}
+                color={S.success}
                 fmt={usd}
               />
-              <Breakdown
+              <BarBreakdown
                 title="Cost by workflow"
                 data={d.by_workflow as Record<string, unknown>}
+                color={S.success}
                 fmt={usd}
               />
             </>
           )}
           {section === "routing" && (
             <>
-              <Breakdown
+              <BarBreakdown
                 title="Distribution by model (%)"
                 data={d.distribution as Record<string, unknown>}
+                color={S.accent}
               />
-              <Breakdown
+              <BarBreakdown
                 title="Fallback reasons"
                 data={d.fallback_reasons as Record<string, unknown>}
+                color={S.warning}
               />
             </>
           )}

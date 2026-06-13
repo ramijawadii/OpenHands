@@ -145,6 +145,16 @@ async def logs(
     return {"rows": rows, "total": len(rows), "tenant_id": p.tenant_id}
 
 
+@router.post("/seed")
+async def seed_sample(
+    n: int = Query(default=600, ge=1, le=5000),
+    p=Depends(require_cap("remediate")),
+):
+    """Populate this tenant with SAMPLE inference records (demo/eval) so analytics + charts show."""
+    ir = _safe("cloudguard.observability.inference_record")
+    return {"seeded": ir.seed(p.tenant_id, n=n)}
+
+
 @router.get("/overview")
 async def overview(
     window: int = Query(default=2592000, ge=60, le=7776000),

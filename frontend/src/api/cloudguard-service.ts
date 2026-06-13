@@ -499,4 +499,8 @@ export const CloudGuardService = {
         total: number;
       }>(`${BASE}/llm/logs`, { params })
       .then((r) => r.data),
+  llmSeed: (n = 600) =>
+    openHands
+      .post(`${BASE}/llm/seed`, null, { params: { n } })
+      .then((r) => r.data),
 };

@@ -474,6 +474,14 @@ export const useLlmLogs = (params?: Record<string, string | number>) =>
     retry: false,
   });
 
+export const useLlmSeed = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (n?: number) => CloudGuardService.llmSeed(n),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cloudguard", "llm"] }),
+  });
+};
+
 export const useDecideApproval = () => {
   const qc = useQueryClient();
   return useMutation({
