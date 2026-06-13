@@ -666,23 +666,39 @@ const OVERALL_LABEL: Record<string, string> = {
   skip: "Unknown",
 };
 
-function bucketStatuses(statuses: string[]): string[] {
-  if (statuses.length === 0) return Array(BAR_N).fill("none");
-  const out: string[] = [];
-  const per = statuses.length / BAR_N;
+interface SampleLite {
+  ts: string;
+  status: string;
+  metrics: Record<string, number>;
+}
+interface Bucket {
+  status: string;
+  sample: SampleLite | null;
+}
+
+function bucketSamples(samples: SampleLite[]): Bucket[] {
+  if (samples.length === 0)
+    return Array.from({ length: BAR_N }, () => ({
+      status: "none",
+      sample: null,
+    }));
+  const out: Bucket[] = [];
+  const per = samples.length / BAR_N;
   for (let i = 0; i < BAR_N; i += 1) {
     const start = Math.floor(i * per);
     const end = Math.max(Math.floor((i + 1) * per), start + 1);
     let worst = "none";
     let worstV = -1;
-    statuses.slice(start, end).forEach((s) => {
-      const v = BAR_ORDER[s] ?? -1;
+    let rep: SampleLite | null = null;
+    samples.slice(start, end).forEach((s) => {
+      const v = BAR_ORDER[s.status] ?? -1;
       if (v > worstV) {
         worstV = v;
-        worst = s;
+        worst = s.status;
+        rep = s;
       }
     });
-    out.push(worst);
+    out.push({ status: worst, sample: rep });
   }
   return out;
 }
@@ -696,22 +712,115 @@ function uptimePct(statuses: string[]): string {
   return `${((ok / counted.length) * 100).toFixed(3)}% uptime`;
 }
 
-function UptimeBar({ statuses }: { statuses: string[] }) {
-  const bars = bucketStatuses(statuses);
+// Status-page bar; hovering a bucket pops a tooltip with that window's full metric set.
+function UptimeBar({
+  samples,
+  subsystem,
+}: {
+  samples: SampleLite[];
+  subsystem: string;
+}) {
+  const buckets = bucketSamples(samples);
+  const [hi, setHi] = React.useState<number | null>(null);
+  const defs = SUBSYSTEM_METRICS[subsystem] || [];
+  const hb = hi !== null ? buckets[hi] : null;
+  const leftPct = hi !== null ? ((hi + 0.5) / BAR_N) * 100 : 0;
+  const align =
+    hi === null ? -50 : hi < BAR_N * 0.18 ? 0 : hi > BAR_N * 0.82 ? -100 : -50;
+  const sm = hb?.sample || null;
   return (
-    <div style={{ display: "flex", gap: 2, height: 34 }}>
-      {bars.map((b, i) => (
+    <div style={{ position: "relative" }} onMouseLeave={() => setHi(null)}>
+      <div style={{ display: "flex", gap: 2, height: 34 }}>
+        {buckets.map((b, i) => (
+          <div
+            // eslint-disable-next-line react/no-array-index-key
+            key={i}
+            onMouseEnter={() => setHi(i)}
+            style={{
+              flex: 1,
+              background: BAR_COLOR[b.status] || BAR_COLOR.none,
+              borderRadius: 1,
+              cursor: "default",
+              outline: hi === i ? "1px solid var(--cg-text-primary)" : "none",
+              outlineOffset: -1,
+            }}
+          />
+        ))}
+      </div>
+      {hb && (
         <div
-          // eslint-disable-next-line react/no-array-index-key
-          key={i}
-          title={b === "none" ? "no data" : b}
           style={{
-            flex: 1,
-            background: BAR_COLOR[b] || BAR_COLOR.none,
-            borderRadius: 1,
+            position: "absolute",
+            bottom: "calc(100% + 8px)",
+            left: `${leftPct}%`,
+            transform: `translateX(${align}%)`,
+            width: 232,
+            background: "var(--cg-bg-card)",
+            border: "1px solid var(--cg-border-strong)",
+            borderRadius: 8,
+            padding: "10px 12px",
+            zIndex: 50,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+            pointerEvents: "none",
           }}
-        />
-      ))}
+        >
+          {sm ? (
+            <>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    color: "var(--cg-text-muted)",
+                  }}
+                >
+                  {sm.ts.replace("T", " ").replace("Z", "")}
+                </span>
+                <StatusPill st={sm.status} />
+              </div>
+              {defs.map((d) => (
+                <div
+                  key={d.key}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    padding: "3px 0",
+                    fontSize: 11.5,
+                  }}
+                >
+                  <span style={{ color: "var(--cg-text-muted)" }}>
+                    {d.label}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "monospace",
+                      color:
+                        sm.metrics[d.key] === undefined
+                          ? "var(--cg-text-muted)"
+                          : "var(--cg-text-primary)",
+                    }}
+                  >
+                    {fmtMetric(sm.metrics[d.key], d.unit)}
+                  </span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
+              No data in this time bucket.
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -871,14 +980,17 @@ function StatusView({
           </div>
 
           {data.subsystems.map((s, i) => {
-            const statuses = (snaps.data ?? [])
-              .map(
-                (sn) =>
-                  sn.subsystems.find((x) => x.subsystem === s.subsystem)
-                    ?.status,
-              )
-              .filter((x): x is string => !!x);
-            const up = uptimePct(statuses);
+            const samples = (snaps.data ?? [])
+              .map((sn) => {
+                const e = sn.subsystems.find(
+                  (x) => x.subsystem === s.subsystem,
+                );
+                return e
+                  ? { ts: sn.ts, status: e.status, metrics: e.metrics || {} }
+                  : null;
+              })
+              .filter((x): x is SampleLite => x !== null);
+            const up = uptimePct(samples.map((x) => x.status));
             return (
               <div
                 key={s.subsystem}
@@ -930,7 +1042,7 @@ function StatusView({
                     {up}
                   </span>
                 </div>
-                <UptimeBar statuses={statuses} />
+                <UptimeBar samples={samples} subsystem={s.subsystem} />
                 <div
                   style={{
                     display: "flex",
@@ -1565,7 +1677,7 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
   );
 
   // Uptime bar for THIS subsystem over the selected window (oldest -> newest).
-  const barStatuses = [...rows].reverse().map((r) => r.status);
+  const barSamples = [...rows].reverse(); // oldest -> newest (SubRow ⊇ SampleLite)
   const winLabel = WINDOWS.find(([, v]) => v === win)?.[0] || "window";
 
   return (
@@ -1598,10 +1710,10 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
               color: cur?.status === "ok" ? S.success : S.textSecondary,
             }}
           >
-            {uptimePct(barStatuses)}
+            {uptimePct(barSamples.map((s) => s.status))}
           </span>
         </div>
-        <UptimeBar statuses={barStatuses} />
+        <UptimeBar samples={barSamples} subsystem={subsystem} />
         <div
           style={{
             display: "flex",
