@@ -712,7 +712,10 @@ function uptimePct(statuses: string[]): string {
   return `${((ok / counted.length) * 100).toFixed(3)}% uptime`;
 }
 
-// Status-page bar; hovering a bucket pops a tooltip with that window's full metric set.
+// Status-page bar; hovering a bucket pops a compact, viewport-clamped tooltip with that
+// window's full metric set. The tooltip is position:fixed (measured off the hovered cell) so
+// it never gets clipped by a parent and flips above/below depending on available room.
+const TT_W = 196;
 function UptimeBar({
   samples,
   subsystem,
@@ -721,46 +724,68 @@ function UptimeBar({
   subsystem: string;
 }) {
   const buckets = bucketSamples(samples);
-  const [hi, setHi] = React.useState<number | null>(null);
+  const [hover, setHover] = React.useState<{
+    i: number;
+    x: number;
+    y: number;
+    below: boolean;
+  } | null>(null);
   const defs = SUBSYSTEM_METRICS[subsystem] || [];
-  const hb = hi !== null ? buckets[hi] : null;
-  const leftPct = hi !== null ? ((hi + 0.5) / BAR_N) * 100 : 0;
-  const align =
-    hi === null ? -50 : hi < BAR_N * 0.18 ? 0 : hi > BAR_N * 0.82 ? -100 : -50;
-  const sm = hb?.sample || null;
+  const sm = hover ? buckets[hover.i]?.sample || null : null;
+
+  const onEnter = (e: React.MouseEvent, i: number) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    // estimate tooltip height to decide flip; enough room above?
+    const estH = 40 + defs.length * 20;
+    const below = r.top < estH + 16;
+    setHover({
+      i,
+      x: r.left + r.width / 2,
+      y: below ? r.bottom + 8 : r.top - 8,
+      below,
+    });
+  };
+  const clampedX =
+    hover &&
+    Math.min(
+      Math.max(hover.x, TT_W / 2 + 8),
+      (typeof window !== "undefined" ? window.innerWidth : 1200) - TT_W / 2 - 8,
+    );
+
   return (
-    <div style={{ position: "relative" }} onMouseLeave={() => setHi(null)}>
+    <div style={{ position: "relative" }} onMouseLeave={() => setHover(null)}>
       <div style={{ display: "flex", gap: 2, height: 34 }}>
         {buckets.map((b, i) => (
           <div
             // eslint-disable-next-line react/no-array-index-key
             key={i}
-            onMouseEnter={() => setHi(i)}
+            onMouseEnter={(e) => onEnter(e, i)}
             style={{
               flex: 1,
               background: BAR_COLOR[b.status] || BAR_COLOR.none,
               borderRadius: 1,
               cursor: "default",
-              outline: hi === i ? "1px solid var(--cg-text-primary)" : "none",
+              outline:
+                hover?.i === i ? "1px solid var(--cg-text-primary)" : "none",
               outlineOffset: -1,
             }}
           />
         ))}
       </div>
-      {hb && (
+      {hover && (
         <div
           style={{
-            position: "absolute",
-            bottom: "calc(100% + 8px)",
-            left: `${leftPct}%`,
-            transform: `translateX(${align}%)`,
-            width: 232,
+            position: "fixed",
+            top: hover.y,
+            left: clampedX as number,
+            transform: `translate(-50%, ${hover.below ? "0" : "-100%"})`,
+            width: TT_W,
             background: "var(--cg-bg-card)",
             border: "1px solid var(--cg-border-strong)",
             borderRadius: 8,
-            padding: "10px 12px",
-            zIndex: 50,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.45)",
+            padding: "8px 10px",
+            zIndex: 2000,
+            boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
             pointerEvents: "none",
           }}
         >
@@ -771,13 +796,13 @@ function UptimeBar({
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  gap: 8,
-                  marginBottom: 8,
+                  gap: 6,
+                  marginBottom: 6,
                 }}
               >
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: 10.5,
                     fontFamily: "monospace",
                     color: "var(--cg-text-muted)",
                   }}
@@ -792,17 +817,25 @@ function UptimeBar({
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    gap: 10,
-                    padding: "3px 0",
-                    fontSize: 11.5,
+                    gap: 8,
+                    padding: "2px 0",
+                    fontSize: 11,
                   }}
                 >
-                  <span style={{ color: "var(--cg-text-muted)" }}>
+                  <span
+                    style={{
+                      color: "var(--cg-text-muted)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
                     {d.label}
                   </span>
                   <span
                     style={{
                       fontFamily: "monospace",
+                      flexShrink: 0,
                       color:
                         sm.metrics[d.key] === undefined
                           ? "var(--cg-text-muted)"
@@ -815,7 +848,7 @@ function UptimeBar({
               ))}
             </>
           ) : (
-            <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
+            <span style={{ fontSize: 11, color: "var(--cg-text-muted)" }}>
               No data in this time bucket.
             </span>
           )}
