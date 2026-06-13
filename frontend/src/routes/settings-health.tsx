@@ -318,8 +318,10 @@ const BAR_COLOR: Record<string, string> = {
   ok: "#1f9d6b",
   degraded: "#e09a2d",
   fail: "var(--cg-danger)",
-  skip: "var(--cg-bg-hover)",
-  none: "var(--cg-bg-hover)",
+  // Distinct slate so "skip"/no-data segments stay visible even when the row is hovered
+  // (the row hover repaints to --cg-bg-hover, which previously made these vanish).
+  skip: "rgba(148,163,184,0.32)",
+  none: "rgba(148,163,184,0.18)",
 };
 const OVERALL_LABEL: Record<string, string> = {
   ok: "Operational",
@@ -1226,8 +1228,58 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
     </span>
   );
 
+  // Uptime bar for THIS subsystem over the selected window (oldest -> newest).
+  const barStatuses = [...rows].reverse().map((r) => r.status);
+  const winLabel = WINDOWS.find(([, v]) => v === win)?.[0] || "window";
+
   return (
     <div>
+      {/* This subsystem's status row (uptime bar over the window) */}
+      <div
+        style={{
+          border: `1px solid ${S.border}`,
+          borderRadius: 10,
+          background: S.cardBg,
+          padding: "14px 18px",
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 10,
+          }}
+        >
+          <span style={{ fontSize: 12.5, color: S.textMuted }}>
+            Uptime over last {winLabel}
+          </span>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: cur?.status === "ok" ? S.success : S.textSecondary,
+            }}
+          >
+            {uptimePct(barStatuses)}
+          </span>
+        </div>
+        <UptimeBar statuses={barStatuses} />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            marginTop: 7,
+            fontSize: 11.5,
+            color: S.textMuted,
+          }}
+        >
+          <span>{winLabel} ago</span>
+          <span>Today</span>
+        </div>
+      </div>
+
       {/* Current status + checks */}
       {liveLoading && !cur ? (
         <LiveCardSkeleton lines={3} />
