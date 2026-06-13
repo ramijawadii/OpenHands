@@ -46,13 +46,13 @@ const SUBSYSTEMS = [
 ];
 const METRIC_HINTS: Record<string, string> = {
   control_plane: "pending_approvals | active_kills | audit_entries",
-  llm: "latency_p95_ms | error_rate | tokens_per_min",
+  llm: "provider_configured | region_set",
   tools: "error_rate | executions",
   container: "cpu_pct | mem_pct | disk_write_mb | net_sent_mb",
   connector: "healthy | connectors",
-  env_model: "coverage_pct | last_model_run_age",
-  mcp: "tools | latency_ms",
-  sandbox: "live | provision_fail_rate",
+  env_model: "layers",
+  mcp: "servers",
+  sandbox: "runtime_configured | volumes | startup_env_vars",
 };
 
 function statusColor(st: string) {
@@ -85,6 +85,12 @@ const STATUS_TINT: Record<string, string> = {
   fail: "rgba(229,72,77,0.16)",
   skip: "var(--cg-bg-badge)",
 };
+const STATUS_RING: Record<string, string> = {
+  ok: "rgba(76,175,125,0.45)",
+  degraded: "rgba(224,154,45,0.5)",
+  fail: "rgba(229,72,77,0.5)",
+  skip: "var(--cg-border-strong)",
+};
 function StatusPill({ st }: { st: string }) {
   return (
     <span
@@ -99,6 +105,7 @@ function StatusPill({ st }: { st: string }) {
         fontWeight: 600,
         color: statusColor(st),
         background: STATUS_TINT[st] || "var(--cg-bg-badge)",
+        border: `1px solid ${STATUS_RING[st] || "var(--cg-border)"}`,
         textTransform: "uppercase",
         letterSpacing: "0.03em",
       }}
@@ -526,6 +533,7 @@ function StatusView({
                 fontWeight: 600,
                 color: statusColor(data.overall),
                 background: STATUS_TINT[data.overall] || "var(--cg-bg-badge)",
+                border: `1px solid ${STATUS_RING[data.overall] || "var(--cg-border)"}`,
               }}
             >
               <Dot st={data.overall} size={7} />
