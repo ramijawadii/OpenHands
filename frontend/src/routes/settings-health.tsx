@@ -44,16 +44,329 @@ const SUBSYSTEMS = [
   "sandbox",
   "connector",
 ];
-const METRIC_HINTS: Record<string, string> = {
-  control_plane: "pending_approvals | active_kills | audit_entries",
-  llm: "provider_configured | region_set",
-  tools: "error_rate | executions",
-  container: "cpu_pct | mem_pct | disk_write_mb | net_sent_mb",
-  connector: "healthy | connectors",
-  env_model: "layers",
-  mcp: "servers",
-  sandbox: "runtime_configured | volumes | startup_env_vars",
+
+type MetricUnit = "%" | "ms" | "min" | "MB" | "bool" | "count";
+interface MetricDef {
+  key: string;
+  label: string;
+  unit: MetricUnit;
+  desc: string;
+}
+
+// Per-subsystem health KPI catalog — the metrics an SRE/CISO actually watches for each
+// subsystem. Always rendered (real value or "—"); the backend fills the ones it can observe,
+// the rest land when their producer is instrumented. First ~5 appear as table columns; the
+// expand shows the full set with descriptions.
+const SUBSYSTEM_METRICS: Record<string, MetricDef[]> = {
+  control_plane: [
+    {
+      key: "audit_chain_intact",
+      label: "Chain intact",
+      unit: "bool",
+      desc: "Tamper-evident audit hash-chain verifies end to end.",
+    },
+    {
+      key: "pending_approvals",
+      label: "Pending approvals",
+      unit: "count",
+      desc: "Human-approval requests awaiting a decision.",
+    },
+    {
+      key: "oldest_approval_age_min",
+      label: "Oldest approval",
+      unit: "min",
+      desc: "Age of the longest-waiting approval (SLA risk).",
+    },
+    {
+      key: "active_kill_switches",
+      label: "Kill-switches",
+      unit: "count",
+      desc: "Active emergency-halt scopes.",
+    },
+    {
+      key: "tenancy_strict",
+      label: "Strict tenancy",
+      unit: "bool",
+      desc: "Edge is fail-closed (rejects unauthenticated / cross-tenant).",
+    },
+    {
+      key: "audit_entries",
+      label: "Audit volume",
+      unit: "count",
+      desc: "Total audit entries recorded for the tenant.",
+    },
+  ],
+  llm: [
+    {
+      key: "provider_ready",
+      label: "Provider ready",
+      unit: "bool",
+      desc: "A model provider is configured and selectable.",
+    },
+    {
+      key: "latency_p95_ms",
+      label: "p95 latency",
+      unit: "ms",
+      desc: "95th-percentile completion latency.",
+    },
+    {
+      key: "error_rate_pct",
+      label: "Error rate",
+      unit: "%",
+      desc: "Failed / 5xx completions over total.",
+    },
+    {
+      key: "rate_limited_5m",
+      label: "429s (5m)",
+      unit: "count",
+      desc: "Provider rate-limit responses in the last 5 minutes.",
+    },
+    {
+      key: "tokens_per_min",
+      label: "Tokens/min",
+      unit: "count",
+      desc: "Token throughput.",
+    },
+    {
+      key: "context_used_pct",
+      label: "Context used",
+      unit: "%",
+      desc: "Average context-window utilisation.",
+    },
+  ],
+  tools: [
+    {
+      key: "success_rate_pct",
+      label: "Success rate",
+      unit: "%",
+      desc: "Tool executions that succeeded.",
+    },
+    {
+      key: "error_rate_pct",
+      label: "Error rate",
+      unit: "%",
+      desc: "Tool executions that failed or aborted.",
+    },
+    {
+      key: "p95_latency_ms",
+      label: "p95 latency",
+      unit: "ms",
+      desc: "95th-percentile tool execution time.",
+    },
+    {
+      key: "calls_1h",
+      label: "Calls (1h)",
+      unit: "count",
+      desc: "Tool invocations in the last hour.",
+    },
+    {
+      key: "degraded_tools",
+      label: "Degraded tools",
+      unit: "count",
+      desc: "Tools trending toward failure / coverage gaps.",
+    },
+    {
+      key: "timeouts_1h",
+      label: "Timeouts (1h)",
+      unit: "count",
+      desc: "Tool calls that timed out.",
+    },
+  ],
+  container: [
+    {
+      key: "cpu_pct",
+      label: "CPU",
+      unit: "%",
+      desc: "Runtime CPU utilisation.",
+    },
+    {
+      key: "mem_pct",
+      label: "Memory",
+      unit: "%",
+      desc: "Runtime memory utilisation.",
+    },
+    {
+      key: "mem_used_mb",
+      label: "Mem used",
+      unit: "MB",
+      desc: "Resident memory in use.",
+    },
+    {
+      key: "disk_used_pct",
+      label: "Disk",
+      unit: "%",
+      desc: "Root filesystem utilisation.",
+    },
+    {
+      key: "net_recv_mb",
+      label: "Net in",
+      unit: "MB",
+      desc: "Cumulative network bytes received.",
+    },
+    {
+      key: "net_sent_mb",
+      label: "Net out",
+      unit: "MB",
+      desc: "Cumulative network bytes sent.",
+    },
+  ],
+  env_model: [
+    {
+      key: "kg_reachable",
+      label: "KG reachable",
+      unit: "bool",
+      desc: "Environment knowledge-graph store is reachable.",
+    },
+    {
+      key: "modelled_resources",
+      label: "Resources",
+      unit: "count",
+      desc: "Cloud resources currently modelled.",
+    },
+    {
+      key: "coverage_pct",
+      label: "Coverage",
+      unit: "%",
+      desc: "Share of expected resources successfully modelled.",
+    },
+    {
+      key: "layers_built",
+      label: "Layers built",
+      unit: "count",
+      desc: "Environment-model layers built this run.",
+    },
+    {
+      key: "last_run_age_min",
+      label: "Last run",
+      unit: "min",
+      desc: "Time since the last model build (freshness).",
+    },
+    {
+      key: "drift_resources",
+      label: "Drift",
+      unit: "count",
+      desc: "Resources changed since the last model.",
+    },
+  ],
+  mcp: [
+    {
+      key: "servers_total",
+      label: "Servers",
+      unit: "count",
+      desc: "MCP servers registered.",
+    },
+    {
+      key: "servers_up",
+      label: "Up",
+      unit: "count",
+      desc: "MCP servers responding to a handshake.",
+    },
+    {
+      key: "tools_advertised",
+      label: "Tools",
+      unit: "count",
+      desc: "Tools advertised across servers.",
+    },
+    {
+      key: "handshake_p95_ms",
+      label: "Handshake p95",
+      unit: "ms",
+      desc: "95th-percentile list-tools handshake time.",
+    },
+    {
+      key: "error_rate_pct",
+      label: "Error rate",
+      unit: "%",
+      desc: "Failed MCP calls over total.",
+    },
+  ],
+  sandbox: [
+    {
+      key: "runtime_ready",
+      label: "Runtime ready",
+      unit: "bool",
+      desc: "Sandbox runtime image + endpoint are configured.",
+    },
+    {
+      key: "active_sandboxes",
+      label: "Active",
+      unit: "count",
+      desc: "Sandboxes currently running.",
+    },
+    {
+      key: "provision_success_pct",
+      label: "Provision success",
+      unit: "%",
+      desc: "Sandbox provisions that succeeded.",
+    },
+    {
+      key: "avg_provision_ms",
+      label: "Avg provision",
+      unit: "ms",
+      desc: "Mean time to provision a sandbox.",
+    },
+    {
+      key: "resource_pressure_pct",
+      label: "Pressure",
+      unit: "%",
+      desc: "Peak CPU/memory pressure across sandboxes.",
+    },
+    {
+      key: "volumes_mounted",
+      label: "Volumes",
+      unit: "count",
+      desc: "Shared volumes mounted into the runtime.",
+    },
+  ],
+  connector: [
+    {
+      key: "connectors_total",
+      label: "Connectors",
+      unit: "count",
+      desc: "Cloud connectors configured.",
+    },
+    {
+      key: "connectors_healthy",
+      label: "Healthy",
+      unit: "count",
+      desc: "Connectors reachable with valid credentials.",
+    },
+    {
+      key: "creds_valid",
+      label: "Creds valid",
+      unit: "count",
+      desc: "Connectors whose credentials authenticated.",
+    },
+    {
+      key: "last_read_age_min",
+      label: "Last read",
+      unit: "min",
+      desc: "Time since the last successful cloud read.",
+    },
+    {
+      key: "api_error_rate_pct",
+      label: "API errors",
+      unit: "%",
+      desc: "Provider API error / 4xx rate.",
+    },
+    {
+      key: "throttled_1h",
+      label: "Throttled (1h)",
+      unit: "count",
+      desc: "Throttled / 429 provider responses in the last hour.",
+    },
+  ],
 };
+
+function fmtMetric(v: number | undefined, unit: MetricUnit): string {
+  if (v === undefined || v === null) return "—";
+  if (unit === "bool") return v ? "yes" : "no";
+  if (unit === "%") return `${v}%`;
+  if (unit === "ms") return `${v} ms`;
+  if (unit === "min") return `${v} min`;
+  if (unit === "MB") return `${v} MB`;
+  return String(v);
+}
 
 function statusColor(st: string) {
   return st === "ok"
@@ -122,13 +435,14 @@ function HealthSampleRow({
   r,
   cols,
   grid,
+  allDefs,
 }: {
   r: SubRow;
-  cols: string[];
+  cols: MetricDef[];
   grid: string;
+  allDefs: MetricDef[];
 }) {
   const [open, setOpen] = React.useState(false);
-  const entries = Object.entries(r.metrics || {});
   return (
     <div style={{ borderBottom: "1px solid var(--cg-border-subtle)" }}>
       <div
@@ -183,64 +497,79 @@ function HealthSampleRow({
         >
           {r.summary || "—"}
         </span>
-        {cols.map((c) => (
+        {cols.map((d) => (
           <span
-            key={c}
+            key={d.key}
             style={{
               textAlign: "right",
               fontFamily: "monospace",
               fontSize: 12,
-              color: "var(--cg-text-primary)",
+              color:
+                r.metrics[d.key] === undefined
+                  ? "var(--cg-text-muted)"
+                  : "var(--cg-text-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
             }}
           >
-            {r.metrics[c] ?? "—"}
+            {fmtMetric(r.metrics[d.key], d.unit)}
           </span>
         ))}
       </div>
       {open && (
-        <div style={{ padding: "2px 16px 16px 42px" }}>
-          {entries.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
-              No metrics captured for this sample.
-            </div>
-          ) : (
+        <div
+          style={{
+            padding: "4px 16px 16px 42px",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+            columnGap: 32,
+          }}
+        >
+          {allDefs.map((d) => (
             <div
+              key={d.key}
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
-                columnGap: 28,
+                padding: "8px 0",
+                borderBottom: "1px solid var(--cg-border-subtle)",
               }}
             >
-              {entries.map(([k, v]) => (
-                <div
-                  key={k}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                }}
+              >
+                <span style={{ fontSize: 12.5, color: "var(--cg-text-nav)" }}>
+                  {d.label}
+                </span>
+                <span
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 12,
-                    padding: "6px 0",
-                    borderBottom: "1px solid var(--cg-border-subtle)",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    fontFamily: "monospace",
+                    color:
+                      r.metrics[d.key] === undefined
+                        ? "var(--cg-text-muted)"
+                        : "var(--cg-text-primary)",
                   }}
                 >
-                  <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
-                    {k.replace(/_/g, " ")}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 12,
-                      color: "var(--cg-text-primary)",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {String(v)}
-                  </span>
-                </div>
-              ))}
+                  {fmtMetric(r.metrics[d.key], d.unit)}
+                </span>
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  color: "var(--cg-text-muted)",
+                  marginTop: 3,
+                  lineHeight: 1.4,
+                }}
+              >
+                {d.desc}
+              </div>
             </div>
-          )}
+          ))}
         </div>
       )}
     </div>
@@ -979,14 +1308,21 @@ function AlertsView() {
               </Field>
             ) : (
               <>
-                <Field
-                  label={`Metric (${METRIC_HINTS[form.subsystem] || "metric"})`}
-                >
-                  <input
+                <Field label="Metric">
+                  <select
                     value={form.metric}
                     onChange={(e) => setF({ metric: e.target.value })}
-                    style={{ ...fieldStyle, width: "100%", height: 36 }}
-                  />
+                    style={{ ...selectStyle, width: "100%", height: 36 }}
+                  >
+                    <option value="" style={optBg}>
+                      Select a metric…
+                    </option>
+                    {(SUBSYSTEM_METRICS[form.subsystem] || []).map((d) => (
+                      <option key={d.key} value={d.key} style={optBg}>
+                        {d.label} ({d.key})
+                      </option>
+                    ))}
+                  </select>
                 </Field>
                 <Field label="Threshold">
                   <input
@@ -1197,20 +1533,12 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
     return true;
   });
 
-  // Inline metric columns for this subsystem (consistent across its samples — no sparse cells).
-  // When no live metrics exist yet (a `skip`/uninstrumented subsystem), fall back to the
-  // EXPECTED metric columns so the table still fills the width and previews what will be tracked.
-  const sampleKeys = Object.keys(rows[0]?.metrics || cur?.metrics || {});
-  const expectedKeys = (METRIC_HINTS[subsystem] || "")
-    .split("|")
-    .map((x) => x.trim())
-    .filter(Boolean);
-  const metricCols = (sampleKeys.length ? sampleKeys : expectedKeys).slice(
-    0,
-    5,
-  );
-  const grid = `20px 168px 96px minmax(160px, 1.3fr) ${metricCols
-    .map(() => "minmax(80px, 1fr)")
+  // Columns come from the subsystem's KPI catalog (always shown, real value or "—"); the
+  // expand reveals the full catalog with descriptions.
+  const allDefs = SUBSYSTEM_METRICS[subsystem] || [];
+  const colDefs = allDefs.slice(0, 5);
+  const grid = `20px 168px 104px minmax(150px, 1.1fr) ${colDefs
+    .map(() => "minmax(86px, 1fr)")
     .join(" ")}`;
 
   const PAGE = 25;
@@ -1423,9 +1751,9 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
           {th("Time (UTC)")}
           {th("Status")}
           {th("Summary")}
-          {metricCols.map((m) => (
-            <span key={m} style={{ textAlign: "right" }}>
-              {th(m.replace(/_/g, " "))}
+          {colDefs.map((d) => (
+            <span key={d.key} style={{ textAlign: "right" }} title={d.desc}>
+              {th(d.label)}
             </span>
           ))}
         </div>
@@ -1441,7 +1769,13 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
           </div>
         )}
         {paged.map((r) => (
-          <HealthSampleRow key={r.ts} r={r} cols={metricCols} grid={grid} />
+          <HealthSampleRow
+            key={r.ts}
+            r={r}
+            cols={colDefs}
+            grid={grid}
+            allDefs={allDefs}
+          />
         ))}
       </div>
 
