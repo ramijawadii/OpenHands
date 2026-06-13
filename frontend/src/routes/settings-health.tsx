@@ -786,34 +786,79 @@ interface SampleLite {
 }
 interface Bucket {
   status: string;
-  sample: SampleLite | null;
+  sample: SampleLite | null; // worst-status sample in the bucket (the representative)
+  start: number; // bucket time-range start (epoch ms, UTC)
+  end: number; // bucket time-range end (epoch ms)
+  count: number; // how many samples fell in this bucket
 }
 
-function bucketSamples(samples: SampleLite[]): Bucket[] {
-  if (samples.length === 0)
-    return Array.from({ length: BAR_N }, () => ({
-      status: "none",
-      sample: null,
-    }));
-  const out: Bucket[] = [];
-  const per = samples.length / BAR_N;
-  for (let i = 0; i < BAR_N; i += 1) {
-    const start = Math.floor(i * per);
-    const end = Math.max(Math.floor((i + 1) * per), start + 1);
-    let worst = "none";
-    let worstV = -1;
-    let rep: SampleLite | null = null;
-    samples.slice(start, end).forEach((s) => {
-      const v = BAR_ORDER[s.status] ?? -1;
-      if (v > worstV) {
-        worstV = v;
-        worst = s.status;
-        rep = s;
-      }
-    });
-    out.push({ status: worst, sample: rep });
+// Parse a snapshot timestamp (ISO "…Z" or "YYYY-MM-DD HH:MM:SS") to an epoch (ms).
+function parseTs(ts: string): number {
+  if (!ts) return 0;
+  const norm = ts.includes("T") ? ts : ts.replace(" ", "T");
+  const withZone = /[zZ]|[+-]\d\d:?\d\d$/.test(norm) ? norm : `${norm}Z`;
+  const t = Date.parse(withZone);
+  return Number.isNaN(t) ? 0 : t;
+}
+
+// Bucket by ACTUAL TIME, not by sample count: anchor the axis to the selected
+// window [now-window, now] and split it into BAR_N equal real-time slices, so
+// every bar maps to a precise, uniform interval regardless of how irregularly
+// the snapshots are spaced. Gaps in monitoring show as empty ("none") buckets
+// rather than being silently compressed away.
+function bucketSamples(samples: SampleLite[], windowSec: number): Bucket[] {
+  const now = Date.now();
+  const tsList = samples.map((s) => parseTs(s.ts)).filter((t) => t > 0);
+  const maxTs = tsList.length ? Math.max(...tsList) : now;
+  const minTs = tsList.length ? Math.min(...tsList) : now;
+  const spanMs = windowSec > 0 ? windowSec * 1000 : 0;
+  // End at the latest of now / newest sample; start at the window edge, but never
+  // clip samples that are older than the nominal window out of the chart.
+  const end = Math.max(now, maxTs);
+  let start = spanMs ? end - spanMs : minTs;
+  if (tsList.length && minTs < start) start = minTs;
+  const totalMs = Math.max(end - start, 1);
+  const slice = totalMs / BAR_N;
+
+  const buckets: Bucket[] = Array.from({ length: BAR_N }, (_, i) => ({
+    status: "none",
+    sample: null,
+    start: start + i * slice,
+    end: start + (i + 1) * slice,
+    count: 0,
+  }));
+
+  samples.forEach((s) => {
+    const t = parseTs(s.ts);
+    if (!t) return;
+    let idx = Math.floor(((t - start) / totalMs) * BAR_N);
+    if (idx < 0) idx = 0;
+    if (idx >= BAR_N) idx = BAR_N - 1;
+    const b = buckets[idx];
+    b.count += 1;
+    const v = BAR_ORDER[s.status] ?? -1;
+    const cur = b.sample ? (BAR_ORDER[b.status] ?? -1) : -2;
+    // Keep the worst status; on a tie take the later sample (samples are oldest→newest).
+    if (v >= cur) {
+      b.status = s.status;
+      b.sample = s;
+    }
+  });
+  return buckets;
+}
+
+// Compact UTC clock for the tooltip's bucket range. Short windows → HH:MM;
+// multi-day windows add the date so the hour is never ambiguous.
+function fmtClock(ms: number, spanMs: number): string {
+  const d = new Date(ms);
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  if (spanMs > 0 && spanMs <= 36 * 3600 * 1000) {
+    const ss = String(d.getUTCSeconds()).padStart(2, "0");
+    return spanMs <= 2 * 3600 * 1000 ? `${hh}:${mm}:${ss}` : `${hh}:${mm}`;
   }
-  return out;
+  const mo = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  return `${mo} ${d.getUTCDate()} ${hh}:${mm}`;
 }
 
 function uptimePct(statuses: string[]): string {
@@ -828,15 +873,19 @@ function uptimePct(statuses: string[]): string {
 // Status-page bar; hovering a bucket pops a compact, viewport-clamped tooltip with that
 // window's full metric set. The tooltip is position:fixed (measured off the hovered cell) so
 // it never gets clipped by a parent and flips above/below depending on available room.
-const TT_W = 196;
+const TT_W = 208;
 function UptimeBar({
   samples,
   subsystem,
+  windowSec = 0,
 }: {
   samples: SampleLite[];
   subsystem: string;
+  windowSec?: number;
 }) {
-  const buckets = bucketSamples(samples);
+  const buckets = bucketSamples(samples, windowSec);
+  const spanMs =
+    buckets.length > 0 ? buckets[buckets.length - 1].end - buckets[0].start : 0;
   const [hover, setHover] = React.useState<{
     i: number;
     x: number;
@@ -844,12 +893,13 @@ function UptimeBar({
     below: boolean;
   } | null>(null);
   const defs = SUBSYSTEM_METRICS[subsystem] || [];
-  const sm = hover ? buckets[hover.i]?.sample || null : null;
+  const hb = hover ? buckets[hover.i] || null : null;
+  const sm = hb?.sample || null;
 
   const onEnter = (e: React.MouseEvent, i: number) => {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // estimate tooltip height to decide flip; enough room above?
-    const estH = 40 + defs.length * 20;
+    const estH = 58 + defs.length * 20;
     const below = r.top < estH + 16;
     setHover({
       i,
@@ -902,6 +952,20 @@ function UptimeBar({
             pointerEvents: "none",
           }}
         >
+          {/* Precise bucket time-range (UTC), independent of whether a sample landed here. */}
+          {hb && (
+            <div
+              style={{
+                fontSize: 10,
+                fontFamily: "monospace",
+                color: "var(--cg-text-muted)",
+                marginBottom: 6,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {fmtClock(hb.start, spanMs)} – {fmtClock(hb.end, spanMs)} UTC
+            </div>
+          )}
           {sm ? (
             <>
               <div
@@ -919,8 +983,10 @@ function UptimeBar({
                     fontFamily: "monospace",
                     color: "var(--cg-text-muted)",
                   }}
+                  title="Exact sample timestamp"
                 >
-                  {sm.ts.replace("T", " ").replace("Z", "")}
+                  @ {sm.ts.replace("T", " ").replace("Z", "")}
+                  {(hb?.count ?? 0) > 1 ? ` · ${hb?.count} samples` : ""}
                 </span>
                 <StatusPill st={sm.status} />
               </div>
@@ -1198,7 +1264,11 @@ function StatusView({
                     {up}
                   </span>
                 </div>
-                <UptimeBar samples={samples} subsystem={s.subsystem} />
+                <UptimeBar
+                  samples={samples}
+                  subsystem={s.subsystem}
+                  windowSec={ovWin}
+                />
                 <div
                   style={{
                     display: "flex",
@@ -1893,7 +1963,7 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
             {uptimePct(barSamples.map((s) => s.status))}
           </span>
         </div>
-        <UptimeBar samples={barSamples} subsystem={subsystem} />
+        <UptimeBar samples={barSamples} subsystem={subsystem} windowSec={win} />
         <div
           style={{
             display: "flex",
