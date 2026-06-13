@@ -1315,7 +1315,14 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
   });
 
   // Inline metric columns for this subsystem (consistent across its samples — no sparse cells).
-  const metricCols = Object.keys(rows[0]?.metrics || cur?.metrics || {}).slice(
+  // When no live metrics exist yet (a `skip`/uninstrumented subsystem), fall back to the
+  // EXPECTED metric columns so the table still fills the width and previews what will be tracked.
+  const sampleKeys = Object.keys(rows[0]?.metrics || cur?.metrics || {});
+  const expectedKeys = (METRIC_HINTS[subsystem] || "")
+    .split("|")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const metricCols = (sampleKeys.length ? sampleKeys : expectedKeys).slice(
     0,
     5,
   );
