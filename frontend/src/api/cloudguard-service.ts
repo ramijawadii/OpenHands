@@ -440,4 +440,8 @@ export const CloudGuardService = {
     openHands
       .post(`${BASE}/monitoring/health/alerts/${ruleId}/ack`)
       .then((r) => r.data),
+  healthAlertTest: (rule: Record<string, unknown>) =>
+    openHands
+      .post(`${BASE}/monitoring/health/alerts/test`, rule)
+      .then((r) => r.data),
 };

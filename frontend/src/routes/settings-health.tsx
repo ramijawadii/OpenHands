@@ -15,9 +15,9 @@ import {
   useHealthProbe,
   useCollection,
   useSettingsDoc,
-  useRuns,
 } from "#/hooks/query/use-cloudguard";
 import { useLiveCollection } from "#/hooks/use-live-collection";
+import { CloudGuardService } from "#/api/cloudguard-service";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -368,6 +368,102 @@ function fmtMetric(v: number | undefined, unit: MetricUnit): string {
   return String(v);
 }
 
+// Per-metric thresholds (warn/crit). hiBad (default) = higher is worse; hiBad:false = higher is
+// better (warn/crit are lower bounds). boolSev = severity when a bool metric reads 0/false.
+type Threshold = {
+  warn?: number;
+  crit?: number;
+  hiBad?: boolean;
+  boolSev?: "warn" | "crit";
+};
+const THRESHOLDS: Record<string, Threshold> = {
+  "control_plane.audit_chain_intact": { boolSev: "crit" },
+  "control_plane.tenancy_strict": { boolSev: "warn" },
+  "control_plane.pending_approvals": { warn: 25, crit: 50 },
+  "control_plane.oldest_approval_age_min": { warn: 60, crit: 240 },
+  "control_plane.active_kill_switches": { warn: 1, crit: 1 },
+  "llm.provider_ready": { boolSev: "crit" },
+  "llm.latency_p95_ms": { warn: 5000, crit: 10000 },
+  "llm.error_rate_pct": { warn: 2, crit: 10 },
+  "llm.rate_limited_5m": { warn: 1, crit: 10 },
+  "tools.success_rate_pct": { hiBad: false, warn: 95, crit: 80 },
+  "tools.error_rate_pct": { warn: 5, crit: 25 },
+  "tools.p95_latency_ms": { warn: 8000, crit: 20000 },
+  "tools.degraded_tools": { warn: 1, crit: 3 },
+  "tools.timeouts_1h": { warn: 1, crit: 10 },
+  "container.cpu_pct": { warn: 85, crit: 95 },
+  "container.mem_pct": { warn: 80, crit: 90 },
+  "container.disk_used_pct": { warn: 85, crit: 95 },
+  "env_model.kg_reachable": { boolSev: "crit" },
+  "env_model.coverage_pct": { hiBad: false, warn: 90, crit: 70 },
+  "env_model.drift_resources": { warn: 1, crit: 25 },
+  "mcp.error_rate_pct": { warn: 5, crit: 25 },
+  "mcp.handshake_p95_ms": { warn: 2000, crit: 8000 },
+  "sandbox.runtime_ready": { boolSev: "warn" },
+  "sandbox.provision_success_pct": { hiBad: false, warn: 98, crit: 90 },
+  "sandbox.resource_pressure_pct": { warn: 80, crit: 95 },
+  "connector.api_error_rate_pct": { warn: 1, crit: 5 },
+  "connector.last_read_age_min": { warn: 60, crit: 1440 },
+};
+
+const SEV_COLOR: Record<string, string> = {
+  warn: "var(--cg-warning, #e09a2d)",
+  crit: "var(--cg-danger)",
+};
+
+// Export a subsystem's samples to CSV (ts, status, then one column per catalog metric).
+function exportSamplesCsv(
+  subsystem: string,
+  defs: MetricDef[],
+  rows: { ts: string; status: string; metrics: Record<string, number> }[],
+) {
+  const headers = ["ts", "status", ...defs.map((d) => d.key)];
+  const lines = [headers.join(",")];
+  rows.forEach((r) => {
+    lines.push(
+      [
+        r.ts,
+        r.status,
+        ...defs.map((d) =>
+          r.metrics[d.key] === undefined ? "" : String(r.metrics[d.key]),
+        ),
+      ].join(","),
+    );
+  });
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `health-${subsystem}-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// Returns a color for a metric value vs its threshold; "" means use the default text color.
+function metricColor(
+  subsystem: string,
+  def: MetricDef,
+  v: number | undefined,
+): string {
+  if (v === undefined || v === null) return "";
+  const t = THRESHOLDS[`${subsystem}.${def.key}`];
+  if (!t) return "";
+  if (def.unit === "bool") {
+    return v === 0 && t.boolSev ? SEV_COLOR[t.boolSev] : "";
+  }
+  const hiBad = t.hiBad !== false;
+  if (hiBad) {
+    if (t.crit != null && v >= t.crit) return SEV_COLOR.crit;
+    if (t.warn != null && v >= t.warn) return SEV_COLOR.warn;
+  } else {
+    if (t.crit != null && v <= t.crit) return SEV_COLOR.crit;
+    if (t.warn != null && v <= t.warn) return SEV_COLOR.warn;
+  }
+  return "";
+}
+
 function statusColor(st: string) {
   return st === "ok"
     ? S.success
@@ -404,13 +500,20 @@ const STATUS_RING: Record<string, string> = {
   fail: "rgba(229,72,77,0.5)",
   skip: "var(--cg-border-strong)",
 };
+// Non-color shape cue (accessibility) alongside the color.
+const STATUS_GLYPH: Record<string, string> = {
+  ok: "✓",
+  degraded: "!",
+  fail: "✕",
+  skip: "–",
+};
 function StatusPill({ st }: { st: string }) {
   return (
     <span
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
+        gap: 5,
         height: 20,
         padding: "0 9px",
         borderRadius: 99,
@@ -423,7 +526,9 @@ function StatusPill({ st }: { st: string }) {
         letterSpacing: "0.03em",
       }}
     >
-      <Dot st={st} size={6} />
+      <span aria-hidden style={{ fontWeight: 700 }}>
+        {STATUS_GLYPH[st] || "•"}
+      </span>
       {st}
     </span>
   );
@@ -436,11 +541,13 @@ function HealthSampleRow({
   cols,
   grid,
   allDefs,
+  subsystem,
 }: {
   r: SubRow;
   cols: MetricDef[];
   grid: string;
   allDefs: MetricDef[];
+  subsystem: string;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -497,25 +604,30 @@ function HealthSampleRow({
         >
           {r.summary || "—"}
         </span>
-        {cols.map((d) => (
-          <span
-            key={d.key}
-            style={{
-              textAlign: "right",
-              fontFamily: "monospace",
-              fontSize: 12,
-              color:
-                r.metrics[d.key] === undefined
-                  ? "var(--cg-text-muted)"
-                  : "var(--cg-text-primary)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {fmtMetric(r.metrics[d.key], d.unit)}
-          </span>
-        ))}
+        {cols.map((d) => {
+          const c = metricColor(subsystem, d, r.metrics[d.key]);
+          return (
+            <span
+              key={d.key}
+              style={{
+                textAlign: "right",
+                fontFamily: "monospace",
+                fontSize: 12,
+                fontWeight: c ? 600 : 400,
+                color:
+                  c ||
+                  (r.metrics[d.key] === undefined
+                    ? "var(--cg-text-muted)"
+                    : "var(--cg-text-primary)"),
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {fmtMetric(r.metrics[d.key], d.unit)}
+            </span>
+          );
+        })}
       </div>
       {open && (
         <div
@@ -550,9 +662,10 @@ function HealthSampleRow({
                     fontWeight: 600,
                     fontFamily: "monospace",
                     color:
-                      r.metrics[d.key] === undefined
+                      metricColor(subsystem, d, r.metrics[d.key]) ||
+                      (r.metrics[d.key] === undefined
                         ? "var(--cg-text-muted)"
-                        : "var(--cg-text-primary)",
+                        : "var(--cg-text-primary)"),
                   }}
                 >
                   {fmtMetric(r.metrics[d.key], d.unit)}
@@ -837,9 +950,10 @@ function UptimeBar({
                       fontFamily: "monospace",
                       flexShrink: 0,
                       color:
-                        sm.metrics[d.key] === undefined
+                        metricColor(subsystem, d, sm.metrics[d.key]) ||
+                        (sm.metrics[d.key] === undefined
                           ? "var(--cg-text-muted)"
-                          : "var(--cg-text-primary)",
+                          : "var(--cg-text-primary)"),
                     }}
                   >
                     {fmtMetric(sm.metrics[d.key], d.unit)}
@@ -866,29 +980,18 @@ function StatusView({
   filters: Record<string, string>;
   setFilters: (f: Record<string, string>) => void;
 }) {
+  const [ovWin, setOvWin] = React.useState(7776000); // overview history window
   const { data, isLoading, isError } = useHealth(filters);
-  const snaps = useHealthSnapshots(7776000); // 90d of history for the uptime bars
+  const snaps = useHealthSnapshots(ovWin);
   const probe = useHealthProbe();
   const navigate = useNavigate();
   const connectors = useCollection("connectors");
-  const members = useCollection("members");
-  const wsDoc = useSettingsDoc("workspace");
   const envDoc = useSettingsDoc("environments");
-  const runsQ = useRuns();
   const upd = (k: string, v: string) =>
     setFilters({ ...filters, [k]: v || undefined } as Record<string, string>);
 
+  // Only the filters the aggregator actually honors today (no dead controls).
   const FILTERS: [string, string, string[]][] = [
-    [
-      "workspace",
-      "All workspaces",
-      toOpts(
-        (wsDoc.data as { workspaces?: unknown[] } | undefined)?.workspaces,
-        "name",
-        "slug",
-      ),
-    ],
-    ["user", "All users", toOpts(members.data, "email", "name")],
     [
       "environment",
       "All environments",
@@ -899,12 +1002,16 @@ function StatusView({
       ),
     ],
     ["connector", "All connectors", toOpts(connectors.data, "cloud", "name")],
-    [
-      "conversation",
-      "All conversations",
-      toOpts(runsQ.data?.runs as unknown, "id"),
-    ],
   ];
+  // Degraded-first: worst status floats to the top.
+  const ordered = data
+    ? [...data.subsystems].sort(
+        (a, b) => (BAR_ORDER[b.status] ?? -1) - (BAR_ORDER[a.status] ?? -1),
+      )
+    : [];
+  const winLabel =
+    WINDOWS.find(([, v]) => v === ovWin)?.[0] ||
+    `${Math.round(ovWin / 86400)}d`;
 
   return (
     <div>
@@ -992,27 +1099,43 @@ function StatusView({
             >
               Current status by service
             </span>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                height: 26,
-                padding: "0 13px",
-                borderRadius: 99,
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: statusColor(data.overall),
-                background: STATUS_TINT[data.overall] || "var(--cg-bg-badge)",
-                border: `1px solid ${STATUS_RING[data.overall] || "var(--cg-border)"}`,
-              }}
-            >
-              <Dot st={data.overall} size={7} />
-              {OVERALL_LABEL[data.overall] || data.overall}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <select
+                aria-label="History window"
+                value={ovWin}
+                onChange={(e) => setOvWin(Number(e.target.value))}
+                style={{ ...selectStyle, height: 26, width: 96 }}
+              >
+                {WINDOWS.map(([l, v]) => (
+                  <option key={v} value={v} style={optBg}>
+                    Last {l}
+                  </option>
+                ))}
+              </select>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 7,
+                  height: 26,
+                  padding: "0 13px",
+                  borderRadius: 99,
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: statusColor(data.overall),
+                  background: STATUS_TINT[data.overall] || "var(--cg-bg-badge)",
+                  border: `1px solid ${STATUS_RING[data.overall] || "var(--cg-border)"}`,
+                }}
+              >
+                <span aria-hidden style={{ fontWeight: 700 }}>
+                  {STATUS_GLYPH[data.overall] || "•"}
+                </span>
+                {OVERALL_LABEL[data.overall] || data.overall}
+              </span>
+            </div>
           </div>
 
-          {data.subsystems.map((s, i) => {
+          {ordered.map((s, i) => {
             const samples = (snaps.data ?? [])
               .map((sn) => {
                 const e = sn.subsystems.find(
@@ -1085,7 +1208,7 @@ function StatusView({
                     color: S.textMuted,
                   }}
                 >
-                  <span>90 days ago</span>
+                  <span>{winLabel} ago</span>
                   <span>Today</span>
                 </div>
               </div>
@@ -1149,9 +1272,15 @@ function AlertsView() {
     SEED_RULES as unknown as Record<string, unknown>[],
   );
   const rules = col.items as unknown as AlertRule[];
-  const fired = (useHealthHistory(100).data ?? []).filter(
+  const histQ = useHealthHistory(100);
+  const fired = (histQ.data ?? []).filter(
     (e) => e.action === "health.alert.fired",
   );
+  const testRule = (r: AlertRule) => {
+    CloudGuardService.healthAlertTest(r as unknown as Record<string, unknown>)
+      .then(() => setTimeout(() => histQ.refetch(), 400))
+      .catch(() => undefined);
+  };
   const [modal, setModal] = React.useState(false);
   const [form, setForm] = React.useState<AlertRule>({
     id: "",
@@ -1294,6 +1423,23 @@ function AlertsView() {
                   }}
                 >
                   {r.enabled ? "Enabled" : "Disabled"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => testRule(r)}
+                  title="Fire a synthetic alert through this rule's routing"
+                  style={{
+                    height: 26,
+                    padding: "0 10px",
+                    borderRadius: 6,
+                    border: `1px solid ${S.borderStrong}`,
+                    background: "transparent",
+                    color: S.textSecondary,
+                    fontSize: 11.5,
+                    cursor: "pointer",
+                  }}
+                >
+                  Test
                 </button>
                 <ConfirmButton
                   variant="ghost"
@@ -1644,6 +1790,7 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
   const { data: snap, isLoading: liveLoading } = useHealth({});
   const cur = snap?.subsystems.find((s) => s.subsystem === subsystem);
   const probe = useHealthProbe();
+  const navigate = useNavigate();
 
   const [win, setWin] = React.useState(3600);
   const [statusF, setStatusF] = React.useState("");
@@ -1871,6 +2018,57 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
         <span style={{ fontSize: 12, color: S.textMuted }}>
           {filtered.length} sample(s)
         </span>
+        <button
+          type="button"
+          disabled={filtered.length === 0}
+          onClick={() => exportSamplesCsv(subsystem, allDefs, filtered)}
+          style={{
+            ...fieldStyle,
+            width: "auto",
+            marginLeft: "auto",
+            cursor: filtered.length === 0 ? "default" : "pointer",
+            opacity: filtered.length === 0 ? 0.5 : 1,
+          }}
+        >
+          Export CSV
+        </button>
+      </div>
+
+      {/* Related actions */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 14,
+          marginBottom: 14,
+          fontSize: 12,
+        }}
+      >
+        <span style={{ color: S.textMuted }}>Related:</span>
+        {(
+          [
+            ["Audit log", "/settings/audit-log"],
+            ["Enforcement", "/agent-control-plane/enforcement"],
+            ["Monitoring", "/agent-control-plane/monitoring"],
+            ["Alerts", "/settings/health/alerts"],
+          ] as [string, string][]
+        ).map(([label, to]) => (
+          <button
+            key={to}
+            type="button"
+            onClick={() => navigate(to)}
+            style={{
+              background: "none",
+              border: "none",
+              color: S.accent,
+              cursor: "pointer",
+              padding: 0,
+              fontSize: 12,
+            }}
+          >
+            {label} →
+          </button>
+        ))}
       </div>
 
       {/* Samples — expandable rows (click a row for its full metric set) */}
@@ -1920,6 +2118,7 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
             cols={colDefs}
             grid={grid}
             allDefs={allDefs}
+            subsystem={subsystem}
           />
         ))}
       </div>

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import importlib
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from openhands.server.routes.cloudguard_principal import require_cap
 
@@ -182,6 +182,13 @@ async def health_alert_ack(rule_id: str, p=Depends(require_cap("remediate"))):
     if not ok:
         raise HTTPException(status_code=503, detail="ack failed")
     return {"acked": True, "rule_id": rule_id}
+
+
+@router.post("/health/alerts/test")
+async def health_alert_test(rule: dict = Body(...), p=Depends(require_cap("remediate"))):
+    """Fire a synthetic alert through a rule's routing so an admin can validate delivery."""
+    alerts = _safe("cloudguard.health_alerts")
+    return alerts.test_fire(p.tenant_id, rule, actor=p.subject)
 
 
 @router.get("/violations")
