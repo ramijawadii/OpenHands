@@ -348,12 +348,13 @@ export const useApprovals = (status = "pending") =>
     retry: false,
   });
 
-export const useHealth = (filters?: Record<string, string>) =>
+export const useHealth = (filters?: Record<string, string>, enabled = true) =>
   useQuery({
     queryKey: ["cloudguard", "health", filters],
     queryFn: () => CloudGuardService.health(filters),
     retry: false,
-    refetchInterval: 30000,
+    enabled,
+    refetchInterval: enabled ? 30000 : false,
   });
 
 export const useHealthSeries = (

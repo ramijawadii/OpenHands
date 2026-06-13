@@ -33,7 +33,15 @@ import {
   Activity,
 } from "lucide-react";
 import { RoleChip, useCurrentRole } from "./settings-kit";
+import { useHealth } from "#/hooks/query/use-cloudguard";
 import "./settings-polish.css";
+
+const HEALTH_DOT: Record<string, string> = {
+  ok: "#4caf7d",
+  degraded: "#e09a2d",
+  fail: "var(--cg-danger)",
+  skip: "var(--cg-text-muted)",
+};
 
 const S = {
   navBg: "var(--cg-bg-sidebar)",
@@ -164,6 +172,17 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
   const [query, setQuery] = React.useState("");
   const role = useCurrentRole();
 
+  // Live subsystem status for the Operations sidebar dots (only polled while in Health).
+  const isOps = pathname.startsWith("/settings/health");
+  const health = useHealth({}, isOps);
+  const healthStatus: Record<string, string> = {};
+  if (health.data) {
+    healthStatus["/settings/health"] = health.data.overall;
+    health.data.subsystems.forEach((s) => {
+      healthStatus[`/settings/health/${s.subsystem}`] = s.status;
+    });
+  }
+
   if (pathname === "/settings") {
     return <Navigate to="/settings/profile" replace />;
   }
@@ -219,7 +238,28 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
           strokeWidth={1.6}
           color={lit ? S.textPrimary : S.textMuted}
         />
-        {item.text}
+        <span
+          style={{
+            flex: 1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {item.text}
+        </span>
+        {healthStatus[item.to] && (
+          <span
+            title={healthStatus[item.to]}
+            style={{
+              flexShrink: 0,
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: HEALTH_DOT[healthStatus[item.to]] || S.textMuted,
+            }}
+          />
+        )}
       </NavLink>
     );
   };

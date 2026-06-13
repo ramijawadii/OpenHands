@@ -1,6 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, jsx-a11y/label-has-associated-control, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard Health tab */
 import React from "react";
-import { useParams } from "react-router";
+import { useParams, useNavigate } from "react-router";
 import { Activity, RefreshCw, ChevronDown } from "lucide-react";
 import {
   ScopeBadge,
@@ -14,6 +14,9 @@ import {
   useHealthSnapshots,
   useHealthHistory,
   useHealthProbe,
+  useCollection,
+  useSettingsDoc,
+  useRuns,
 } from "#/hooks/query/use-cloudguard";
 import { useLiveCollection } from "#/hooks/use-live-collection";
 import type { CGHealthSubsystem } from "#/api/cloudguard-service";
@@ -269,12 +272,25 @@ function Sparkline({
   );
 }
 
-// ── A single subsystem status card ───────────────────────────────────────────
-function HealthCard({ s }: { s: CGHealthSubsystem }) {
-  const [open, setOpen] = React.useState(false);
+// ── A single subsystem status card (click → its sub-tab) ─────────────────────
+function HealthCard({
+  s,
+  onOpen,
+}: {
+  s: CGHealthSubsystem;
+  onOpen: () => void;
+}) {
   const metricKeys = Object.keys(s.metrics || {}).slice(0, 4);
   return (
     <div
+      role="button"
+      tabIndex={0}
+      className="cg-row"
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen();
+      }}
+      title={`Open ${s.sub} health`}
       style={{
         background: S.cardBg,
         border: `1px solid ${s.status === "fail" ? S.danger : s.status === "degraded" ? S.warning : S.border}`,
@@ -283,6 +299,7 @@ function HealthCard({ s }: { s: CGHealthSubsystem }) {
         display: "flex",
         flexDirection: "column",
         gap: 8,
+        cursor: "pointer",
       }}
     >
       <div
@@ -316,47 +333,63 @@ function HealthCard({ s }: { s: CGHealthSubsystem }) {
           ))}
         </div>
       )}
-      {s.status !== "skip" && (
+      {s.status !== "skip" ? (
         <Sparkline subsystem={s.subsystem} metric="score" />
+      ) : (
+        <div style={{ fontSize: 11.5, color: S.textMuted }}>
+          Awaiting instrumentation
+        </div>
       )}
-      {(s.detail || []).length > 0 && (
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          style={{
-            alignSelf: "flex-start",
-            background: "none",
-            border: "none",
-            color: S.accent,
-            fontSize: 12,
-            cursor: "pointer",
-            padding: 0,
-          }}
-        >
-          {open ? "Hide checks" : "View checks"}
-        </button>
-      )}
-      {open &&
-        (s.detail || []).map((d) => (
-          <div
-            key={d.name}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              fontSize: 12,
-              padding: "4px 0",
-              borderTop: "1px solid var(--cg-border-subtle)",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <Dot st={d.status} size={6} />
-              <span style={{ color: S.textSecondary }}>{d.name}</span>
-            </span>
-            <span style={{ color: S.textMuted }}>{d.value}</span>
-          </div>
-        ))}
+      <span style={{ fontSize: 11.5, color: S.accent, marginTop: 2 }}>
+        Open audit table →
+      </span>
     </div>
+  );
+}
+
+// Build a de-duplicated string option list from a collection/doc (objects or strings).
+function toOpts(arr: unknown, ...picks: string[]): string[] {
+  const out: string[] = [];
+  (Array.isArray(arr) ? arr : []).forEach((it) => {
+    if (typeof it === "string") out.push(it);
+    else if (it && typeof it === "object") {
+      const o = it as Record<string, unknown>;
+      const hit = picks
+        .map((p) => o[p])
+        .find((v) => typeof v === "string" && v);
+      if (hit) out.push(hit as string);
+    }
+  });
+  return Array.from(new Set(out));
+}
+
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{ ...selectStyle, flex: 1, minWidth: 130 }}
+    >
+      <option value="" style={optBg}>
+        {label}
+      </option>
+      {options.map((o) => (
+        <option key={o} value={o} style={optBg}>
+          {o}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -370,8 +403,42 @@ function StatusView({
 }) {
   const { data, isLoading, isError } = useHealth(filters);
   const probe = useHealthProbe();
+  const navigate = useNavigate();
+  const connectors = useCollection("connectors");
+  const members = useCollection("members");
+  const wsDoc = useSettingsDoc("workspace");
+  const envDoc = useSettingsDoc("environments");
+  const runsQ = useRuns();
   const upd = (k: string, v: string) =>
     setFilters({ ...filters, [k]: v || undefined } as Record<string, string>);
+
+  const FILTERS: [string, string, string[]][] = [
+    [
+      "workspace",
+      "All workspaces",
+      toOpts(
+        (wsDoc.data as { workspaces?: unknown[] } | undefined)?.workspaces,
+        "name",
+        "slug",
+      ),
+    ],
+    ["user", "All users", toOpts(members.data, "email", "name")],
+    [
+      "environment",
+      "All environments",
+      toOpts(
+        (envDoc.data as { envs?: unknown[] } | undefined)?.envs,
+        "name",
+        "slug",
+      ),
+    ],
+    ["connector", "All connectors", toOpts(connectors.data, "cloud", "name")],
+    [
+      "conversation",
+      "All conversations",
+      toOpts(runsQ.data?.runs as unknown, "id"),
+    ],
+  ];
 
   return (
     <div>
@@ -388,21 +455,13 @@ function StatusView({
           background: S.cardBg,
         }}
       >
-        {(
-          [
-            "workspace",
-            "user",
-            "environment",
-            "connector",
-            "conversation",
-          ] as const
-        ).map((k) => (
-          <input
+        {FILTERS.map(([k, label, options]) => (
+          <FilterSelect
             key={k}
+            label={label}
             value={filters[k] || ""}
-            onChange={(e) => upd(k, e.target.value)}
-            placeholder={k}
-            style={{ ...fieldStyle, width: 150 }}
+            onChange={(v) => upd(k, v)}
+            options={options}
           />
         ))}
         {Object.values(filters).some(Boolean) && (
@@ -477,7 +536,11 @@ function StatusView({
             }}
           >
             {data.subsystems.map((s) => (
-              <HealthCard key={s.subsystem} s={s} />
+              <HealthCard
+                key={s.subsystem}
+                s={s}
+                onOpen={() => navigate(`/settings/health/${s.subsystem}`)}
+              />
             ))}
           </div>
         </>
@@ -1431,7 +1494,7 @@ export default function HealthSettings() {
         : "Health Overview";
 
   return (
-    <div style={{ padding: "40px 48px", maxWidth: 1100 }}>
+    <div style={{ padding: "40px 48px", maxWidth: 1400, width: "100%" }}>
       <div
         style={{
           display: "flex",
