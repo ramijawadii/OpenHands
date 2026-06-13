@@ -26,6 +26,8 @@ _MAP = {
     "sessions": "sessions",
     "roles": "roles",
     "health-alerts": "health_alerts",
+    "llm-pricing": "llm_pricing",
+    "llm-eval-datasets": "llm_eval_datasets",
 }
 
 
