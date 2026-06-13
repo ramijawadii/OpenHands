@@ -1346,12 +1346,16 @@ function AnalyticsView({ section }: { section: string }) {
     ],
     reliability: [
       {
+        // Success is a "higher is good" health KPI: green at/above a healthy
+        // floor (≥95%), warn 90–95%, crit <90%. The SLO floor never pushes the
+        // green band above 95%, so a broadly-healthy rate reads green even when
+        // it sits just under a very tight SLO (the SLO stays in the label).
         l: `Success (SLO ${successSlo}%)`,
         v: `${d.success_rate_pct ?? 0}%`,
         tone: toneLo(
           Number(d.success_rate_pct ?? 0),
-          successSlo,
-          successSlo - 1,
+          Math.min(successSlo, 95),
+          Math.min(successSlo, 95) - 5,
         ),
       },
       {
