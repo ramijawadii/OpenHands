@@ -111,9 +111,17 @@ function StatusPill({ st }: { st: string }) {
   );
 }
 
-// One health sample, collapsed to a single line and expandable to its full metric set —
-// the audit-log "row → detail" pattern.
-function HealthSampleRow({ r }: { r: SubRow }) {
+// One health sample, collapsed to a single grid row (filling the width with this subsystem's
+// metric columns) and expandable to its full metric set — the audit-log "row → detail" pattern.
+function HealthSampleRow({
+  r,
+  cols,
+  grid,
+}: {
+  r: SubRow;
+  cols: string[];
+  grid: string;
+}) {
   const [open, setOpen] = React.useState(false);
   const entries = Object.entries(r.metrics || {});
   return (
@@ -127,7 +135,8 @@ function HealthSampleRow({ r }: { r: SubRow }) {
           if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
         }}
         style={{
-          display: "flex",
+          display: "grid",
+          gridTemplateColumns: grid,
           alignItems: "center",
           gap: 12,
           padding: "10px 16px",
@@ -138,28 +147,27 @@ function HealthSampleRow({ r }: { r: SubRow }) {
           size={14}
           color="var(--cg-text-muted)"
           style={{
-            flexShrink: 0,
             transform: open ? "rotate(180deg)" : "none",
             transition: "transform 0.15s ease",
           }}
         />
         <span
           style={{
-            width: 168,
-            flexShrink: 0,
             fontFamily: "monospace",
             fontSize: 12,
             color: "var(--cg-text-muted)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           {r.ts.replace("T", " ").replace("Z", "")}
         </span>
-        <span style={{ width: 96, flexShrink: 0 }}>
+        <span>
           <StatusPill st={r.status} />
         </span>
         <span
           style={{
-            flex: 1,
             minWidth: 0,
             fontSize: 12.5,
             color: "var(--cg-text-nav)",
@@ -170,6 +178,22 @@ function HealthSampleRow({ r }: { r: SubRow }) {
         >
           {r.summary || "—"}
         </span>
+        {cols.map((c) => (
+          <span
+            key={c}
+            style={{
+              textAlign: "right",
+              fontFamily: "monospace",
+              fontSize: 12,
+              color: "var(--cg-text-primary)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {r.metrics[c] ?? "—"}
+          </span>
+        ))}
       </div>
       {open && (
         <div style={{ padding: "2px 16px 16px 42px" }}>
@@ -1255,6 +1279,15 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
     return true;
   });
 
+  // Inline metric columns for this subsystem (consistent across its samples — no sparse cells).
+  const metricCols = Object.keys(rows[0]?.metrics || cur?.metrics || {}).slice(
+    0,
+    5,
+  );
+  const grid = `20px 168px 96px minmax(160px, 1.3fr) ${metricCols
+    .map(() => "minmax(80px, 1fr)")
+    .join(" ")}`;
+
   const PAGE = 25;
   const [page, setPage] = React.useState(0);
   React.useEffect(() => {
@@ -1403,17 +1436,23 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
       >
         <div
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: grid,
             alignItems: "center",
             gap: 12,
             padding: "8px 16px",
             borderBottom: `1px solid ${S.border}`,
           }}
         >
-          <span style={{ width: 14, flexShrink: 0 }} />
-          <span style={{ width: 168, flexShrink: 0 }}>{th("Time (UTC)")}</span>
-          <span style={{ width: 96, flexShrink: 0 }}>{th("Status")}</span>
-          <span style={{ flex: 1 }}>{th("Summary")}</span>
+          <span />
+          {th("Time (UTC)")}
+          {th("Status")}
+          {th("Summary")}
+          {metricCols.map((m) => (
+            <span key={m} style={{ textAlign: "right" }}>
+              {th(m.replace(/_/g, " "))}
+            </span>
+          ))}
         </div>
         {isLoading && (
           <div style={{ padding: 16 }}>
@@ -1427,7 +1466,7 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
           </div>
         )}
         {paged.map((r) => (
-          <HealthSampleRow key={r.ts} r={r} />
+          <HealthSampleRow key={r.ts} r={r} cols={metricCols} grid={grid} />
         ))}
       </div>
 
