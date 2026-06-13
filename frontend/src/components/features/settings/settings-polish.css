@@ -60,6 +60,8 @@
 /* ── Density: let dense tables scroll instead of squishing ─────────────────── */
 .cg-settings-root .cg-tablewrap {
   overflow-x: auto;
+  /* Tables (incl. the shared ACP <Table>) sit on the card background, not the page. */
+  background: var(--cg-bg-card);
 }
 .cg-settings-root .cg-tablewrap > * {
   min-width: 680px;
