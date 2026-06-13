@@ -1,7 +1,7 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, jsx-a11y/label-has-associated-control, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard Health tab */
 import React from "react";
 import { useParams } from "react-router";
-import { Activity, RefreshCw } from "lucide-react";
+import { Activity, RefreshCw, ChevronDown } from "lucide-react";
 import {
   ScopeBadge,
   LiveCardSkeleton,
@@ -75,6 +75,143 @@ function Dot({ st, size = 8 }: { st: string; size?: number }) {
         flexShrink: 0,
       }}
     />
+  );
+}
+
+const STATUS_TINT: Record<string, string> = {
+  ok: "rgba(76,175,125,0.14)",
+  degraded: "rgba(224,154,45,0.16)",
+  fail: "rgba(229,72,77,0.16)",
+  skip: "var(--cg-bg-badge)",
+};
+function StatusPill({ st }: { st: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        height: 20,
+        padding: "0 9px",
+        borderRadius: 99,
+        fontSize: 11,
+        fontWeight: 600,
+        color: statusColor(st),
+        background: STATUS_TINT[st] || "var(--cg-bg-badge)",
+        textTransform: "uppercase",
+        letterSpacing: "0.03em",
+      }}
+    >
+      <Dot st={st} size={6} />
+      {st}
+    </span>
+  );
+}
+
+// One health sample, collapsed to a single line and expandable to its full metric set —
+// the audit-log "row → detail" pattern.
+function HealthSampleRow({ r }: { r: SubRow }) {
+  const [open, setOpen] = React.useState(false);
+  const entries = Object.entries(r.metrics || {});
+  return (
+    <div style={{ borderBottom: "1px solid var(--cg-border-subtle)" }}>
+      <div
+        role="button"
+        tabIndex={0}
+        className="cg-row"
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setOpen((o) => !o);
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "10px 16px",
+          cursor: "pointer",
+        }}
+      >
+        <ChevronDown
+          size={14}
+          color="var(--cg-text-muted)"
+          style={{
+            flexShrink: 0,
+            transform: open ? "rotate(180deg)" : "none",
+            transition: "transform 0.15s ease",
+          }}
+        />
+        <span
+          style={{
+            width: 168,
+            flexShrink: 0,
+            fontFamily: "monospace",
+            fontSize: 12,
+            color: "var(--cg-text-muted)",
+          }}
+        >
+          {r.ts.replace("T", " ").replace("Z", "")}
+        </span>
+        <span style={{ width: 96, flexShrink: 0 }}>
+          <StatusPill st={r.status} />
+        </span>
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12.5,
+            color: "var(--cg-text-nav)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {r.summary || "—"}
+        </span>
+      </div>
+      {open && (
+        <div style={{ padding: "2px 16px 16px 42px" }}>
+          {entries.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
+              No metrics captured for this sample.
+            </div>
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
+                columnGap: 28,
+              }}
+            >
+              {entries.map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--cg-border-subtle)",
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
+                    {k.replace(/_/g, " ")}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 12,
+                      color: "var(--cg-text-primary)",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {String(v)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -155,25 +292,10 @@ function HealthCard({ s }: { s: CGHealthSubsystem }) {
           justifyContent: "space-between",
         }}
       >
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Dot st={s.status} />
-          <span
-            style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}
-          >
-            {s.sub}
-          </span>
+        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
+          {s.sub}
         </span>
-        <span
-          style={{
-            fontSize: 10.5,
-            fontWeight: 600,
-            color: statusColor(s.status),
-            textTransform: "uppercase",
-            letterSpacing: "0.04em",
-          }}
-        >
-          {s.st}
-        </span>
+        <StatusPill st={s.status} />
       </div>
       <div style={{ fontSize: 12, color: S.textMuted }}>{s.summary}</div>
       {metricKeys.length > 0 && (
@@ -1070,12 +1192,6 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
     return true;
   });
 
-  const metricCols = Object.keys(rows[0]?.metrics || cur?.metrics || {}).slice(
-    0,
-    5,
-  );
-  const GRID = `170px 90px 1.4fr ${metricCols.map(() => "0.9fr").join(" ")}`;
-
   const PAGE = 25;
   const [page, setPage] = React.useState(0);
   React.useEffect(() => {
@@ -1122,15 +1238,10 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
               marginBottom: cur?.detail?.length ? 12 : 0,
             }}
           >
-            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <Dot st={cur?.status || "skip"} size={11} />
-              <span
-                style={{ fontSize: 14, fontWeight: 600, color: S.textPrimary }}
-              >
-                {cur?.st || "Unknown"}
-              </span>
-              <span style={{ fontSize: 12.5, color: S.textMuted }}>
-                {cur?.summary || ""}
+            <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <StatusPill st={cur?.status || "skip"} />
+              <span style={{ fontSize: 13, color: S.textSecondary }}>
+                {cur?.summary || "Awaiting first sample"}
               </span>
             </span>
             <Capable cap="remediate">
@@ -1218,7 +1329,7 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
         </span>
       </div>
 
-      {/* Table */}
+      {/* Samples — expandable rows (click a row for its full metric set) */}
       <div
         style={{
           border: `1px solid ${S.border}`,
@@ -1229,17 +1340,17 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
       >
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: GRID,
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
             padding: "8px 16px",
             borderBottom: `1px solid ${S.border}`,
-            gap: 8,
           }}
         >
-          {th("Time")}
-          {th("Status")}
-          {th("Summary")}
-          {metricCols.map((m) => th(m.replace(/_/g, " ")))}
+          <span style={{ width: 14, flexShrink: 0 }} />
+          <span style={{ width: 168, flexShrink: 0 }}>{th("Time (UTC)")}</span>
+          <span style={{ width: 96, flexShrink: 0 }}>{th("Status")}</span>
+          <span style={{ flex: 1 }}>{th("Summary")}</span>
         </div>
         {isLoading && (
           <div style={{ padding: 16 }}>
@@ -1248,52 +1359,12 @@ function SubsystemView({ subsystem }: { subsystem: string }) {
         )}
         {!isLoading && paged.length === 0 && (
           <div style={{ padding: 16, fontSize: 13, color: S.textMuted }}>
-            No samples yet — history accrues as the Health tab polls (≈ every
-            minute). Hit “Probe now”.
+            No samples in this window yet — history accrues as the tab polls (≈
+            every minute), or hit <strong>Probe now</strong> above.
           </div>
         )}
         {paged.map((r) => (
-          <div
-            key={r.ts}
-            style={{
-              display: "grid",
-              gridTemplateColumns: GRID,
-              padding: "9px 16px",
-              borderBottom: "1px solid var(--cg-border-subtle)",
-              alignItems: "center",
-              gap: 8,
-              fontSize: 12.5,
-            }}
-          >
-            <span style={{ color: S.textMuted, fontFamily: "monospace" }}>
-              {r.ts}
-            </span>
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                color: statusColor(r.status),
-              }}
-            >
-              <Dot st={r.status} size={7} /> {r.status}
-            </span>
-            <span
-              style={{
-                color: S.textSecondary,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {r.summary}
-            </span>
-            {metricCols.map((m) => (
-              <span key={m} style={{ color: S.textPrimary }}>
-                {r.metrics[m] ?? "—"}
-              </span>
-            ))}
-          </div>
+          <HealthSampleRow key={r.ts} r={r} />
         ))}
       </div>
 
