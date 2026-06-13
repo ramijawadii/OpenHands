@@ -31,6 +31,7 @@ import {
   useLlmAnalytics,
   useLlmLogs,
   useLlmSeed,
+  useLlmQuotaIncrease,
 } from "#/hooks/query/use-cloudguard";
 import type { CGLlmModel } from "#/api/cloudguard-service";
 
@@ -169,24 +170,53 @@ function KV({
   );
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+type Tone = "ok" | "warn" | "crit" | "none";
+const TONE_COLOR: Record<Tone, string> = {
+  ok: S.success,
+  warn: S.warning,
+  crit: S.danger,
+  none: S.textPrimary,
+};
+// higher-is-worse threshold → tone
+const toneHi = (v: number, warn: number, crit: number): Tone =>
+  v >= crit ? "crit" : v >= warn ? "warn" : "ok";
+// higher-is-better threshold → tone
+const toneLo = (v: number, warn: number, crit: number): Tone =>
+  v <= crit ? "crit" : v <= warn ? "warn" : "ok";
+
+function Stat({
+  label,
+  value,
+  tone = "none",
+  sub,
+}: {
+  label: string;
+  value: React.ReactNode;
+  tone?: Tone;
+  sub?: string;
+}) {
   return (
     <div
       style={{
         background: S.cardBg,
-        border: `1px solid ${S.border}`,
+        border: `1px solid ${tone === "none" ? S.border : TONE_COLOR[tone]}`,
         borderRadius: 10,
         padding: "14px 16px",
         minWidth: 140,
         flex: 1,
       }}
     >
-      <div style={{ fontSize: 20, fontWeight: 600, color: S.textPrimary }}>
+      <div style={{ fontSize: 20, fontWeight: 600, color: TONE_COLOR[tone] }}>
         {value}
       </div>
       <div style={{ fontSize: 12, color: S.textMuted, marginTop: 2 }}>
         {label}
       </div>
+      {sub && (
+        <div style={{ fontSize: 11, color: S.textMuted, marginTop: 2 }}>
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -850,52 +880,535 @@ function ConfigForm({ specs, note }: { specs: FieldSpec[]; note?: string }) {
   );
 }
 
+// ── Routing maps (ordered fallback chain + per-workflow model overrides) ─────
+function RoutingMaps() {
+  const cfgQ = useLlmConfig();
+  const regQ = useLlmRegistry();
+  const save = useSaveLlmConfig();
+  const [order, setOrder] = React.useState<string[]>([]);
+  const [map, setMap] = React.useState<Record<string, string>>({});
+  const [dirty, setDirty] = React.useState(false);
+  const [newWf, setNewWf] = React.useState("");
+  React.useEffect(() => {
+    if (cfgQ.data && !dirty) {
+      const c = cfgQ.data as Record<string, unknown>;
+      setOrder([...((c.fallback_order as string[]) || [])]);
+      setMap({ ...((c.route_by_workflow as Record<string, string>) || {}) });
+    }
+  }, [cfgQ.data, dirty]);
+  if (cfgQ.isLoading) return <LiveCardSkeleton lines={4} />;
+  const models = (regQ.data?.models || []).map((m) => m.id);
+  const active = String(
+    (cfgQ.data as Record<string, unknown>)?.active_model || "",
+  );
+  const mut = (fn: () => void) => {
+    fn();
+    setDirty(true);
+  };
+  const move = (i: number, dir: -1 | 1) => {
+    const j = i + dir;
+    if (j < 0 || j >= order.length) return;
+    mut(() => {
+      const next = [...order];
+      [next[i], next[j]] = [next[j], next[i]];
+      setOrder(next);
+    });
+  };
+  const onSave = () =>
+    save.mutate(
+      { fallback_order: order, route_by_workflow: map },
+      { onSuccess: () => setDirty(false) },
+    );
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "6px 0",
+    borderBottom: "1px solid var(--cg-border-subtle)",
+  };
+  const miniBtn: React.CSSProperties = {
+    height: 26,
+    width: 30,
+    borderRadius: 5,
+    background: "transparent",
+    border: `1px solid ${S.borderStrong}`,
+    color: S.textSecondary,
+    cursor: "pointer",
+    fontSize: 13,
+  };
+  return (
+    <Card title="Fallback chain & per-workflow routing">
+      <div style={{ fontSize: 12, color: S.textMuted, marginBottom: 8 }}>
+        Primary model is{" "}
+        <strong style={{ color: S.textPrimary }}>{active}</strong>. Fallbacks
+        are tried in order when the primary times out or is throttled.
+      </div>
+      {order.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: S.textMuted }}>
+          No fallbacks configured.
+        </div>
+      ) : (
+        order.map((m, i) => (
+          <div key={m} style={rowStyle}>
+            <span style={{ width: 22, color: S.textMuted, fontSize: 12 }}>
+              {i + 1}.
+            </span>
+            <select
+              value={m}
+              onChange={(e) =>
+                mut(() =>
+                  setOrder(order.map((x, k) => (k === i ? e.target.value : x))),
+                )
+              }
+              style={{ ...selectStyle, flex: 1 }}
+            >
+              {models.map((o) => (
+                <option key={o} value={o} style={optBg}>
+                  {o}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              style={miniBtn}
+              onClick={() => move(i, -1)}
+              disabled={i === 0}
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              style={miniBtn}
+              onClick={() => move(i, 1)}
+              disabled={i === order.length - 1}
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              style={{ ...miniBtn, color: S.danger }}
+              onClick={() =>
+                mut(() => setOrder(order.filter((_, k) => k !== i)))
+              }
+            >
+              ×
+            </button>
+          </div>
+        ))
+      )}
+      <button
+        type="button"
+        onClick={() =>
+          mut(() =>
+            setOrder([
+              ...order,
+              models.find((x) => !order.includes(x)) || models[0],
+            ]),
+          )
+        }
+        disabled={!models.length}
+        style={{
+          ...miniBtn,
+          width: "auto",
+          padding: "0 12px",
+          marginTop: 8,
+          fontSize: 12.5,
+        }}
+      >
+        + Add fallback
+      </button>
+
+      <div style={{ fontSize: 13, color: S.textPrimary, margin: "18px 0 6px" }}>
+        Per-workflow model overrides
+      </div>
+      <div style={{ fontSize: 11.5, color: S.textMuted, marginBottom: 8 }}>
+        Pin a specific model for a workflow (e.g. <code>compliance-report</code>{" "}
+        on the most capable model). Requires routing policy “by_workflow”.
+      </div>
+      {Object.entries(map).map(([wf, mdl]) => (
+        <div key={wf} style={rowStyle}>
+          <span
+            style={{
+              flex: 1,
+              fontSize: 12.5,
+              color: S.textSecondary,
+              fontFamily: "monospace",
+            }}
+          >
+            {wf}
+          </span>
+          <select
+            value={mdl}
+            onChange={(e) =>
+              mut(() => setMap({ ...map, [wf]: e.target.value }))
+            }
+            style={{ ...selectStyle, width: 240 }}
+          >
+            {models.map((o) => (
+              <option key={o} value={o} style={optBg}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            style={{ ...miniBtn, color: S.danger }}
+            onClick={() =>
+              mut(() => {
+                const next = { ...map };
+                delete next[wf];
+                setMap(next);
+              })
+            }
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <input
+          value={newWf}
+          onChange={(e) => setNewWf(e.target.value)}
+          placeholder="workflow id (e.g. threat-triage)"
+          style={{ ...fieldStyle, flex: 1 }}
+        />
+        <button
+          type="button"
+          disabled={!newWf.trim() || !models.length}
+          onClick={() =>
+            mut(() => {
+              setMap({ ...map, [newWf.trim()]: models[0] });
+              setNewWf("");
+            })
+          }
+          style={{
+            ...miniBtn,
+            width: "auto",
+            padding: "0 12px",
+            fontSize: 12.5,
+          }}
+        >
+          + Add
+        </button>
+      </div>
+
+      <Capable cap="admin">
+        <div
+          style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}
+        >
+          <button
+            type="button"
+            disabled={!dirty}
+            onClick={onSave}
+            style={{
+              height: 36,
+              padding: "0 18px",
+              borderRadius: 6,
+              background: dirty ? "var(--cg-text-primary)" : "transparent",
+              color: dirty ? "var(--cg-bg-card)" : S.textMuted,
+              border: dirty ? "none" : `1px solid ${S.borderStrong}`,
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: dirty ? "pointer" : "default",
+            }}
+          >
+            Save routing
+          </button>
+        </div>
+      </Capable>
+    </Card>
+  );
+}
+
 // ── Analytics sections ────────────────────────────────────────────────────
+// Month-to-date budget gauge with a forecast marker and warn/over coloring.
+function BudgetGauge({
+  spent,
+  forecast,
+  budget,
+  warnPct,
+}: {
+  spent: number;
+  forecast: number;
+  budget: number;
+  warnPct: number;
+}) {
+  const spentPct = budget ? (spent / budget) * 100 : 0;
+  const forecastPct = budget ? (forecast / budget) * 100 : 0;
+  const tone = toneHi(forecastPct, warnPct, 100);
+  const bar = TONE_COLOR[tone];
+  return (
+    <Card title="Month-to-date budget">
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 12.5,
+          marginBottom: 8,
+        }}
+      >
+        <span style={{ color: S.textSecondary }}>
+          Spent <strong style={{ color: S.textPrimary }}>{usd(spent)}</strong>{" "}
+          of {usd(budget)} ({spentPct.toFixed(0)}%)
+        </span>
+        <span style={{ color: bar }}>
+          Forecast {usd(forecast)} ({forecastPct.toFixed(0)}%)
+        </span>
+      </div>
+      <div
+        style={{
+          position: "relative",
+          height: 12,
+          borderRadius: 6,
+          background: "var(--cg-bg-badge)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.min(100, spentPct)}%`,
+            background: bar,
+            transition: "width .3s",
+          }}
+        />
+        {/* warn threshold marker */}
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${Math.min(100, warnPct)}%`,
+            width: 2,
+            background: S.warning,
+            opacity: 0.8,
+          }}
+        />
+        {/* forecast marker */}
+        {forecastPct <= 100 && (
+          <div
+            style={{
+              position: "absolute",
+              top: -2,
+              bottom: -2,
+              left: `${Math.min(100, forecastPct)}%`,
+              width: 2,
+              background: S.textPrimary,
+            }}
+          />
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 10.5,
+          color: S.textMuted,
+          marginTop: 4,
+        }}
+      >
+        <span>$0</span>
+        <span>warn {warnPct}%</span>
+        <span>{usd(budget)}</span>
+      </div>
+      {forecastPct > 100 && (
+        <p style={{ fontSize: 12, color: S.danger, marginTop: 8 }}>
+          Projected to exceed budget by {usd(forecast - budget)} at the current
+          run-rate.
+        </p>
+      )}
+    </Card>
+  );
+}
+
+// Shared filter bar — wired to the dimensions the analytics endpoints honor.
+function FilterBar({
+  filters,
+  setFilters,
+  models,
+  workflows,
+  workspaces,
+}: {
+  filters: Record<string, string>;
+  setFilters: (f: Record<string, string>) => void;
+  models: string[];
+  workflows: string[];
+  workspaces: string[];
+}) {
+  const sel = (k: string, label: string, opts: string[]) => (
+    <select
+      aria-label={label}
+      value={filters[k] || ""}
+      onChange={(e) =>
+        setFilters({ ...filters, [k]: e.target.value || undefined } as Record<
+          string,
+          string
+        >)
+      }
+      style={{ ...selectStyle, width: 160, height: 30 }}
+    >
+      <option value="" style={optBg}>
+        {label}
+      </option>
+      {opts.map((o) => (
+        <option key={o} value={o} style={optBg}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+        alignItems: "center",
+      }}
+    >
+      {sel("model", "All models", models)}
+      {sel("workflow", "All workflows", workflows)}
+      {sel("workspace", "All workspaces", workspaces)}
+      {Object.values(filters).some(Boolean) && (
+        <button
+          type="button"
+          onClick={() => setFilters({})}
+          style={{
+            ...fieldStyle,
+            width: "auto",
+            height: 30,
+            border: "none",
+            background: "transparent",
+            color: S.accent,
+            cursor: "pointer",
+          }}
+        >
+          Clear
+        </button>
+      )}
+    </div>
+  );
+}
+
 function AnalyticsView({ section }: { section: string }) {
   const [win, setWin] = React.useState(2592000);
-  const { data, isLoading } = useLlmAnalytics(section, { window: win });
+  const [filters, setFilters] = React.useState<Record<string, string>>({});
+  const cfg = (useLlmConfig().data || {}) as Record<string, unknown>;
+  const reg = useLlmRegistry();
+  const optsQ = useLlmAnalytics("usage", { window: win }); // unfiltered → filter options
+  const { data, isLoading } = useLlmAnalytics(section, {
+    window: win,
+    ...filters,
+  });
   const d = (data || {}) as Record<string, unknown>;
-  const stats: Record<string, [string, React.ReactNode][]> = {
+  const models = (reg.data?.models || []).map((m) => m.id);
+  const optKeys = (o: unknown) =>
+    Object.keys((o as Record<string, unknown>) || {}).filter((x) => x !== "—");
+  const workflows = optKeys(
+    (optsQ.data as Record<string, unknown>)?.by_workflow,
+  );
+  const workspaces = optKeys(
+    (optsQ.data as Record<string, unknown>)?.by_workspace,
+  );
+
+  const slo = Number(cfg.latency_slo_ms) || 8000;
+  const successSlo = Number(cfg.success_slo_pct) || 99;
+  const budget = Number(cfg.monthly_budget_usd) || 0;
+  const warnPct = Number(cfg.budget_warn_pct) || 80;
+
+  const tiles: Record<
+    string,
+    { l: string; v: React.ReactNode; tone?: Tone }[]
+  > = {
     usage: [
-      ["Requests", num(d.requests)],
-      ["Input tokens", num(d.input_tokens)],
-      ["Output tokens", num(d.output_tokens)],
-      ["Cached tokens", num(d.cached_input_tokens)],
-      ["Avg tokens/req", num(d.avg_tokens_per_request)],
+      { l: "Requests", v: num(d.requests) },
+      { l: "Input tokens", v: num(d.input_tokens) },
+      { l: "Output tokens", v: num(d.output_tokens) },
+      { l: "Cached tokens", v: num(d.cached_input_tokens) },
+      { l: "Avg tokens/req", v: num(d.avg_tokens_per_request) },
     ],
     performance: [
-      ["TTFT", d.ttft_ms ? `${d.ttft_ms} ms` : "—"],
-      ["P50", d.latency_p50_ms ? `${d.latency_p50_ms} ms` : "—"],
-      ["P95", d.latency_p95_ms ? `${d.latency_p95_ms} ms` : "—"],
-      ["P99", d.latency_p99_ms ? `${d.latency_p99_ms} ms` : "—"],
-      ["Tokens/sec", num(d.tokens_per_sec)],
-      ["Agent run P95", d.agent_run_p95_ms ? `${d.agent_run_p95_ms} ms` : "—"],
+      { l: "TTFT", v: d.ttft_ms ? `${d.ttft_ms} ms` : "—" },
+      { l: "P50", v: d.latency_p50_ms ? `${d.latency_p50_ms} ms` : "—" },
+      {
+        l: `P95 (SLO ${slo}ms)`,
+        v: d.latency_p95_ms ? `${d.latency_p95_ms} ms` : "—",
+        tone: d.latency_p95_ms
+          ? toneHi(Number(d.latency_p95_ms), slo * 0.75, slo)
+          : "none",
+      },
+      { l: "P99", v: d.latency_p99_ms ? `${d.latency_p99_ms} ms` : "—" },
+      { l: "Tokens/sec", v: num(d.tokens_per_sec) },
+      {
+        l: "Agent run P95",
+        v: d.agent_run_p95_ms ? `${d.agent_run_p95_ms} ms` : "—",
+      },
     ],
     reliability: [
-      ["Success", `${d.success_rate_pct ?? 0}%`],
-      ["Error rate", `${d.error_rate_pct ?? 0}%`],
-      ["Failed", num(d.failed)],
-      ["Fallback rate", `${d.fallback_rate_pct ?? 0}%`],
-      ["Retry rate", `${d.retry_rate_pct ?? 0}%`],
+      {
+        l: `Success (SLO ${successSlo}%)`,
+        v: `${d.success_rate_pct ?? 0}%`,
+        tone: toneLo(
+          Number(d.success_rate_pct ?? 0),
+          successSlo,
+          successSlo - 1,
+        ),
+      },
+      {
+        l: "Error rate",
+        v: `${d.error_rate_pct ?? 0}%`,
+        tone: toneHi(Number(d.error_rate_pct ?? 0), 1, 5),
+      },
+      { l: "Failed", v: num(d.failed) },
+      {
+        l: "Fallback rate",
+        v: `${d.fallback_rate_pct ?? 0}%`,
+        tone: toneHi(Number(d.fallback_rate_pct ?? 0), 5, 20),
+      },
+      { l: "Retry rate", v: `${d.retry_rate_pct ?? 0}%` },
     ],
     cost: [
-      ["Total", usd(d.total_usd)],
-      ["Avg / request", usd(d.avg_cost_per_request_usd)],
+      {
+        l: `Total (budget $${budget})`,
+        v: usd(d.total_usd),
+        tone: budget
+          ? toneHi(Number(d.total_usd ?? 0), (budget * warnPct) / 100, budget)
+          : "none",
+      },
+      { l: "Forecast / month", v: usd(d.forecast_monthly_usd) },
+      { l: "Avg / request", v: usd(d.avg_cost_per_request_usd) },
+      { l: "Cached savings", v: usd(d.cached_savings_usd) },
+      { l: "Fallback cost", v: usd(d.fallback_cost_usd) },
     ],
     routing: [
-      ["Requests", num(d.requests)],
-      ["Fallback rate", `${d.fallback_rate_pct ?? 0}%`],
+      { l: "Requests", v: num(d.requests) },
+      {
+        l: "Fallback rate",
+        v: `${d.fallback_rate_pct ?? 0}%`,
+        tone: toneHi(Number(d.fallback_rate_pct ?? 0), 5, 20),
+      },
     ],
   };
+
   return (
     <div>
       <div
         style={{
           display: "flex",
-          justifyContent: "flex-end",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
           marginBottom: 12,
+          flexWrap: "wrap",
         }}
       >
+        <FilterBar
+          filters={filters}
+          setFilters={setFilters}
+          models={models}
+          workflows={workflows}
+          workspaces={workspaces}
+        />
         <WindowSelect win={win} setWin={setWin} />
       </div>
       {isLoading ? (
@@ -910,17 +1423,23 @@ function AnalyticsView({ section }: { section: string }) {
               marginBottom: 16,
             }}
           >
-            {(stats[section] || []).map(([l, v]) => (
-              <Stat key={l} label={l} value={v} />
+            {(tiles[section] || []).map((t) => (
+              <Stat key={t.l} label={t.l} value={t.v} tone={t.tone} />
             ))}
           </div>
           {section === "usage" && (
             <>
               <TrendChart
-                title="Requests & tokens over time"
+                title="Requests over time"
                 data={(d.over_time as Record<string, unknown>[]) || []}
-                keys={["requests", "output_tokens"]}
-                colors={[S.accent, "#9b87f5"]}
+                keys={["requests"]}
+                colors={[S.accent]}
+              />
+              <TrendChart
+                title="Tokens over time (in / out)"
+                data={(d.over_time as Record<string, unknown>[]) || []}
+                keys={["input_tokens", "output_tokens"]}
+                colors={["#9b87f5", S.accent]}
               />
               <BarBreakdown
                 title="Requests by model"
@@ -936,21 +1455,49 @@ function AnalyticsView({ section }: { section: string }) {
           )}
           {section === "performance" && (
             <LineSeries
-              title="Latency over time (p95 / p50)"
+              title={`Latency over time (p95 / p50) — SLO ${slo}ms`}
               data={(d.latency_series as Record<string, unknown>[]) || []}
               keys={["p95_ms", "p50_ms"]}
               colors={[S.warning, S.accent]}
             />
           )}
           {section === "reliability" && (
-            <BarBreakdown
-              title="Errors by category"
-              data={d.errors_by_category as Record<string, unknown>}
-              color={S.danger}
-            />
+            <>
+              <BarBreakdown
+                title="Errors by category"
+                data={d.errors_by_category as Record<string, unknown>}
+                color={S.danger}
+              />
+              <Card title="Recent errors (click trace in Logs to investigate)">
+                {((d.recent_errors as Record<string, unknown>[]) || [])
+                  .length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: S.textMuted }}>
+                    No recent errors.
+                  </div>
+                ) : (
+                  ((d.recent_errors as Record<string, unknown>[]) || []).map(
+                    (e) => (
+                      <KV
+                        key={String(e.trace_id)}
+                        k={`${String(e.ts).replace("T", " ").replace("Z", "")} · ${e.workflow}`}
+                        v={`${e.error_code} · ${e.trace_id}`}
+                      />
+                    ),
+                  )
+                )}
+              </Card>
+            </>
           )}
           {section === "cost" && (
             <>
+              {budget > 0 && (
+                <BudgetGauge
+                  spent={Number(d.total_usd ?? 0)}
+                  forecast={Number(d.forecast_monthly_usd ?? 0)}
+                  budget={budget}
+                  warnPct={warnPct}
+                />
+              )}
               <TrendChart
                 title="Cost over time"
                 data={(d.over_time as Record<string, unknown>[]) || []}
@@ -967,6 +1514,12 @@ function AnalyticsView({ section }: { section: string }) {
                 title="Cost by workflow"
                 data={d.by_workflow as Record<string, unknown>}
                 color={S.success}
+                fmt={usd}
+              />
+              <BarBreakdown
+                title="Cost by workspace"
+                data={d.by_workspace as Record<string, unknown>}
+                color="#9b87f5"
                 fmt={usd}
               />
             </>
@@ -987,7 +1540,8 @@ function AnalyticsView({ section }: { section: string }) {
           )}
           <p style={{ fontSize: 12, color: S.textMuted, marginTop: 8 }}>
             Derived from live inference telemetry; empty until the pipeline
-            emits for this tenant (no fabricated data).
+            emits for this tenant (or sample data is loaded). No fabricated
+            data.
           </p>
         </>
       )}
@@ -996,10 +1550,30 @@ function AnalyticsView({ section }: { section: string }) {
 }
 
 // ── Logs & Traces ─────────────────────────────────────────────────────────
+const LOG_COLS = "150px 1fr 1fr 56px 56px 78px 76px 80px 70px";
 function Logs() {
   const [win, setWin] = React.useState(86400);
-  const { data, isLoading } = useLlmLogs({ window: win, limit: 200 });
-  const rows = (data?.rows || []) as Record<string, unknown>[];
+  const [filters, setFilters] = React.useState<Record<string, string>>({});
+  const [page, setPage] = React.useState(0);
+  const [expanded, setExpanded] = React.useState<number | null>(null);
+  const PAGE = 50;
+  const reg = useLlmRegistry();
+  const { data, isLoading } = useLlmLogs({
+    window: win,
+    limit: 2000,
+    ...filters,
+  });
+  const all = (data?.rows || []) as Record<string, unknown>[];
+  React.useEffect(() => {
+    setPage(0);
+    setExpanded(null);
+  }, [win, filters]);
+  const models = (reg.data?.models || []).map((m) => m.id);
+  const workflows = Array.from(
+    new Set(all.map((r) => String(r.workflow || "")).filter(Boolean)),
+  );
+  const pages = Math.max(1, Math.ceil(all.length / PAGE));
+  const rows = all.slice(page * PAGE, page * PAGE + PAGE);
   const cols: [string, string][] = [
     ["ts", "Time"],
     ["model", "Model"],
@@ -1010,23 +1584,141 @@ function Logs() {
     ["finish_reason", "Finish"],
     ["error_code", "Error"],
     ["cost_usd", "Cost"],
-    ["trace_id", "Trace"],
   ];
+  const exportCsv = () => {
+    const keys = cols
+      .map(([k]) => k)
+      .concat(["trace_id", "agent", "workspace", "route"]);
+    const head = keys.join(",");
+    const body = all
+      .map((r) =>
+        keys
+          .map((k) => {
+            const v = r[k] == null ? "" : String(r[k]);
+            return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+          })
+          .join(","),
+      )
+      .join("\n");
+    const blob = new Blob([`${head}\n${body}`], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `inference-logs-${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  const sel = (k: string, label: string, opts: string[]) => (
+    <select
+      aria-label={label}
+      value={filters[k] || ""}
+      onChange={(e) =>
+        setFilters({ ...filters, [k]: e.target.value || undefined } as Record<
+          string,
+          string
+        >)
+      }
+      style={{ ...selectStyle, width: 150, height: 30 }}
+    >
+      <option value="" style={optBg}>
+        {label}
+      </option>
+      {opts.map((o) => (
+        <option key={o} value={o} style={optBg}>
+          {o}
+        </option>
+      ))}
+    </select>
+  );
   return (
     <div>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
-          marginBottom: 12,
+          alignItems: "center",
+          gap: 12,
+          marginBottom: 8,
+          flexWrap: "wrap",
         }}
       >
-        <span style={{ fontSize: 12, color: S.textMuted }}>
-          Metadata only — prompt/response content is not stored unless the org
-          logging policy enables it.
-        </span>
-        <WindowSelect win={win} setWin={setWin} />
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          {sel("model", "All models", models)}
+          {sel("workflow", "All workflows", workflows)}
+          <select
+            aria-label="Errors only"
+            value={filters.error_code || ""}
+            onChange={(e) =>
+              setFilters({
+                ...filters,
+                error_code: e.target.value || undefined,
+              } as Record<string, string>)
+            }
+            style={{ ...selectStyle, width: 130, height: 30 }}
+          >
+            <option value="" style={optBg}>
+              All outcomes
+            </option>
+            <option value="ratelimit" style={optBg}>
+              ratelimit
+            </option>
+            <option value="timeout" style={optBg}>
+              timeout
+            </option>
+            <option value="server_error" style={optBg}>
+              server_error
+            </option>
+          </select>
+          {Object.values(filters).some(Boolean) && (
+            <button
+              type="button"
+              onClick={() => setFilters({})}
+              style={{
+                height: 30,
+                border: "none",
+                background: "transparent",
+                color: S.accent,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={all.length === 0}
+            style={{
+              height: 30,
+              padding: "0 12px",
+              borderRadius: 6,
+              background: "transparent",
+              border: `1px solid ${S.borderStrong}`,
+              color: S.textSecondary,
+              fontSize: 12.5,
+              cursor: all.length ? "pointer" : "not-allowed",
+              opacity: all.length ? 1 : 0.5,
+            }}
+          >
+            Export CSV
+          </button>
+          <WindowSelect win={win} setWin={setWin} />
+        </div>
       </div>
+      <p style={{ fontSize: 11.5, color: S.textMuted, margin: "0 0 12px" }}>
+        Metadata only — prompt/response content is not stored unless the org
+        logging policy enables it. Click a row to inspect.
+      </p>
       {isLoading ? (
         <LiveCardSkeleton lines={4} />
       ) : (
@@ -1041,8 +1733,7 @@ function Logs() {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns:
-                "150px 1fr 1fr 50px 50px 80px 70px 70px 70px 1fr",
+              gridTemplateColumns: LOG_COLS,
               gap: 8,
               padding: "8px 14px",
               borderBottom: `1px solid ${S.border}`,
@@ -1058,69 +1749,237 @@ function Logs() {
           </div>
           {rows.length === 0 ? (
             <div style={{ padding: 16, fontSize: 13, color: S.textMuted }}>
-              No inference records in this window yet.
+              No inference records match these filters.
             </div>
           ) : (
-            rows.map((r, i) => (
-              <div
-                // eslint-disable-next-line react/no-array-index-key
-                key={i}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns:
-                    "150px 1fr 1fr 50px 50px 80px 70px 70px 70px 1fr",
-                  gap: 8,
-                  padding: "8px 14px",
-                  borderBottom: "1px solid var(--cg-border-subtle)",
-                  fontSize: 11.5,
-                  fontFamily: "monospace",
-                  color: S.textSecondary,
-                }}
-              >
-                {cols.map(([k]) => (
-                  <span
-                    key={k}
+            rows.map((r, i) => {
+              const idx = page * PAGE + i;
+              const isErr = !!r.error_code;
+              return (
+                <div key={String(r.trace_id) || idx}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setExpanded(expanded === idx ? null : idx)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter")
+                        setExpanded(expanded === idx ? null : idx);
+                    }}
                     style={{
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      color: k === "error_code" && r[k] ? S.danger : undefined,
+                      display: "grid",
+                      gridTemplateColumns: LOG_COLS,
+                      gap: 8,
+                      padding: "8px 14px",
+                      borderBottom: "1px solid var(--cg-border-subtle)",
+                      fontSize: 11.5,
+                      fontFamily: "monospace",
+                      color: S.textSecondary,
+                      cursor: "pointer",
+                      background:
+                        expanded === idx ? "var(--cg-bg-badge)" : undefined,
                     }}
                   >
-                    {r[k] == null ? "—" : String(r[k])}
-                  </span>
-                ))}
-              </div>
-            ))
+                    {cols.map(([k]) => (
+                      <span
+                        key={k}
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          color:
+                            k === "error_code" && r[k] ? S.danger : undefined,
+                        }}
+                      >
+                        {r[k] == null ? "—" : String(r[k])}
+                      </span>
+                    ))}
+                  </div>
+                  {expanded === idx && (
+                    <div
+                      style={{
+                        padding: "10px 16px 14px",
+                        borderBottom: "1px solid var(--cg-border-subtle)",
+                        background: "var(--cg-bg-badge)",
+                        fontSize: 11.5,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(220px, 1fr))",
+                          gap: "4px 24px",
+                        }}
+                      >
+                        {Object.entries(r).map(([k, v]) => (
+                          <div key={k} style={{ display: "flex", gap: 8 }}>
+                            <span style={{ color: S.textMuted, minWidth: 130 }}>
+                              {k}
+                            </span>
+                            <span
+                              style={{
+                                color:
+                                  k === "error_code" && v
+                                    ? S.danger
+                                    : S.textSecondary,
+                                fontFamily: "monospace",
+                                wordBreak: "break-all",
+                              }}
+                            >
+                              {v == null ? "—" : String(v)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      {isErr && (
+                        <p style={{ marginTop: 8, color: S.textMuted }}>
+                          Use trace_id <code>{String(r.trace_id)}</code> to
+                          correlate with conversation and sandbox logs.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
+        </div>
+      )}
+      {all.length > PAGE && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginTop: 10,
+            fontSize: 12.5,
+            color: S.textMuted,
+          }}
+        >
+          <span>
+            {page * PAGE + 1}–{Math.min(all.length, (page + 1) * PAGE)} of{" "}
+            {num(all.length)}
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              type="button"
+              disabled={page === 0}
+              onClick={() => {
+                setExpanded(null);
+                setPage(page - 1);
+              }}
+              style={pagerBtn(page === 0)}
+            >
+              Prev
+            </button>
+            <span style={{ alignSelf: "center" }}>
+              {page + 1} / {pages}
+            </span>
+            <button
+              type="button"
+              disabled={page >= pages - 1}
+              onClick={() => {
+                setExpanded(null);
+                setPage(page + 1);
+              }}
+              style={pagerBtn(page >= pages - 1)}
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-// ── Quality (honest: needs an eval harness) ──────────────────────────────────
+const pagerBtn = (disabled: boolean): React.CSSProperties => ({
+  height: 30,
+  padding: "0 14px",
+  borderRadius: 6,
+  background: "transparent",
+  border: `1px solid ${S.borderStrong}`,
+  color: S.textSecondary,
+  fontSize: 12.5,
+  cursor: disabled ? "not-allowed" : "pointer",
+  opacity: disabled ? 0.4 : 1,
+});
+
+// ── Quality (measured signals from telemetry + honest gaps) ──────────────────
 function Quality() {
-  const metrics = [
+  const [win, setWin] = React.useState(2592000);
+  const q = useLlmAnalytics("quality", { window: win });
+  const d = (q.data || {}) as Record<string, unknown>;
+  const so = d.structured_output_validity_pct as number | null;
+  const tp = d.tool_argument_validity_pct as number | null;
+  const sample = Number(d.sample_size || 0);
+  // Signals we genuinely measure from inference records today.
+  const measured: { label: string; v: number | null; method: string }[] = [
+    {
+      label: "Structured-output validity",
+      v: so ?? null,
+      method: "share of structured responses that parsed against the schema",
+    },
+    {
+      label: "Tool-argument validity",
+      v: tp ?? null,
+      method: "share of tool calls whose arguments parsed without error",
+    },
+  ];
+  // Signals that require an evaluation harness — shown as not-yet-measured, never faked.
+  const pending = [
     "Task completion rate",
-    "Structured-output validity",
     "Tool-selection accuracy",
-    "Tool-argument validity",
     "Response acceptance rate",
     "Human escalation rate",
     "Evaluation score by workflow",
   ];
   return (
     <div>
-      <Card title="Evaluation status">
-        <div style={{ fontSize: 13, color: S.textSecondary }}>
-          No evaluation dataset configured. Quality metrics are only shown when
-          backed by a defined evaluation dataset and method — never a generic
-          accuracy number.
-        </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontSize: 12, color: S.textMuted }}>
+          Sample size: {num(sample)} inference records in window.
+        </span>
+        <WindowSelect win={win} setWin={setWin} />
+      </div>
+      <Card title="Measured from live telemetry">
+        {sample === 0 ? (
+          <div style={{ fontSize: 12.5, color: S.textMuted }}>
+            No inference records in this window yet.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 12,
+              marginBottom: 4,
+            }}
+          >
+            {measured.map((m) => (
+              <Stat
+                key={m.label}
+                label={m.label}
+                value={m.v == null ? "—" : `${m.v}%`}
+                tone={m.v == null ? "none" : toneLo(m.v, 98, 90)}
+                sub={m.method}
+              />
+            ))}
+          </div>
+        )}
       </Card>
-      <Card title="Metrics (pending evaluation harness)">
-        {metrics.map((m) => (
+      <Card title="Requires evaluation harness (not yet measured)">
+        <p style={{ fontSize: 12, color: S.textMuted, margin: "0 0 8px" }}>
+          These need a defined evaluation dataset + scoring method. We never
+          show a generic accuracy number that is not backed by an eval run.
+        </p>
+        {pending.map((m) => (
           <div
             key={m}
             style={{
@@ -1132,9 +1991,7 @@ function Quality() {
             }}
           >
             <span style={{ color: S.textSecondary }}>{m}</span>
-            <span style={{ color: S.textMuted }}>
-              definition · sample size · method · last evaluated — —
-            </span>
+            <span style={{ color: S.textMuted }}>not configured</span>
           </div>
         ))}
       </Card>
@@ -1142,49 +1999,268 @@ function Quality() {
   );
 }
 
-// ── Quotas (limits config + utilisation) ─────────────────────────────────────
+// ── Quotas (limits config + live utilisation bars + increase request) ────────
+function UtilBar({
+  label,
+  used,
+  allowed,
+  pct,
+  fmt = num,
+}: {
+  label: string;
+  used: number;
+  allowed: number;
+  pct: number;
+  fmt?: (v: unknown) => string;
+}) {
+  const tone = toneHi(pct, 70, 90);
+  const bar = TONE_COLOR[tone];
+  return (
+    <div
+      style={{
+        padding: "10px 0",
+        borderBottom: "1px solid var(--cg-border-subtle)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 12.5,
+          marginBottom: 6,
+        }}
+      >
+        <span style={{ color: S.textSecondary }}>{label}</span>
+        <span style={{ color: bar, fontFamily: "monospace" }}>
+          {fmt(used)} / {allowed ? fmt(allowed) : "∞"}
+          {allowed ? `  ·  ${pct}%` : ""}
+        </span>
+      </div>
+      <div
+        style={{
+          height: 6,
+          borderRadius: 3,
+          background: "var(--cg-bg-badge)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.min(100, pct)}%`,
+            background: bar,
+            transition: "width .3s",
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function Quotas() {
-  const cfgQ = useLlmConfig();
-  if (cfgQ.isLoading) return <LiveCardSkeleton lines={4} />;
-  const c = (cfgQ.data || {}) as Record<string, unknown>;
-  const limits: [string, unknown][] = [
-    ["Requests / minute", c.rpm_limit],
-    ["Tokens / minute", c.tpm_limit],
-    ["Concurrent requests", c.concurrent_requests],
-    ["Daily request limit", c.daily_request_limit],
-    ["Monthly token allowance", c.monthly_token_allowance],
-    ["Max context size", c.context_token_limit],
-    ["Max output size", c.max_output_tokens],
-    ["Max agent steps", c.max_agent_steps],
-    ["Max execution duration (s)", c.request_timeout_s],
+  const [win, setWin] = React.useState(2592000);
+  const q = useLlmAnalytics("quotas", { window: win });
+  const inc = useLlmQuotaIncrease();
+  const [open, setOpen] = React.useState(false);
+  const [form, setForm] = React.useState({
+    limit: "rpm",
+    requested: "",
+    reason: "",
+  });
+  if (q.isLoading) return <LiveCardSkeleton lines={5} />;
+  const d = (q.data || {}) as Record<string, unknown>;
+  const util = (d.utilisation || {}) as Record<string, unknown>;
+  const limits = (util.limits || {}) as Record<
+    string,
+    { used: number; allowed: number; pct: number }
+  >;
+  const c = (d.config || {}) as Record<string, unknown>;
+  const rows: [string, keyof typeof limits, (v: unknown) => string][] = [
+    ["Requests / minute (peak)", "rpm", num],
+    ["Tokens / minute (peak)", "tpm", num],
+    ["Daily requests (24h)", "daily_requests", num],
+    ["Monthly tokens (30d)", "monthly_tokens", num],
   ];
   return (
     <div>
-      <Card title="Operational limits">
-        {limits.map(([l, v]) => (
-          <KV key={l} k={l} v={`${num(v)}  ·  current —`} />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginBottom: 12,
+        }}
+      >
+        <span style={{ fontSize: 12, color: S.textMuted }}>
+          Utilisation is computed from live telemetry; limits are the configured
+          ceilings.
+        </span>
+        <WindowSelect win={win} setWin={setWin} />
+      </div>
+      <Card title="Utilisation vs limits">
+        {rows.map(([label, key, fmt]) => {
+          const r = limits[key] || { used: 0, allowed: 0, pct: 0 };
+          return (
+            <UtilBar
+              key={key}
+              label={label}
+              used={r.used}
+              allowed={r.allowed}
+              pct={r.pct}
+              fmt={fmt}
+            />
+          );
+        })}
+        <KV
+          k="Throttled (429) in window"
+          v={
+            <span
+              style={{
+                color: Number(util.throttled) > 0 ? S.warning : S.textSecondary,
+              }}
+            >
+              {num(util.throttled)}
+            </span>
+          }
+        />
+      </Card>
+      <Card title="Configured ceilings">
+        {(
+          [
+            ["Requests / minute", c.rpm_limit],
+            ["Tokens / minute", c.tpm_limit],
+            ["Concurrent requests", c.concurrent_requests],
+            ["Daily request limit", c.daily_request_limit],
+            ["Monthly token allowance", c.monthly_token_allowance],
+            ["Max context size", c.context_token_limit],
+            ["Max output size", c.max_output_tokens],
+            ["Max agent steps", c.max_agent_steps],
+            ["Max execution duration (s)", c.request_timeout_s],
+          ] as [string, unknown][]
+        ).map(([l, v]) => (
+          <KV key={l} k={l} v={num(v)} />
         ))}
         <p style={{ fontSize: 11.5, color: S.textMuted, marginTop: 10 }}>
-          Current utilisation populates from live telemetry. Edit limits in
-          Inference / Cost; request an increase below.
+          Edit ceilings under Inference / Cost. Need more headroom? Request an
+          increase below — it is logged to the audit trail.
         </p>
       </Card>
       <Capable cap="remediate">
-        <button
-          type="button"
-          style={{
-            height: 34,
-            padding: "0 14px",
-            borderRadius: 6,
-            background: "transparent",
-            border: `1px solid ${S.borderStrong}`,
-            color: S.textSecondary,
-            fontSize: 13,
-            cursor: "pointer",
-          }}
-        >
-          Request a limit increase
-        </button>
+        {open ? (
+          <Card title="Request a limit increase">
+            <div style={{ display: "grid", gap: 10, maxWidth: 420 }}>
+              <label style={{ fontSize: 12, color: S.textMuted }}>
+                Limit
+                <select
+                  value={form.limit}
+                  onChange={(e) => setForm({ ...form, limit: e.target.value })}
+                  style={{ ...selectStyle, marginTop: 4 }}
+                >
+                  {[
+                    "rpm",
+                    "tpm",
+                    "daily_requests",
+                    "monthly_tokens",
+                    "concurrent",
+                  ].map((o) => (
+                    <option key={o} value={o} style={optBg}>
+                      {o}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label style={{ fontSize: 12, color: S.textMuted }}>
+                Requested value
+                <input
+                  value={form.requested}
+                  onChange={(e) =>
+                    setForm({ ...form, requested: e.target.value })
+                  }
+                  placeholder="e.g. 1200"
+                  style={{ ...fieldStyle, marginTop: 4 }}
+                />
+              </label>
+              <label style={{ fontSize: 12, color: S.textMuted }}>
+                Business justification
+                <textarea
+                  value={form.reason}
+                  onChange={(e) => setForm({ ...form, reason: e.target.value })}
+                  rows={3}
+                  style={{
+                    ...fieldStyle,
+                    marginTop: 4,
+                    height: "auto",
+                    resize: "vertical",
+                  }}
+                />
+              </label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  disabled={inc.isPending || !form.requested}
+                  onClick={() =>
+                    inc.mutate(form, {
+                      onSuccess: () => {
+                        setOpen(false);
+                        setForm({ limit: "rpm", requested: "", reason: "" });
+                      },
+                    })
+                  }
+                  style={{
+                    height: 34,
+                    padding: "0 16px",
+                    borderRadius: 6,
+                    background: S.accent,
+                    border: "none",
+                    color: "#fff",
+                    fontSize: 13,
+                    cursor: form.requested ? "pointer" : "not-allowed",
+                    opacity: form.requested ? 1 : 0.5,
+                  }}
+                >
+                  {inc.isPending ? "Submitting…" : "Submit request"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  style={{
+                    height: 34,
+                    padding: "0 14px",
+                    borderRadius: 6,
+                    background: "transparent",
+                    border: `1px solid ${S.borderStrong}`,
+                    color: S.textSecondary,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+              {inc.isSuccess && (
+                <span style={{ fontSize: 12, color: S.success }}>
+                  Request submitted and recorded in the audit trail.
+                </span>
+              )}
+            </div>
+          </Card>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            style={{
+              height: 34,
+              padding: "0 14px",
+              borderRadius: 6,
+              background: "transparent",
+              border: `1px solid ${S.borderStrong}`,
+              color: S.textSecondary,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Request a limit increase
+          </button>
+        )}
       </Capable>
     </div>
   );
@@ -1322,6 +2398,7 @@ export default function LlmSettings() {
               },
             ]}
           />
+          <RoutingMaps />
           <AnalyticsView section="routing" />
         </>
       )}

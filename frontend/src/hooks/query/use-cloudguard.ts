@@ -482,6 +482,16 @@ export const useLlmSeed = () => {
   });
 };
 
+export const useLlmQuotaIncrease = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      CloudGuardService.llmQuotaIncrease(body),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] }),
+  });
+};
+
 export const useDecideApproval = () => {
   const qc = useQueryClient();
   return useMutation({

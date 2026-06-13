@@ -127,6 +127,45 @@ async def routing(
     return _analytics("routing", p, window, {})
 
 
+@router.get("/quotas")
+async def quotas(
+    window: int = Query(default=2592000, ge=60, le=7776000),
+    p=Depends(require_cap("read")),
+):
+    a = _safe("cloudguard.llm_analytics")
+    cfg = _safe("cloudguard.llm_config")
+    return {"utilisation": a.quotas(p.tenant_id, window_sec=window), "config": cfg.get_config(p.tenant_id)}
+
+
+@router.post("/quotas/increase")
+async def quota_increase(body: dict = Body(default={}), p=Depends(require_cap("remediate"))):
+    """Audited request for a limit increase."""
+    audit = _safe("cloudguard.tenant_audit")
+    try:
+        audit.append(
+            p.tenant_id,
+            "llm.quota.increase_requested",
+            actor=p.subject,
+            decision="request",
+            category="llm",
+            limit=str(body.get("limit", "")),
+            requested=str(body.get("requested", "")),
+            reason=str(body.get("reason", ""))[:300],
+        )
+    except Exception:  # noqa: BLE001
+        pass
+    return {"requested": True}
+
+
+@router.get("/quality")
+async def quality(
+    window: int = Query(default=2592000, ge=60, le=7776000),
+    p=Depends(require_cap("read")),
+):
+    a = _safe("cloudguard.llm_analytics")
+    return a.quality(p.tenant_id, window_sec=window)
+
+
 @router.get("/logs")
 async def logs(
     window: int = Query(default=86400, ge=60, le=7776000),

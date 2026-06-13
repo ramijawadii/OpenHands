@@ -503,4 +503,6 @@ export const CloudGuardService = {
     openHands
       .post(`${BASE}/llm/seed`, null, { params: { n } })
       .then((r) => r.data),
+  llmQuotaIncrease: (body: Record<string, unknown>) =>
+    openHands.post(`${BASE}/llm/quotas/increase`, body).then((r) => r.data),
 };
