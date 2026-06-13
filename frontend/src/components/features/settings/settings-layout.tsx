@@ -154,7 +154,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/settings/health/sandbox", text: "Sandboxes", Icon: Cpu },
       { to: "/settings/health/connector", text: "Connectors", Icon: Plug2 },
       { to: "/settings/health/alerts", text: "Alerts", Icon: Bell },
-      { to: "/settings/health/history", text: "History", Icon: ScrollText },
     ],
   },
 ];

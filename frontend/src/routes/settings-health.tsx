@@ -10,7 +10,6 @@ import {
 import { Capable } from "#/components/features/acp/capable";
 import {
   useHealth,
-  useHealthSeries,
   useHealthSnapshots,
   useHealthHistory,
   useHealthProbe,
@@ -19,7 +18,6 @@ import {
   useRuns,
 } from "#/hooks/query/use-cloudguard";
 import { useLiveCollection } from "#/hooks/use-live-collection";
-import type { CGHealthSubsystem } from "#/api/cloudguard-service";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -262,115 +260,6 @@ const selectStyle: React.CSSProperties = {
 };
 const optBg = { background: "var(--cg-bg-card)" } as const;
 
-// ── Sparkline from a score/metric series ─────────────────────────────────────
-function Sparkline({
-  subsystem,
-  metric,
-}: {
-  subsystem: string;
-  metric: string;
-}) {
-  const { data } = useHealthSeries(subsystem, metric, 60);
-  const pts = data ?? [];
-  if (pts.length < 2)
-    return (
-      <div style={{ height: 28, color: S.textMuted, fontSize: 11 }}>—</div>
-    );
-  const vals = pts.map((p) => p.value);
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const span = max - min || 1;
-  const w = 180;
-  const h = 28;
-  const d = pts
-    .map((p, i) => {
-      const x = (i / (pts.length - 1)) * w;
-      const y = h - ((p.value - min) / span) * h;
-      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
-  return (
-    <svg width={w} height={h} style={{ display: "block" }}>
-      <path d={d} fill="none" stroke={S.accent} strokeWidth={1.5} />
-    </svg>
-  );
-}
-
-// ── A single subsystem status card (click → its sub-tab) ─────────────────────
-function HealthCard({
-  s,
-  onOpen,
-}: {
-  s: CGHealthSubsystem;
-  onOpen: () => void;
-}) {
-  const metricKeys = Object.keys(s.metrics || {}).slice(0, 4);
-  return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="cg-row"
-      onClick={onOpen}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onOpen();
-      }}
-      title={`Open ${s.sub} health`}
-      style={{
-        background: S.cardBg,
-        border: `1px solid ${s.status === "fail" ? S.danger : s.status === "degraded" ? S.warning : S.border}`,
-        borderRadius: 10,
-        padding: 14,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        cursor: "pointer",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <span style={{ fontSize: 13.5, fontWeight: 600, color: S.textPrimary }}>
-          {s.sub}
-        </span>
-        <StatusPill st={s.status} />
-      </div>
-      <div style={{ fontSize: 12, color: S.textMuted }}>{s.summary}</div>
-      {metricKeys.length > 0 && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-          {metricKeys.map((k) => (
-            <span
-              key={k}
-              style={{
-                fontSize: 11,
-                color: S.textSecondary,
-                background: S.badgeBg,
-                borderRadius: 99,
-                padding: "2px 8px",
-              }}
-            >
-              {k.replace(/_/g, " ")}: {s.metrics[k]}
-            </span>
-          ))}
-        </div>
-      )}
-      {s.status !== "skip" ? (
-        <Sparkline subsystem={s.subsystem} metric="score" />
-      ) : (
-        <div style={{ fontSize: 11.5, color: S.textMuted }}>
-          Awaiting instrumentation
-        </div>
-      )}
-      <span style={{ fontSize: 11.5, color: S.accent, marginTop: 2 }}>
-        Open audit table →
-      </span>
-    </div>
-  );
-}
-
 // Build a de-duplicated string option list from a collection/doc (objects or strings).
 function toOpts(arr: unknown, ...picks: string[]): string[] {
   const out: string[] = [];
@@ -417,6 +306,78 @@ function FilterSelect({
   );
 }
 
+// ── Uptime bar (status-page style) ───────────────────────────────────────────
+const BAR_N = 90;
+const BAR_ORDER: Record<string, number> = {
+  fail: 3,
+  degraded: 2,
+  ok: 1,
+  skip: 0,
+};
+const BAR_COLOR: Record<string, string> = {
+  ok: "#1f9d6b",
+  degraded: "#e09a2d",
+  fail: "var(--cg-danger)",
+  skip: "var(--cg-bg-hover)",
+  none: "var(--cg-bg-hover)",
+};
+const OVERALL_LABEL: Record<string, string> = {
+  ok: "Operational",
+  degraded: "Degraded",
+  fail: "Major outage",
+  skip: "Unknown",
+};
+
+function bucketStatuses(statuses: string[]): string[] {
+  if (statuses.length === 0) return Array(BAR_N).fill("none");
+  const out: string[] = [];
+  const per = statuses.length / BAR_N;
+  for (let i = 0; i < BAR_N; i += 1) {
+    const start = Math.floor(i * per);
+    const end = Math.max(Math.floor((i + 1) * per), start + 1);
+    let worst = "none";
+    let worstV = -1;
+    statuses.slice(start, end).forEach((s) => {
+      const v = BAR_ORDER[s] ?? -1;
+      if (v > worstV) {
+        worstV = v;
+        worst = s;
+      }
+    });
+    out.push(worst);
+  }
+  return out;
+}
+
+function uptimePct(statuses: string[]): string {
+  const counted = statuses.filter(
+    (s) => s === "ok" || s === "degraded" || s === "fail",
+  );
+  if (!counted.length) return "—";
+  const ok = counted.filter((s) => s === "ok").length;
+  return `${((ok / counted.length) * 100).toFixed(3)}% uptime`;
+}
+
+function UptimeBar({ statuses }: { statuses: string[] }) {
+  const bars = bucketStatuses(statuses);
+  return (
+    <div style={{ display: "flex", gap: 2, height: 34 }}>
+      {bars.map((b, i) => (
+        <div
+          // eslint-disable-next-line react/no-array-index-key
+          key={i}
+          title={b === "none" ? "no data" : b}
+          style={{
+            flex: 1,
+            background: BAR_COLOR[b] || BAR_COLOR.none,
+            borderRadius: 1,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 // ── Status view ──────────────────────────────────────────────────────────────
 function StatusView({
   filters,
@@ -426,6 +387,7 @@ function StatusView({
   setFilters: (f: Record<string, string>) => void;
 }) {
   const { data, isLoading, isError } = useHealth(filters);
+  const snaps = useHealthSnapshots(7776000); // 90d of history for the uptime bars
   const probe = useHealthProbe();
   const navigate = useNavigate();
   const connectors = useCollection("connectors");
@@ -529,45 +491,123 @@ function StatusView({
         </div>
       )}
       {data && (
-        <>
+        <div
+          style={{
+            border: `1px solid ${S.border}`,
+            borderRadius: 10,
+            background: S.cardBg,
+            padding: "18px 22px 8px",
+          }}
+        >
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 10,
-              marginBottom: 16,
+              justifyContent: "space-between",
+              marginBottom: 6,
             }}
           >
-            <Dot st={data.overall} size={12} />
             <span
-              style={{ fontSize: 15, fontWeight: 600, color: S.textPrimary }}
+              style={{ fontSize: 14, fontWeight: 600, color: S.textPrimary }}
             >
-              Overall: {data.overall.toUpperCase()}
+              Current status by service
             </span>
-            <span style={{ fontSize: 12, color: S.textMuted }}>
-              {data.subsystems.filter((s) => s.status === "ok").length} ok ·{" "}
-              {data.subsystems.filter((s) => s.status === "degraded").length}{" "}
-              degraded ·{" "}
-              {data.subsystems.filter((s) => s.status === "fail").length} down ·{" "}
-              {data.subsystems.filter((s) => s.status === "skip").length} n/a
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 7,
+                height: 26,
+                padding: "0 13px",
+                borderRadius: 99,
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: statusColor(data.overall),
+                background: STATUS_TINT[data.overall] || "var(--cg-bg-badge)",
+              }}
+            >
+              <Dot st={data.overall} size={7} />
+              {OVERALL_LABEL[data.overall] || data.overall}
             </span>
           </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {data.subsystems.map((s) => (
-              <HealthCard
+
+          {data.subsystems.map((s, i) => {
+            const statuses = (snaps.data ?? [])
+              .map(
+                (sn) =>
+                  sn.subsystems.find((x) => x.subsystem === s.subsystem)
+                    ?.status,
+              )
+              .filter((x): x is string => !!x);
+            const up = uptimePct(statuses);
+            return (
+              <div
                 key={s.subsystem}
-                s={s}
-                onOpen={() => navigate(`/settings/health/${s.subsystem}`)}
-              />
-            ))}
-          </div>
-        </>
+                role="button"
+                tabIndex={0}
+                className="cg-row"
+                onClick={() => navigate(`/settings/health/${s.subsystem}`)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ")
+                    navigate(`/settings/health/${s.subsystem}`);
+                }}
+                title={`Open ${s.sub} health`}
+                style={{
+                  padding: "16px 0 14px",
+                  borderTop:
+                    i === 0 ? "none" : "1px solid var(--cg-border-subtle)",
+                  cursor: "pointer",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 10,
+                  }}
+                >
+                  <span
+                    style={{ display: "flex", alignItems: "center", gap: 9 }}
+                  >
+                    <Dot st={s.status} size={11} />
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: S.textPrimary,
+                      }}
+                    >
+                      {s.sub}
+                    </span>
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: s.status === "ok" ? S.success : S.textSecondary,
+                    }}
+                  >
+                    {up}
+                  </span>
+                </div>
+                <UptimeBar statuses={statuses} />
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    marginTop: 7,
+                    fontSize: 11.5,
+                    color: S.textMuted,
+                  }}
+                >
+                  <span>90 days ago</span>
+                  <span>Today</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -1081,180 +1121,13 @@ function Field({
   );
 }
 
-// ── History view (scrub-back over persisted snapshots) ───────────────────────
+// ── Time-window options for the subsystem table filter ──────────────────────
 const WINDOWS: [string, number][] = [
   ["1h", 3600],
   ["24h", 86400],
   ["7d", 604800],
   ["90d", 7776000],
 ];
-function HistoryView() {
-  const [win, setWin] = React.useState(3600);
-  const { data: snaps, isLoading } = useHealthSnapshots(win);
-  const transitions = (useHealthHistory(200).data ?? []).filter((e) =>
-    (e.action || "").includes("->"),
-  );
-  const rows = (snaps ?? []).slice().reverse();
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-        {WINDOWS.map(([l, v]) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setWin(v)}
-            style={{
-              height: 30,
-              padding: "0 12px",
-              borderRadius: 6,
-              border: `1px solid ${win === v ? S.accent : S.borderStrong}`,
-              background: win === v ? "rgba(45,134,212,0.12)" : "transparent",
-              color: win === v ? S.textPrimary : S.textMuted,
-              fontSize: 12.5,
-              cursor: "pointer",
-            }}
-          >
-            {l}
-          </button>
-        ))}
-      </div>
-      {isLoading && <LiveCardSkeleton lines={4} />}
-      <div
-        style={{
-          border: `1px solid ${S.border}`,
-          borderRadius: 8,
-          overflow: "hidden",
-          background: S.cardBg,
-          marginBottom: 24,
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "180px 90px 1fr",
-            padding: "8px 16px",
-            borderBottom: `1px solid ${S.border}`,
-            fontSize: 10,
-            fontWeight: 600,
-            color: S.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.06em",
-          }}
-        >
-          <span>Time</span>
-          <span>Overall</span>
-          <span>Subsystems</span>
-        </div>
-        {rows.length === 0 && (
-          <div style={{ padding: 14, fontSize: 12.5, color: S.textMuted }}>
-            No snapshots stored yet — they accrue as the tab polls (≈ every
-            minute).
-          </div>
-        )}
-        {rows.map((snap) => (
-          <div
-            key={snap.ts}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "180px 90px 1fr",
-              padding: "8px 16px",
-              borderBottom: "1px solid var(--cg-border-subtle)",
-              alignItems: "center",
-              fontSize: 12,
-            }}
-          >
-            <span style={{ color: S.textMuted, fontFamily: "monospace" }}>
-              {snap.ts}
-            </span>
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                color: statusColor(snap.overall),
-              }}
-            >
-              <Dot st={snap.overall} size={7} /> {snap.overall}
-            </span>
-            <span style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {snap.subsystems.map((s) => (
-                <span
-                  key={s.subsystem}
-                  title={`${s.subsystem}: ${s.summary}`}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 4,
-                    color: S.textMuted,
-                  }}
-                >
-                  <Dot st={s.status} size={6} />
-                  {s.subsystem}
-                </span>
-              ))}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <h3
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: S.textPrimary,
-          margin: "0 0 10px",
-        }}
-      >
-        Audited transitions
-      </h3>
-      <div
-        style={{
-          border: `1px solid ${S.border}`,
-          borderRadius: 8,
-          overflow: "hidden",
-          background: S.cardBg,
-        }}
-      >
-        {transitions.length === 0 && (
-          <div style={{ padding: 14, fontSize: 12.5, color: S.textMuted }}>
-            No status changes recorded.
-          </div>
-        )}
-        {transitions.map((e) => (
-          <div
-            key={e.entry_hash}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "190px 1fr minmax(120px, 0.5fr)",
-              gap: 12,
-              padding: "9px 16px",
-              borderBottom: "1px solid var(--cg-border-subtle)",
-              fontSize: 12,
-              alignItems: "center",
-            }}
-          >
-            <span style={{ color: S.textMuted, fontFamily: "monospace" }}>
-              {e.ts}
-            </span>
-            <span
-              style={{
-                color: S.textSecondary,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {e.action}
-            </span>
-            <span style={{ color: S.textMuted, textAlign: "right" }}>
-              {e.actor || ""}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 const SUB_LABELS: Record<string, string> = {
   control_plane: "Control Plane",
@@ -1570,9 +1443,7 @@ export default function HealthSettings() {
     ? SUB_LABELS[section as string]
     : section === "alerts"
       ? "Health · Alerts"
-      : section === "history"
-        ? "Health · History"
-        : "Health Overview";
+      : "Health Overview";
 
   return (
     <div style={{ padding: "40px 48px", maxWidth: 1400, width: "100%" }}>
@@ -1606,7 +1477,6 @@ export default function HealthSettings() {
       {!section && <StatusView filters={filters} setFilters={setFilters} />}
       {isSub && <SubsystemView subsystem={section as string} />}
       {section === "alerts" && <AlertsView />}
-      {section === "history" && <HistoryView />}
     </div>
   );
 }
