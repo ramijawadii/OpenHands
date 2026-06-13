@@ -215,6 +215,48 @@ export interface CGViolation {
   workspace: string;
 }
 
+export interface CGHealthSubsystem {
+  subsystem: string;
+  status: "ok" | "degraded" | "fail" | "skip";
+  score: number;
+  summary: string;
+  metrics: Record<string, number>;
+  detail: { name: string; status: string; value: string }[];
+  last_change_ts: string;
+  // legacy compat (ACP card)
+  sub: string;
+  a: string;
+  b: string;
+  st: string;
+}
+
+export interface CGHealthSnapshot {
+  overall: "ok" | "degraded" | "fail" | "skip";
+  subsystems: CGHealthSubsystem[];
+  tenant_id: string;
+  ts: string;
+}
+
+export interface CGHealthFilters {
+  conversation?: string;
+  workspace?: string;
+  user?: string;
+  environment?: string;
+  connector?: string;
+}
+
+export interface CGStoredSnapshot {
+  ts: string;
+  overall: string;
+  subsystems: {
+    subsystem: string;
+    status: string;
+    score: number;
+    summary: string;
+    metrics: Record<string, number>;
+  }[];
+}
+
 const BASE = "/api/cloudguard";
 
 export const CloudGuardService = {
@@ -360,4 +402,42 @@ export const CloudGuardService = {
       .then((r) => r.data),
   collectionRemove: (seg: string, id: string) =>
     openHands.delete(`${BASE}/collections/${seg}/${id}`).then((r) => r.data),
+  health: (filters?: CGHealthFilters) =>
+    openHands
+      .get<CGHealthSnapshot>(`${BASE}/monitoring/health`, { params: filters })
+      .then((r) => r.data),
+  healthSeries: (subsystem: string, metric = "score", window = 120) =>
+    openHands
+      .get<{
+        points: { ts: string; value: number }[];
+      }>(`${BASE}/monitoring/health/series`, {
+        params: { subsystem, metric, window },
+      })
+      .then((r) => r.data.points),
+  healthSnapshots: (windowSec = 3600) =>
+    openHands
+      .get<{
+        snapshots: CGStoredSnapshot[];
+      }>(`${BASE}/monitoring/health/snapshots`, {
+        params: { window_sec: windowSec },
+      })
+      .then((r) => r.data.snapshots),
+  healthSnapshotAt: (at: string) =>
+    openHands
+      .get<CGStoredSnapshot>(`${BASE}/monitoring/health/snapshot`, {
+        params: { at },
+      })
+      .then((r) => r.data),
+  healthHistory: (limit = 200) =>
+    openHands
+      .get<{ events: CGAuditEntry[] }>(`${BASE}/monitoring/health/history`, {
+        params: { limit },
+      })
+      .then((r) => r.data.events),
+  healthProbe: () =>
+    openHands.post(`${BASE}/monitoring/health/probe`).then((r) => r.data),
+  healthAlertAck: (ruleId: string) =>
+    openHands
+      .post(`${BASE}/monitoring/health/alerts/${ruleId}/ack`)
+      .then((r) => r.data),
 };

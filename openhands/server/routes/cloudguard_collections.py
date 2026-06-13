@@ -25,6 +25,7 @@ _MAP = {
     "api-tokens": "api_tokens",
     "sessions": "sessions",
     "roles": "roles",
+    "health-alerts": "health_alerts",
 }
 
 

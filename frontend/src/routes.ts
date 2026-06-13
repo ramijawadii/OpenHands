@@ -27,6 +27,7 @@ export default [
       route("workspace", "routes/settings-workspace.tsx"),
       route("sandbox-compute", "routes/settings-sandbox-compute.tsx"),
       route("audit-log", "routes/settings-audit-log.tsx"),
+      route("health", "routes/settings-health.tsx"),
       route("org", "routes/org-settings.tsx"),
       route("members", "routes/settings-members.tsx"),
       route("user-roles", "routes/settings-user-roles.tsx"),

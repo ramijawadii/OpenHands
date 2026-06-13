@@ -348,6 +348,50 @@ export const useApprovals = (status = "pending") =>
     retry: false,
   });
 
+export const useHealth = (filters?: Record<string, string>) =>
+  useQuery({
+    queryKey: ["cloudguard", "health", filters],
+    queryFn: () => CloudGuardService.health(filters),
+    retry: false,
+    refetchInterval: 30000,
+  });
+
+export const useHealthSeries = (
+  subsystem: string,
+  metric = "score",
+  window = 120,
+) =>
+  useQuery({
+    queryKey: ["cloudguard", "health", "series", subsystem, metric, window],
+    queryFn: () => CloudGuardService.healthSeries(subsystem, metric, window),
+    retry: false,
+    refetchInterval: 30000,
+  });
+
+export const useHealthSnapshots = (windowSec = 3600) =>
+  useQuery({
+    queryKey: ["cloudguard", "health", "snapshots", windowSec],
+    queryFn: () => CloudGuardService.healthSnapshots(windowSec),
+    retry: false,
+  });
+
+export const useHealthHistory = (limit = 200) =>
+  useQuery({
+    queryKey: ["cloudguard", "health", "history", limit],
+    queryFn: () => CloudGuardService.healthHistory(limit),
+    retry: false,
+  });
+
+export const useHealthProbe = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.healthProbe,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "health"] });
+    },
+  });
+};
+
 export const useDecideApproval = () => {
   const qc = useQueryClient();
   return useMutation({

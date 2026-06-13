@@ -29,6 +29,8 @@ import {
   Gavel,
   Box,
   Lock,
+  HeartPulse,
+  Activity,
 } from "lucide-react";
 import { RoleChip, useCurrentRole } from "./settings-kit";
 import "./settings-polish.css";
@@ -117,6 +119,11 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/settings/webhooks", text: "Webhooks", Icon: Webhook },
       { to: "/settings/integrations", text: "Integrations", Icon: Blocks },
     ],
+  },
+  {
+    group: "Operations",
+    Icon: Activity,
+    items: [{ to: "/settings/health", text: "Health", Icon: HeartPulse }],
   },
 ];
 
