@@ -123,7 +123,31 @@ const NAV_GROUPS: NavGroup[] = [
   {
     group: "Operations",
     Icon: Activity,
-    items: [{ to: "/settings/health", text: "Health", Icon: HeartPulse }],
+    items: [
+      { to: "/settings/health", text: "Health Overview", Icon: HeartPulse },
+      {
+        to: "/settings/health/control_plane",
+        text: "Control Plane",
+        Icon: ShieldCheck,
+      },
+      { to: "/settings/health/llm", text: "LLM API", Icon: Activity },
+      { to: "/settings/health/tools", text: "Tools", Icon: Blocks },
+      {
+        to: "/settings/health/container",
+        text: "Conversation Container",
+        Icon: Box,
+      },
+      {
+        to: "/settings/health/env_model",
+        text: "Environment Modelling",
+        Icon: Globe,
+      },
+      { to: "/settings/health/mcp", text: "MCP Servers", Icon: Network },
+      { to: "/settings/health/sandbox", text: "Sandboxes", Icon: Cpu },
+      { to: "/settings/health/connector", text: "Connectors", Icon: Plug2 },
+      { to: "/settings/health/alerts", text: "Alerts", Icon: Bell },
+      { to: "/settings/health/history", text: "History", Icon: ScrollText },
+    ],
   },
 ];
 
@@ -157,8 +181,14 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
     ? activeGroup.items.filter((it) => it.text.toLowerCase().includes(q))
     : activeGroup.items;
 
+  // Longest-prefix match so a base route (e.g. /settings/health) doesn't stay lit on its
+  // child routes (/settings/health/llm) — only the most specific sub-tab is active.
+  const activeItemTo = [...activeGroup.items]
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((it) => pathname === it.to || pathname.startsWith(`${it.to}/`))?.to;
+
   const renderLink = (item: NavLeaf) => {
-    const isActive = pathname === item.to || pathname.startsWith(`${item.to}/`);
+    const isActive = item.to === activeItemTo;
     const lit = isActive || hovered === item.to;
     return (
       <NavLink

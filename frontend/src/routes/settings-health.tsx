@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, jsx-a11y/label-has-associated-control, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard Health tab */
 import React from "react";
+import { useParams } from "react-router";
 import { Activity, RefreshCw } from "lucide-react";
 import {
   ScopeBadge,
@@ -1011,13 +1012,355 @@ function HistoryView() {
   );
 }
 
-export default function HealthSettings() {
-  const [seg, setSeg] = React.useState<"status" | "alerts" | "history">(
-    "status",
+const SUB_LABELS: Record<string, string> = {
+  control_plane: "Control Plane",
+  llm: "LLM API",
+  tools: "Tools",
+  container: "Conversation Container",
+  env_model: "Environment Modelling",
+  mcp: "MCP Servers",
+  sandbox: "Sandboxes",
+  connector: "Connectors",
+};
+
+interface SubRow {
+  ts: string;
+  status: string;
+  summary: string;
+  metrics: Record<string, number>;
+}
+
+// One subsystem = an audit-log-style view: current checks on top, then a filterable, paginated
+// table of that subsystem's historical samples (from the persisted snapshots).
+function SubsystemView({ subsystem }: { subsystem: string }) {
+  const { data: snap, isLoading: liveLoading } = useHealth({});
+  const cur = snap?.subsystems.find((s) => s.subsystem === subsystem);
+  const probe = useHealthProbe();
+
+  const [win, setWin] = React.useState(3600);
+  const [statusF, setStatusF] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const { data: snaps, isLoading } = useHealthSnapshots(win);
+
+  const rows = React.useMemo<SubRow[]>(() => {
+    const r = (snaps ?? [])
+      .map((sn) => {
+        const e = sn.subsystems.find((x) => x.subsystem === subsystem);
+        return e
+          ? {
+              ts: sn.ts,
+              status: e.status,
+              summary: e.summary,
+              metrics: e.metrics || {},
+            }
+          : null;
+      })
+      .filter((x): x is SubRow => x !== null);
+    r.reverse(); // newest first
+    return r;
+  }, [snaps, subsystem]);
+
+  const filtered = rows.filter((r) => {
+    if (statusF && r.status !== statusF) return false;
+    if (
+      search &&
+      !(r.summary || "").toLowerCase().includes(search.toLowerCase())
+    )
+      return false;
+    return true;
+  });
+
+  const metricCols = Object.keys(rows[0]?.metrics || cur?.metrics || {}).slice(
+    0,
+    5,
   );
-  const [filters, setFilters] = React.useState<Record<string, string>>({});
+  const GRID = `170px 90px 1.4fr ${metricCols.map(() => "0.9fr").join(" ")}`;
+
+  const PAGE = 25;
+  const [page, setPage] = React.useState(0);
+  React.useEffect(() => {
+    setPage(0);
+  }, [win, statusF, search, subsystem, filtered.length]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE));
+  const safe = Math.min(page, pageCount - 1);
+  const paged = filtered.slice(safe * PAGE, (safe + 1) * PAGE);
+
+  const th = (t: string) => (
+    <span
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        color: S.textMuted,
+        textTransform: "uppercase",
+        letterSpacing: "0.06em",
+      }}
+    >
+      {t}
+    </span>
+  );
+
   return (
-    <div style={{ padding: "40px 48px", maxWidth: 1040 }}>
+    <div>
+      {/* Current status + checks */}
+      {liveLoading && !cur ? (
+        <LiveCardSkeleton lines={3} />
+      ) : (
+        <div
+          style={{
+            background: S.cardBg,
+            border: `1px solid ${S.border}`,
+            borderRadius: 10,
+            padding: 16,
+            marginBottom: 18,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: cur?.detail?.length ? 12 : 0,
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Dot st={cur?.status || "skip"} size={11} />
+              <span
+                style={{ fontSize: 14, fontWeight: 600, color: S.textPrimary }}
+              >
+                {cur?.st || "Unknown"}
+              </span>
+              <span style={{ fontSize: 12.5, color: S.textMuted }}>
+                {cur?.summary || ""}
+              </span>
+            </span>
+            <Capable cap="remediate">
+              <button
+                type="button"
+                onClick={() => probe.mutate()}
+                style={{
+                  ...fieldStyle,
+                  width: "auto",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <RefreshCw size={13} /> Probe now
+              </button>
+            </Capable>
+          </div>
+          {(cur?.detail || []).map((d) => (
+            <div
+              key={d.name}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                fontSize: 12,
+                padding: "5px 0",
+                borderTop: "1px solid var(--cg-border-subtle)",
+              }}
+            >
+              <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <Dot st={d.status} size={6} />
+                <span style={{ color: S.textSecondary }}>{d.name}</span>
+              </span>
+              <span style={{ color: S.textMuted }}>{d.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Audit-style filter bar */}
+      <div
+        style={{
+          display: "flex",
+          gap: 10,
+          flexWrap: "wrap",
+          alignItems: "center",
+          marginBottom: 12,
+        }}
+      >
+        <select
+          value={win}
+          onChange={(e) => setWin(Number(e.target.value))}
+          style={{ ...selectStyle, width: 110 }}
+        >
+          {WINDOWS.map(([l, v]) => (
+            <option key={v} value={v} style={optBg}>
+              Last {l}
+            </option>
+          ))}
+        </select>
+        <select
+          value={statusF}
+          onChange={(e) => setStatusF(e.target.value)}
+          style={{ ...selectStyle, width: 130 }}
+        >
+          <option value="" style={optBg}>
+            All statuses
+          </option>
+          {["ok", "degraded", "fail", "skip"].map((s) => (
+            <option key={s} value={s} style={optBg}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search summary…"
+          style={{ ...fieldStyle, width: 220 }}
+        />
+        <span style={{ fontSize: 12, color: S.textMuted }}>
+          {filtered.length} sample(s)
+        </span>
+      </div>
+
+      {/* Table */}
+      <div
+        style={{
+          border: `1px solid ${S.border}`,
+          borderRadius: 8,
+          overflow: "hidden",
+          background: S.cardBg,
+        }}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: GRID,
+            padding: "8px 16px",
+            borderBottom: `1px solid ${S.border}`,
+            gap: 8,
+          }}
+        >
+          {th("Time")}
+          {th("Status")}
+          {th("Summary")}
+          {metricCols.map((m) => th(m.replace(/_/g, " ")))}
+        </div>
+        {isLoading && (
+          <div style={{ padding: 16 }}>
+            <LiveCardSkeleton lines={3} />
+          </div>
+        )}
+        {!isLoading && paged.length === 0 && (
+          <div style={{ padding: 16, fontSize: 13, color: S.textMuted }}>
+            No samples yet — history accrues as the Health tab polls (≈ every
+            minute). Hit “Probe now”.
+          </div>
+        )}
+        {paged.map((r) => (
+          <div
+            key={r.ts}
+            style={{
+              display: "grid",
+              gridTemplateColumns: GRID,
+              padding: "9px 16px",
+              borderBottom: "1px solid var(--cg-border-subtle)",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 12.5,
+            }}
+          >
+            <span style={{ color: S.textMuted, fontFamily: "monospace" }}>
+              {r.ts}
+            </span>
+            <span
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                color: statusColor(r.status),
+              }}
+            >
+              <Dot st={r.status} size={7} /> {r.status}
+            </span>
+            <span
+              style={{
+                color: S.textSecondary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {r.summary}
+            </span>
+            {metricCols.map((m) => (
+              <span key={m} style={{ color: S.textPrimary }}>
+                {r.metrics[m] ?? "—"}
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {filtered.length > PAGE && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginTop: 12,
+          }}
+        >
+          <span style={{ fontSize: 12, color: S.textMuted }}>
+            {safe * PAGE + 1}–{Math.min((safe + 1) * PAGE, filtered.length)} of{" "}
+            {filtered.length}
+          </span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button
+              type="button"
+              disabled={safe === 0}
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              style={{
+                ...fieldStyle,
+                width: "auto",
+                cursor: safe === 0 ? "default" : "pointer",
+                opacity: safe === 0 ? 0.5 : 1,
+              }}
+            >
+              ← Prev
+            </button>
+            <span style={{ fontSize: 12.5, color: S.textSecondary }}>
+              {safe + 1} / {pageCount}
+            </span>
+            <button
+              type="button"
+              disabled={safe >= pageCount - 1}
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              style={{
+                ...fieldStyle,
+                width: "auto",
+                cursor: safe >= pageCount - 1 ? "default" : "pointer",
+                opacity: safe >= pageCount - 1 ? 0.5 : 1,
+              }}
+            >
+              Next →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function HealthSettings() {
+  const { section } = useParams();
+  const [filters, setFilters] = React.useState<Record<string, string>>({});
+  const isSub = !!section && !!SUB_LABELS[section];
+  const title = isSub
+    ? SUB_LABELS[section as string]
+    : section === "alerts"
+      ? "Health · Alerts"
+      : section === "history"
+        ? "Health · History"
+        : "Health Overview";
+
+  return (
+    <div style={{ padding: "40px 48px", maxWidth: 1100 }}>
       <div
         style={{
           display: "flex",
@@ -1035,45 +1378,20 @@ export default function HealthSettings() {
             margin: 0,
           }}
         >
-          Health
+          {title}
         </h1>
         <ScopeBadge scope="Organization" />
       </div>
-      <p style={{ fontSize: 13, color: S.textMuted, margin: "0 0 20px" }}>
-        Head‑to‑toe status of every subsystem — control plane, LLM, tools,
-        runtime container, environment modelling, MCP, sandboxes and connectors.
-        Auto‑refreshes every 30s.
+      <p style={{ fontSize: 13, color: S.textMuted, margin: "0 0 22px" }}>
+        {isSub
+          ? "Live checks plus the filterable history of this subsystem's health samples."
+          : "Head‑to‑toe status of every subsystem. Pick a subsystem in the sidebar for its filterable audit table. Auto‑refreshes every 30s."}
       </p>
 
-      <div style={{ display: "flex", gap: 4, marginBottom: 22 }}>
-        {(["status", "alerts", "history"] as const).map((x) => (
-          <button
-            key={x}
-            type="button"
-            onClick={() => setSeg(x)}
-            style={{
-              height: 32,
-              padding: "0 14px",
-              borderRadius: 6,
-              border: "none",
-              background: seg === x ? S.inputBg : "transparent",
-              color: seg === x ? S.textPrimary : S.textMuted,
-              fontSize: 13,
-              fontWeight: seg === x ? 600 : 400,
-              cursor: "pointer",
-              textTransform: "capitalize",
-            }}
-          >
-            {x}
-          </button>
-        ))}
-      </div>
-
-      {seg === "status" && (
-        <StatusView filters={filters} setFilters={setFilters} />
-      )}
-      {seg === "alerts" && <AlertsView />}
-      {seg === "history" && <HistoryView />}
+      {!section && <StatusView filters={filters} setFilters={setFilters} />}
+      {isSub && <SubsystemView subsystem={section as string} />}
+      {section === "alerts" && <AlertsView />}
+      {section === "history" && <HistoryView />}
     </div>
   );
 }
