@@ -812,18 +812,39 @@ function AlertsView() {
           <div
             key={e.entry_hash}
             style={{
-              display: "flex",
+              display: "grid",
+              gridTemplateColumns: "190px 1fr minmax(120px, 0.6fr)",
               gap: 12,
-              padding: "8px 16px",
+              padding: "9px 16px",
               borderBottom: "1px solid var(--cg-border-subtle)",
               fontSize: 12,
+              alignItems: "center",
             }}
           >
             <span style={{ color: S.textMuted, fontFamily: "monospace" }}>
               {e.ts}
             </span>
-            <span style={{ color: S.textSecondary }}>{e.action}</span>
-            <span style={{ color: S.textMuted }}>{e.resource}</span>
+            <span
+              style={{
+                color: S.textSecondary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {e.action}
+            </span>
+            <span
+              style={{
+                color: S.textMuted,
+                textAlign: "right",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {e.resource}
+            </span>
           </div>
         ))}
       </div>
@@ -1203,17 +1224,31 @@ function HistoryView() {
           <div
             key={e.entry_hash}
             style={{
-              display: "flex",
+              display: "grid",
+              gridTemplateColumns: "190px 1fr minmax(120px, 0.5fr)",
               gap: 12,
-              padding: "8px 16px",
+              padding: "9px 16px",
               borderBottom: "1px solid var(--cg-border-subtle)",
               fontSize: 12,
+              alignItems: "center",
             }}
           >
             <span style={{ color: S.textMuted, fontFamily: "monospace" }}>
               {e.ts}
             </span>
-            <span style={{ color: S.textSecondary }}>{e.action}</span>
+            <span
+              style={{
+                color: S.textSecondary,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {e.action}
+            </span>
+            <span style={{ color: S.textMuted, textAlign: "right" }}>
+              {e.actor || ""}
+            </span>
           </div>
         ))}
       </div>
