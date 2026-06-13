@@ -5,6 +5,7 @@ import {
   ScopeBadge,
   SaveBar,
   useDirty,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import {
   useLimits,
@@ -15,7 +16,8 @@ import {
 // Live effective rate/spend limits from the backend tenant_policy. Additive read card.
 function EffectiveLimitsCard() {
   const { data, isError, isLoading } = useLimits();
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <LiveCardSkeleton />;
+  if (isError || !data) return null;
   const rows: [string, string][] = [
     ["Tokens / run", data.tokens_per_run.toLocaleString()],
     ["Tool calls / run", String(data.tools_per_run)],

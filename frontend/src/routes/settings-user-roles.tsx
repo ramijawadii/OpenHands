@@ -4,6 +4,7 @@ import {
   ConfirmButton,
   ScopeBadge,
   useDialogA11y,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import { useOrgRoles } from "#/hooks/query/use-cloudguard";
 import { useLiveCollection } from "#/hooks/use-live-collection";
@@ -28,7 +29,8 @@ const S = {
 // onto). Purely additive — renders only when the backend endpoint is reachable.
 function RbacModelCard() {
   const { data, isError, isLoading } = useOrgRoles();
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <LiveCardSkeleton />;
+  if (isError || !data) return null;
   return (
     <div
       style={{

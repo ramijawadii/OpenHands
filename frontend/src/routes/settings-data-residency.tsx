@@ -3,6 +3,7 @@ import React from "react";
 import {
   ConfirmButton,
   ScopeBadge,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import {
   useDataResidency,
@@ -143,7 +144,8 @@ function ErasureSection() {
 // Live effective residency from the backend tenant_policy. Additive read card.
 function EffectiveResidencyCard() {
   const { data, isError, isLoading } = useDataResidency();
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <LiveCardSkeleton />;
+  if (isError || !data) return null;
   const rows: [string, string][] = [
     ["Region", data.region],
     ["Retention", `${data.retention_days} days`],

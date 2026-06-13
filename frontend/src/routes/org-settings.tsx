@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
+import { useNavigate } from "react-router";
 import {
   ConfirmButton,
   ScopeBadge,
@@ -10,6 +11,7 @@ import {
   useSettingsDoc,
   useSaveSettingsDoc,
 } from "#/hooks/query/use-cloudguard";
+import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -442,6 +444,7 @@ function Cap({
 }
 
 export default function OrgSettings() {
+  const navigate = useNavigate();
   const [sso, setSso] = React.useState(true);
   const [scim, setScim] = React.useState(false);
   const [org, setOrg] = React.useState({
@@ -645,6 +648,7 @@ export default function OrgSettings() {
             </span>
             <button
               type="button"
+              onClick={() => navigate("/settings/billing")}
               style={{
                 background: "none",
                 border: "none",
@@ -1157,6 +1161,17 @@ export default function OrgSettings() {
           </MField>
         </Modal>
       )}
+
+      <SettingsSaveBar
+        tab="org-general"
+        doc={{ sso, scim, org }}
+        onLoad={(d) => {
+          if (typeof d.sso === "boolean") setSso(d.sso);
+          if (typeof d.scim === "boolean") setScim(d.scim);
+          if (d.org && typeof d.org === "object")
+            setOrg((p) => ({ ...p, ...(d.org as typeof org) }));
+        }}
+      />
     </div>
   );
 }

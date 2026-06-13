@@ -5,6 +5,7 @@ import {
   SaveBar,
   Toggle,
   useDirty,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import {
   useIsolation,
@@ -15,7 +16,8 @@ import {
 // Live effective isolation policy from the backend tenant_policy. Additive read card.
 function EffectiveIsolationCard() {
   const { data, isError, isLoading } = useIsolation();
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <LiveCardSkeleton />;
+  if (isError || !data) return null;
   const rows: [string, string][] = [
     ["Isolation tier", data.tier],
     ["Egress policy", data.egress],

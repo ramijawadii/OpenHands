@@ -1114,10 +1114,13 @@ export default function SecuritySettings() {
 
       <SettingsSaveBar
         tab="security"
-        doc={{ reauth, timeout }}
+        doc={{ reauth, timeout, mfaOn, ssoCfg }}
         onLoad={(d) => {
           if (typeof d.reauth === "boolean") setReauth(d.reauth);
           if (typeof d.timeout === "string") setTimeout_(d.timeout);
+          if (typeof d.mfaOn === "boolean") setMfaOn(d.mfaOn);
+          if (d.ssoCfg && typeof d.ssoCfg === "object")
+            setSsoCfg(d.ssoCfg as typeof ssoCfg);
         }}
       />
     </div>

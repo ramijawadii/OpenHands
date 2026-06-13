@@ -5,10 +5,9 @@ import { ContextMenu } from "#/ui/context-menu";
 import { ContextMenuListItem } from "./context-menu-list-item";
 import { Divider } from "#/ui/divider";
 import { useClickOutsideElement } from "#/hooks/use-click-outside-element";
-import { useConfig } from "#/hooks/query/use-config";
 import { I18nKey } from "#/i18n/declaration";
 import LogOutIcon from "#/icons/log-out.svg?react";
-import { SAAS_NAV_ITEMS, OSS_NAV_ITEMS } from "#/constants/settings-nav";
+import { CLOUDGUARD_ACCOUNT_MENU } from "#/constants/settings-nav";
 
 interface AccountSettingsContextMenuProps {
   onLogout: () => void;
@@ -21,10 +20,8 @@ export function AccountSettingsContextMenu({
 }: AccountSettingsContextMenuProps) {
   const ref = useClickOutsideElement<HTMLUListElement>(onClose);
   const { t } = useTranslation();
-  const { data: config } = useConfig();
 
-  const isSaas = config?.APP_MODE === "saas";
-  const navItems = (isSaas ? SAAS_NAV_ITEMS : OSS_NAV_ITEMS).map((item) => ({
+  const navItems = CLOUDGUARD_ACCOUNT_MENU.map((item) => ({
     ...item,
     icon: React.cloneElement(item.icon, {
       width: 16,
@@ -51,7 +48,9 @@ export function AccountSettingsContextMenu({
             className="flex items-center gap-2 p-2 hover:bg-[var(--cg-bg-hover)] rounded h-[30px]"
           >
             {icon}
-            <span className="text-[var(--cg-text-primary)] text-sm">{t(text)}</span>
+            <span className="text-[var(--cg-text-primary)] text-sm">
+              {t(text)}
+            </span>
           </ContextMenuListItem>
         </Link>
       ))}

@@ -6,6 +6,7 @@ import {
   EmptyState,
   ScopeBadge,
   useDialogA11y,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import {
   useCollection,
@@ -20,7 +21,8 @@ function LiveWebhooks() {
   const addMut = useAddCollectionItem("webhooks");
   const delMut = useRemoveCollectionItem("webhooks");
   const [url, setUrl] = React.useState("");
-  if (listQ.isLoading || listQ.isError) return null;
+  if (listQ.isLoading) return <LiveCardSkeleton lines={3} />;
+  if (listQ.isError) return null;
   const items = listQ.data ?? [];
   return (
     <div

@@ -19,7 +19,36 @@ import { useUsage } from "#/hooks/query/use-cloudguard";
 // Live activity aggregates from the backend (audit chain + runs). Additive card.
 function LiveActivityCard() {
   const { data, isError, isLoading } = useUsage();
-  if (isLoading || isError || !data) return null;
+  if (isError) return null;
+  if (isLoading || !data) {
+    return (
+      <div
+        style={{
+          background: S.cardBg,
+          border: `1px solid ${S.border}`,
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 24,
+        }}
+      >
+        <Skeleton width={140} height={14} />
+        <div style={{ display: "flex", gap: 24, margin: "14px 0 12px" }}>
+          {[0, 1, 2].map((i) => (
+            <div key={i}>
+              <Skeleton width={40} height={22} />
+              <div style={{ height: 6 }} />
+              <Skeleton width={64} height={11} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 6 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} width={84} height={18} />
+          ))}
+        </div>
+      </div>
+    );
+  }
   const stats: [string, string][] = [
     ["Runs", String(data.runs)],
     ["Audit actions", String(data.actions)],
@@ -516,40 +545,31 @@ export default function UsageSettings() {
         <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: 12,
+            border: `1px solid ${S.border}`,
+            borderRadius: 6,
+            overflow: "hidden",
             flexShrink: 0,
           }}
         >
-          <LiveActivityCard />
-          <div
-            style={{
-              display: "flex",
-              border: `1px solid ${S.border}`,
-              borderRadius: 6,
-              overflow: "hidden",
-            }}
-          >
-            {DATE_RANGES.map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                style={{
-                  height: 32,
-                  padding: "0 14px",
-                  background: range === r ? S.inputBg : "transparent",
-                  border: "none",
-                  borderRight: r !== "90d" ? `1px solid ${S.border}` : "none",
-                  color: range === r ? S.textPrimary : S.textMuted,
-                  fontSize: 13,
-                  cursor: "pointer",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
+          {DATE_RANGES.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRange(r)}
+              style={{
+                height: 32,
+                padding: "0 14px",
+                background: range === r ? S.inputBg : "transparent",
+                border: "none",
+                borderRight: r !== "90d" ? `1px solid ${S.border}` : "none",
+                color: range === r ? S.textPrimary : S.textMuted,
+                fontSize: 13,
+                cursor: "pointer",
+              }}
+            >
+              {r}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -630,6 +650,9 @@ export default function UsageSettings() {
         {workspace || "all workspaces"} · {svcAccount || "all service accounts"}{" "}
         · last {range}
       </div>
+
+      {/* Live activity stat card — sits below the filters. */}
+      <LiveActivityCard />
 
       <div
         style={{

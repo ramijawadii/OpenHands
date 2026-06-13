@@ -6,6 +6,7 @@ import {
   SaveBar,
   Toggle,
   useDirty,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import { useEncryptionKeys } from "#/hooks/query/use-cloudguard";
 
@@ -13,7 +14,8 @@ import { useEncryptionKeys } from "#/hooks/query/use-cloudguard";
 // tenant_audit). Posture only — no key material. Additive; renders only when reachable.
 function KeyPostureCard() {
   const { data, isError, isLoading } = useEncryptionKeys();
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <LiveCardSkeleton />;
+  if (isError || !data) return null;
   const items: [string, string, boolean][] = [
     ["Key provider", data.custody, true],
     [

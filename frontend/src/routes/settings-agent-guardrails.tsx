@@ -5,6 +5,7 @@ import {
   SaveBar,
   Toggle,
   useDirty,
+  LiveCardSkeleton,
 } from "#/components/features/settings/settings-kit";
 import {
   useGuardrails,
@@ -16,7 +17,8 @@ import {
 // Additive; renders only when reachable.
 function EffectiveGuardrailsCard() {
   const { data, isError, isLoading } = useGuardrails();
-  if (isLoading || isError || !data) return null;
+  if (isLoading) return <LiveCardSkeleton />;
+  if (isError || !data) return null;
   const gates = Object.entries(data.action_gates || {});
   return (
     <div

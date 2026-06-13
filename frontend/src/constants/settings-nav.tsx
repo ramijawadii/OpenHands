@@ -1,3 +1,4 @@
+import { Building2, LayoutGrid, ShieldCheck, Code2 } from "lucide-react";
 import CreditCardIcon from "#/icons/credit-card.svg?react";
 import KeyIcon from "#/icons/key.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
@@ -5,13 +6,41 @@ import SettingsGearIcon from "#/icons/settings-gear.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 import PuzzlePieceIcon from "#/icons/u-puzzle-piece.svg?react";
 import UserIcon from "#/icons/user.svg?react";
-import { Building2 } from "lucide-react";
 
 export interface SettingsNavItem {
   icon: React.ReactElement;
   to: string;
   text: string;
 }
+
+// CloudGuard profile-icon menu — jumps to each settings group's landing page.
+export const CLOUDGUARD_ACCOUNT_MENU: SettingsNavItem[] = [
+  {
+    icon: <UserIcon width={22} height={22} />,
+    to: "/settings/profile",
+    text: "Personal Profile",
+  },
+  {
+    icon: <Building2 size={22} />,
+    to: "/settings/org",
+    text: "Org Profile",
+  },
+  {
+    icon: <LayoutGrid size={22} />,
+    to: "/settings/workspace",
+    text: "Workspace",
+  },
+  {
+    icon: <ShieldCheck size={22} />,
+    to: "/settings/agent-guardrails",
+    text: "Security & Data",
+  },
+  {
+    icon: <Code2 size={22} />,
+    to: "/settings/service-accounts",
+    text: "Developer",
+  },
+];
 
 export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
   {

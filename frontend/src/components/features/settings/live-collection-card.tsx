@@ -6,6 +6,7 @@ import {
   useRemoveCollectionItem,
 } from "#/hooks/query/use-cloudguard";
 import { Capable } from "#/components/features/acp/capable";
+import { LiveCardSkeleton } from "#/components/features/settings/settings-kit";
 
 // Reusable live per-tenant collection card (webhooks / service accounts / connectors).
 // Reads for all roles; add/delete gated to admin. Renders nothing if the endpoint is
@@ -25,7 +26,8 @@ export function LiveCollectionCard({
   const addMut = useAddCollectionItem(seg);
   const delMut = useRemoveCollectionItem(seg);
   const [value, setValue] = React.useState("");
-  if (listQ.isLoading || listQ.isError) return null;
+  if (listQ.isLoading) return <LiveCardSkeleton lines={3} />;
+  if (listQ.isError) return null;
   const items = listQ.data ?? [];
   return (
     <div

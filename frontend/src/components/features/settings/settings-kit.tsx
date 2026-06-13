@@ -117,6 +117,30 @@ export function Skeleton({
   );
 }
 
+/** Light preloader card for live data points (shown while a query is loading). */
+export function LiveCardSkeleton({ lines = 2 }: { lines?: number }) {
+  return (
+    <div
+      style={{
+        background: "var(--cg-bg-card)",
+        border: "1px solid var(--cg-border)",
+        borderRadius: 10,
+        padding: 16,
+        marginBottom: 24,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+      }}
+    >
+      <Skeleton width={160} height={13} />
+      {Array.from({ length: lines }).map((_, i) => (
+        // eslint-disable-next-line react/no-array-index-key
+        <Skeleton key={i} width={`${85 - i * 12}%`} height={11} />
+      ))}
+    </div>
+  );
+}
+
 export function RoleChip({ role }: { role: Role }) {
   const color =
     role === "Admin" ? K.purple : role === "Viewer" ? K.textMuted : K.accent;
