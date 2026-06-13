@@ -48,6 +48,15 @@
   background: var(--cg-bg-hover);
 }
 
+/* ── Table / list containers always use the card background ────────────────────
+   Bordered, rounded, clipped containers (tables & lists) must be dark like the cards,
+   never let the page background show through. This only fills containers that DON'T set
+   their own background inline — cards, progress-bar tracks, avatars and segmented controls
+   set an inline `background`, which outranks this rule, so they are untouched. */
+.cg-settings-root div[style*="border-radius"][style*="overflow: hidden"] {
+  background: var(--cg-bg-card);
+}
+
 /* ── Density: let dense tables scroll instead of squishing ─────────────────── */
 .cg-settings-root .cg-tablewrap {
   overflow-x: auto;
