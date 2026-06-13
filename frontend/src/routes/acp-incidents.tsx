@@ -16,7 +16,10 @@ import {
   mono,
   primaryBtn,
 } from "#/components/features/acp/acp-ui";
-import { ConfirmButton } from "#/components/features/settings/settings-kit";
+import {
+  ConfirmButton,
+  RelatedLinks,
+} from "#/components/features/settings/settings-kit";
 import { useIncidents, useCreateIncident } from "#/hooks/query/use-cloudguard";
 import type { CGIncident } from "#/api/cloudguard-service";
 
@@ -163,6 +166,16 @@ export default function AcpIncidents() {
         >
           Incidents
         </h1>
+        <div style={{ marginBottom: 16 }}>
+          <RelatedLinks
+            label="Configure in Settings"
+            items={[
+              ["Notifications", "/settings/notifications"],
+              ["Webhooks", "/settings/webhooks"],
+              ["Enforcement", "/agent-control-plane/enforcement"],
+            ]}
+          />
+        </div>
         <FilterBar
           placeholder="Search by incident ID, title, run ID…"
           search={q}

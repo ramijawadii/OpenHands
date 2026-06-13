@@ -19,7 +19,10 @@ import {
   Icon,
   primaryBtn,
 } from "#/components/features/acp/acp-ui";
-import { ConfirmButton } from "#/components/features/settings/settings-kit";
+import {
+  ConfirmButton,
+  RelatedLinks,
+} from "#/components/features/settings/settings-kit";
 import { useRuns, useRunDetail } from "#/hooks/query/use-cloudguard";
 import type { CGRun } from "#/api/cloudguard-service";
 
@@ -356,6 +359,16 @@ export default function AcpRuns() {
         >
           Runs
         </h1>
+        <div style={{ marginBottom: 16 }}>
+          <RelatedLinks
+            label="Configure in Settings"
+            items={[
+              ["Agent Guardrails", "/settings/agent-guardrails"],
+              ["Rate Limits", "/settings/limits"],
+              ["LLM Logs & Traces", "/settings/llm/logs"],
+            ]}
+          />
+        </div>
         <FilterBar
           placeholder="Search by run ID, workspace, owner…"
           search={q}

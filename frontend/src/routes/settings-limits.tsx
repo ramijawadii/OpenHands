@@ -6,6 +6,7 @@ import {
   SaveBar,
   useDirty,
   LiveCardSkeleton,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import {
   useLimits,
@@ -514,6 +515,13 @@ export default function LimitsSettings() {
       >
         Configure rate limits, quotas, and thresholds for your organization.
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Live in Agent Control Plane"
+          items={[["Rate-limit policy", "/agent-control-plane/enforcement"]]}
+        />
+      </div>
 
       <EffectiveLimitsCard />
 

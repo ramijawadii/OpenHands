@@ -4,6 +4,7 @@ import {
   ConfirmButton,
   ScopeBadge,
   LiveCardSkeleton,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import {
   useDataResidency,
@@ -533,6 +534,16 @@ export default function DataResidencySettings() {
         Control where your workspace data is processed, stored, and retained to
         meet your compliance requirements.
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Live in Agent Control Plane"
+          items={[
+            ["Data-access policy", "/agent-control-plane/enforcement"],
+            ["Sandbox regions", "/agent-control-plane/sandboxes"],
+          ]}
+        />
+      </div>
 
       <EffectiveResidencyCard />
       <ErasureSection />

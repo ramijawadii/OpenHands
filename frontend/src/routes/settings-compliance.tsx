@@ -11,6 +11,7 @@ import {
 import {
   ConfirmButton,
   ScopeBadge,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import { SettingsSaveBar } from "#/components/features/settings/settings-save-bar";
 
@@ -207,6 +208,15 @@ export default function ComplianceSettings() {
         Attestations, legal agreements, sub-processors and evidence for your
         auditors and procurement teams.
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Evidence ledger in"
+          items={[
+            ["Agent Control Plane · Audit", "/agent-control-plane/audit"],
+          ]}
+        />
+      </div>
 
       <div style={{ marginBottom: 30 }}>
         <H2 sub="Download current reports under NDA. Data residency & retention live under Data Residency.">

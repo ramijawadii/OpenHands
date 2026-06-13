@@ -7,6 +7,7 @@ import {
   ScopeBadge,
   useDialogA11y,
   LiveCardSkeleton,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import {
   useCollection,
@@ -474,6 +475,16 @@ export default function WebhooksSettings() {
         delivery is signed (HMAC-SHA256) with the endpoint secret; verify it
         before trusting the payload.
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Routes events from"
+          items={[
+            ["Incidents", "/agent-control-plane/incidents"],
+            ["Monitoring · Alerts", "/agent-control-plane/monitoring"],
+          ]}
+        />
+      </div>
 
       <LiveWebhooks />
 

@@ -4,6 +4,7 @@ import { SettingsSaveBar } from "#/components/features/settings/settings-save-ba
 import {
   ScopeBadge,
   Toggle,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 
 const S = {
@@ -223,6 +224,16 @@ export default function NotificationsSettings() {
         </a>
         .
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Routes events from"
+          items={[
+            ["Incidents", "/agent-control-plane/incidents"],
+            ["Monitoring · Alerts", "/agent-control-plane/monitoring"],
+          ]}
+        />
+      </div>
 
       <H2>Event routing</H2>
       <div

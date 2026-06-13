@@ -6,6 +6,7 @@ import {
   Toggle,
   useDirty,
   LiveCardSkeleton,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import {
   useIsolation,
@@ -285,6 +286,16 @@ export default function IsolationSettings() {
         </a>
         .
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Live in Agent Control Plane"
+          items={[
+            ["Egress policy", "/agent-control-plane/enforcement"],
+            ["Sandbox network", "/agent-control-plane/sandboxes"],
+          ]}
+        />
+      </div>
 
       <EffectiveIsolationCard />
 

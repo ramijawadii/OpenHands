@@ -1,6 +1,9 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- CloudGuard mock settings UI (local-state only) */
 import React from "react";
-import { ScopeBadge } from "#/components/features/settings/settings-kit";
+import {
+  ScopeBadge,
+  RelatedLinks,
+} from "#/components/features/settings/settings-kit";
 import { useAuditLedger } from "#/hooks/query/use-cloudguard";
 import type { CGAuditEntry } from "#/api/cloudguard-service";
 
@@ -412,6 +415,15 @@ export default function AuditLogSettings() {
         Tamper-evident activity across users, service accounts, sandboxes,
         webhooks, clouds and the API.
       </p>
+
+      <div style={{ marginBottom: 20 }}>
+        <RelatedLinks
+          label="Same ledger in"
+          items={[
+            ["Agent Control Plane · Audit", "/agent-control-plane/audit"],
+          ]}
+        />
+      </div>
 
       <div
         style={{

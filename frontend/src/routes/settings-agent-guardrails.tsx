@@ -6,6 +6,7 @@ import {
   Toggle,
   useDirty,
   LiveCardSkeleton,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import {
   useGuardrails,
@@ -358,6 +359,17 @@ export default function AgentGuardrailsSettings() {
         </a>
         .
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Live in Agent Control Plane"
+          items={[
+            ["Active policy", "/agent-control-plane/enforcement"],
+            ["Approvals queue", "/agent-control-plane/enforcement"],
+            ["Runs", "/agent-control-plane/runs"],
+          ]}
+        />
+      </div>
 
       <EffectiveGuardrailsCard />
 

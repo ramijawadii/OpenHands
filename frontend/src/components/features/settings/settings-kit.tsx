@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, react/no-unused-prop-types, jsx-a11y/control-has-associated-label, @typescript-eslint/no-use-before-define, react/no-unescaped-entities, react/jsx-props-no-spreading, @typescript-eslint/naming-convention, prefer-template, no-void, jsx-a11y/label-has-associated-control, @typescript-eslint/no-unused-vars, radix, jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- CloudGuard settings UI kit (mock, local-state) */
 import React from "react";
+import { Link } from "react-router";
 
 /**
  * Shared settings UI kit — one source of truth for the cross-cutting B2B-UX patterns:
@@ -195,6 +196,47 @@ export function ScopeBadge({
     >
       Applies to: {scope}
     </span>
+  );
+}
+
+// ── Cross-surface "Related" links ────────────────────────────────────────────
+// One control where the same concept is managed/observed in more than one place
+// (e.g. a policy edited in Settings is enforced+observed live in the Agent
+// Control Plane, or the audit ledger appears in both). Client-side nav (Link).
+export function RelatedLinks({
+  label = "Related",
+  items,
+}: {
+  label?: string;
+  items: [string, string][];
+}) {
+  if (!items.length) return null;
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 14,
+        fontSize: 12,
+      }}
+    >
+      <span style={{ color: K.textMuted }}>{label}:</span>
+      {items.map(([text, to]) => (
+        <Link
+          key={to}
+          to={to}
+          style={{
+            color: K.accent,
+            textDecoration: "none",
+            fontSize: 12,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {text} →
+        </Link>
+      ))}
+    </div>
   );
 }
 

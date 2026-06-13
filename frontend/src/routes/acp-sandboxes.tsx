@@ -14,7 +14,10 @@ import {
   mono,
   Icon,
 } from "#/components/features/acp/acp-ui";
-import { ConfirmButton } from "#/components/features/settings/settings-kit";
+import {
+  ConfirmButton,
+  RelatedLinks,
+} from "#/components/features/settings/settings-kit";
 import { useSandboxes } from "#/hooks/query/use-cloudguard";
 import type { CGSandbox } from "#/api/cloudguard-service";
 
@@ -506,6 +509,16 @@ export default function AcpSandboxes() {
         >
           Sandboxes
         </h1>
+        <div style={{ marginBottom: 16 }}>
+          <RelatedLinks
+            label="Configure in Settings"
+            items={[
+              ["Sandbox Compute", "/settings/sandbox-compute"],
+              ["Isolation & Containment", "/settings/isolation"],
+              ["Encryption & Keys", "/settings/encryption"],
+            ]}
+          />
+        </div>
         <FilterBar
           placeholder="Search by session ID, workspace, run ID…"
           search={q}

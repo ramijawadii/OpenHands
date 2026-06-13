@@ -7,6 +7,7 @@ import {
   Toggle,
   useDirty,
   LiveCardSkeleton,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 import { useEncryptionKeys } from "#/hooks/query/use-cloudguard";
 
@@ -292,6 +293,15 @@ export default function EncryptionSettings() {
         </a>
         .
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Live in Agent Control Plane"
+          items={[
+            ["Sandbox credential mounts", "/agent-control-plane/sandboxes"],
+          ]}
+        />
+      </div>
 
       <KeyPostureCard />
 

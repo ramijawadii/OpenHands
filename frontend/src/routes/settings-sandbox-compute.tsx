@@ -4,6 +4,7 @@ import { SettingsSaveBar } from "#/components/features/settings/settings-save-ba
 import {
   ScopeBadge,
   useDialogA11y,
+  RelatedLinks,
 } from "#/components/features/settings/settings-kit";
 
 const S = {
@@ -456,6 +457,16 @@ export default function SandboxComputeSettings() {
         Set and upgrade the per-session agent sandbox resources, by workspace
         and role, and review usage history.
       </p>
+
+      <div style={{ marginBottom: 24 }}>
+        <RelatedLinks
+          label="Live in Agent Control Plane"
+          items={[
+            ["Running sandboxes", "/agent-control-plane/sandboxes"],
+            ["Resource limits", "/agent-control-plane/sandboxes"],
+          ]}
+        />
+      </div>
 
       <div
         style={{ display: "flex", gap: 16, marginBottom: 28, flexWrap: "wrap" }}
