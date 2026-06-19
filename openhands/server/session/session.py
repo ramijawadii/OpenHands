@@ -435,6 +435,17 @@ class WebSession:
         # ── CloudGuard working-set population (passive, all sources) ─────
         self._observe_for_working_set(event)
 
+        # ── CloudGuard conversation-action audit (passive, app-side) ─────
+        # Record each meaningful agent action into the per-tenant tamper-evident ledger so the
+        # Operations/Audit-Log/ACP panels show REAL conversation activity (not the sample
+        # fallback). Best-effort: never breaks the event loop.
+        try:
+            from cloudguard.observability import action_audit as _cg_action_audit
+
+            _cg_action_audit.record_action(event, self.sid)
+        except Exception:
+            pass
+
         # ── Gap 3: external "compacting" state during condensation ───────
         # AgentState has no COMPACTING value, so the external surface stays
         # "running"/"idle" during a 10–30s compaction. Override it here so SDK
