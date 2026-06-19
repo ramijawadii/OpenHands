@@ -196,9 +196,18 @@ export interface CGUsage {
   tenant_id: string;
 }
 
+export interface CGOverviewRun {
+  id: string;
+  short: string;
+  mode: string;
+  status: string;
+  started: string;
+}
 export interface CGOverview {
   pending_approvals: number;
   violations: number;
+  active_runs?: number;
+  recent_runs?: CGOverviewRun[];
   audit: { ok: boolean; count: number };
   tenancy: { enabled: boolean; strict: boolean };
   tenant_id: string;

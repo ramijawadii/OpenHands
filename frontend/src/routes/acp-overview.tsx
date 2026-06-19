@@ -149,6 +149,12 @@ export default function AcpOverview() {
   const live = ov.data && !ov.isError ? ov.data : null;
   const stats = STATS.map((s) => {
     if (!live) return s;
+    if (s.label === "Active Runs" && typeof live.active_runs === "number")
+      return {
+        ...s,
+        value: String(live.active_runs),
+        sub: live.active_runs === 0 ? "none active" : "from conversations",
+      };
     if (s.label === "Pending Approvals")
       return {
         ...s,
@@ -163,6 +169,32 @@ export default function AcpOverview() {
       };
     return s;
   });
+  // Real runs read-model (conversations) -> the Recent runs table. Once the live fetch succeeds we
+  // show the REAL state (even if empty) — never the sample rows. Sample rows show ONLY when the
+  // backend is unreachable (live === null), so a wired tenant never sees mock data.
+  const liveRuns: React.ReactNode[][] | null = live
+    ? (live.recent_runs || []).map((r) => [
+        <Hash h={r.short || r.id} link />,
+        "—",
+        <Mode m={r.mode} />,
+        <Badge
+          text={r.status}
+          tone={r.status.startsWith("Plan") ? "warn" : "info"}
+        />,
+        <Sev s="Low" />,
+        r.started ? r.started.slice(11, 16) : "—",
+        live.tenant_id,
+      ])
+    : null;
+  const runsRows = liveRuns !== null ? liveRuns : RUNS;
+  // Approvals/sandboxes: once live, show the real state. We have the approval COUNT (so empty when
+  // 0); the overview has no live sandbox read-model, so honest-empty beats sample rows.
+  const approvalsRows = live
+    ? live.pending_approvals === 0
+      ? []
+      : APPROVALS
+    : APPROVALS;
+  const sandboxesRows = live ? [] : SANDBOXES;
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1120 }}>
       <Breadcrumb
@@ -323,7 +355,7 @@ export default function AcpOverview() {
             "Duration",
             "Owner",
           ]}
-          rows={RUNS}
+          rows={runsRows}
         />
       </div>
 
@@ -361,7 +393,7 @@ export default function AcpOverview() {
             "Waiting",
             "Actions",
           ]}
-          rows={APPROVALS}
+          rows={approvalsRows}
         />
       </div>
 
@@ -400,7 +432,7 @@ export default function AcpOverview() {
             "CPU",
             "Status",
           ]}
-          rows={SANDBOXES}
+          rows={sandboxesRows}
         />
       </div>
     </div>
