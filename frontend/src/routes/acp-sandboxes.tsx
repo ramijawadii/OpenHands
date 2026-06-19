@@ -481,10 +481,10 @@ export default function AcpSandboxes() {
   const sbQ = useSandboxes();
   // Real provisioned cells when present; keep the illustrative sample until a cell exists
   // (the dev/OFF stack provisions no per-tenant cells).
+  // Once the live fetch succeeds show the REAL state (empty if no cells) — never the sample rows;
+  // samples render only when the backend is unreachable (so a wired tenant never sees mock data).
   const source =
-    sbQ.data && !sbQ.isError && sbQ.data.sandboxes.length > 0
-      ? sbQ.data.sandboxes.map(mapCell)
-      : SESSIONS;
+    sbQ.data && !sbQ.isError ? sbQ.data.sandboxes.map(mapCell) : SESSIONS;
   const s = source.find((x) => x.id === sel);
 
   if (!s) {

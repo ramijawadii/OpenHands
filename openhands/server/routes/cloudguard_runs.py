@@ -38,12 +38,16 @@ async def runs(p=Depends(require_cap("read"))):
         records = modes.list_records()
     except Exception:  # noqa: BLE001
         records = []
+    mode_by_cid = {r["conversation_id"]: r for r in records}
 
-    # Activity per conversation from the audit chain (count + last decision/ts).
+    # Activity per conversation from the audit chain (count + last decision/ts). The action
+    # recorder stamps the conversation under extra.session_id (conversation_id is the alias);
+    # accept either so a conversation that did real work is always discoverable.
     by_conv: dict[str, dict] = {}
     try:
         for e in audit.read(p.tenant_id):
-            cid = (e.get("extra") or {}).get("conversation_id")
+            ex = e.get("extra") or {}
+            cid = ex.get("conversation_id") or ex.get("session_id")
             if not cid:
                 continue
             d = by_conv.setdefault(cid, {"count": 0, "last_ts": "", "last_decision": ""})
@@ -53,16 +57,19 @@ async def runs(p=Depends(require_cap("read"))):
     except Exception:  # noqa: BLE001
         pass
 
+    # A "run" = any conversation with a mode record OR audit activity (so runs surface even when
+    # the mode store has no record yet — the common case for a freshly-worked conversation).
+    all_cids = list(dict.fromkeys(list(mode_by_cid.keys()) + list(by_conv.keys())))
     out = []
-    for r in records:
-        cid = r["conversation_id"]
+    for cid in all_cids:
+        r = mode_by_cid.get(cid, {})
         act = by_conv.get(cid, {})
         out.append(
             {
                 "id": cid,
-                "mode": r["mode"],
-                "status": _status(r),
-                "started": r["updated_at"],
+                "mode": r.get("mode", "—"),
+                "status": _status(r) if r else "Active",
+                "started": (r.get("updated_at") or act.get("last_ts", "")),
                 "activity": act.get("count", 0),
                 "last_decision": act.get("last_decision", ""),
             }

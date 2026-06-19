@@ -62,6 +62,26 @@ export interface CGIsolation {
   tier: string;
   egress: string;
 }
+export interface CGAlloc {
+  workspace: string;
+  role: string;
+  cpu: string;
+  ram_gb: number;
+  region: string;
+  autoscale: boolean;
+}
+export interface CGUsageRow {
+  date: string;
+  workspace: string;
+  sessions: number;
+  cpu_hours: number | null;
+  peak_ram_gb: number | null;
+}
+export interface CGSandboxCompute {
+  allocations: CGAlloc[];
+  usage: CGUsageRow[];
+  tenant_id: string;
+}
 
 export interface CGLimits {
   tokens_per_run: number;
@@ -339,6 +359,14 @@ export const CloudGuardService = {
     openHands.get<CGGuardrails>(`${BASE}/guardrails`).then((r) => r.data),
   isolation: () =>
     openHands.get<CGIsolation>(`${BASE}/isolation`).then((r) => r.data),
+  sandboxCompute: () =>
+    openHands
+      .get<CGSandboxCompute>(`${BASE}/sandbox-compute`)
+      .then((r) => r.data),
+  saveSandboxCompute: (allocations: CGAlloc[]) =>
+    openHands
+      .put<CGSandboxCompute>(`${BASE}/sandbox-compute`, { allocations })
+      .then((r) => r.data),
   limits: () =>
     openHands.get<CGLimits>(`${BASE}/workspace/limits`).then((r) => r.data),
   dataResidency: () =>

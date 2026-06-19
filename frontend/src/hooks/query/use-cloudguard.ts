@@ -70,6 +70,13 @@ export const useGuardrails = () =>
     staleTime: 30 * 1000,
   });
 
+export const useSandboxCompute = () =>
+  useQuery({
+    queryKey: ["cloudguard", "sandbox-compute"],
+    queryFn: CloudGuardService.sandboxCompute,
+    retry: false,
+  });
+
 export const useIsolation = () =>
   useQuery({
     queryKey: ["cloudguard", "isolation"],

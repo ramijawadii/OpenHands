@@ -6,6 +6,7 @@ import {
   useDialogA11y,
   RelatedLinks,
 } from "#/components/features/settings/settings-kit";
+import { useSandboxCompute } from "#/hooks/query/use-cloudguard";
 
 const S = {
   textPrimary: "var(--cg-text-primary)",
@@ -393,11 +394,43 @@ export default function SandboxComputeSettings() {
   const [editing, setEditing] = React.useState<Alloc | null>(null);
   const [draft, setDraft] = React.useState<Alloc | null>(null);
 
+  // Load the REAL per-role allocations + usage from the backend (config store + audit-derived
+  // sessions). Sample rows show only until the live config arrives (never overwrite local edits).
+  const sc = useSandboxCompute();
+  const [seeded, setSeeded] = React.useState(false);
+  React.useEffect(() => {
+    if (sc.data && !seeded) {
+      setAllocs(
+        sc.data.allocations.map((a, i) => ({
+          id: `a${i + 1}`,
+          workspace: a.workspace,
+          role: a.role,
+          cpu: a.cpu,
+          ram: `${a.ram_gb} GB`,
+          autoScale: a.autoscale,
+          geo: a.region,
+        })),
+      );
+      setSeeded(true);
+    }
+  }, [sc.data, seeded]);
+
+  const liveUsage: UsageRow[] | null = sc.data
+    ? sc.data.usage.map((u) => ({
+        date: u.date,
+        workspace: u.workspace,
+        role: "—",
+        sessions: u.sessions,
+        cpuHours: u.cpu_hours ?? -1, // -1 -> render as "—" (not measured)
+        peakRam: u.peak_ram_gb != null ? `${u.peak_ram_gb} GB` : "—",
+      }))
+    : null;
+
   const match = <T extends { workspace: string; role: string }>(r: T) =>
     (!fWorkspace || r.workspace === fWorkspace) && (!fRole || r.role === fRole);
 
   const shownAllocs = allocs.filter(match);
-  const shownUsage = USAGE.filter(match);
+  const shownUsage = (liveUsage ?? USAGE).filter(match);
 
   const openEdit = (a: Alloc) => {
     setEditing(a);
@@ -695,7 +728,7 @@ export default function SandboxComputeSettings() {
                   fontFamily: "monospace",
                 }}
               >
-                {u.cpuHours.toFixed(1)}
+                {u.cpuHours < 0 ? "—" : u.cpuHours.toFixed(1)}
               </span>
               <span
                 style={{
@@ -835,7 +868,12 @@ export default function SandboxComputeSettings() {
         tab="sandbox-compute"
         doc={{ allocs }}
         onLoad={(d) => {
-          if (Array.isArray(d.allocs)) setAllocs(d.allocs as Alloc[]);
+          // A saved doc (operator edits) wins over the backend defaults; mark seeded so the
+          // sandbox-compute backend seed doesn't overwrite the operator's saved allocations.
+          if (Array.isArray(d.allocs)) {
+            setAllocs(d.allocs as Alloc[]);
+            setSeeded(true);
+          }
         }}
       />
     </div>

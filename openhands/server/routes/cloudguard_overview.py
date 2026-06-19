@@ -50,29 +50,45 @@ async def overview(p=Depends(require_cap("read"))):
     except Exception:  # noqa: BLE001
         violations, chain = 0, {"ok": True, "count": 0}
 
-    # Real runs read-model (per-conversation mode records). active = not yet plan-decided;
-    # recent = top 5 by update time — replaces the ACP Overview's hardcoded run table.
+    # Real runs read-model: a run = any conversation with a mode record OR audit activity (so a
+    # freshly-worked conversation surfaces even before a mode record exists). active = not decided.
     active_runs, recent_runs = 0, []
     try:
-        import contextlib
-
         modes = importlib.import_module("cloudguard.modes")
         records = modes.list_records() or []
-        active_runs = sum(1 for r in records if r.get("plan_status") != "decided")
-        recent = sorted(records, key=lambda r: r.get("updated_at") or "", reverse=True)[:5]
-        for r in recent:
-            cid = r.get("conversation_id", "")
-            recent_runs.append(
+        mode_by_cid = {r.get("conversation_id"): r for r in records}
+
+        act_by_cid: dict[str, dict] = {}
+        try:
+            for e in audit.read(p.tenant_id):
+                ex = e.get("extra") or {}
+                cid = ex.get("conversation_id") or ex.get("session_id")
+                if not cid:
+                    continue
+                d = act_by_cid.setdefault(cid, {"count": 0, "last_ts": ""})
+                d["count"] += 1
+                d["last_ts"] = e.get("ts", "")
+        except Exception:  # noqa: BLE001
+            pass
+
+        all_cids = list(dict.fromkeys(list(mode_by_cid.keys()) + list(act_by_cid.keys())))
+        rows = []
+        for cid in all_cids:
+            r = mode_by_cid.get(cid) or {}
+            a = act_by_cid.get(cid) or {}
+            rows.append(
                 {
-                    "id": cid,
+                    "id": cid or "",
                     "short": (cid[:8] if cid else "—"),
                     "mode": r.get("mode") or "—",
-                    "status": _run_status(r),
-                    "started": r.get("updated_at") or "",
+                    "status": _run_status(r) if r else "Active",
+                    "started": (r.get("updated_at") or a.get("last_ts") or ""),
+                    "decided": r.get("plan_status") == "decided",
                 }
             )
-        with contextlib.suppress(Exception):
-            recent_runs.sort(key=lambda x: x["started"], reverse=True)
+        active_runs = sum(1 for x in rows if not x["decided"])
+        rows.sort(key=lambda x: x["started"], reverse=True)
+        recent_runs = [{k: v for k, v in x.items() if k != "decided"} for x in rows[:5]]
     except Exception:  # noqa: BLE001
         active_runs, recent_runs = 0, []
 
