@@ -6,8 +6,9 @@ new store. Powers the ACP Monitoring · Violations tab. Tenant-scoped (`require_
 from __future__ import annotations
 
 import importlib
+import os
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
 from openhands.server.routes.cloudguard_principal import require_cap
 
@@ -22,6 +23,42 @@ def _safe(import_name: str):
         return importlib.import_module(import_name)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=f"cloudguard unavailable: {exc}") from exc
+
+
+@router.post("/ingest")
+async def ingest(request: Request):
+    """Sandbox→app observability bridge (Phase 3). The RCE sandbox can't reach an authenticated
+    principal, so it pushes batches of its own observability (security events, execution records,
+    artifact health, command ledger) here with a shared bearer token; the app persists them into
+    the per-tenant tamper-evident ledger (durable on the app-private PVC). Tenant is resolved
+    SERVER-SIDE (never trusted from the body) so a sandbox can't write into another tenant's log."""
+    expected = os.environ.get("CLOUDGUARD_OBSERVABILITY_INGEST_TOKEN", "")
+    if not expected or request.headers.get("X-CloudGuard-Ingest-Token", "") != expected:
+        raise HTTPException(status_code=403, detail="invalid or missing ingest token")
+    try:
+        body = await request.json()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=400, detail="invalid json") from exc
+    events = body.get("events") or []
+    audit = _safe("cloudguard.tenant_audit")
+    tenant = _safe("cloudguard.tenancy").resolve_tenant_id()  # server-side; ignores body claim
+    n = 0
+    for ev in events[:500]:
+        try:
+            audit.append(
+                tenant,
+                str(ev.get("action", "sandbox_event"))[:64],
+                actor=str(ev.get("actor", "sandbox"))[:64],
+                resource=str(ev.get("resource", ""))[:200],
+                decision=str(ev.get("decision", ""))[:32],
+                category=str(ev.get("category", "observability"))[:32],
+                source="sandbox",
+                session_id=str(ev.get("session_id", ""))[:64],
+            )
+            n += 1
+        except Exception:
+            pass
+    return {"ingested": n, "tenant_id": tenant}
 
 
 # UI display names + legacy status words (keeps the ACP Monitoring card working).
