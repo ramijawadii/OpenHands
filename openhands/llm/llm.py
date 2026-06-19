@@ -381,6 +381,62 @@ class LLM(RetryMixin, DebugMixin):
             # post-process the response first to calculate cost
             cost = self._post_completion(resp)
 
+            # CloudGuard: emit a per-tenant InferenceRecord (real LLM telemetry that powers
+            # Settings -> Models & Inference: usage / performance / reliability / cost / logs).
+            # Best-effort + metadata-only; must never break or slow the completion path.
+            try:
+                from cloudguard import tenancy as _cg_tn
+                from cloudguard.observability import inference_record as _cg_ir
+
+                _u = getattr(resp, 'usage', None)
+
+                def _ug(name: str) -> int:
+                    if _u is None:
+                        return 0
+                    v = getattr(_u, name, None)
+                    if v is None and isinstance(_u, dict):
+                        v = _u.get(name)
+                    try:
+                        return int(v or 0)
+                    except Exception:
+                        return 0
+
+                _ptd = getattr(_u, 'prompt_tokens_details', None) if _u is not None else None
+                _ctd = getattr(_u, 'completion_tokens_details', None) if _u is not None else None
+                _cached = int(getattr(_ptd, 'cached_tokens', 0) or 0) if _ptd else 0
+                _reason = int(getattr(_ctd, 'reasoning_tokens', 0) or 0) if _ctd else 0
+                try:
+                    _finish = resp['choices'][0].get('finish_reason') or 'stop'
+                except Exception:
+                    _finish = 'stop'
+                _model_full = str(self.config.model or '')
+                _provider, _model = (
+                    _model_full.split('/', 1) if '/' in _model_full else ('', _model_full)
+                )
+                _cg_ir.record(
+                    _cg_tn.resolve_tenant_id(),
+                    {
+                        'trace_id': str(response_id),
+                        'model': _model or _model_full,
+                        'model_version': _model or _model_full,
+                        'provider': _provider or 'vertex_ai',
+                        'region': os.environ.get('VERTEXAI_LOCATION', ''),
+                        'route': 'primary',
+                        'agent': os.environ.get('DEFAULT_AGENT', ''),
+                        'input_tokens': _ug('prompt_tokens'),
+                        'output_tokens': _ug('completion_tokens'),
+                        'cached_input_tokens': _cached,
+                        'reasoning_tokens': _reason,
+                        'latency_ms': round(latency * 1000.0, 1),
+                        'finish_reason': _finish,
+                        'error_code': None,
+                        'retries': 0,
+                        'cost_usd': float(cost or 0.0),
+                    },
+                )
+            except Exception:
+                pass
+
             # log for evals or other scripts that need the raw completion
             if self.config.log_completions:
                 assert self.config.log_completions_folder is not None
