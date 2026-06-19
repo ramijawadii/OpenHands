@@ -12,7 +12,11 @@ import {
   Sev,
   Hash,
 } from "#/components/features/acp/acp-ui";
-import { useOverview } from "#/hooks/query/use-cloudguard";
+import {
+  useOverview,
+  useGuardrails,
+  useIsolation,
+} from "#/hooks/query/use-cloudguard";
 
 const STATS = [
   {
@@ -147,7 +151,37 @@ export default function AcpOverview() {
   const navigate = useNavigate();
   const ov = useOverview();
   const live = ov.data && !ov.isError ? ov.data : null;
+  const guard = useGuardrails();
+  const isol = useIsolation();
+  // Real policy posture from /guardrails + /isolation -> the Active-policy strip + Isolation tile.
+  const livePolicy =
+    guard.data || isol.data
+      ? [
+          {
+            k: "Autonomy",
+            v: guard.data?.autonomy_mode || "—",
+            tone: "warn" as const,
+          },
+          {
+            k: "Action gates",
+            v: guard.data?.action_gates
+              ? Object.entries(guard.data.action_gates)
+                  .map(([a, m]) => `${a}→${m}`)
+                  .join(", ") || "none"
+              : "—",
+            tone: "info" as const,
+          },
+          {
+            k: "Egress",
+            v: isol.data?.egress || "—",
+            tone: "ok" as const,
+          },
+        ]
+      : null;
+  const policyRows = livePolicy || POLICY;
   const stats = STATS.map((s) => {
+    if (s.label === "Isolation Tier" && isol.data)
+      return { ...s, value: isol.data.tier || s.value, sub: "live policy" };
     if (!live) return s;
     if (s.label === "Active Runs" && typeof live.active_runs === "number")
       return {
@@ -306,7 +340,7 @@ export default function AcpOverview() {
         <span style={{ fontSize: 12, fontWeight: 600, color: A.textPrimary }}>
           Active policy
         </span>
-        {POLICY.map((p) => (
+        {policyRows.map((p) => (
           <span
             key={p.k}
             style={{ display: "inline-flex", alignItems: "center", gap: 6 }}

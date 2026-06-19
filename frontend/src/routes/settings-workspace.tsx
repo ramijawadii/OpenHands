@@ -9,6 +9,7 @@ import {
 import {
   useSettingsDoc,
   useSaveSettingsDoc,
+  useCloudGuardSession,
 } from "#/hooks/query/use-cloudguard";
 
 const S = {
@@ -482,6 +483,22 @@ export default function WorkspaceSettings() {
   const [data, setData] = React.useState<WorkspaceData>(load);
   const [workspaces, setWorkspaces] =
     React.useState<WorkspaceRow[]>(INITIAL_WORKSPACES);
+  // Real workspace from the resolved principal (/me). The self-hosted console is a single tenant
+  // ("Default") — show THAT, not the sample workspaces, so the list matches the sidebar switcher.
+  const session = useCloudGuardSession();
+  const realWorkspaces: WorkspaceRow[] = session.data
+    ? [
+        {
+          name: "Default",
+          slug: session.data.tenant_id || "default",
+          clouds: [],
+          members: 1,
+          role: (session.data.role || "admin").replace(/^./, (c) =>
+            c.toUpperCase(),
+          ),
+        },
+      ]
+    : workspaces;
   const [savedAt, setSavedAt] = React.useState(0);
   // Track BOTH the settings and the workspace list so workspace add/edit triggers the Save button.
   const { dirty, baseline, reset } = useDirty({ data, workspaces });
@@ -657,7 +674,7 @@ export default function WorkspaceSettings() {
               </span>
             ))}
           </div>
-          {workspaces.map((w, i) => (
+          {realWorkspaces.map((w, i) => (
             <div
               key={w.slug}
               style={{
