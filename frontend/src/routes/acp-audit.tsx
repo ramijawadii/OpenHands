@@ -206,6 +206,68 @@ export default function AcpAudit() {
   const headSeq = usingReal ? (ledger.data?.total ?? 0) : 48293;
   const chainOk = usingReal ? (verify.data?.ok ?? true) : true;
 
+  // Sub-tabs derived from the SAME live ledger (no mock once wired): Changes = mutating/policy
+  // actions; Access = read/query events; Reports = published artifacts + workspace archives.
+  const seqHash = (s: number | string) => <Hash h={`seq-${s}`} link />;
+  const changesRows: React.ReactNode[][] = usingReal
+    ? source
+        .filter(
+          (l) =>
+            l.cat === "Policy Decisions" ||
+            /updat|creat|delet|rotat|modif|attach|detach|\bput\b|\bset\b|remov/i.test(
+              String(l.action),
+            ),
+        )
+        .map((l) => [
+          l.ts,
+          seqHash(l.seq),
+          l.actor || "—",
+          l.cat || "—",
+          <span style={mono}>{l.res || "—"}</span>,
+          <Badge text="Change" tone="info" />,
+          String(l.action),
+          l.dec || "—",
+          "—",
+          seqHash(l.seq),
+        ])
+    : CHANGES;
+  const accessRows: React.ReactNode[][] = usingReal
+    ? source
+        .filter((l) =>
+          /read|list|\bget\b|query|mcp_call|browse|describe/i.test(
+            String(l.action),
+          ),
+        )
+        .map((l) => [
+          l.ts,
+          l.actor || "—",
+          <span style={mono}>{l.res || "—"}</span>,
+          <Badge text={l.cat || "Action"} tone="muted" />,
+          <Badge text="Read" tone="info" />,
+          <Badge text="Internal" tone="muted" />,
+          "Default",
+          "—",
+          seqHash(l.seq),
+        ])
+    : ACCESS;
+  const reportsRows: React.ReactNode[][] = usingReal
+    ? source
+        .filter((l) =>
+          /artifact_published|workspace_archived|report/i.test(
+            String(l.action),
+          ),
+        )
+        .map((l) => [
+          <span style={mono}>{l.res || "—"}</span>,
+          <Badge text={String(l.action)} tone="muted" />,
+          "Default",
+          l.ts,
+          l.actor || "—",
+          <Badge text="Ready" tone="ok" />,
+          "—",
+        ])
+    : REPORTS;
+
   return (
     <div style={{ padding: "32px 40px", maxWidth: 1160 }}>
       <Breadcrumb
@@ -433,7 +495,7 @@ export default function AcpAudit() {
               "Diff",
               "Audit",
             ]}
-            rows={CHANGES}
+            rows={changesRows}
           />
         </>
       )}
@@ -477,7 +539,7 @@ export default function AcpAudit() {
               "Context",
               "Audit",
             ]}
-            rows={ACCESS}
+            rows={accessRows}
           />
         </>
       )}
@@ -562,7 +624,7 @@ export default function AcpAudit() {
               "Status",
               "",
             ]}
-            rows={REPORTS}
+            rows={reportsRows}
           />
         </>
       )}

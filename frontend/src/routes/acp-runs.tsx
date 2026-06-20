@@ -334,6 +334,76 @@ export default function AcpRuns() {
         }))
       : TIMELINE;
 
+  // Run sub-tabs derived from the live run timeline (the audit entries stamped with this
+  // conversation). Real once a run is selected; mock only when there is no live detail yet.
+  const tl = detailQ.data && !detailQ.isError ? detailQ.data.timeline : null;
+  const denied = (d?: string) => /deny|block|error|fail/i.test(d || "");
+  const monoCell = (s: string) => (
+    <span style={{ fontFamily: "monospace", fontSize: 12 }}>{s}</span>
+  );
+  const traceObjs = tl
+    ? tl.map((e) => ({
+        id: `sp-${e.seq}`,
+        name: `${e.action} ${e.resource || ""}`.trim(),
+        type:
+          e.action === "run_command"
+            ? "Cloud API"
+            : e.type === "action"
+              ? "Tool Call"
+              : "Internal",
+        lat: "—",
+        tok: "—",
+        cost: "—",
+        st: denied(e.decision) ? "error" : "ok",
+        d: 1,
+      }))
+    : TRACE;
+  const toolsRows: React.ReactNode[][] = tl
+    ? tl
+        .filter((e) => e.type === "action")
+        .map((e) => [
+          String(e.seq),
+          e.action,
+          monoCell(e.resource || "—"),
+          e.decision || "—",
+          <Decision d={denied(e.decision) ? "Deny" : "Allow"} />,
+          "—",
+        ])
+    : TOOLS;
+  const cloudRows: React.ReactNode[][] = tl
+    ? tl
+        .filter(
+          (e) =>
+            e.action === "run_command" ||
+            /arn:|aws|gcp|gcloud|azure|s3|iam/i.test(e.resource || ""),
+        )
+        .map((e) => [
+          String(e.seq),
+          "—",
+          "—",
+          e.action,
+          monoCell(e.resource || "—"),
+          <Decision d={denied(e.decision) ? "Deny" : "Allow"} />,
+          "—",
+          "—",
+        ])
+    : CLOUD;
+  const dataRows: React.ReactNode[][] = tl
+    ? tl
+        .filter((e) =>
+          /s3|bucket|vault|secret|\bdata\b|file|\bdb\b|table/i.test(
+            `${e.action} ${e.resource || ""}`,
+          ),
+        )
+        .map((e) => [
+          monoCell(e.resource || e.action),
+          e.type || "—",
+          "Read",
+          e.ts,
+          "—",
+        ])
+    : DATA;
+
   if (!run) {
     const rows = source.filter(
       (r) =>
@@ -666,7 +736,7 @@ export default function AcpRuns() {
             "Cost",
             "Status",
           ]}
-          rows={TRACE.map((s) => [
+          rows={traceObjs.map((s) => [
             <Hash h={s.id} />,
             <span
               style={{
@@ -758,7 +828,7 @@ export default function AcpRuns() {
         <Table
           grid="50px 1.2fr 1.8fr 1fr 110px 80px"
           cols={["Seq", "Tool", "Args (redacted)", "Result", "Decision", "Dur"]}
-          rows={TOOLS}
+          rows={toolsRows}
         />
       )}
       {tab === "Cloud API Activity" && (
@@ -774,7 +844,7 @@ export default function AcpRuns() {
             "Approval",
             "Diff",
           ]}
-          rows={CLOUD}
+          rows={cloudRows}
         />
       )}
       {tab === "Prompt & Context" && (
@@ -817,7 +887,7 @@ export default function AcpRuns() {
         <Table
           grid="2fr 150px 80px 120px 90px"
           cols={["Resource", "Data Type", "Access", "Timestamp", "Context"]}
-          rows={DATA}
+          rows={dataRows}
         />
       )}
       {tab === "Artifacts" && (
