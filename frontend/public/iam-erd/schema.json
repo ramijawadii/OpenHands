@@ -1,0 +1,2067 @@
+{
+  "tables": {
+    "organizations": {
+      "name": "organizations",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "organizations_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "organizations_pkey",
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    },
+    "workspaces": {
+      "name": "workspaces",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "workspaces_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "workspaces_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_workspaces_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_workspaces_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "identity_providers": {
+      "name": "identity_providers",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "protocol": {
+          "name": "protocol",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "identity_providers_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "identity_providers_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_identity_providers_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_identity_providers_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "users": {
+      "name": "users",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "display_name": {
+          "name": "display_name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "risk_score": {
+          "name": "risk_score",
+          "type": "int4",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "users_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "users_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_users_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_users_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "identity_providers_id_to_users_provider_id": {
+          "type": "FOREIGN KEY",
+          "name": "identity_providers_id_to_users_provider_id",
+          "columnNames": [
+            "provider_id"
+          ],
+          "targetTableName": "identity_providers",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_email_key": {
+          "type": "UNIQUE",
+          "name": "users_email_key",
+          "columnNames": [
+            "email"
+          ]
+        }
+      }
+    },
+    "service_identities": {
+      "name": "service_identities",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "service_identities_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "service_identities_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_service_identities_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_service_identities_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "workspaces_id_to_service_identities_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_service_identities_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_service_identities_owner_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_service_identities_owner_user_id",
+          "columnNames": [
+            "owner_user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "groups": {
+      "name": "groups",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "parent_group_id": {
+          "name": "parent_group_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "groups_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "groups_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_groups_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_groups_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "workspaces_id_to_groups_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_groups_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "groups_id_to_groups_parent_group_id": {
+          "type": "FOREIGN KEY",
+          "name": "groups_id_to_groups_parent_group_id",
+          "columnNames": [
+            "parent_group_id"
+          ],
+          "targetTableName": "groups",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_groups_owner_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_groups_owner_user_id",
+          "columnNames": [
+            "owner_user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "group_members": {
+      "name": "group_members",
+      "columns": {
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "groups_id_to_group_members_group_id": {
+          "type": "FOREIGN KEY",
+          "name": "groups_id_to_group_members_group_id",
+          "columnNames": [
+            "group_id"
+          ],
+          "targetTableName": "groups",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_group_members_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_group_members_user_id",
+          "columnNames": [
+            "user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "service_identities_id_to_group_members_service_id": {
+          "type": "FOREIGN KEY",
+          "name": "service_identities_id_to_group_members_service_id",
+          "columnNames": [
+            "service_id"
+          ],
+          "targetTableName": "service_identities",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "group_members_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "group_members_pkey",
+          "columnNames": [
+            "group_id",
+            "user_id"
+          ]
+        }
+      }
+    },
+    "roles": {
+      "name": "roles",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "tier": {
+          "name": "tier",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "privileged": {
+          "name": "privileged",
+          "type": "bool",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "requires_approval": {
+          "name": "requires_approval",
+          "type": "bool",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "roles_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "roles_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_roles_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_roles_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "permissions": {
+      "name": "permissions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "risk": {
+          "name": "risk",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "permissions_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "permissions_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "permissions_name_key": {
+          "type": "UNIQUE",
+          "name": "permissions_name_key",
+          "columnNames": [
+            "name"
+          ]
+        }
+      }
+    },
+    "role_permissions": {
+      "name": "role_permissions",
+      "columns": {
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "permission_id": {
+          "name": "permission_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "roles_id_to_role_permissions_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_role_permissions_role_id",
+          "columnNames": [
+            "role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "permissions_id_to_role_permissions_permission_id": {
+          "type": "FOREIGN KEY",
+          "name": "permissions_id_to_role_permissions_permission_id",
+          "columnNames": [
+            "permission_id"
+          ],
+          "targetTableName": "permissions",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "role_permissions_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "role_permissions_pkey",
+          "columnNames": [
+            "role_id",
+            "permission_id"
+          ]
+        }
+      }
+    },
+    "cloud_resources": {
+      "name": "cloud_resources",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "provider": {
+          "name": "provider",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "cloud_resources_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "cloud_resources_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "workspaces_id_to_cloud_resources_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_cloud_resources_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "resource_access": {
+      "name": "resource_access",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "permission": {
+          "name": "permission",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "inherited": {
+          "name": "inherited",
+          "type": "bool",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "resource_access_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "resource_access_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "roles_id_to_resource_access_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_resource_access_role_id",
+          "columnNames": [
+            "role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "cloud_resources_id_to_resource_access_resource_id": {
+          "type": "FOREIGN KEY",
+          "name": "cloud_resources_id_to_resource_access_resource_id",
+          "columnNames": [
+            "resource_id"
+          ],
+          "targetTableName": "cloud_resources",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "agents": {
+      "name": "agents",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "agents_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "agents_pkey",
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    },
+    "agent_permissions": {
+      "name": "agent_permissions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "capability": {
+          "name": "capability",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "risk": {
+          "name": "risk",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "approval_required": {
+          "name": "approval_required",
+          "type": "bool",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "agent_permissions_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "agent_permissions_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "roles_id_to_agent_permissions_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_agent_permissions_role_id",
+          "columnNames": [
+            "role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "agents_id_to_agent_permissions_agent_id": {
+          "type": "FOREIGN KEY",
+          "name": "agents_id_to_agent_permissions_agent_id",
+          "columnNames": [
+            "agent_id"
+          ],
+          "targetTableName": "agents",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "cloud_resources_id_to_agent_permissions_resource_id": {
+          "type": "FOREIGN KEY",
+          "name": "cloud_resources_id_to_agent_permissions_resource_id",
+          "columnNames": [
+            "resource_id"
+          ],
+          "targetTableName": "cloud_resources",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "role_assignments": {
+      "name": "role_assignments",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "group_id": {
+          "name": "group_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "assignment_type": {
+          "name": "assignment_type",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "assigned_by": {
+          "name": "assigned_by",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "role_assignments_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "role_assignments_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "roles_id_to_role_assignments_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_role_assignments_role_id",
+          "columnNames": [
+            "role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_role_assignments_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_role_assignments_user_id",
+          "columnNames": [
+            "user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "groups_id_to_role_assignments_group_id": {
+          "type": "FOREIGN KEY",
+          "name": "groups_id_to_role_assignments_group_id",
+          "columnNames": [
+            "group_id"
+          ],
+          "targetTableName": "groups",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "service_identities_id_to_role_assignments_service_id": {
+          "type": "FOREIGN KEY",
+          "name": "service_identities_id_to_role_assignments_service_id",
+          "columnNames": [
+            "service_id"
+          ],
+          "targetTableName": "service_identities",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "workspaces_id_to_role_assignments_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_role_assignments_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_role_assignments_assigned_by": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_role_assignments_assigned_by",
+          "columnNames": [
+            "assigned_by"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "approval_workflows": {
+      "name": "approval_workflows",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "stages": {
+          "name": "stages",
+          "type": "int4",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "approval_workflows_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "approval_workflows_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_approval_workflows_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_approval_workflows_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "approval_requirements": {
+      "name": "approval_requirements",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "assignment_id": {
+          "name": "assignment_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "workflow_id": {
+          "name": "workflow_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "approval_requirements_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "approval_requirements_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "roles_id_to_approval_requirements_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_approval_requirements_role_id",
+          "columnNames": [
+            "role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "role_assignments_id_to_approval_requirements_assignment_id": {
+          "type": "FOREIGN KEY",
+          "name": "role_assignments_id_to_approval_requirements_assignment_id",
+          "columnNames": [
+            "assignment_id"
+          ],
+          "targetTableName": "role_assignments",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "approval_workflows_id_to_approval_requirements_workflow_id": {
+          "type": "FOREIGN KEY",
+          "name": "approval_workflows_id_to_approval_requirements_workflow_id",
+          "columnNames": [
+            "workflow_id"
+          ],
+          "targetTableName": "approval_workflows",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "privileged_access": {
+      "name": "privileged_access",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "role_id": {
+          "name": "role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "state": {
+          "name": "state",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "elevation_source": {
+          "name": "elevation_source",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "activated_at": {
+          "name": "activated_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "privileged_access_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "privileged_access_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "users_id_to_privileged_access_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_privileged_access_user_id",
+          "columnNames": [
+            "user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "roles_id_to_privileged_access_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_privileged_access_role_id",
+          "columnNames": [
+            "role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "workspaces_id_to_privileged_access_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_privileged_access_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "authentication_methods": {
+      "name": "authentication_methods",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "method": {
+          "name": "method",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "strength": {
+          "name": "strength",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "enrolled_at": {
+          "name": "enrolled_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "authentication_methods_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "authentication_methods_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "users_id_to_authentication_methods_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_authentication_methods_user_id",
+          "columnNames": [
+            "user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "sessions": {
+      "name": "sessions",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "service_id": {
+          "name": "service_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "privileged": {
+          "name": "privileged",
+          "type": "bool",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "risk": {
+          "name": "risk",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "sessions_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "sessions_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "users_id_to_sessions_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_sessions_user_id",
+          "columnNames": [
+            "user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "service_identities_id_to_sessions_service_id": {
+          "type": "FOREIGN KEY",
+          "name": "service_identities_id_to_sessions_service_id",
+          "columnNames": [
+            "service_id"
+          ],
+          "targetTableName": "service_identities",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "identity_providers_id_to_sessions_provider_id": {
+          "type": "FOREIGN KEY",
+          "name": "identity_providers_id_to_sessions_provider_id",
+          "columnNames": [
+            "provider_id"
+          ],
+          "targetTableName": "identity_providers",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "workspaces_id_to_sessions_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_sessions_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "access_reviews": {
+      "name": "access_reviews",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "target_role_id": {
+          "name": "target_role_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "target_group_id": {
+          "name": "target_group_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "reviewer_id": {
+          "name": "reviewer_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "access_reviews_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "access_reviews_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_access_reviews_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_access_reviews_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_access_reviews_target_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_access_reviews_target_user_id",
+          "columnNames": [
+            "target_user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "roles_id_to_access_reviews_target_role_id": {
+          "type": "FOREIGN KEY",
+          "name": "roles_id_to_access_reviews_target_role_id",
+          "columnNames": [
+            "target_role_id"
+          ],
+          "targetTableName": "roles",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "groups_id_to_access_reviews_target_group_id": {
+          "type": "FOREIGN KEY",
+          "name": "groups_id_to_access_reviews_target_group_id",
+          "columnNames": [
+            "target_group_id"
+          ],
+          "targetTableName": "groups",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_access_reviews_reviewer_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_access_reviews_reviewer_id",
+          "columnNames": [
+            "reviewer_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    },
+    "identity_alerts": {
+      "name": "identity_alerts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "org_id": {
+          "name": "org_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "severity": {
+          "name": "severity",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "principal_user_id": {
+          "name": "principal_user_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "workspace_id": {
+          "name": "workspace_id",
+          "type": "uuid",
+          "default": null,
+          "check": null,
+          "notNull": false,
+          "comment": null
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamptz",
+          "default": null,
+          "check": null,
+          "notNull": true,
+          "comment": null
+        }
+      },
+      "comment": null,
+      "indexes": {},
+      "constraints": {
+        "identity_alerts_pkey": {
+          "type": "PRIMARY KEY",
+          "name": "identity_alerts_pkey",
+          "columnNames": [
+            "id"
+          ]
+        },
+        "organizations_id_to_identity_alerts_org_id": {
+          "type": "FOREIGN KEY",
+          "name": "organizations_id_to_identity_alerts_org_id",
+          "columnNames": [
+            "org_id"
+          ],
+          "targetTableName": "organizations",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "users_id_to_identity_alerts_principal_user_id": {
+          "type": "FOREIGN KEY",
+          "name": "users_id_to_identity_alerts_principal_user_id",
+          "columnNames": [
+            "principal_user_id"
+          ],
+          "targetTableName": "users",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        },
+        "workspaces_id_to_identity_alerts_workspace_id": {
+          "type": "FOREIGN KEY",
+          "name": "workspaces_id_to_identity_alerts_workspace_id",
+          "columnNames": [
+            "workspace_id"
+          ],
+          "targetTableName": "workspaces",
+          "targetColumnNames": [
+            "id"
+          ],
+          "updateConstraint": "NO_ACTION",
+          "deleteConstraint": "NO_ACTION"
+        }
+      }
+    }
+  },
+  "enums": {},
+  "extensions": {}
+}

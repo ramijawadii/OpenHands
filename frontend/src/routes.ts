@@ -63,6 +63,77 @@ export default [
       route("secrets", "routes/secrets-settings.tsx"),
       route("api-keys", "routes/api-keys.tsx"),
     ]),
+    route("admin", "routes/admin.tsx", [
+      index("routes/admin-overview.tsx", { id: "admin-overview-index" }),
+      route("overview", "routes/admin-overview.tsx"),
+      route("organization", "routes/admin-organization.tsx"),
+      route("identity", "routes/admin-identity.tsx"),
+      route("workspaces", "routes/admin-workspaces.tsx"),
+      route("runtime-governance", "routes/admin-runtime-governance.tsx"),
+      route("security", "routes/admin-security.tsx"),
+      route("compliance", "routes/admin-placeholder.tsx", {
+        id: "admin-compliance",
+      }),
+      route("connections", "routes/admin-placeholder.tsx", {
+        id: "admin-connections",
+      }),
+      route("models", "routes/admin-placeholder.tsx", { id: "admin-models" }),
+      route("tools", "routes/admin-placeholder.tsx", { id: "admin-tools" }),
+      route("operations", "routes/admin-placeholder.tsx", {
+        id: "admin-operations",
+      }),
+      route("audit", "routes/admin-audit.tsx"),
+      route("capacity", "routes/admin-placeholder.tsx", {
+        id: "admin-capacity",
+      }),
+      route("support", "routes/admin-placeholder.tsx", { id: "admin-support" }),
+    ]),
+    route("workspace/:wsId", "routes/workspace.tsx", [
+      index("routes/workspace-overview.tsx", {
+        id: "workspace-overview-index",
+      }),
+      route("overview", "routes/workspace-overview.tsx"),
+      route("scope", "routes/workspace-placeholder.tsx", { id: "ws-scope" }),
+      route("members", "routes/workspace-members.tsx"),
+      route("connections", "routes/workspace-placeholder.tsx", {
+        id: "ws-connections",
+      }),
+      route("vault", "routes/workspace-placeholder.tsx", { id: "ws-vault" }),
+      route("service-accounts", "routes/workspace-placeholder.tsx", {
+        id: "ws-service-accounts",
+      }),
+      route("agents", "routes/workspace-placeholder.tsx", { id: "ws-agents" }),
+      route("tools", "routes/workspace-placeholder.tsx", { id: "ws-tools" }),
+      route("models", "routes/workspace-placeholder.tsx", { id: "ws-models" }),
+      route("sandbox", "routes/workspace-placeholder.tsx", {
+        id: "ws-sandbox",
+      }),
+      route("storage", "routes/workspace-storage.tsx"),
+      route("governance", "routes/workspace-governance.tsx"),
+      route("limits", "routes/workspace-placeholder.tsx", { id: "ws-limits" }),
+      route("notifications", "routes/workspace-placeholder.tsx", {
+        id: "ws-notifications",
+      }),
+      route("audit", "routes/workspace-audit.tsx"),
+      route("compliance", "routes/workspace-placeholder.tsx", {
+        id: "ws-compliance",
+      }),
+      route("support", "routes/workspace-placeholder.tsx", {
+        id: "ws-support",
+      }),
+      route("settings", "routes/workspace-placeholder.tsx", {
+        id: "ws-settings",
+      }),
+    ]),
+    route("explore/:domainId/:subtabId", "routes/explore-view.tsx"),
+    route("explore/:domainId/:subtabId/:viewId", "routes/explore-view.tsx", {
+      id: "explore-view-item",
+    }),
+    route("security-graph", "routes/global-zone.tsx", {
+      id: "gz-security-graph",
+    }),
+    route("issues", "routes/global-zone.tsx", { id: "gz-issues" }),
+    route("findings", "routes/global-zone.tsx", { id: "gz-findings" }),
     route("conversations/:conversationId", "routes/conversation.tsx"),
     route("microagent-management", "routes/microagent-management.tsx"),
   ]),

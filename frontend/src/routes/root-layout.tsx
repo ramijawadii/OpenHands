@@ -28,7 +28,7 @@ import { useReoTracking } from "#/hooks/use-reo-tracking";
 import { LOCAL_STORAGE_KEYS } from "#/utils/local-storage";
 import { EmailVerificationGuard } from "#/components/features/guards/email-verification-guard";
 import { MaintenanceBanner } from "#/components/features/maintenance/maintenance-banner";
-import { cn, isMobileDevice } from "#/utils/utils";
+import { cn } from "#/utils/utils";
 import { ThemeProvider } from "#/context/theme-context";
 
 export function ErrorBoundary() {
@@ -204,50 +204,61 @@ export default function MainApp() {
 
   return (
     <ThemeProvider>
-    <div
-      data-testid="root-layout"
-      className="h-screen lg:min-w-[1024px] flex flex-col md:flex-row md:gap-2 bg-base overflow-hidden"
-    >
-      <Sidebar />
-
-      <div className={cn(
-        "flex flex-col w-full h-[calc(100%-50px)] md:h-full gap-3",
-        pathname !== "/" && !pathname.startsWith("/settings") && "md:p-3",
-      )}>
-        {config.data?.MAINTENANCE && (
-          <MaintenanceBanner startTime={config.data.MAINTENANCE.startTime} />
+      <div
+        data-testid="root-layout"
+        className={cn(
+          "h-screen lg:min-w-[1024px] flex flex-col md:flex-row bg-base overflow-hidden",
+          !pathname.startsWith("/admin") &&
+            !pathname.startsWith("/workspace") &&
+            "md:gap-2",
         )}
+      >
+        <Sidebar />
+
         <div
-          id="root-outlet"
-          className="flex-1 relative overflow-auto custom-scrollbar"
+          className={cn(
+            "flex flex-col w-full min-w-0 h-[calc(100%-50px)] md:h-full gap-3",
+            pathname !== "/" &&
+              !pathname.startsWith("/settings") &&
+              !pathname.startsWith("/admin") &&
+              !pathname.startsWith("/workspace") &&
+              "md:p-3",
+          )}
         >
-          <EmailVerificationGuard>
-            <Outlet />
-          </EmailVerificationGuard>
+          {config.data?.MAINTENANCE && (
+            <MaintenanceBanner startTime={config.data.MAINTENANCE.startTime} />
+          )}
+          <div
+            id="root-outlet"
+            className="flex-1 relative overflow-auto custom-scrollbar"
+          >
+            <EmailVerificationGuard>
+              <Outlet />
+            </EmailVerificationGuard>
+          </div>
         </div>
+
+        {renderAuthModal && (
+          <AuthModal
+            githubAuthUrl={effectiveGitHubAuthUrl}
+            appMode={config.data?.APP_MODE}
+            providersConfigured={config.data?.PROVIDERS_CONFIGURED}
+            authUrl={config.data?.AUTH_URL}
+          />
+        )}
+        {renderReAuthModal && <ReauthModal />}
+        {config.data?.APP_MODE === "oss" && consentFormIsOpen && (
+          <AnalyticsConsentFormModal
+            onClose={() => {
+              setConsentFormIsOpen(false);
+            }}
+          />
+        )}
+
+        {config.data?.FEATURE_FLAGS.ENABLE_BILLING &&
+          config.data?.APP_MODE === "saas" &&
+          settings?.IS_NEW_USER && <SetupPaymentModal />}
       </div>
-
-      {renderAuthModal && (
-        <AuthModal
-          githubAuthUrl={effectiveGitHubAuthUrl}
-          appMode={config.data?.APP_MODE}
-          providersConfigured={config.data?.PROVIDERS_CONFIGURED}
-          authUrl={config.data?.AUTH_URL}
-        />
-      )}
-      {renderReAuthModal && <ReauthModal />}
-      {config.data?.APP_MODE === "oss" && consentFormIsOpen && (
-        <AnalyticsConsentFormModal
-          onClose={() => {
-            setConsentFormIsOpen(false);
-          }}
-        />
-      )}
-
-      {config.data?.FEATURE_FLAGS.ENABLE_BILLING &&
-        config.data?.APP_MODE === "saas" &&
-        settings?.IS_NEW_USER && <SetupPaymentModal />}
-    </div>
     </ThemeProvider>
   );
 }

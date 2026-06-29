@@ -31,7 +31,6 @@ import {
   LayoutDashboard,
   Check,
   Search,
-  X,
   Activity,
   Zap,
   Plug,
@@ -89,7 +88,14 @@ interface Domain {
   subtabs: SubTab[];
 }
 
-const NAVIGATION: Domain[] = [
+// human-readable, URL-safe slug from a label (used for /explore/<domain>/<subtab>/<capability>)
+export const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+export const NAVIGATION: Domain[] = [
   {
     id: 1,
     label: "Discovery & Inventory",
@@ -640,118 +646,6 @@ function hoverOff(el: HTMLElement, active: boolean) {
   el.style.background = active ? T.bgActive : "transparent";
 }
 
-// ── Secondary panel ────────────────────────────────────────────────────────────
-
-interface SecondaryPanelProps {
-  domain: Domain;
-  subtab: SubTab;
-  onClose: () => void;
-}
-
-function SecondaryPanel({ domain, subtab, onClose }: SecondaryPanelProps) {
-  const [hovered, setHovered] = React.useState<number | null>(null);
-  return (
-    <aside
-      style={{
-        width: 256,
-        minWidth: 256,
-        background: "var(--cg-bg-sidebar)",
-        borderRight: `1px solid ${T.border}`,
-        height: "100%",
-        overflow: "hidden",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        flexShrink: 0,
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      {/* Header — matches settings "Settings" title block */}
-      <div style={{ padding: "28px 20px 16px", position: "relative" }}>
-        <div
-          style={{
-            fontSize: 11,
-            color: T.textMuted,
-            marginBottom: 4,
-            letterSpacing: "0.01em",
-          }}
-        >
-          {domain.label}
-        </div>
-        <span
-          style={{
-            fontSize: 20,
-            color: T.textPrimary,
-            fontWeight: 500,
-            letterSpacing: "-0.01em",
-          }}
-        >
-          {subtab.label}
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{
-            position: "absolute",
-            top: 20,
-            right: 14,
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            padding: 4,
-            borderRadius: 4,
-            display: "flex",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background = T.bgHover;
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "transparent";
-          }}
-        >
-          <X size={13} style={{ color: T.textMuted }} />
-        </button>
-      </div>
-
-      {/* Items — pixel-match settings nav: height 34, padding "0 10px", single-line ellipsis */}
-      <div
-        style={{ flex: 1, overflowY: "auto", padding: "4px 8px 12px" }}
-        className="cg-sidebar-nav"
-      >
-        {subtab.items.map((item, idx) => {
-          const lit = hovered === idx;
-          return (
-            <div
-              key={item.label}
-              style={{
-                display: "flex",
-                alignItems: "flex-start",
-                minHeight: 34,
-                padding: "7px 10px",
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 400,
-                color: lit ? "var(--cg-text-primary)" : "var(--cg-text-nav)",
-                background: lit ? "var(--cg-bg-active)" : "transparent",
-                marginBottom: 1,
-                transition: "background 100ms ease, color 100ms ease",
-                boxSizing: "border-box" as const,
-                cursor: "default",
-                lineHeight: 1.45,
-                wordBreak: "break-word" as const,
-              }}
-              onMouseEnter={() => setHovered(idx)}
-              onMouseLeave={() => setHovered(null)}
-            >
-              {item.label}
-            </div>
-          );
-        })}
-      </div>
-    </aside>
-  );
-}
-
 // ── Main sidebar ───────────────────────────────────────────────────────────────
 export function Sidebar() {
   const { pathname } = useLocation();
@@ -773,10 +667,6 @@ export function Sidebar() {
   const [expandedDomain, setExpandedDomain] = React.useState<number | null>(
     null,
   );
-  const [activeSubPanel, setActiveSubPanel] = React.useState<{
-    domainId: number;
-    subtabId: string;
-  } | null>(null);
   const [workspaceOpen, setWorkspaceOpen] = React.useState(false);
   const workspaceRef = React.useRef<HTMLDivElement>(null);
 
@@ -833,11 +723,9 @@ export function Sidebar() {
     if (collapsed) {
       setCollapsed(false);
       setExpandedDomain(id);
-      setActiveSubPanel((prev) => (prev && prev.domainId !== id ? null : prev));
       return;
     }
     setExpandedDomain((prev) => (prev === id ? null : id));
-    setActiveSubPanel((prev) => (prev && prev.domainId !== id ? null : prev));
   };
 
   const shouldHideLlmSettings =
@@ -874,22 +762,10 @@ export function Sidebar() {
     return () => document.removeEventListener("mousedown", handler);
   }, [workspaceOpen]);
 
-  const openSubPanel = (domainId: number, subtabId: string) => {
-    setActiveSubPanel((prev) =>
-      prev?.domainId === domainId && prev?.subtabId === subtabId
-        ? null
-        : { domainId, subtabId },
-    );
-  };
-
-  // Resolve active secondary panel data
-  const activeDomain = activeSubPanel
-    ? (NAVIGATION.find((d) => d.id === activeSubPanel.domainId) ?? null)
-    : null;
-  const activeSubtab = activeDomain
-    ? (activeDomain.subtabs.find((s) => s.id === activeSubPanel!.subtabId) ??
-      null)
-    : null;
+  // A sub-tab now routes to its explore view; its third-level items render as a
+  // pill view-navigation in the MAIN content area (admin /admin/identity style).
+  const subtabPath = (d: Domain, s: SubTab) =>
+    `/explore/${slugify(d.label)}/${slugify(s.label)}`;
 
   return (
     <>
@@ -1278,6 +1154,22 @@ export function Sidebar() {
               style={{ height: 1, background: T.border, margin: "4px 0 6px" }}
             />
 
+            {/* GLOBAL zone caption */}
+            {!collapsed && (
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  color: T.textMuted,
+                  textTransform: "uppercase",
+                  padding: "8px 14px 4px",
+                }}
+              >
+                Global
+              </div>
+            )}
+
             {/* Dashboard */}
             <button
               type="button"
@@ -1335,6 +1227,117 @@ export function Sidebar() {
                 </>
               )}
             </button>
+
+            {/* Security graph · Issues · Findings (global, with severity badges) */}
+            {(
+              [
+                {
+                  label: "Security graph",
+                  to: "/security-graph",
+                  Icon: Network,
+                },
+                {
+                  label: "Issues",
+                  to: "/issues",
+                  Icon: AlertTriangle,
+                  badge: "12",
+                  badgeColor: "var(--cg-danger)",
+                },
+                {
+                  label: "Findings",
+                  to: "/findings",
+                  Icon: Eye,
+                  badge: "148",
+                },
+              ] as {
+                label: string;
+                to: string;
+                Icon: typeof Network;
+                badge?: string;
+                badgeColor?: string;
+              }[]
+            ).map((g) => {
+              const active =
+                pathname === g.to || pathname.startsWith(`${g.to}/`);
+              return (
+                <button
+                  key={g.to}
+                  type="button"
+                  aria-label={g.label}
+                  onClick={() => navigate(g.to)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "flex-start",
+                    gap: 10,
+                    width: "calc(100% - 12px)",
+                    margin: "1px 6px",
+                    padding: "10px 12px",
+                    background: active ? "var(--cg-bg-active)" : "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    borderRadius: 6,
+                    transition: "background 0.12s",
+                  }}
+                  {...railHover(g.label, active)}
+                >
+                  <g.Icon
+                    size={15}
+                    style={{ color: T.textPrimary, flexShrink: 0 }}
+                  />
+                  {!collapsed && (
+                    <>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 500,
+                          color: T.textPrimary,
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          transition: labelOpacityTransition,
+                        }}
+                      >
+                        {g.label}
+                      </span>
+                      {g.badge && (
+                        <span
+                          style={{
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            color: g.badgeColor ? "#fff" : T.textMuted,
+                            background: g.badgeColor ?? "transparent",
+                            borderRadius: 9,
+                            padding: g.badgeColor ? "1px 7px" : "0",
+                            letterSpacing: "0.02em",
+                          }}
+                        >
+                          {g.badge}
+                        </span>
+                      )}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+
+            {/* DOMAINS zone caption */}
+            {!collapsed && (
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  color: T.textMuted,
+                  textTransform: "uppercase",
+                  padding: "12px 14px 4px",
+                }}
+              >
+                Domains
+              </div>
+            )}
 
             {/* Domain list */}
             {NAVIGATION.map((domain) => {
@@ -1409,15 +1412,15 @@ export function Sidebar() {
                     <div style={{ paddingBottom: 2 }}>
                       {domain.subtabs.map((subtab) => {
                         const SubIcon = subtab.icon;
+                        const path = subtabPath(domain, subtab);
                         const isActive =
-                          activeSubPanel?.domainId === domain.id &&
-                          activeSubPanel?.subtabId === subtab.id;
+                          pathname === path || pathname.startsWith(`${path}/`);
 
                         return (
                           <button
                             key={subtab.id}
                             type="button"
-                            onClick={() => openSubPanel(domain.id, subtab.id)}
+                            onClick={() => navigate(path)}
                             style={{
                               display: "flex",
                               alignItems: "center",
@@ -1506,7 +1509,6 @@ export function Sidebar() {
               aria-label="Agent Control Plane"
               onClick={() => {
                 navigate("/agent-control-plane");
-                setActiveSubPanel(null);
               }}
               style={{
                 display: "flex",
@@ -1536,28 +1538,43 @@ export function Sidebar() {
                 <Bot size={15} />
               </span>
               {!collapsed && (
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 400,
-                    color: T.textPrimary,
-                    opacity: 1,
-                    transition: labelOpacityTransition,
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Agent Control Plane
-                </span>
+                <>
+                  <span
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 400,
+                      color: T.textPrimary,
+                      flex: 1,
+                      transition: labelOpacityTransition,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Agent Control Plane
+                  </span>
+                  <span
+                    title="Pending approvals"
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      color: "#fff",
+                      background: "#e09a2d",
+                      borderRadius: 9,
+                      padding: "1px 7px",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    3
+                  </span>
+                </>
               )}
             </button>
 
-            {/* Settings — last tab */}
+            {/* Platform settings — routes to the Enterprise Administration console */}
             <button
               type="button"
-              aria-label="Settings"
+              aria-label="Platform settings"
               onClick={() => {
-                navigate("/settings");
-                setActiveSubPanel(null);
+                navigate("/admin");
               }}
               style={{
                 display: "flex",
@@ -1567,7 +1584,7 @@ export function Sidebar() {
                 width: "calc(100% - 12px)",
                 margin: "1px 6px",
                 padding: "10px 12px",
-                background: pathname.startsWith("/settings")
+                background: pathname.startsWith("/admin")
                   ? T.bgActive
                   : "transparent",
                 border: "none",
@@ -1576,7 +1593,7 @@ export function Sidebar() {
                 borderRadius: 6,
                 transition: "background 0.12s",
               }}
-              {...railHover("Settings", pathname.startsWith("/settings"))}
+              {...railHover("Platform settings", pathname.startsWith("/admin"))}
             >
               <span
                 style={{ color: T.textPrimary, display: "flex", flexShrink: 0 }}
@@ -1594,7 +1611,7 @@ export function Sidebar() {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  Settings
+                  Platform settings
                 </span>
               )}
             </button>
@@ -1743,15 +1760,6 @@ export function Sidebar() {
           </div>,
           document.body,
         )}
-
-      {/* ── Secondary sidebar panel ────────────────────────────────────────── */}
-      {activeDomain && activeSubtab && (
-        <SecondaryPanel
-          domain={activeDomain}
-          subtab={activeSubtab}
-          onClose={() => setActiveSubPanel(null)}
-        />
-      )}
 
       {/* ── Conversation panel flyout ──────────────────────────────────────── */}
       {conversationPanelIsOpen && (

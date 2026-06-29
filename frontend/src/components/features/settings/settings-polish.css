@@ -76,6 +76,130 @@
     background-position: -100% 0;
   }
 }
+@keyframes cg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Microsoft 365 Admin Center theme (ref/design-tokens.json) ──────────────────
+   Scoped to .cg-m365 (the admin/workspace consoles). Remaps the --cg-* tokens to the
+   exact M365 dark palette + Segoe typography, so the whole kit re-skins to M365. */
+.cg-m365 {
+  --cg-bg-page: #1f1f1f;
+  --cg-bg-primary-sidebar: #1b1a19;
+  --cg-bg-sidebar: #1b1a19;
+  --cg-bg-card: #292929;
+  --cg-bg-hover: #2d2d2d;
+  --cg-bg-active: rgba(0, 120, 212, 0.15);
+  --cg-bg-badge: #292929;
+  --cg-text-primary: #ffffff;
+  --cg-text-nav: #d2d0ce;
+  --cg-text-muted: #c8c6c4;
+  --cg-border: #3b3a39;
+  --cg-border-card: #484644;
+  --cg-border-subtle: #3b3a39;
+  --cg-border-strong: #605e5c;
+  --cg-accent: #0078d4;
+  --cg-accent-purple: #2899f5;
+  --cg-accent-bg: rgba(0, 120, 212, 0.1);
+  --cg-accent-bg-strong: rgba(0, 120, 212, 0.18);
+  --cg-accent-purple-bg: rgba(40, 153, 245, 0.14);
+  --cg-danger: #e5484d;
+  --cg-danger-border: rgba(229, 72, 77, 0.4);
+  --cg-danger-bg: rgba(229, 72, 77, 0.12);
+  --cg-toggle-off: #797775;
+  --cg-input-bg: #292929;
+  --cg-input-border: #484644;
+  --cg-overlay: rgba(0, 0, 0, 0.5);
+  --cg-workspace-bg: #292929;
+  --cg-workspace-bg-hover: #3b3a39;
+  --cg-workspace-dropdown-bg: #292829;
+  --cg-shadow-dropdown: 0 8px 16px rgba(0, 0, 0, 0.4);
+  --cg-btn-cta-bg: #0078d4;
+  --cg-btn-cta-text: #ffffff;
+  --cg-btn-cta-hover: #106ebe;
+  --cg-code-bg: #1b1a19;
+  font-family:
+    "Segoe UI", "Segoe UI Web (West European)", -apple-system,
+    BlinkMacSystemFont, Roboto, "Helvetica Neue", sans-serif;
+}
+/* M365 light palette — applies when the app theme is light, so the admin/
+   workspace consoles follow the global theme instead of forcing dark. */
+[data-theme="light"] .cg-m365 {
+  --cg-bg-page: #faf9f8;
+  --cg-bg-primary-sidebar: #ffffff;
+  --cg-bg-sidebar: #f3f2f1;
+  --cg-bg-card: #ffffff;
+  --cg-bg-hover: #f3f2f1;
+  --cg-bg-active: rgba(0, 120, 212, 0.1);
+  --cg-bg-badge: #f3f2f1;
+  --cg-text-primary: #201f1e;
+  --cg-text-nav: #323130;
+  --cg-text-muted: #605e5c;
+  --cg-border: #edebe9;
+  --cg-border-card: #e1dfdd;
+  --cg-border-subtle: #edebe9;
+  --cg-border-strong: #c8c6c4;
+  --cg-accent: #0078d4;
+  --cg-accent-purple: #005a9e;
+  --cg-accent-bg: rgba(0, 120, 212, 0.08);
+  --cg-accent-bg-strong: rgba(0, 120, 212, 0.16);
+  --cg-accent-purple-bg: rgba(0, 120, 212, 0.1);
+  --cg-danger: #d13438;
+  --cg-danger-border: rgba(209, 52, 56, 0.4);
+  --cg-danger-bg: rgba(209, 52, 56, 0.1);
+  --cg-toggle-off: #8a8886;
+  --cg-input-bg: #ffffff;
+  --cg-input-border: #c8c6c4;
+  --cg-overlay: rgba(0, 0, 0, 0.4);
+  --cg-workspace-bg: #ffffff;
+  --cg-workspace-bg-hover: #f3f2f1;
+  --cg-workspace-dropdown-bg: #ffffff;
+  --cg-shadow-dropdown: 0 8px 16px rgba(0, 0, 0, 0.12);
+  --cg-btn-cta-bg: #0078d4;
+  --cg-btn-cta-text: #ffffff;
+  --cg-btn-cta-hover: #106ebe;
+  --cg-code-bg: #f3f2f1;
+}
+
+/* M365 link colour for accent-coloured anchors/buttons inside the console */
+.cg-m365 a {
+  color: var(--cg-accent-purple);
+}
+
+/* ── Drawer / overlay entry animations (light) ─────────────────────────────── */
+@keyframes cg-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes cg-drawer-in {
+  from {
+    transform: translateX(26px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.cg-overlay-anim {
+  animation: cg-overlay-in 0.14s ease-out;
+}
+.cg-drawer-anim {
+  animation: cg-drawer-in 0.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .cg-overlay-anim,
+  .cg-drawer-anim {
+    animation-duration: 0.001ms !important;
+  }
+}
+
 .cg-skel {
   background: linear-gradient(
     90deg,
