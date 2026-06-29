@@ -93,6 +93,39 @@ export const useLimits = () =>
     staleTime: 30 * 1000,
   });
 
+export const useSaveGuardrails = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.saveGuardrails,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "guardrails"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useSaveIsolation = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.saveIsolation,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "isolation"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
+export const useSaveLimits = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: CloudGuardService.saveLimits,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cloudguard", "limits"] });
+      qc.invalidateQueries({ queryKey: ["cloudguard", "audit"] });
+    },
+  });
+};
+
 export const useKillSwitch = () =>
   useQuery({
     queryKey: ["cloudguard", "kill-switch"],

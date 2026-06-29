@@ -1,0 +1,1 @@
+import{j as m}from"./chunk-NISHYRIK-Ct6B0h5J.js";import{c as r}from"./utils-V84uisFk.js";function x({testID:s,children:a,className:o,width:e="small"}){return m.jsx("div",{"data-testid":s,className:r("bg-base-secondary flex flex-col gap-6 items-center p-6 rounded-xl",e==="small"&&"w-[384px]",e==="medium"&&"w-[700px]",o),children:a})}export{x as M};

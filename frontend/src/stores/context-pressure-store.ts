@@ -1,35 +1,59 @@
 /**
  * Layer — Context Pressure Zustand Store
  *
- * Tracks how full the current context window is relative to the
- * condenser's max_size threshold. Updated via `oh_context_pressure`
- * Socket.IO events emitted by the backend on every agent state change.
+ * Tracks how full the current context window is using REAL token data from
+ * the backend LLM metrics (Claude Code architecture).
  *
- * `used`     — current event count in the session
- * `max`      — condenser max_size (default 120)
- * `pressure` — used/max clamped to [0, 1]
+ * Architecture (mirrors Claude Code):
+ *   token_usage      = prompt + cache_read + cache_write + completion tokens
+ *                      from the most recent API response
+ *   context_window   = model's max context window (e.g. 200k for Claude Sonnet)
+ *   auto_compact_threshold = context_window − 20k (output reserve) − 13k (trigger buffer)
+ *   percent_remaining = max(0, round(((threshold − usage) / threshold) × 100))
+ *   pressure          = min(usage / threshold, 1.0)   — drives the ring fill
+ *
+ * Updated via `oh_context_pressure` Socket.IO events emitted by the backend on
+ * every AgentStateChangedObservation.
  */
 import { create } from "zustand";
 
-interface ContextPressureStore {
-  used: number;
-  max: number;
+export interface ContextPressurePayload {
+  token_usage: number;
+  context_window: number;
+  auto_compact_threshold: number;
+  percent_remaining: number;
   pressure: number;
-  setContextPressure: (used: number, max: number) => void;
+}
+
+interface ContextPressureStore {
+  tokenUsage: number;
+  contextWindow: number;
+  autoCompactThreshold: number;
+  percentRemaining: number;
+  pressure: number;
+  setContextPressure: (payload: ContextPressurePayload) => void;
   reset: () => void;
 }
 
-export const useContextPressureStore = create<ContextPressureStore>((set) => ({
-  used: 0,
-  max: 120,
+const INITIAL_STATE = {
+  tokenUsage: 0,
+  contextWindow: 0,
+  autoCompactThreshold: 0,
+  percentRemaining: 100,
   pressure: 0,
+};
 
-  setContextPressure: (used, max) =>
+export const useContextPressureStore = create<ContextPressureStore>((set) => ({
+  ...INITIAL_STATE,
+
+  setContextPressure: (payload) =>
     set({
-      used,
-      max,
-      pressure: max > 0 ? Math.min(used / max, 1.0) : 0,
+      tokenUsage: payload.token_usage,
+      contextWindow: payload.context_window,
+      autoCompactThreshold: payload.auto_compact_threshold,
+      percentRemaining: payload.percent_remaining,
+      pressure: payload.pressure,
     }),
 
-  reset: () => set({ used: 0, max: 120, pressure: 0 }),
+  reset: () => set({ ...INITIAL_STATE }),
 }));

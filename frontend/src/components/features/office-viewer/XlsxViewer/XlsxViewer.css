@@ -174,8 +174,9 @@
   justify-content: space-between;
   padding: 0 10px;
   height: 22px;
-  background: #007acc;
-  color: #ffffff;
+  background: var(--cg-bg-page, #1e1e1e);
+  color: var(--cg-text-muted, #858585);
+  border-top: 1px solid var(--cg-border, #3c3c3c);
   font-size: 11px;
   flex-shrink: 0;
 }

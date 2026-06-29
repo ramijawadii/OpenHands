@@ -1,3 +1,4 @@
+import base64
 import os
 from typing import Any
 
@@ -179,6 +180,44 @@ async def select_file(
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content={'error': f'Unexpected observation type: {type(observation)}'},
+        )
+
+
+@app.get(
+    '/select-file-binary',
+    response_model=None,
+    responses={
+        200: {'description': 'Base64-encoded binary file content', 'model': dict[str, str]},
+        500: {'description': 'Error reading file', 'model': dict},
+    },
+)
+async def select_file_binary(
+    file: str, conversation: ServerConversation = Depends(get_conversation)
+) -> JSONResponse:
+    """Return a binary file as base64-encoded JSON {data: '<base64>'}.
+
+    Used by the frontend to load binary assets (PDF, XLSX, etc.) that the
+    text-only select-file endpoint refuses with HTTP 415.
+    """
+    runtime: Runtime = conversation.runtime
+    full_path = os.path.join(runtime.config.workspace_mount_path_in_sandbox, file)
+    try:
+        host_path = runtime.copy_from(full_path)
+        with open(host_path, 'rb') as fh:
+            encoded = base64.b64encode(fh.read()).decode('ascii')
+        os.unlink(host_path)
+        return JSONResponse(content={'data': encoded})
+    except AgentRuntimeUnavailableError as e:
+        logger.error(f'Error reading binary file {full_path}: {e}')
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={'error': f'Runtime unavailable: {e}'},
+        )
+    except Exception as e:
+        logger.error(f'Error reading binary file {full_path}: {e}')
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={'error': str(e)},
         )
 
 

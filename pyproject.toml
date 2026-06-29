@@ -75,6 +75,7 @@ anyio = "4.9.0"
 pythonnet = "*"
 fastmcp = "^2.5.2"
 python-frontmatter = "^1.1.0"
+neo4j = ">=5.19.0,<7"  # CloudGuard Phase 2 skill-graph dispatch driver
 shellingham = "^1.5.4"
 # TODO: Should these go into the runtime group?
 ipywidgets = "^8.1.5"

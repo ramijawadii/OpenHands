@@ -1,0 +1,1 @@
+import{j as t}from"./chunk-NISHYRIK-Ct6B0h5J.js";import{F as a,a as b,b as r}from"./index-BmTgDRT9.js";function u({gitProvider:i,className:s}){return t.jsxs(t.Fragment,{children:[i==="github"&&t.jsx(a,{size:14,className:s}),i==="gitlab"&&t.jsx(b,{className:s}),i==="bitbucket"&&t.jsx(r,{className:s})]})}export{u as G};

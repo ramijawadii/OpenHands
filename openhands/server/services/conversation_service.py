@@ -108,10 +108,13 @@ async def start_conversation(
         model_name = settings.llm_model or ''
         is_bedrock_model = model_name.startswith('bedrock/')
         is_lemonade_model = model_name.startswith('lemonade/')
+        # Vertex AI uses Application Default Credentials (ADC), not an API key
+        is_vertex_ai_model = model_name.startswith('vertex_ai/')
 
         if (
             not is_bedrock_model
             and not is_lemonade_model
+            and not is_vertex_ai_model
             and (
                 not settings.llm_api_key
                 or settings.llm_api_key.get_secret_value().isspace()
@@ -123,6 +126,8 @@ async def start_conversation(
             )
         elif is_bedrock_model:
             logger.info(f'Bedrock model detected ({model_name}), API key not required')
+        elif is_vertex_ai_model:
+            logger.info(f'Vertex AI model detected ({model_name}), using Application Default Credentials')
 
     else:
         logger.warning('Settings not present, not starting conversation')

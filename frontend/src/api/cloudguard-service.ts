@@ -357,8 +357,12 @@ export const CloudGuardService = {
       .then((r) => r.data),
   guardrails: () =>
     openHands.get<CGGuardrails>(`${BASE}/guardrails`).then((r) => r.data),
+  saveGuardrails: (body: Partial<CGGuardrails>) =>
+    openHands.put<CGGuardrails>(`${BASE}/guardrails`, body).then((r) => r.data),
   isolation: () =>
     openHands.get<CGIsolation>(`${BASE}/isolation`).then((r) => r.data),
+  saveIsolation: (body: Partial<CGIsolation>) =>
+    openHands.put<CGIsolation>(`${BASE}/isolation`, body).then((r) => r.data),
   sandboxCompute: () =>
     openHands
       .get<CGSandboxCompute>(`${BASE}/sandbox-compute`)
@@ -369,6 +373,10 @@ export const CloudGuardService = {
       .then((r) => r.data),
   limits: () =>
     openHands.get<CGLimits>(`${BASE}/workspace/limits`).then((r) => r.data),
+  saveLimits: (body: Partial<CGLimits>) =>
+    openHands
+      .put<CGLimits>(`${BASE}/workspace/limits`, body)
+      .then((r) => r.data),
   dataResidency: () =>
     openHands.get<CGResidency>(`${BASE}/data-residency`).then((r) => r.data),
   killSwitchStatus: () =>

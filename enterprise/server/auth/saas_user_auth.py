@@ -54,9 +54,17 @@ class SaasUserAuth(UserAuth):
     _user_secrets: UserSecrets | None = None
     accepted_tos: bool | None = None
     auth_type: AuthType = AuthType.COOKIE
+    # CloudGuard RBAC role derived from the Keycloak access token (L2/L13).
+    # None until resolved; the runtime forwards it to the assess API as the
+    # X-CloudGuard-Role header / CLOUDGUARD_ROLE so PermissionPipeline clamps tiers.
+    cloudguard_role: str | None = None
 
     async def get_user_id(self) -> str | None:
         return self.user_id
+
+    def get_cloudguard_role(self) -> str | None:
+        """CloudGuard RBAC role for this user (e.g. 'operator'), or None."""
+        return self.cloudguard_role
 
     async def get_user_email(self) -> str | None:
         return self.email
@@ -289,6 +297,17 @@ async def saas_user_auth_from_signed_token(signed_token: str) -> SaasUserAuth:
     email_verified = access_token_payload['email_verified']
     logger.debug('saas_user_auth_from_signed_token:return')
 
+    # CloudGuard RBAC — map Keycloak roles → CloudGuard role (L2/L13). Defensive:
+    # any failure (cloudguard not importable, unexpected payload) leaves it None,
+    # and downstream falls back to the historical default (operator).
+    cloudguard_role = None
+    try:
+        from cloudguard.rbac import cloudguard_role_from_token
+
+        cloudguard_role = cloudguard_role_from_token(access_token_payload).value
+    except Exception:
+        cloudguard_role = None
+
     return SaasUserAuth(
         access_token=SecretStr(access_token),
         refresh_token=SecretStr(refresh_token),
@@ -297,6 +316,7 @@ async def saas_user_auth_from_signed_token(signed_token: str) -> SaasUserAuth:
         email_verified=email_verified,
         accepted_tos=accepted_tos,
         auth_type=AuthType.COOKIE,
+        cloudguard_role=cloudguard_role,
     )
 
 

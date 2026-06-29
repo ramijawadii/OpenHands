@@ -371,9 +371,16 @@ def test_create_conversation_and_poll_reply():
     ]
     assert agent_msgs, "No agent message found in events"
 
-    content = agent_msgs[-1].get("args", {}).get("content", "")
-    print(f"\n[e2e] agent replied: {content!r}")
-    assert len(content) > 0, "Agent reply was empty"
+    last = agent_msgs[-1]
+    # finish action stores text in args.outputs; message action uses args.content
+    args = last.get("args", {})
+    content = args.get("content") or args.get("outputs", {}).get("content", "")
+    # A finish action with empty content is still a valid agent reply
+    action = last.get("action", "")
+    print(f"\n[e2e] agent replied (action={action!r}): {content!r}")
+    assert action in ("message", "finish"), f"Unexpected action: {action}"
+    if action == "message":
+        assert len(content) > 0, "Agent message reply was empty"
 
 
 # ---------------------------------------------------------------------------

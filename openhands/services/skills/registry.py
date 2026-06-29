@@ -603,8 +603,15 @@ class SkillRegistry:
     def load_content(self, name: str) -> Optional[str]:
         """Return the full Markdown body of a skill (frontmatter stripped).
 
-        Lazily reads from disk on first access; cached for subsequent calls.
-        Returns ``None`` if the skill is unknown or the file is unreadable.
+        Phase 2b resolution order:
+          0. Skills graph (dedicated `neo4j-skills` container) when
+             ``CLOUDGUARD_GRAPH_ENABLED`` is on. Graph stores
+             ``source_path`` so the byte-store is still the filesystem —
+             byte-identity is preserved by construction.
+          1. Filesystem fallback: registered ``SkillEntry.source_path``.
+
+        Lazily reads on first access; cached for subsequent calls.
+        Returns ``None`` if the skill is unknown or unreadable.
         """
         skill = self.get(name)
         if skill is None:
@@ -614,17 +621,36 @@ class SkillRegistry:
             if skill._content is not None:
                 return skill._content
 
-        try:
-            raw = Path(skill.source_path).read_text(encoding="utf-8")
-            _meta, body = _parse_frontmatter(raw)
-        except OSError as e:
-            logger.warning("skill registry: cannot read content %s: %s",
-                           skill.source_path, e)
-            return None
+        body = self._load_from_graph(name)
+        if body is None:
+            try:
+                raw = Path(skill.source_path).read_text(encoding="utf-8")
+                _meta, body = _parse_frontmatter(raw)
+            except OSError as e:
+                logger.warning("skill registry: cannot read content %s: %s",
+                               skill.source_path, e)
+                return None
 
         with self._lock:
             skill._content = body
         return body
+
+    @staticmethod
+    def _load_from_graph(name: str) -> Optional[str]:
+        """Phase 2b graph-backed lookup. Returns None on miss/disabled/unreachable
+        so the disk fallback above takes over. Never raises."""
+        try:
+            import sys as _sys
+            for _p in ("/workspace/cloudguard-runtime", "/app/cloudguard-runtime"):
+                if _p not in _sys.path and Path(_p).is_dir():
+                    _sys.path.insert(0, _p)
+            from skills_graph.dispatch import load_skill_body  # type: ignore[import-not-found]
+        except Exception:
+            return None
+        try:
+            return load_skill_body(name, strip_frontmatter=True)
+        except Exception:
+            return None
 
     # ── Session lifecycle ───────────────────────────────────────────────
 

@@ -162,6 +162,17 @@ class StandaloneConversationManager(ConversationManager):
         await self.sio.enter_room(connection_id, ROOM_KEY.format(sid=sid))
         self._local_connection_id_to_session_id[connection_id] = sid
         agent_loop_info = await self.maybe_start_agent_loop(sid, settings, user_id)
+
+        # Re-emit current context pressure to the newly connected socket so the
+        # ring indicator is populated immediately, even if the last
+        # AgentStateChangedObservation fired before this client connected.
+        session = self._local_agent_loops_by_sid.get(sid)
+        if session and hasattr(session, 'emit_context_pressure_snapshot'):
+            try:
+                await session.emit_context_pressure_snapshot(connection_id)
+            except Exception:
+                pass
+
         return agent_loop_info
 
     async def detach_from_conversation(self, conversation: ServerConversation):
