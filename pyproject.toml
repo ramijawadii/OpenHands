@@ -96,6 +96,7 @@ setuptools = ">=78.1.1"
 
 # TODO: These are integrations that should probably be optional
 redis = ">=5.2,<7.0"
+opensearch-py = ">=2.4,<3.0"
 
 google-cloud-aiplatform = "*"
 anthropic = { extras = [ "vertex" ], version = "*" }

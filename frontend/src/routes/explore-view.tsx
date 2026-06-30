@@ -70,7 +70,7 @@ type LucideIcon = React.ComponentType<{ size?: number; color?: string }>;
  * label. The full text is preserved in NAVIGATION (used elsewhere / later); the
  * tab bar shows the concise name. Unmapped labels fall back to the full text.
  */
-const SHORT_LABEL: Record<string, string> = {
+export const SHORT_LABEL: Record<string, string> = {
   // Discovery & Inventory
   "Multi-cloud resource graph (AWS, Azure, GCP, OCI, Alibaba)":
     "Resource Graph",

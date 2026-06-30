@@ -138,6 +138,20 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard monitoring routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard log / volume search API (OpenSearch-backed, tenant-scoped).
+try:
+    from openhands.server.routes.cloudguard_search import (
+        router as cloudguard_search_router,
+    )
+
+    app.include_router(cloudguard_search_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard search routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard Models & Inference (LLM management + inference analytics).
 try:
     from openhands.server.routes.cloudguard_llm import (

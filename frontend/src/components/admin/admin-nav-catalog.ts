@@ -7,8 +7,103 @@
  * read those params via `useTabParam` / the Identity group+tab wiring.
  */
 import { NAVIGATION, slugify } from "#/components/features/sidebar/sidebar";
+import { SHORT_LABEL } from "#/routes/explore-view";
 
 export type NavHit = { group: string; label: string; sub: string; to: string };
+
+// Identity console third-level sub-views (the SubTabStrip pills inside each tab).
+// They are local state, so they route to their parent tab's deep link.
+const IDENTITY_SUBVIEWS: { tab: string; to: string; subs: string[] }[] = [
+  {
+    tab: "Sessions",
+    to: "/admin/identity?group=identity&tab=sessions",
+    subs: [
+      "Active Sessions",
+      "Privileged Sessions",
+      "Service Sessions",
+      "Failed Sign-ins",
+      "Risky Sessions",
+      "Session Policies",
+    ],
+  },
+  {
+    tab: "Authentication & Credentials",
+    to: "/admin/identity?group=identity&tab=auth",
+    subs: [
+      "MFA",
+      "Methods",
+      "Passkeys",
+      "Security Keys",
+      "Password Policy",
+      "Credential Policies",
+      "Temporary Access Pass",
+      "Local Sign-in & Break-glass",
+    ],
+  },
+  {
+    tab: "Groups",
+    to: "/admin/identity?group=access&tab=groups",
+    subs: [
+      "Security Groups",
+      "Collaboration Groups",
+      "Dynamic Groups",
+      "Nested Groups",
+    ],
+  },
+  {
+    tab: "Roles",
+    to: "/admin/identity?group=access&tab=roles",
+    subs: ["System Roles", "Custom Roles", "Permission Catalog"],
+  },
+  {
+    tab: "Assignments",
+    to: "/admin/identity?group=access&tab=assignments",
+    subs: [
+      "User Assignments",
+      "Group Assignments",
+      "Scoped Assignments",
+      "Delegated Assignments",
+    ],
+  },
+  {
+    tab: "Privileged Access",
+    to: "/admin/identity?group=access&tab=privileged",
+    subs: [
+      "Eligible Access",
+      "Active Access",
+      "Activation Requests",
+      "Approvals",
+      "Emergency Access",
+      "Access History",
+    ],
+  },
+  {
+    tab: "Reviews & Certifications",
+    to: "/admin/identity?group=access&tab=reviews",
+    subs: [
+      "User Access Reviews",
+      "Role Reviews",
+      "Group Reviews",
+      "Certification Campaigns",
+      "Segregation of Duties",
+    ],
+  },
+  {
+    tab: "Threats & Risks",
+    to: "/admin/identity?group=alerts&tab=alerts-risks",
+    subs: ["Identity Threats", "Privilege Risks", "Authentication Risks"],
+  },
+  {
+    tab: "Governance Violations",
+    to: "/admin/identity?group=alerts&tab=alerts-gov",
+    subs: ["Access Governance Violations", "Approval Workflow Violations"],
+  },
+  {
+    tab: "Alerts Configuration",
+    to: "/admin/identity?group=alerts&tab=alerts-config",
+    subs: ["Alert Rules", "External Integrations"],
+  },
+];
 
 type Tab = { label: string; id?: string; to?: string };
 type Section = { name: string; to: string; blurb: string; tabs?: Tab[] };
@@ -183,14 +278,36 @@ const SECTIONS: Section[] = [
 const tabHref = (s: Section, t: Tab) =>
   t.to ?? (t.id ? `${s.to}?tab=${t.id}` : s.to);
 
-// Product "Inference Defense" explore nav — every domain → sub-tab, deep-linked
-// by name slug (lands on the sub-tab's first capability). Folder = "Explore · <domain>".
+// Product "Inference Defense" explore nav — every domain → sub-tab → CAPABILITY,
+// deep-linked by name slug. Folder = "Explore · <domain>".
 const EXPLORE: NavHit[] = NAVIGATION.flatMap((d) =>
-  d.subtabs.map((s) => ({
-    group: `Explore · ${d.label}`,
-    label: s.label,
-    sub: d.label,
-    to: `/explore/${slugify(d.label)}/${slugify(s.label)}`,
+  d.subtabs.flatMap((s) => [
+    {
+      group: `Explore · ${d.label}`,
+      label: s.label,
+      sub: d.label,
+      to: `/explore/${slugify(d.label)}/${slugify(s.label)}`,
+    },
+    // every capability (the explore primary tab) — exact deep link
+    ...s.items.map((it) => {
+      const short = SHORT_LABEL[it.label] ?? it.label;
+      return {
+        group: `Explore · ${d.label}`,
+        label: short,
+        sub: `${d.label} › ${s.label}`,
+        to: `/explore/${slugify(d.label)}/${slugify(s.label)}/${slugify(short)}`,
+      };
+    }),
+  ]),
+);
+
+// Identity console third-level sub-views → findable, routed to their parent tab
+const IDENTITY_SUBVIEW_HITS: NavHit[] = IDENTITY_SUBVIEWS.flatMap((t) =>
+  t.subs.map((s) => ({
+    group: "Identity & Access",
+    label: s,
+    sub: `Identity & Access › ${t.tab}`,
+    to: t.to,
   })),
 );
 
@@ -210,6 +327,7 @@ export const NAV_CATALOG: NavHit[] = [
       to: tabHref(s, t),
     })),
   ),
+  ...IDENTITY_SUBVIEW_HITS,
   ...EXPLORE,
 ];
 
