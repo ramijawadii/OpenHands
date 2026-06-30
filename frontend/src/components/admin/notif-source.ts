@@ -28,26 +28,29 @@ export type Notif = {
 };
 
 type NovuCfg = {
-  appId: string;
+  applicationIdentifier: string;
   subscriberId: string;
+  subscriberHash: string; // HMAC, minted server-side — secret never reaches the browser
   backendUrl?: string;
   socketUrl?: string;
 };
 
-function cfg(): NovuCfg | null {
-  const env = import.meta.env as Record<string, string | undefined>;
-  const appId = env.VITE_NOVU_APP_ID;
-  const subscriberId = env.VITE_NOVU_SUBSCRIBER_ID;
-  if (!appId || !subscriberId) return null;
-  return {
-    appId,
-    subscriberId,
-    backendUrl: env.VITE_NOVU_BACKEND_URL,
-    socketUrl: env.VITE_NOVU_SOCKET_URL,
-  };
+// Tenant-scoped subscriber config comes from OUR backend (extreme-isolation N0): the server
+// namespaces the subscriberId by tenant and signs the HMAC with the Novu secret key.
+async function cfg(): Promise<NovuCfg | null> {
+  try {
+    const res = await fetch("/api/cloudguard/notifications/subscriber", {
+      credentials: "include",
+    });
+    if (!res.ok) return null; // 503 → Novu not configured → local fallback
+    const c = (await res.json()) as NovuCfg;
+    return c.applicationIdentifier && c.subscriberId && c.subscriberHash
+      ? c
+      : null;
+  } catch {
+    return null;
+  }
 }
-
-export const novuEnabled = (): boolean => cfg() !== null;
 
 function relTime(iso?: string): string {
   if (!iso) return "now";
@@ -78,13 +81,14 @@ function mapNovu(n: any): Notif {
 export async function fetchNotifications(
   localFallback: Notif[],
 ): Promise<Notif[]> {
-  const c = cfg();
+  const c = await cfg();
   if (!c) return localFallback;
   try {
     const { Novu } = await import("@novu/js");
     const novu = new Novu({
-      applicationIdentifier: c.appId,
+      applicationIdentifier: c.applicationIdentifier,
       subscriberId: c.subscriberId,
+      subscriberHash: c.subscriberHash,
       ...(c.backendUrl ? { backendUrl: c.backendUrl } : {}),
       ...(c.socketUrl ? { socketUrl: c.socketUrl } : {}),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

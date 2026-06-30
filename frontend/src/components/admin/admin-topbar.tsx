@@ -101,19 +101,11 @@ const SAMPLE_RECORDS: Hit[] = [
     to: "/admin/runtime-governance",
   },
 ];
-// full IA (every section + sub-tab) first, then sample records
-const SEARCH_INDEX: Hit[] = [...NAV_CATALOG, ...SAMPLE_RECORDS];
-const GROUP_ORDER = [
-  ...NAV_GROUP_ORDER,
-  "People",
-  "Service identities",
-  "Policies",
-  "Workspaces",
-  "Agents",
-];
-
-// Orama full-text index — built once (typo-tolerant, boosts label over context).
-function buildIndex() {
+// Orama index = static UI navigation (NAV_CATALOG, public, safe to ship) + ENTITY records.
+// Per extreme-isolation R1, entity records must be SERVER-BUILT (tenant + RBAC filtered); the
+// SAMPLE_RECORDS are synthetic dev fallback only, used when /api/cloudguard/search/index is
+// unavailable. The client never filters for security and never indexes raw API data.
+function buildIndex(records: Hit[]) {
   const db = create({
     schema: {
       id: "string",
@@ -125,7 +117,7 @@ function buildIndex() {
   });
   insertMultiple(
     db,
-    SEARCH_INDEX.map((h, i) => ({ id: String(i), ...h })),
+    [...NAV_CATALOG, ...records].map((h, i) => ({ id: String(i), ...h })),
   );
   return db;
 }
@@ -135,9 +127,33 @@ function GlobalSearch() {
   const [q, setQ] = React.useState("");
   const [open, setOpen] = React.useState(false);
   const [active, setActive] = React.useState(0);
+  const [records, setRecords] = React.useState<Hit[]>(SAMPLE_RECORDS);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
-  const db = React.useMemo(buildIndex, []);
+  const db = React.useMemo(() => buildIndex(records), [records]);
+  // R1: pull the tenant/RBAC-scoped entity records the server permits (heap then holds only those).
+  React.useEffect(() => {
+    let alive = true;
+    fetch("/api/cloudguard/search/index", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (alive && d && Array.isArray(d.records)) setRecords(d.records);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // folder order: static nav groups, then whatever groups the (server) records use
+  const GROUP_ORDER = React.useMemo(
+    () => [
+      ...NAV_GROUP_ORDER,
+      ...Array.from(new Set(records.map((r) => r.group))).filter(
+        (g) => !NAV_GROUP_ORDER.includes(g),
+      ),
+    ],
+    [records],
+  );
 
   React.useEffect(() => {
     const onDoc = (e: MouseEvent) => {
