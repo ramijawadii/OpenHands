@@ -4,20 +4,17 @@ import {
   RotateCcw,
   Maximize2,
   AlertTriangle,
-  ChevronUp,
-  ChevronDown,
-  ChevronLeft,
   ChevronRight,
-  Frame,
-  Plus,
-  Minus,
-  Crosshair,
   ArrowLeft,
   Lock,
   X,
   Star,
   Info,
   GitBranch,
+  Expand,
+  Minimize,
+  Bot,
+  Play,
 } from "lucide-react";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -31,6 +28,17 @@ import kmsIcon from "thesvg/aws-aws-key-management-service";
 import secretsIcon from "thesvg/aws-aws-secrets-manager";
 import ec2Icon from "thesvg/aws-amazon-ec2";
 import lambdaIcon from "thesvg/aws-aws-lambda";
+import {
+  GraphNavigator,
+  GraphMinimap,
+  GraphWatermark,
+  graphToolBtn,
+  CHROME,
+  MINZ,
+  MAXZ,
+  zoomToPct,
+  pctToZoom,
+} from "./graph-shell";
 
 // ════════════════════════════════════════════════════════════════════════════
 // §7.13 Identity Blast-Radius — Impact Analysis. A faithful re-build of the
@@ -361,6 +369,33 @@ function relationsOf(id: string): { up: IANode[]; down: IANode[] } {
   return { up, down };
 }
 
+// full transitive dependency chain of a node (upstream + downstream), tier-ordered
+// — the navigable list behind "Expand dependency chain".
+function chainNodes(id: string): IANode[] {
+  const outAdj: Record<string, string[]> = {};
+  const inAdj: Record<string, string[]> = {};
+  MODEL.edges.forEach((e) => {
+    (outAdj[e.source] ||= []).push(e.target);
+    (inAdj[e.target] ||= []).push(e.source);
+  });
+  const seen = new Set<string>();
+  const walk = (adj: Record<string, string[]>) => {
+    const stack = [...(adj[id] || [])];
+    while (stack.length) {
+      const cur = stack.pop() as string;
+      if (seen.has(cur) || cur === id) continue;
+      seen.add(cur);
+      (adj[cur] || []).forEach((x) => stack.push(x));
+    }
+  };
+  walk(outAdj);
+  walk(inAdj);
+  return [...seen]
+    .map((x) => NODE_BY_ID[x])
+    .filter(Boolean)
+    .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+}
+
 // ── Findings (single-resource problems) + Issues (attack paths) ───────────────
 type Severity = "Critical" | "High" | "Medium" | "Low" | "Informational";
 const SEV_ORDER: Severity[] = [
@@ -669,6 +704,10 @@ function buildIssues(): Issue[] {
   });
 }
 const ISSUES = buildIssues();
+// issues whose attack-path passes through a given node (context-menu tags)
+function issuesForNode(id: string): Issue[] {
+  return ISSUES.filter((i) => i.path.includes(id));
+}
 
 function elements() {
   const els: any[] = [];
@@ -856,16 +895,6 @@ function baseStyle(): any[] {
 
 const ALERTS_W = 340; // right drawer width (graph area shrinks by this)
 
-// zoom (model) ↔ slider-percent on a log scale
-const MINZ = 0.06;
-const MAXZ = 2.5;
-const zoomToPct = (z: number) =>
-  Math.round(
-    ((Math.log(z) - Math.log(MINZ)) / (Math.log(MAXZ) - Math.log(MINZ))) * 100,
-  );
-const pctToZoom = (p: number) =>
-  Math.exp(Math.log(MINZ) + (p / 100) * (Math.log(MAXZ) - Math.log(MINZ)));
-
 export function ImpactAnalysis() {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const cyRef = React.useRef<any>(null);
@@ -899,11 +928,24 @@ export function ImpactAnalysis() {
   const [marked, setMarked] = React.useState<
     Record<string, { note: string; ts: number }>
   >({});
-  const [locked, setLocked] = React.useState<string | null>(null);
+  // locked view — chain (path undefined) or a specific issue attack-path
+  const [locked, setLocked] = React.useState<{
+    id: string;
+    path?: string[];
+    label: string;
+  } | null>(null);
   const [ctx, setCtx] = React.useState<{
     x: number;
     y: number;
     node: IANode;
+  } | null>(null);
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const [isFull, setIsFull] = React.useState(false);
+  const [catalogKey, setCatalogKey] = React.useState(0);
+  // context-menu tag → jump the catalog drawer straight to a finding / issue
+  const [seed, setSeed] = React.useState<{
+    kind: "finding" | "issue";
+    id: string;
   } | null>(null);
 
   const focusId = stack.length ? stack[stack.length - 1] : null;
@@ -913,7 +955,11 @@ export function ImpactAnalysis() {
   const pinnedRef = React.useRef<string | null>(null); // finding row / dep-chain pin
   const pathRef = React.useRef<string[] | null>(null); // issue attack-path spotlight
   const spotRef = React.useRef<string | null>(null); // single-node spotlight (dashed box)
-  const lockedRef = React.useRef<string | null>(null);
+  const lockedRef = React.useRef<{
+    id: string;
+    path?: string[];
+    label: string;
+  } | null>(null);
   lockedRef.current = locked;
   const ctxRef = React.useRef<string | null>(null);
   const filterRef = React.useRef(filters);
@@ -949,14 +995,19 @@ export function ImpactAnalysis() {
     if (ctxRef.current) {
       active = new Set([ctxRef.current]); // menu spotlight: just the node
     } else if (lockedRef.current) {
-      active = chainSet(lockedRef.current);
+      active = lockedRef.current.path
+        ? new Set(lockedRef.current.path)
+        : chainSet(lockedRef.current.id);
       chain = true;
+    } else if (pathRef.current) {
+      // issue attack-path — keep the whole path lit; if a node inside it is
+      // being inspected, box THAT node (the path selection is never lost).
+      active = new Set(pathRef.current);
+      chain = true;
+      boxId = spotRef.current;
     } else if (spotRef.current) {
       active = new Set([spotRef.current]); // single-resource finding / node view
       boxId = spotRef.current;
-    } else if (pathRef.current) {
-      active = new Set(pathRef.current); // issue attack-path
-      chain = true;
     } else if (hoverRef.current) {
       active = chainSet(hoverRef.current);
       chain = true;
@@ -1066,6 +1117,12 @@ export function ImpactAnalysis() {
         if (lockedRef.current) return;
         setSel(null);
         setStack([]);
+        // clear a graph-pinned chain / issue-path / spotlight
+        pinnedRef.current = null;
+        pathRef.current = null;
+        spotRef.current = null;
+        setTip(null);
+        applyEmphasis();
       }
     });
     // right-click → context menu; spotlight the node, shadow the whole graph
@@ -1147,6 +1204,25 @@ export function ImpactAnalysis() {
     }
     updateFrameRef.current?.();
   }, [tip]);
+
+  // ── fullscreen: sync state, resize the renderer + animate-fit to the new box ─
+  React.useEffect(() => {
+    const onFs = () => {
+      const full = !!document.fullscreenElement;
+      setIsFull(full);
+      const cy = cyRef.current;
+      // let the viewport settle, resize the canvas, then scale the graph in
+      setTimeout(() => {
+        cy?.resize();
+        cy?.animate(
+          { fit: { padding: full ? 70 : 40 } },
+          { duration: 420, easing: "ease-in-out-cubic" },
+        );
+      }, 90);
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
 
   // ── switching mode clears any catalog selection; drawer resizes the canvas ──
   const rightOpen = view !== "graph" || panel !== null;
@@ -1330,14 +1406,25 @@ export function ImpactAnalysis() {
   };
   const fit = () =>
     cyRef.current?.animate({ fit: { padding: 40 } }, { duration: 220 });
+  const toggleFull = () => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else el.requestFullscreen?.();
+  };
   const reset = () => {
     setStack([]);
     setSel(null);
+    setLocked(null);
+    setFilters(new Set());
     pinnedRef.current = null;
     pathRef.current = null;
     spotRef.current = null;
+    hoverRef.current = null;
     setTip(null);
     applyEmphasis();
+    setCatalogKey((k) => k + 1); // reset the catalog drawer's navigation
+    cyRef.current?.animate({ fit: { padding: 40 } }, { duration: 260 });
   };
   const back = () => setStack((s) => s.slice(0, -1));
   const toggleFilter = (t: Tier) =>
@@ -1365,9 +1452,19 @@ export function ImpactAnalysis() {
       emphasize(ctx.node.id);
     }
   };
-  const menuLock = () => {
+  // context-menu "Issue" submenu → light that issue's attack path on the graph
+  const menuIssuePath = (iss: Issue) => {
+    closeMenu();
+    pinnedRef.current = null;
+    spotRef.current = null;
+    setTip(null);
+    pathRef.current = iss.path;
+    applyEmphasis();
+  };
+  // lock the graph on the node's dependency chain, or on a specific issue path
+  const menuLock = (path?: string[]) => {
     if (ctx) {
-      setLocked(ctx.node.id); // effect applies the chain + Escape handler
+      setLocked({ id: ctx.node.id, path, label: ctx.node.label });
       closeMenu();
     }
   };
@@ -1375,6 +1472,13 @@ export function ImpactAnalysis() {
     if (ctx) setPanel({ type: "mark", nodeId: ctx.node.id });
     closeMenu();
     applyEmphasis();
+  };
+  // context-menu tag → open the matching finding / issue in its catalog drawer
+  const jumpToCatalog = (kind: "finding" | "issue", id: string) => {
+    closeMenu();
+    setSeed({ kind, id });
+    setCatalogKey((k) => k + 1);
+    setView(kind === "finding" ? "findings" : "issues");
   };
   const unlock = () => setLocked(null);
   const saveMark = (id: string, note: string) => {
@@ -1418,25 +1522,59 @@ export function ImpactAnalysis() {
     },
     [applyEmphasis],
   );
+  // a node opened from inside an issue: keep the whole path lit + box the node
+  const focusNodeInPath = React.useCallback(
+    (id: string, path: string[]) => {
+      pinnedRef.current = null;
+      pathRef.current = path;
+      spotRef.current = id;
+      setTip({ id });
+      applyEmphasis();
+      setSel(NODE_BY_ID[id] ?? null);
+    },
+    [applyEmphasis],
+  );
+  // "Expand dependency chain" (node drawer) — light the node's full chain
+  const expandChain = React.useCallback(
+    (id: string) => {
+      spotRef.current = null;
+      pathRef.current = null;
+      setTip(null);
+      pinnedRef.current = id;
+      applyEmphasis();
+    },
+    [applyEmphasis],
+  );
 
+  // chrome (toolbar/filter/toggle) is always white — independent of app theme
   const C = {
-    border: "var(--cg-border-card)",
-    text: "var(--cg-text-primary)",
-    muted: "var(--cg-text-muted)",
-    card: "var(--cg-bg-card)",
+    border: CHROME.border,
+    text: CHROME.text,
+    muted: CHROME.muted,
+    card: CHROME.bg,
   };
 
   return (
     <div
+      ref={rootRef}
+      className="cg-impact-root"
       style={{
         position: "relative",
-        height: "calc(100vh - 230px)",
+        height: isFull ? "100vh" : "calc(100vh - 230px)",
         minHeight: 540,
         border: `1px solid ${C.border}`,
         background: BG,
         overflow: "hidden",
+        // own stacking context so the drawer/menu z-indexes never fight the
+        // global top bar (search / notifications / profile dropdowns)
+        isolation: "isolate",
       }}
     >
+      <style>
+        {
+          "@keyframes cgImpactFsIn{from{opacity:.35;transform:scale(.985)}to{opacity:1;transform:none}}.cg-impact-root:fullscreen{background:#fff;animation:cgImpactFsIn .42s cubic-bezier(.2,.7,.3,1)}"
+        }
+      </style>
       {/* graph area — shrinks to make room for the right drawer */}
       <div
         onContextMenu={(e) => e.preventDefault()}
@@ -1449,7 +1587,8 @@ export function ImpactAnalysis() {
           transition: "right .25s ease",
         }}
       >
-        <div ref={ref} style={{ position: "absolute", inset: 0 }} />
+        <GraphWatermark />
+        <div ref={ref} style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 
         {/* context-menu spotlight backdrop — click to dismiss */}
         {ctx && (
@@ -1468,10 +1607,14 @@ export function ImpactAnalysis() {
           <NodeContextMenu
             ctx={ctx}
             marked={!!marked[ctx.node.id]}
+            finding={FINDING_BY_NODE[ctx.node.id]}
+            issues={issuesForNode(ctx.node.id)}
             onDetails={menuDetails}
             onChain={menuChain}
+            onIssuePath={menuIssuePath}
             onLock={menuLock}
             onMark={menuMark}
+            onJump={jumpToCatalog}
           />
         )}
 
@@ -1496,7 +1639,8 @@ export function ImpactAnalysis() {
             }}
           >
             <Lock size={13} />
-            Locked · {NODE_BY_ID[locked]?.label}
+            Locked · {locked.label}
+            {locked.path ? " · issue path" : " · dependency"}
             <button
               type="button"
               onClick={unlock}
@@ -1531,27 +1675,31 @@ export function ImpactAnalysis() {
           }}
         >
           {stack.length > 0 && (
-            <button type="button" onClick={back} style={toolBtn(false)}>
+            <button type="button" onClick={back} style={graphToolBtn(false)}>
               <ArrowLeft size={13} /> Back
             </button>
           )}
-          <button
-            type="button"
-            onClick={reset}
-            disabled={!focusId}
-            style={toolBtn(!focusId)}
-          >
+          <button type="button" onClick={reset} style={graphToolBtn(false)}>
             <RotateCcw size={13} /> Reset
           </button>
-          <button type="button" onClick={fit} style={toolBtn(false)}>
+          <button type="button" onClick={fit} style={graphToolBtn(false)}>
             <Maximize2 size={13} /> Fit
+          </button>
+          <button
+            type="button"
+            onClick={toggleFull}
+            style={graphToolBtn(false)}
+            title={isFull ? "Exit full screen" : "Full screen"}
+          >
+            {isFull ? <Minimize size={13} /> : <Expand size={13} />}
+            {isFull ? "Exit" : "Full screen"}
           </button>
         </div>
 
         {/* hover read-out — terminal-style, top-left under the toolbar */}
         {hoverInfo && <HoverReadout node={hoverInfo} />}
 
-        {/* filter bar */}
+        {/* filter bar — compact for responsiveness */}
         <div
           style={{
             position: "absolute",
@@ -1559,12 +1707,14 @@ export function ImpactAnalysis() {
             left: "50%",
             transform: "translateX(-50%)",
             display: "flex",
-            gap: 6,
+            gap: 3,
             zIndex: 10,
+            maxWidth: "42%",
+            overflow: "hidden",
             background: C.card,
             border: `1px solid ${C.border}`,
             borderRadius: 9,
-            padding: 4,
+            padding: 3,
             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
           }}
         >
@@ -1576,26 +1726,28 @@ export function ImpactAnalysis() {
                 type="button"
                 onClick={() => toggleFilter(t)}
                 style={{
-                  height: 26,
-                  padding: "0 10px",
+                  height: 24,
+                  padding: "0 8px",
                   borderRadius: 6,
                   border: `1px solid ${on ? TIER_COLOUR[t] : "transparent"}`,
                   background: on ? `${TIER_COLOUR[t]}1f` : "transparent",
                   color: on ? C.text : C.muted,
-                  fontSize: 12,
+                  fontSize: 11.5,
                   fontWeight: on ? 600 : 500,
                   cursor: "pointer",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 6,
+                  gap: 5,
+                  whiteSpace: "nowrap",
                 }}
               >
                 <span
                   style={{
-                    width: 9,
-                    height: 9,
+                    width: 8,
+                    height: 8,
                     borderRadius: 2,
                     background: TIER_COLOUR[t],
+                    flexShrink: 0,
                   }}
                 />
                 {TIER_LABEL[t]}
@@ -1651,9 +1803,8 @@ export function ImpactAnalysis() {
                 cursor: "pointer",
                 fontSize: 12,
                 fontWeight: view === m.id ? 700 : 500,
-                background:
-                  view === m.id ? "var(--cg-accent-bg)" : "transparent",
-                color: view === m.id ? "var(--cg-accent)" : C.muted,
+                background: view === m.id ? CHROME.accentBg : "transparent",
+                color: view === m.id ? CHROME.accent : C.muted,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
@@ -1668,8 +1819,7 @@ export function ImpactAnalysis() {
                     fontWeight: 700,
                     padding: "0 5px",
                     borderRadius: 8,
-                    background:
-                      view === m.id ? "var(--cg-accent)" : "var(--cg-bg-hover)",
+                    background: view === m.id ? CHROME.accent : CHROME.hover,
                     color: view === m.id ? "#fff" : C.muted,
                   }}
                 >
@@ -1681,7 +1831,7 @@ export function ImpactAnalysis() {
         </div>
 
         {/* navigator controller */}
-        <Navigator
+        <GraphNavigator
           onPan={pan}
           onZoomIn={() => zoomBy(1.3)}
           onZoomOut={() => zoomBy(1 / 1.3)}
@@ -1696,7 +1846,7 @@ export function ImpactAnalysis() {
 
         {/* frame viewer (minimap) */}
         {showMini && frame && frame.bb.w > 0 && (
-          <Minimap
+          <GraphMinimap
             frame={frame}
             dots={dots}
             onJump={(gx, gy) => {
@@ -1775,360 +1925,26 @@ export function ImpactAnalysis() {
           onSaveMark={saveMark}
           onUnmark={unmark}
           onSelectMarked={selectMarked}
+          onExpandChain={expandChain}
         />
       )}
 
       {/* findings / issues catalog drawer — navigable (list → detail → node) */}
       {(view === "findings" || view === "issues") && !panel && (
         <CatalogDrawer
+          key={catalogKey}
           mode={view}
           marked={marked}
+          seed={seed}
+          onClose={() => setView("graph")}
           onFocusNode={focusNode}
+          onFocusNodeInPath={focusNodeInPath}
           onFocusIssue={focusIssuePath}
+          onExpandChain={expandChain}
           onMark={(nodeId) => setPanel({ type: "mark", nodeId })}
         />
       )}
     </div>
-  );
-}
-
-// ── navigator controller (pad + fit + minimap toggle + zoom slider) ──────────
-function Navigator({
-  onPan,
-  onZoomIn,
-  onZoomOut,
-  onFit,
-  zoomPct,
-  onZoomPct,
-  showMini,
-  onToggleMini,
-  markedCount,
-  onOpenMarked,
-}: {
-  onPan: (dx: number, dy: number) => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onFit: () => void;
-  zoomPct: number;
-  onZoomPct: (p: number) => void;
-  showMini: boolean;
-  onToggleMini: () => void;
-  markedCount: number;
-  onOpenMarked: () => void;
-}) {
-  const STEP = 70;
-  const ring = "rgb(23,23,22)";
-  const padBtn: React.CSSProperties = {
-    position: "absolute",
-    width: 20,
-    height: 20,
-    border: "none",
-    background: "transparent",
-    color: "#fff",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 0,
-  };
-  const sqBtn = (active = false): React.CSSProperties => ({
-    width: 34,
-    height: 34,
-    borderRadius: 9,
-    border: "none",
-    background: active ? "rgba(255,255,255,0.18)" : ring,
-    color: "#fff",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-  });
-  return (
-    <div
-      style={{
-        position: "absolute",
-        left: 14,
-        top: "50%",
-        transform: "translateY(-50%)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 9,
-        zIndex: 11,
-      }}
-    >
-      {/* directional pad */}
-      <div
-        style={{
-          position: "relative",
-          width: 64,
-          height: 64,
-          borderRadius: "50%",
-          background: ring,
-          boxShadow: "0 3px 10px rgba(0,0,0,0.28)",
-        }}
-      >
-        <button
-          type="button"
-          aria-label="Pan up"
-          style={{ ...padBtn, top: 3, left: 22 }}
-          onClick={() => onPan(0, STEP)}
-        >
-          <ChevronUp size={15} />
-        </button>
-        <button
-          type="button"
-          aria-label="Pan down"
-          style={{ ...padBtn, bottom: 3, left: 22 }}
-          onClick={() => onPan(0, -STEP)}
-        >
-          <ChevronDown size={15} />
-        </button>
-        <button
-          type="button"
-          aria-label="Pan left"
-          style={{ ...padBtn, left: 3, top: 22 }}
-          onClick={() => onPan(STEP, 0)}
-        >
-          <ChevronLeft size={15} />
-        </button>
-        <button
-          type="button"
-          aria-label="Pan right"
-          style={{ ...padBtn, right: 3, top: 22 }}
-          onClick={() => onPan(-STEP, 0)}
-        >
-          <ChevronRight size={15} />
-        </button>
-        <button
-          type="button"
-          aria-label="Fit to screen"
-          onClick={onFit}
-          style={{
-            position: "absolute",
-            left: 20,
-            top: 20,
-            width: 24,
-            height: 24,
-            borderRadius: "50%",
-            border: "none",
-            background: "#fff",
-            color: ring,
-            cursor: "pointer",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Crosshair size={13} />
-        </button>
-      </div>
-
-      {/* minimap toggle */}
-      <button
-        type="button"
-        aria-label="Toggle minimap"
-        onClick={onToggleMini}
-        style={sqBtn(showMini)}
-      >
-        <Frame size={15} />
-      </button>
-
-      {/* marked-resources list */}
-      <button
-        type="button"
-        aria-label="Marked resources"
-        onClick={onOpenMarked}
-        style={{ ...sqBtn(false), position: "relative" }}
-      >
-        <Star size={15} color="#f5b301" fill="#f5b301" />
-        {markedCount > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: -4,
-              right: -4,
-              minWidth: 15,
-              height: 15,
-              borderRadius: 8,
-              background: "#f5b301",
-              color: "#3a2a00",
-              fontSize: 10,
-              fontWeight: 700,
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "0 3px",
-            }}
-          >
-            {markedCount}
-          </span>
-        )}
-      </button>
-
-      {/* zoom slider */}
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 6,
-          background: ring,
-          borderRadius: 18,
-          padding: "10px 6px",
-          boxShadow: "0 3px 10px rgba(0,0,0,0.28)",
-        }}
-      >
-        <button
-          type="button"
-          aria-label="Zoom in"
-          onClick={onZoomIn}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          <Plus size={15} />
-        </button>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={zoomPct}
-          onChange={(e) => onZoomPct(Number(e.target.value))}
-          aria-label="Zoom"
-          className="cg-impact-zoom"
-          style={{
-            writingMode: "vertical-lr" as any,
-            direction: "rtl",
-            width: 6,
-            height: 96,
-            accentColor: "#fff",
-            cursor: "pointer",
-          }}
-        />
-        <button
-          type="button"
-          aria-label="Zoom out"
-          onClick={onZoomOut}
-          style={{
-            border: "none",
-            background: "transparent",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-        >
-          <Minus size={15} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const MINI_DOT: Record<string, string> = { error: C_ERROR, warning: C_WARN };
-
-const MW = 168;
-const MH = 108;
-
-// dots are heavy and only change on layout → memoise so a pan (which only moves
-// the viewport rect) never re-renders the whole dot field. Kills the pan glitch.
-const MiniDots = React.memo(
-  ({
-    dots,
-    bb,
-  }: {
-    dots: { x: number; y: number; a: string }[];
-    bb: { x: number; y: number; w: number; h: number };
-  }) => {
-    const s = Math.min(
-      (MW - 20) / Math.max(bb.w, 1),
-      (MH - 20) / Math.max(bb.h, 1),
-    );
-    const ox = (MW - bb.w * s) / 2;
-    const oy = (MH - bb.h * s) / 2;
-    return (
-      <>
-        {dots.map((d, i) => (
-          <circle
-            key={i}
-            cx={ox + (d.x - bb.x) * s}
-            cy={oy + (d.y - bb.y) * s}
-            r={d.a ? 2.6 : 1.9}
-            fill={MINI_DOT[d.a] || "#aab6c4"}
-          />
-        ))}
-      </>
-    );
-  },
-);
-MiniDots.displayName = "MiniDots";
-
-// ── frame viewer (minimap) ────────────────────────────────────────────────────
-function Minimap({
-  frame,
-  dots,
-  onJump,
-}: {
-  frame: {
-    bb: { x: number; y: number; w: number; h: number };
-    view: { x: number; y: number; w: number; h: number };
-  };
-  dots: { x: number; y: number; a: string }[];
-  onJump: (gx: number, gy: number) => void;
-}) {
-  const { bb, view } = frame;
-  const s = Math.min(
-    (MW - 20) / Math.max(bb.w, 1),
-    (MH - 20) / Math.max(bb.h, 1),
-  );
-  const ox = (MW - bb.w * s) / 2;
-  const oy = (MH - bb.h * s) / 2;
-  const mx = (x: number) => ox + (x - bb.x) * s;
-  const my = (y: number) => oy + (y - bb.y) * s;
-  const clamp = (v: number, lo: number, hi: number) =>
-    Math.max(lo, Math.min(hi, v));
-  const vx = clamp(mx(view.x), 1, MW - 1);
-  const vy = clamp(my(view.y), 1, MH - 1);
-  const vw = clamp(view.w * s, 3, MW - vx - 1);
-  const vh = clamp(view.h * s, 3, MH - vy - 1);
-  return (
-    <svg
-      width={MW}
-      height={MH}
-      onClick={(e) => {
-        const r = (e.target as SVGElement)
-          .closest("svg")!
-          .getBoundingClientRect();
-        const px = e.clientX - r.left;
-        const py = e.clientY - r.top;
-        onJump((px - ox) / s + bb.x, (py - oy) / s + bb.y);
-      }}
-      style={{
-        position: "absolute",
-        right: 12,
-        bottom: 12,
-        zIndex: 9,
-        background: "#27313a",
-        border: "1px solid #5b9bf0",
-        borderRadius: 6,
-        boxShadow: "0 3px 12px rgba(0,0,0,0.3)",
-        cursor: "pointer",
-      }}
-    >
-      <MiniDots dots={dots} bb={bb} />
-      <rect
-        x={vx}
-        y={vy}
-        width={vw}
-        height={vh}
-        rx={2}
-        fill="rgba(91,155,240,0.16)"
-        stroke="#5b9bf0"
-        strokeWidth={1.3}
-      />
-    </svg>
   );
 }
 
@@ -2217,32 +2033,6 @@ function GroupHead({ children }: { children: React.ReactNode }) {
 }
 
 // full finding schema — reused by node details + findings catalog accordion
-function FindingSchema({ f }: { f?: Finding }) {
-  return (
-    <div>
-      <GroupHead>What is it</GroupHead>
-      <Field k="Category" v={f?.category} />
-      <Field k="Severity" v={f ? <SevChip sev={f.severity} /> : undefined} />
-      <GroupHead>Resource type</GroupHead>
-      <Field k="Type" v={f?.resourceType} />
-      <GroupHead>Cloud & location</GroupHead>
-      <Field k="Cloud" v={f?.cloud} />
-      <Field k="Account / Subscription" v={f?.account} />
-      <Field k="Region" v={f?.region} />
-      <Field k="VPC / Subnet" v={f?.vpc} />
-      <GroupHead>Compliance & context</GroupHead>
-      <Field k="Framework" v={f?.framework} />
-      <Field k="Control ID" v={f?.controlId} />
-      <Field k="Owner / team" v={f?.owner} />
-      <Field k="Suppressed / accepted" v={f?.suppressed} />
-      <Field k="First seen" v={f?.firstSeen} />
-      <Field k="Last seen" v={f?.lastSeen} />
-      <Field k="Age (days open)" v={f?.ageDays} />
-      <GroupHead>Status</GroupHead>
-      <Field k="Status" v={f?.status} />
-    </div>
-  );
-}
 function IssueSchema({ iss }: { iss: Issue }) {
   return (
     <div>
@@ -2269,6 +2059,75 @@ function IssueSchema({ iss }: { iss: Issue }) {
       <Field k="Has active exploit" v={iss.hasActiveExploit} />
       <GroupHead>Status</GroupHead>
       <Field k="Status" v={iss.status} />
+    </div>
+  );
+}
+
+// issue "Policy" sub-view — governing controls on the path + a guardrail to break it
+function IssuePolicy({ iss }: { iss: Issue }) {
+  const findings = iss.findingIds
+    .map((id) => FINDINGS.find((f) => f.id === id))
+    .filter(Boolean) as Finding[];
+  const frameworks = Array.from(new Set(findings.map((f) => f.framework)));
+  const controls = Array.from(new Set(findings.map((f) => f.controlId)));
+  const target = NODE_BY_ID[iss.path[iss.path.length - 1]];
+  const guardrail = JSON.stringify(
+    {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Sid: "BreakAttackPath",
+          Effect: "Deny",
+          Principal: iss.involvesPublic ? "*" : { AWS: "arn:aws:iam::*:root" },
+          Action: iss.involvesPublic ? ["s3:GetObject", "s3:PutObject"] : ["*"],
+          Resource: `arn:aws:*:*:*:${target?.label ?? "*"}`,
+          Condition: { Bool: { "aws:SecureTransport": "false" } },
+        },
+      ],
+    },
+    null,
+    2,
+  );
+  return (
+    <div>
+      <GroupHead>Governing controls</GroupHead>
+      <Field
+        k="Frameworks"
+        v={frameworks.length ? frameworks.join(", ") : undefined}
+      />
+      <Field
+        k="Control IDs"
+        v={controls.length ? controls.join(", ") : undefined}
+      />
+      <Field k="Findings on path" v={findings.length} />
+      <Field k="Min severity" v={<SevChip sev={iss.minSeverity} />} />
+      <GroupHead>Suggested guardrail policy</GroupHead>
+      <div
+        style={{
+          fontSize: 11.5,
+          color: "var(--cg-text-muted)",
+          margin: "0 0 6px",
+          lineHeight: 1.45,
+        }}
+      >
+        A deny policy that breaks this attack path at the target.
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: 12,
+          borderRadius: 8,
+          background: "var(--cg-code-bg, #1a1a19)",
+          color: "#dfe6e9",
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          overflowX: "auto",
+          fontFamily:
+            "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+        }}
+      >
+        {guardrail}
+      </pre>
     </div>
   );
 }
@@ -2331,47 +2190,79 @@ function HoverReadout({ node }: { node: IANode }) {
 }
 
 // ── right-click node context menu ─────────────────────────────────────────────
+const ctxItem = (disabled = false): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 9,
+  width: "100%",
+  padding: "8px 10px",
+  border: "none",
+  borderRadius: 6,
+  background: "transparent",
+  color: disabled ? "#6b7178" : "#dfe2e6",
+  fontSize: 12.5,
+  cursor: disabled ? "default" : "pointer",
+  textAlign: "left",
+});
+const submenuBox: React.CSSProperties = {
+  position: "absolute",
+  left: "100%",
+  top: -6,
+  marginLeft: 4,
+  width: 200,
+  background: "rgb(23,23,22)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 10,
+  padding: 6,
+  boxShadow: "0 10px 28px rgba(0,0,0,0.4)",
+};
+
 function NodeContextMenu({
   ctx,
   marked,
+  finding,
+  issues,
   onDetails,
   onChain,
+  onIssuePath,
   onLock,
   onMark,
+  onJump,
 }: {
   ctx: { x: number; y: number; node: IANode };
   marked: boolean;
+  finding?: Finding;
+  issues: Issue[];
   onDetails: () => void;
   onChain: () => void;
-  onLock: () => void;
+  onIssuePath: (iss: Issue) => void;
+  onLock: (path?: string[]) => void;
   onMark: () => void;
+  onJump: (kind: "finding" | "issue", id: string) => void;
 }) {
-  const items: { icon: React.ReactNode; label: string; on: () => void }[] = [
-    { icon: <Info size={14} />, label: "View node details", on: onDetails },
-    { icon: <GitBranch size={14} />, label: "Dependency chain", on: onChain },
-    { icon: <Lock size={14} />, label: "Lock the view", on: onLock },
-    {
-      icon: (
-        <Star
-          size={14}
-          color={marked ? "#f5b301" : undefined}
-          fill={marked ? "#f5b301" : "none"}
-        />
-      ),
-      label: marked ? "Edit mark / note" : "Mark node",
-      on: onMark,
-    },
-  ];
-  // keep the menu inside the canvas
-  const left = Math.min(ctx.x + 6, 100000);
+  // one hover-submenu open at a time ("issue" | "lock" | null), with a close delay
+  const [sub, setSub] = React.useState<"issue" | "lock" | null>(null);
+  const subTimer = React.useRef<number | undefined>(undefined);
+  const openSub = (which: "issue" | "lock") => () => {
+    window.clearTimeout(subTimer.current);
+    setSub(which);
+  };
+  const closeSub = () => {
+    subTimer.current = window.setTimeout(() => setSub(null), 160);
+  };
+  const hoverBg = (on: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.background = on
+      ? "rgba(255,255,255,0.08)"
+      : "transparent";
+  };
   return (
     <div
       style={{
         position: "absolute",
-        left,
+        left: ctx.x + 6,
         top: ctx.y + 6,
         zIndex: 16,
-        minWidth: 190,
+        width: 210,
         background: "rgb(23,23,22)",
         border: "1px solid rgba(255,255,255,0.12)",
         borderRadius: 10,
@@ -2386,64 +2277,258 @@ function NodeContextMenu({
           fontWeight: 600,
           color: "#fff",
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          marginBottom: 4,
           whiteSpace: "nowrap",
           overflow: "hidden",
           textOverflow: "ellipsis",
-          maxWidth: 220,
         }}
       >
         {ctx.node.label}
       </div>
-      {items.map((it) => (
-        <button
-          key={it.label}
-          type="button"
-          onClick={it.on}
+
+      {/* finding / attack-path tags (clickable → open in the catalog) */}
+      {(finding || issues.length > 0) && (
+        <div
           style={{
             display: "flex",
-            alignItems: "center",
-            gap: 9,
-            width: "100%",
+            flexWrap: "wrap",
+            gap: 5,
             padding: "8px 10px",
-            border: "none",
-            borderRadius: 6,
-            background: "transparent",
-            color: "#dfe2e6",
-            fontSize: 12.5,
-            cursor: "pointer",
-            textAlign: "left",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
+            borderBottom: "1px solid rgba(255,255,255,0.08)",
           }}
         >
-          {it.icon}
-          {it.label}
+          {finding && (
+            <button
+              type="button"
+              onClick={() => onJump("finding", finding.id)}
+              title={finding.category}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 22,
+                padding: "0 8px",
+                borderRadius: 11,
+                border: `1px solid ${SEV_COLOUR[finding.severity]}66`,
+                background: `${SEV_COLOUR[finding.severity]}22`,
+                color: SEV_COLOUR[finding.severity],
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <AlertTriangle size={10} /> Finding
+            </button>
+          )}
+          {issues.map((iss) => (
+            <button
+              key={iss.id}
+              type="button"
+              onClick={() => onJump("issue", iss.id)}
+              title={iss.title}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                height: 22,
+                padding: "0 8px",
+                borderRadius: 11,
+                border: "1px solid rgba(91,155,240,0.5)",
+                background: "rgba(91,155,240,0.16)",
+                color: "#90bdf5",
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              <GitBranch size={10} /> {iss.id}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div style={{ paddingTop: 4 }}>
+        <button
+          type="button"
+          onClick={onDetails}
+          style={ctxItem()}
+          onMouseEnter={hoverBg(true)}
+          onMouseLeave={hoverBg(false)}
+        >
+          <Info size={14} /> View node details
         </button>
-      ))}
+        <button
+          type="button"
+          onClick={onChain}
+          style={ctxItem()}
+          onMouseEnter={hoverBg(true)}
+          onMouseLeave={hoverBg(false)}
+        >
+          <GitBranch size={14} /> Dependency chain
+        </button>
+
+        {/* Issue — adjacent list of the attack paths the node is on */}
+        {issues.length > 0 && (
+          <div
+            style={{ position: "relative" }}
+            onMouseEnter={openSub("issue")}
+            onMouseLeave={closeSub}
+          >
+            <button
+              type="button"
+              onClick={() => onIssuePath(issues[0])}
+              style={ctxItem()}
+              onMouseEnter={hoverBg(true)}
+              onMouseLeave={hoverBg(false)}
+            >
+              <GitBranch size={14} color="#90bdf5" /> Issue
+              <ChevronRight
+                size={13}
+                color="#7f8a84"
+                style={{ marginLeft: "auto" }}
+              />
+            </button>
+            {sub === "issue" && (
+              <div
+                onMouseEnter={openSub("issue")}
+                onMouseLeave={closeSub}
+                style={submenuBox}
+              >
+                {issues.map((iss) => (
+                  <button
+                    key={iss.id}
+                    type="button"
+                    onClick={() => onIssuePath(iss)}
+                    title={iss.title}
+                    style={ctxItem()}
+                    onMouseEnter={hoverBg(true)}
+                    onMouseLeave={hoverBg(false)}
+                  >
+                    <GitBranch size={13} color="#90bdf5" />
+                    <span
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {iss.id} · {iss.attackType}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Lock the view — adjacent submenu when the node is in an issue */}
+        <div
+          style={{ position: "relative" }}
+          onMouseEnter={openSub("lock")}
+          onMouseLeave={closeSub}
+        >
+          <button
+            type="button"
+            onClick={() => onLock()}
+            style={ctxItem()}
+            onMouseEnter={hoverBg(true)}
+            onMouseLeave={hoverBg(false)}
+          >
+            <Lock size={14} /> Lock the view
+            {issues.length > 0 && (
+              <ChevronRight
+                size={13}
+                color="#7f8a84"
+                style={{ marginLeft: "auto" }}
+              />
+            )}
+          </button>
+          {sub === "lock" && issues.length > 0 && (
+            <div
+              onMouseEnter={openSub("lock")}
+              onMouseLeave={closeSub}
+              style={submenuBox}
+            >
+              <button
+                type="button"
+                onClick={() => onLock()}
+                style={ctxItem()}
+                onMouseEnter={hoverBg(true)}
+                onMouseLeave={hoverBg(false)}
+              >
+                <GitBranch size={13} /> Dependency chain
+              </button>
+              {issues.map((iss) => (
+                <button
+                  key={iss.id}
+                  type="button"
+                  onClick={() => onLock(iss.path)}
+                  style={ctxItem()}
+                  onMouseEnter={hoverBg(true)}
+                  onMouseLeave={hoverBg(false)}
+                >
+                  <Lock size={13} /> Issue {iss.id}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* not wired yet */}
+        <button type="button" disabled style={ctxItem(true)}>
+          <Bot size={14} /> Ask agent
+        </button>
+        <button type="button" disabled style={ctxItem(true)}>
+          <Play size={14} /> Run simulation
+        </button>
+
+        <button
+          type="button"
+          onClick={onMark}
+          style={ctxItem()}
+          onMouseEnter={hoverBg(true)}
+          onMouseLeave={hoverBg(false)}
+        >
+          <Star
+            size={14}
+            color={marked ? "#f5b301" : undefined}
+            fill={marked ? "#f5b301" : "none"}
+          />
+          {marked ? "Edit mark / note" : "Mark node"}
+        </button>
+      </div>
     </div>
   );
 }
 
 // ── auxiliary right drawer (details · mark · marked list) ─────────────────────
-const drawerShell: React.CSSProperties = {
+// Always a WHITE panel independent of app theme — pin the CloudGuard CSS vars to
+// their light values on the drawer root so all descendants render dark-on-white.
+const drawerShell = {
   position: "absolute",
   top: 0,
   right: 0,
   height: "100%",
   width: ALERTS_W,
-  background: "var(--cg-bg-card)",
-  borderLeft: "1px solid var(--cg-border)",
-  color: "var(--cg-text-primary)",
   display: "flex",
   flexDirection: "column",
   zIndex: 41,
-  boxShadow: "-6px 0 18px rgba(0,0,0,0.08)",
-};
+  boxShadow: "-6px 0 18px rgba(0,0,0,0.12)",
+  colorScheme: "light",
+  background: "#ffffff",
+  color: "hsl(0deg,0%,7%)",
+  borderLeft: "1px solid rgba(30,20,10,0.12)",
+  "--cg-bg-card": "#ffffff",
+  "--cg-bg-hover": "hsl(50deg,20.7%,91%)",
+  "--cg-text-primary": "hsl(0deg,0%,7%)",
+  "--cg-text-muted": "hsl(51deg,3.1%,43.7%)",
+  "--cg-text-nav": "hsl(60deg,2.5%,23.3%)",
+  "--cg-border": "rgba(30,20,10,0.12)",
+  "--cg-border-card": "rgba(30,20,10,0.2)",
+  "--cg-border-subtle": "rgba(30,20,10,0.07)",
+  "--cg-accent": "hsl(210deg,70.9%,51.6%)",
+  "--cg-accent-bg": "rgba(45,134,212,0.08)",
+  "--cg-code-bg": "#1a1a19",
+} as React.CSSProperties;
 const drawerHead: React.CSSProperties = {
   padding: "16px 16px 14px",
   borderBottom: "1px solid var(--cg-border)",
@@ -2468,162 +2553,214 @@ const drawerSec: React.CSSProperties = {
 function NodeDetailBody({
   nodeId,
   marked,
-  onOpenNode,
+  onExpandChain,
 }: {
   nodeId: string;
   marked: Record<string, { note: string; ts: number }>;
-  onOpenNode?: (id: string) => void;
+  onExpandChain?: (id: string) => void;
 }) {
+  const [tab, setTab] = React.useState<"overview" | "resource" | "policy">(
+    "overview",
+  );
   const node = NODE_BY_ID[nodeId];
   if (!node) return null;
   const rel = relationsOf(node.id);
-  const relRow = (r: IANode, dir: string) => {
-    const inner = (
-      <>
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 2,
-            background: TIER_COLOUR[r.tier],
-            flexShrink: 0,
-          }}
-        />
-        <span style={{ color: "var(--cg-text-muted)" }}>{dir}</span>
-        <span
-          style={{
-            flex: 1,
-            color: "var(--cg-text-primary)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            textAlign: "left",
-          }}
-        >
-          {r.label}
-        </span>
-        {onOpenNode && <ChevronRight size={13} color="var(--cg-text-muted)" />}
-      </>
-    );
-    const style: React.CSSProperties = {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      width: "100%",
-      padding: "7px 0",
-      fontSize: 12.5,
-      borderBottom: "1px solid var(--cg-border-subtle)",
-      background: "transparent",
-      border: "none",
-      color: "var(--cg-text-primary)",
-      cursor: onOpenNode ? "pointer" : "default",
-    };
-    return onOpenNode ? (
-      <button
-        key={dir + r.id}
-        type="button"
-        onClick={() => onOpenNode(r.id)}
-        style={style}
-      >
-        {inner}
-      </button>
-    ) : (
-      <div key={dir + r.id} style={style}>
-        {inner}
-      </div>
-    );
-  };
+  const f = FINDING_BY_NODE[node.id];
+  let bannerBg = "transparent";
+  if (f)
+    bannerBg =
+      node.alert === "error" ? "rgba(224,73,47,0.12)" : "rgba(217,154,0,0.10)";
   return (
-    <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
+    <>
+      {/* sub-view tabs — unified with the Explorer node drawer */}
       <div
         style={{
-          fontSize: 16,
-          fontWeight: 600,
-          color: "var(--cg-text-primary)",
-          marginTop: 16,
-          wordBreak: "break-all",
+          display: "flex",
+          gap: 4,
+          padding: "10px 12px 0",
+          borderBottom: "1px solid var(--cg-border)",
         }}
       >
-        {node.label}
-      </div>
-      <div
-        style={{ fontSize: 12, color: "var(--cg-text-muted)", marginTop: 4 }}
-      >
-        {TIER_LABEL[node.tier]} · blast radius{" "}
-        <b style={{ color: "var(--cg-text-primary)" }}>{REACH[node.id] ?? 0}</b>{" "}
-        downstream
-      </div>
-      {node.message && (
-        <div
-          style={{
-            marginTop: 12,
-            padding: "9px 11px",
-            borderRadius: 8,
-            background:
-              node.alert === "error"
-                ? "rgba(224,73,47,0.14)"
-                : "rgba(217,154,0,0.14)",
-            border: `1px solid ${node.alert === "error" ? C_ERROR : C_WARN}55`,
-            fontSize: 12,
-            color: node.alert === "error" ? "#ff9b91" : "#f4d98a",
-            lineHeight: 1.45,
-          }}
-        >
-          {node.message}
-        </div>
-      )}
-      {marked[node.id] && (
-        <>
-          <div style={drawerSec}>
-            <Star
-              size={11}
-              color="#f5b301"
-              fill="#f5b301"
-              style={{ verticalAlign: -1, marginRight: 5 }}
-            />
-            Note
-          </div>
-          <div
+        {(
+          [
+            ["overview", "Overview"],
+            ["resource", "Resource details"],
+            ["policy", "Policy"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
             style={{
+              padding: "6px 10px 9px",
+              border: "none",
+              background: "transparent",
+              color:
+                tab === id ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
               fontSize: 12.5,
-              color: "var(--cg-text-primary)",
-              lineHeight: 1.5,
+              fontWeight: tab === id ? 700 : 500,
+              cursor: "pointer",
+              borderBottom:
+                tab === id
+                  ? "2px solid var(--cg-accent)"
+                  : "2px solid transparent",
+              marginBottom: -1,
             }}
           >
-            {marked[node.id].note || "—"}
-          </div>
-        </>
-      )}
-      <div style={{ marginTop: 8 }}>
-        <div
-          style={{
-            fontSize: 12,
-            color: FINDING_BY_NODE[node.id]
-              ? "var(--cg-text-primary)"
-              : "var(--cg-text-muted)",
-            margin: "14px 0 2px",
-            fontStyle: FINDING_BY_NODE[node.id] ? "normal" : "italic",
-          }}
-        >
-          {FINDING_BY_NODE[node.id]
-            ? "Finding — this resource is misconfigured or exposed"
-            : "No finding on this resource"}
-        </div>
-        <FindingSchema f={FINDING_BY_NODE[node.id]} />
+            {label}
+          </button>
+        ))}
       </div>
-      {rel.up.length > 0 && (
-        <>
-          <div style={drawerSec}>Upstream ({rel.up.length})</div>
-          {rel.up.map((r) => relRow(r, "←"))}
-        </>
-      )}
-      {rel.down.length > 0 && (
-        <>
-          <div style={drawerSec}>Downstream ({rel.down.length})</div>
-          {rel.down.map((r) => relRow(r, "→"))}
-        </>
-      )}
-    </div>
+      <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
+        {tab === "overview" && (
+          <>
+            <div
+              style={{
+                fontSize: 16,
+                fontWeight: 600,
+                color: "var(--cg-text-primary)",
+                marginTop: 16,
+                wordBreak: "break-all",
+              }}
+            >
+              {node.label}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--cg-text-muted)",
+                marginTop: 4,
+              }}
+            >
+              {TIER_LABEL[node.tier]} · blast radius{" "}
+              <b style={{ color: "var(--cg-text-primary)" }}>
+                {REACH[node.id] ?? 0}
+              </b>{" "}
+              downstream
+            </div>
+            {onExpandChain && (rel.up.length > 0 || rel.down.length > 0) && (
+              <button
+                type="button"
+                onClick={() => onExpandChain(node.id)}
+                style={{
+                  ...catalogCta,
+                  marginTop: 14,
+                  color: "var(--cg-text-primary)",
+                  border: "1px solid var(--cg-border)",
+                }}
+              >
+                <GitBranch size={14} /> Expand dependency chain ·{" "}
+                {rel.up.length + rel.down.length}
+                <ChevronRight size={13} style={{ marginLeft: 2 }} />
+              </button>
+            )}
+            <div
+              style={{
+                marginTop: 16,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: `1px solid ${f ? "var(--cg-border)" : "var(--cg-border-subtle)"}`,
+                background: bannerBg,
+              }}
+            >
+              {f ? (
+                <>
+                  <div
+                    style={{ display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <SevChip sev={f.severity} />
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        color: "var(--cg-text-primary)",
+                      }}
+                    >
+                      {f.category}
+                    </span>
+                  </div>
+                  {node.message && (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: node.alert === "error" ? "#ff9b91" : "#f4d98a",
+                        marginTop: 6,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      {node.message}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--cg-text-muted)",
+                    fontStyle: "italic",
+                  }}
+                >
+                  No finding on this resource
+                </span>
+              )}
+            </div>
+            {marked[node.id] && (
+              <>
+                <div style={drawerSec}>
+                  <Star
+                    size={11}
+                    color="#f5b301"
+                    fill="#f5b301"
+                    style={{ verticalAlign: -1, marginRight: 5 }}
+                  />
+                  Note
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--cg-text-primary)",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {marked[node.id].note || "—"}
+                </div>
+              </>
+            )}
+          </>
+        )}
+        {tab === "resource" && (
+          <div style={{ marginTop: 8 }}>
+            <GroupHead>What is it</GroupHead>
+            <Field k="Category" v={f?.category} />
+            <Field
+              k="Severity"
+              v={f ? <SevChip sev={f.severity} /> : undefined}
+            />
+            <GroupHead>Resource type</GroupHead>
+            <Field k="Type" v={f?.resourceType ?? TIER_LABEL[node.tier]} />
+            <GroupHead>Cloud & location</GroupHead>
+            <Field k="Cloud" v={f?.cloud} />
+            <Field k="Account / Subscription" v={f?.account} />
+            <Field k="Region" v={f?.region} />
+            <Field k="VPC / Subnet" v={f?.vpc} />
+          </div>
+        )}
+        {tab === "policy" && (
+          <div style={{ marginTop: 8 }}>
+            <GroupHead>Compliance & context</GroupHead>
+            <Field k="Framework" v={f?.framework} />
+            <Field k="Control ID" v={f?.controlId} />
+            <Field k="Owner / team" v={f?.owner} />
+            <Field k="Suppressed / accepted" v={f?.suppressed} />
+            <Field k="First seen" v={f?.firstSeen} />
+            <Field k="Last seen" v={f?.lastSeen} />
+            <Field k="Age (days open)" v={f?.ageDays} />
+            <GroupHead>Status</GroupHead>
+            <Field k="Status" v={f?.status} />
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -2634,6 +2771,7 @@ function AuxDrawer({
   onSaveMark,
   onUnmark,
   onSelectMarked,
+  onExpandChain,
 }: {
   panel: { type: "details" | "mark" | "marklist"; nodeId?: string };
   marked: Record<string, { note: string; ts: number }>;
@@ -2641,6 +2779,7 @@ function AuxDrawer({
   onSaveMark: (id: string, note: string) => void;
   onUnmark: (id: string) => void;
   onSelectMarked: (id: string) => void;
+  onExpandChain: (id: string) => void;
 }) {
   const node = panel.nodeId ? NODE_BY_ID[panel.nodeId] : undefined;
   const [note, setNote] = React.useState(
@@ -2679,7 +2818,11 @@ function AuxDrawer({
           Node details
           {closeBtn}
         </div>
-        <NodeDetailBody nodeId={node.id} marked={marked} />
+        <NodeDetailBody
+          nodeId={node.id}
+          marked={marked}
+          onExpandChain={onExpandChain}
+        />
       </div>
     );
   }
@@ -2874,22 +3017,39 @@ function AuxDrawer({
 // ── findings / issues catalog drawer (accordion rows) ─────────────────────────
 type NavEntry =
   | { t: "node"; id: string }
-  | { t: "issue"; id: string; sub: "description" | "nodes" };
+  | { t: "chain"; id: string }
+  | { t: "issue"; id: string; sub: "description" | "nodes" | "policy" };
 
 function CatalogDrawer({
   mode,
   marked,
+  seed,
+  onClose,
   onFocusNode,
+  onFocusNodeInPath,
   onFocusIssue,
+  onExpandChain,
   onMark,
 }: {
   mode: "findings" | "issues";
   marked: Record<string, { note: string; ts: number }>;
+  seed?: { kind: "finding" | "issue"; id: string } | null;
+  onClose: () => void;
   onFocusNode: (id: string | null) => void;
+  onFocusNodeInPath: (id: string, path: string[]) => void;
   onFocusIssue: (i: Issue | null) => void;
+  onExpandChain: (id: string) => void;
   onMark: (nodeId: string) => void;
 }) {
-  const [nav, setNav] = React.useState<NavEntry[]>([]);
+  // a context-menu tag can seed the initial navigation (jump to finding/issue)
+  const [nav, setNav] = React.useState<NavEntry[]>(() => {
+    if (!seed) return [];
+    if (seed.kind === "finding") {
+      const f = FINDINGS.find((x) => x.id === seed.id);
+      return f ? [{ t: "node", id: f.nodeId }] : [];
+    }
+    return [{ t: "issue", id: seed.id, sub: "description" }];
+  });
   const top = nav.length ? nav[nav.length - 1] : null;
 
   // reset the stack whenever we switch between Findings and Issues
@@ -2897,33 +3057,62 @@ function CatalogDrawer({
     setNav([]);
   }, [mode]);
 
-  // reflect the current view onto the graph (single node vs whole path)
+  // reflect the current view onto the graph. A node opened inside an issue keeps
+  // the whole attack-path lit (with the node boxed); a bare finding node is solo.
   React.useEffect(() => {
     if (!top) {
       onFocusNode(null);
       onFocusIssue(null);
+    } else if (top.t === "chain") {
+      onExpandChain(top.id); // light the node's whole dependency chain
     } else if (top.t === "node") {
-      onFocusNode(top.id);
+      const iss = [...nav].reverse().find((e) => e.t === "issue") as
+        | Extract<NavEntry, { t: "issue" }>
+        | undefined;
+      const path = iss ? ISSUES.find((x) => x.id === iss.id)?.path : undefined;
+      if (path) onFocusNodeInPath(top.id, path);
+      else onFocusNode(top.id);
     } else {
       onFocusIssue(ISSUES.find((x) => x.id === top.id) ?? null);
     }
-  }, [top, onFocusNode, onFocusIssue]);
+  }, [top, nav, onFocusNode, onFocusNodeInPath, onFocusIssue, onExpandChain]);
 
   const pushNode = (id: string) => setNav((p) => [...p, { t: "node", id }]);
+  const pushChain = (id: string) => setNav((p) => [...p, { t: "chain", id }]);
   const pushIssue = (id: string) =>
     setNav((p) => [...p, { t: "issue", id, sub: "description" }]);
   const back = () => setNav((p) => p.slice(0, -1));
-  const setSub = (sub: "description" | "nodes") =>
+  const setSub = (sub: "description" | "nodes" | "policy") =>
     setNav((p) =>
       p.map((e, i) =>
         i === p.length - 1 && e.t === "issue" ? { ...e, sub } : e,
       ),
     );
 
-  const crumbLabel = (e: NavEntry) =>
-    e.t === "node"
-      ? (NODE_BY_ID[e.id]?.label ?? e.id)
-      : (ISSUES.find((x) => x.id === e.id)?.title ?? e.id);
+  const crumbLabel = (e: NavEntry) => {
+    if (e.t === "issue")
+      return ISSUES.find((x) => x.id === e.id)?.title ?? e.id;
+    const label = NODE_BY_ID[e.id]?.label ?? e.id;
+    return e.t === "chain" ? `${label} · chain` : label;
+  };
+
+  const closeBtn = (
+    <button
+      type="button"
+      aria-label="Close"
+      onClick={onClose}
+      style={{
+        marginLeft: "auto",
+        background: "transparent",
+        border: "none",
+        color: "var(--cg-text-muted)",
+        cursor: "pointer",
+        display: "inline-flex",
+      }}
+    >
+      <X size={17} />
+    </button>
+  );
 
   // ── header: list mode = title only; detail mode = back arrow + breadcrumb ──
   const header =
@@ -2937,6 +3126,7 @@ function CatalogDrawer({
         {mode === "findings"
           ? `Findings · ${FINDINGS.length}`
           : `Issues · ${ISSUES.length}`}
+        {closeBtn}
       </div>
     ) : (
       <div style={{ ...drawerHead, gap: 10 }}>
@@ -3010,6 +3200,7 @@ function CatalogDrawer({
             </React.Fragment>
           ))}
         </nav>
+        {closeBtn}
       </div>
     );
 
@@ -3099,7 +3290,11 @@ function CatalogDrawer({
   } else if (top.t === "node") {
     body = (
       <>
-        <NodeDetailBody nodeId={top.id} marked={marked} onOpenNode={pushNode} />
+        <NodeDetailBody
+          nodeId={top.id}
+          marked={marked}
+          onExpandChain={pushChain}
+        />
         <div
           style={{
             padding: "10px 16px",
@@ -3116,6 +3311,77 @@ function CatalogDrawer({
         </div>
       </>
     );
+  } else if (top.t === "chain") {
+    const nodes = chainNodes(top.id);
+    body = (
+      <div style={{ overflowY: "auto", flex: 1, padding: "6px 16px 20px" }}>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: "var(--cg-text-muted)",
+            margin: "8px 0",
+            lineHeight: 1.5,
+          }}
+        >
+          Dependency chain of{" "}
+          <b style={{ color: "var(--cg-text-primary)" }}>
+            {NODE_BY_ID[top.id]?.label}
+          </b>{" "}
+          — lit on the graph. Open a node to inspect it.
+        </div>
+        {nodes.map((n) => {
+          const f = FINDING_BY_NODE[n.id];
+          return (
+            <button
+              key={n.id}
+              type="button"
+              onClick={() => pushNode(n.id)}
+              onMouseEnter={() => onFocusNode(n.id)}
+              onMouseLeave={() => onExpandChain(top.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 9,
+                width: "100%",
+                textAlign: "left",
+                padding: "9px 0",
+                border: "none",
+                borderBottom: "1px solid var(--cg-border-subtle)",
+                background: "transparent",
+                color: "var(--cg-text-primary)",
+                cursor: "pointer",
+              }}
+            >
+              <span
+                style={{
+                  width: 9,
+                  height: 9,
+                  borderRadius: 2,
+                  background: TIER_COLOUR[n.tier],
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={catalogTitle}>{n.label}</span>
+                <span style={catalogSub}>{TIER_LABEL[n.tier]}</span>
+              </span>
+              {f && (
+                <span
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    background: SEV_COLOUR[f.severity],
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+              <ChevronRight size={14} color="var(--cg-text-muted)" />
+            </button>
+          );
+        })}
+      </div>
+    );
   } else {
     const iss = ISSUES.find((x) => x.id === top.id);
     if (iss) {
@@ -3129,7 +3395,13 @@ function CatalogDrawer({
               padding: "12px 16px 4px",
             }}
           >
-            {(["description", "nodes"] as const).map((s) => (
+            {(
+              [
+                ["description", "Description"],
+                ["nodes", `Affected nodes · ${iss.path.length}`],
+                ["policy", "Policy"],
+              ] as const
+            ).map(([s, label]) => (
               <button
                 key={s}
                 type="button"
@@ -3150,14 +3422,12 @@ function CatalogDrawer({
                       : "var(--cg-text-muted)",
                 }}
               >
-                {s === "description"
-                  ? "Description"
-                  : `Affected nodes · ${iss.path.length}`}
+                {label}
               </button>
             ))}
           </div>
           <div style={{ padding: "6px 16px 20px" }}>
-            {top.sub === "description" ? (
+            {top.sub === "description" && (
               <>
                 <div
                   style={{
@@ -3181,7 +3451,9 @@ function CatalogDrawer({
                 </div>
                 <IssueSchema iss={iss} />
               </>
-            ) : (
+            )}
+            {top.sub === "policy" && <IssuePolicy iss={iss} />}
+            {top.sub === "nodes" && (
               <div>
                 <div
                   style={{
@@ -3202,8 +3474,9 @@ function CatalogDrawer({
                       key={nid}
                       type="button"
                       onClick={() => pushNode(nid)}
-                      onMouseEnter={() => onFocusNode(nid)}
-                      onMouseLeave={() => onFocusNode(null)}
+                      // keep the whole attack-path lit; just box the hovered node
+                      onMouseEnter={() => onFocusNodeInPath(nid, iss.path)}
+                      onMouseLeave={() => onFocusIssue(iss)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -3319,23 +3592,5 @@ function catalogRow(isOpen: boolean): React.CSSProperties {
     background: isOpen ? "var(--cg-border-subtle)" : "transparent",
     color: "var(--cg-text-primary)",
     cursor: "pointer",
-  };
-}
-
-function toolBtn(disabled: boolean): React.CSSProperties {
-  return {
-    height: 30,
-    padding: "0 12px",
-    borderRadius: 7,
-    border: "1px solid var(--cg-border-card)",
-    background: "var(--cg-bg-card)",
-    color: disabled ? "var(--cg-text-muted)" : "var(--cg-text-primary)",
-    fontSize: 12,
-    cursor: disabled ? "default" : "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
-    opacity: disabled ? 0.6 : 1,
   };
 }

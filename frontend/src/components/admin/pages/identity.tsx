@@ -56,14 +56,16 @@ import {
   SlidersHorizontal,
   Network,
   Cable,
-  ChevronUp,
-  ChevronDown,
   ChevronRight,
-  Minus,
   Minimize2,
-  Frame,
+  Maximize2,
   Play,
   Search,
+  Expand,
+  Minimize,
+  Star,
+  Bot,
+  ArrowLeft,
 } from "lucide-react";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -77,6 +79,21 @@ import albIcon from "thesvg/aws-res-elastic-load-balancing-application-load-bala
 import igwIcon from "thesvg/aws-res-amazon-vpc-internet-gateway";
 import dbIcon from "thesvg/aws-amazon-dynamodb";
 import { ImpactAnalysis } from "./impact-analysis";
+import {
+  GraphNavigator as SharedGraphNavigator,
+  GraphMinimap,
+  graphToolBtn,
+  type Severity,
+  SEV_ORDER,
+  SEV_COLOUR,
+  SevChip,
+  Field as SchemaField,
+  GroupHead,
+  drawerShell,
+  drawerHead,
+  CHROME,
+  GraphWatermark,
+} from "./graph-shell";
 import {
   useCollection,
   useAddCollectionItem,
@@ -27902,6 +27919,16 @@ const GKIND_LABEL: Record<GKind, string> = {
   s3: "S3 Bucket",
   db: "Customer Data (copy)",
 };
+// short labels for the compact filter bar (keeps the chrome from crowding)
+const GKIND_SHORT: Record<GKind, string> = {
+  internet: "Internet",
+  elb: "Gateway LB",
+  alb: "App LB",
+  lambda: "Lambda",
+  ec2: "EC2",
+  s3: "S3",
+  db: "Data",
+};
 const DARK_GREY = "#232f3e";
 const svgUri = (svg: string) =>
   `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -28280,10 +28307,11 @@ const A_STYLE: any[] = [
   {
     selector: 'edge[ekind="angled"]',
     style: {
-      "curve-style": "taxi",
+      "curve-style": "round-taxi",
       "taxi-direction": "horizontal",
       "taxi-turn": 28,
       "taxi-turn-min-distance": 6,
+      radius: 14,
     },
   },
   {
@@ -28305,6 +28333,38 @@ const A_STYLE: any[] = [
       width: 1.8,
     },
   },
+  // emphasis (filter / finding / issue selection) — mirrors the Security Graph
+  { selector: "node.xshadow", style: { opacity: 0.12 } },
+  { selector: "edge.xshadow", style: { opacity: 0.06 } },
+  // active data-flow edge — strengthened + animated marching-ants flow
+  {
+    selector: "edge.xflow",
+    style: {
+      width: 3.4,
+      opacity: 1,
+      "line-color": "#2d86d4",
+      "target-arrow-color": "#2d86d4",
+      "line-style": "dashed",
+      "line-dash-pattern": [10, 6],
+    },
+  },
+  {
+    selector: "node.xbox",
+    style: {
+      "border-width": 3,
+      "border-color": "#2d86d4",
+      "border-style": "dashed",
+      "border-opacity": 1,
+    },
+  },
+  {
+    selector: "node.xmark",
+    style: {
+      "border-width": 3,
+      "border-color": "#f5b301",
+      "border-opacity": 1,
+    },
+  },
 ];
 const A_LAYOUT: any = { name: "preset", padding: 6, fit: true };
 /* eslint-enable @typescript-eslint/no-explicit-any */
@@ -28320,450 +28380,921 @@ const GRAPH_KINDS: GKind[] = [
   "s3",
   "db",
 ];
-const A_PARENT_BY_ID: Record<
-  string,
-  { id: string; label: string; parent: string }
-> = Object.fromEntries(A_PARENTS.map((p) => [p.id, p]));
-function pathOf(parentId?: string): string[] {
-  const out: string[] = [];
-  let cur = parentId;
-  while (cur) {
-    const p = A_PARENT_BY_ID[cur];
-    if (!p) break;
-    out.unshift(p.label);
-    cur = p.parent || undefined;
-  }
-  return out;
+// ── Explorer Findings + Issues (representative, on the AWS architecture) ───────
+const X_NODE = Object.fromEntries(A_NODES.map((n) => [n.id, n]));
+type XSeverity = Severity;
+type XFinding = {
+  id: string;
+  nodeId: string;
+  category: string;
+  severity: XSeverity;
+  resourceType: string;
+  region: string;
+  vpc: string;
+  framework: string;
+  controlId: string;
+  owner: string;
+  status: string;
+  ageDays: number;
+};
+type XIssue = {
+  id: string;
+  title: string;
+  path: string[];
+  attackType: string;
+  risk: XSeverity;
+  entryPoint: string;
+  target: string;
+  hopCount: number;
+  crossesVpc: boolean;
+  involvesPublic: boolean;
+  exploitability: string;
+  findingIds: string[];
+  minSeverity: XSeverity;
+  status: string;
+};
+const X_RTYPE: Record<GKind, string> = {
+  internet: "Internet gateway",
+  elb: "Gateway Load Balancer",
+  alb: "Application Load Balancer",
+  lambda: "Lambda / Function",
+  ec2: "EC2 / VM",
+  s3: "S3 / Blob",
+  db: "RDS / Database",
+};
+const X_FINDINGS: XFinding[] = (
+  [
+    ["s3_1a", "Public bucket", "Critical", "Open"],
+    ["s3_2a", "Public bucket", "Critical", "Open"],
+    ["ec2_a", "Vulnerability (CVE)", "High", "In remediation"],
+    ["lambda_a", "Over-permissioned role", "Medium", "Open"],
+    ["db_a", "Unencrypted storage", "High", "Open"],
+    ["s3_1f", "Misconfiguration", "Medium", "Open"],
+    ["ec2_f", "Missing MFA", "Low", "Resolved"],
+    ["db_f", "Unencrypted storage", "High", "Open"],
+    ["elb1", "Misconfiguration", "Low", "Open"],
+    ["alb1", "Exposed secret", "Medium", "Open"],
+  ] as [string, string, XSeverity, string][]
+).map(([nodeId, category, severity, status], i) => {
+  const n = X_NODE[nodeId];
+  const region = nodeId.includes("_f") ? "us-west-1f" : "us-west-1a";
+  return {
+    id: `XF-${1000 + i}`,
+    nodeId,
+    category,
+    severity,
+    resourceType: n ? X_RTYPE[n.kind] : "—",
+    region: `us-west-2 / ${region}`,
+    vpc: `demo-vpc / demo-private-${region}`,
+    framework: ["CIS AWS 1.5", "SOC 2", "NIST 800-53"][i % 3],
+    controlId: ["2.1.1", "CC6.1", "SC-13", "AC-6", "IA-2"][i % 5],
+    owner: ["platform", "data-eng", "security"][i % 3],
+    status,
+    ageDays: 4 + i * 11,
+  };
+});
+const X_FINDING_BY_NODE: Record<string, XFinding> = {};
+X_FINDINGS.forEach((f) => {
+  if (!X_FINDING_BY_NODE[f.nodeId]) X_FINDING_BY_NODE[f.nodeId] = f;
+});
+const X_ISSUES: XIssue[] = (
+  [
+    ["internet", "elb1", "lambda_a", "ec2_a", "s3_1a"],
+    ["internet", "elb2", "lambda_f", "ec2_f", "s3_1f"],
+    ["internet", "elb2", "lambda_a", "ec2_a", "db_a"],
+    ["internet", "elb1", "lambda_a", "ec2_a", "s3_2a"],
+    ["alb1", "lambda_f", "ec2_f", "db_f"],
+    ["internet", "elb2", "lambda_f", "ec2_f", "s3_2f"],
+  ] as string[][]
+).map((path, i) => {
+  const target = X_NODE[path[path.length - 1]];
+  const findingIds = X_FINDINGS.filter((f) => path.includes(f.nodeId)).map(
+    (f) => f.id,
+  );
+  const sevs = findingIds
+    .map((fid) => X_FINDINGS.find((f) => f.id === fid)!.severity)
+    .sort((a, b) => SEV_ORDER.indexOf(a) - SEV_ORDER.indexOf(b));
+  const risk = sevs[0] || "Medium";
+  return {
+    id: `XI-${200 + i}`,
+    title: `Internet → ${target?.label ?? path[path.length - 1]}`,
+    path,
+    attackType: [
+      "Internet exposure → sensitive data",
+      "Data exfiltration path",
+      "Lateral movement path",
+    ][i % 3],
+    risk,
+    entryPoint:
+      path[0] === "internet" ? "Internet-facing" : "Vulnerable workload",
+    target:
+      target?.kind === "s3" || target?.kind === "db"
+        ? "Sensitive data store"
+        : "Production workload",
+    hopCount: path.length - 1,
+    crossesVpc: i % 2 === 0,
+    involvesPublic: path.some(
+      (p) => X_FINDING_BY_NODE[p]?.category === "Public bucket",
+    ),
+    exploitability: i % 2 === 0 ? "Known CVE on path" : "No known exploit",
+    findingIds,
+    minSeverity: sevs[sevs.length - 1] || risk,
+    status: (["Active", "Active", "Partially remediated"] as string[])[i % 3],
+  };
+});
+function xIssuesForNode(id: string): XIssue[] {
+  return X_ISSUES.filter((i) => i.path.includes(id));
 }
-function GraphSidePanel({
+// the data flow IN and OUT of a node: transitive downstream (out) + upstream
+// (in) along the directed architecture edges.
+function xChain(id: string): string[] {
+  const out: Record<string, string[]> = {};
+  const inn: Record<string, string[]> = {};
+  A_EDGES.forEach((e) => {
+    (out[e.source] ||= []).push(e.target);
+    (inn[e.target] ||= []).push(e.source);
+  });
+  const seen = new Set<string>([id]);
+  const walk = (adj: Record<string, string[]>) => {
+    const stack = [...(adj[id] || [])];
+    while (stack.length) {
+      const cur = stack.pop() as string;
+      if (!seen.has(cur)) {
+        seen.add(cur);
+        (adj[cur] || []).forEach((x) => stack.push(x));
+      }
+    }
+  };
+  walk(out); // downstream (data flows out)
+  walk(inn); // upstream (data flows in)
+  return [...seen];
+}
+// downstream-only reach (for the "blast radius" count in the details drawer)
+function xDownstream(id: string): string[] {
+  const out: Record<string, string[]> = {};
+  A_EDGES.forEach((e) => {
+    (out[e.source] ||= []).push(e.target);
+  });
+  const seen = new Set<string>();
+  const stack = [...(out[id] || [])];
+  while (stack.length) {
+    const cur = stack.pop() as string;
+    if (!seen.has(cur)) {
+      seen.add(cur);
+      (out[cur] || []).forEach((x) => stack.push(x));
+    }
+  }
+  return [...seen];
+}
+
+// node-details drawer — mirrors the Security Graph's node detail exactly
+function XNodeDrawer({
   node,
-  hidden,
-  onToggle,
+  marked,
   onClose,
+  onDataflow,
+  onMark,
 }: {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   node: any;
-  hidden: Set<string>;
-  onToggle: (k: GKind) => void;
+  marked: boolean;
   onClose: () => void;
+  onDataflow: (id: string) => void;
+  onMark: (id: string) => void;
 }) {
+  const [tab, setTab] = React.useState<"overview" | "resource" | "policy">(
+    "overview",
+  );
   const open = !!node;
-  const kind = node?.kind as GKind | undefined;
-  const path = node ? pathOf(node.parent) : [];
-  const rels = node
-    ? A_EDGES.filter((e) => e.source === node.id || e.target === node.id).map(
-        (e) => {
-          const otherId = e.source === node.id ? e.target : e.source;
-          const on = A_NODES.find((x) => x.id === otherId);
-          return {
-            id: e.source + e.target,
-            label: on?.label ?? otherId,
-            type: on ? GKIND_LABEL[on.kind] : "",
-            dir: e.source === node.id ? "→" : "←",
-          };
-        },
-      )
-    : [];
-  const sec: React.CSSProperties = {
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: "0.05em",
-    textTransform: "uppercase",
-    color: "#878d96",
-    margin: "20px 0 9px",
+  const f = node ? X_FINDING_BY_NODE[node.id] : undefined;
+  const flow = node ? xChain(node.id).length - 1 : 0;
+  const down = node ? xDownstream(node.id).length : 0;
+  const kindLabel = node ? (GKIND_LABEL[node.kind as GKind] ?? "Resource") : "";
+  const daysAgo = (d: number) => {
+    const dt = new Date(2026, 6, 1);
+    dt.setDate(dt.getDate() - d);
+    return dt.toISOString().slice(0, 10);
   };
+  const X_ACTIONS: Record<string, string[]> = {
+    s3: ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+    ec2: ["ec2:DescribeInstances", "ec2:StartInstances"],
+    lambda: ["lambda:InvokeFunction"],
+    db: ["dynamodb:GetItem", "dynamodb:PutItem"],
+    elb: ["elasticloadbalancing:*"],
+    alb: ["elasticloadbalancing:*"],
+    internet: ["*"],
+  };
+  const policy = node
+    ? JSON.stringify(
+        {
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Effect: "Allow",
+              Principal:
+                f?.category === "Public bucket"
+                  ? "*"
+                  : { AWS: "arn:aws:iam::9021:role/app" },
+              Action: X_ACTIONS[node.kind as string] ?? ["*"],
+              Resource: `arn:aws:${node.kind}:us-west-2:9021:${node.label}`,
+            },
+          ],
+        },
+        null,
+        2,
+      )
+    : "";
+
   return (
     <div
       style={{
-        position: "absolute",
-        top: 0,
-        right: 0,
-        height: "100%",
-        width: 316,
-        background: "rgb(23,23,22)",
-        borderLeft: "1px solid rgba(255,255,255,0.09)",
-        color: "#e8eaed",
-        display: "flex",
-        flexDirection: "column",
+        ...drawerShell,
+        zIndex: 43, // above the catalog drawer so it shows on affected-node open
         opacity: open ? 1 : 0,
         transform: open ? "translateX(0)" : "translateX(18px)",
         pointerEvents: open ? "auto" : "none",
         transition: "opacity .25s ease, transform .25s ease",
-        zIndex: 40,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          padding: "16px 16px 14px",
-          borderBottom: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
+      <div style={drawerHead}>
+        {node && (
+          <span
             style={{
-              fontSize: 14.5,
-              fontWeight: 700,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
+              width: 11,
+              height: 11,
+              borderRadius: 3,
+              background: "#2d86d4",
             }}
-          >
-            {node?.label}
-          </div>
-          <div style={{ fontSize: 11.5, color: "#9aa0a8" }}>
-            {kind ? GKIND_LABEL[kind] : ""}
-            {node?.finding ? " · at risk" : ""}
-          </div>
-        </div>
+          />
+        )}
+        Node details
         <button
           type="button"
+          aria-label="Close"
           onClick={onClose}
           style={{
+            marginLeft: "auto",
             background: "transparent",
             border: "none",
-            color: "#9aa0a8",
+            color: "var(--cg-text-muted)",
             cursor: "pointer",
             display: "inline-flex",
           }}
         >
-          <X size={18} />
+          <X size={17} />
         </button>
       </div>
-      <div style={{ flex: 1, overflowY: "auto", padding: "0 16px 18px" }}>
-        <div style={sec}>Hierarchy</div>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 5,
-          }}
-        >
-          {path.map((p) => (
-            <React.Fragment key={p}>
-              <span
-                style={{
-                  fontSize: 12,
-                  padding: "3px 8px",
-                  borderRadius: 6,
-                  background: "rgba(255,255,255,0.06)",
-                }}
-              >
-                {p}
-              </span>
-              <ChevronRight size={12} color="#6b7078" />
-            </React.Fragment>
-          ))}
-          <span
-            style={{
-              fontSize: 12,
-              padding: "3px 8px",
-              borderRadius: 6,
-              background: "rgba(255,255,255,0.13)",
-              fontWeight: 600,
-            }}
-          >
-            {node?.label}
-          </span>
-        </div>
-        {node?.finding ? (
-          <>
-            <div style={sec}>Security finding</div>
-            <div
-              style={{
-                fontSize: 12.5,
-                lineHeight: 1.5,
-                padding: "10px 12px",
-                borderRadius: 8,
-                background: "rgba(252,176,30,0.10)",
-                border: "1px solid rgba(252,176,30,0.45)",
-                color: "#f3c478",
-              }}
-            >
-              ⚠ Misconfigured S3 Bucket — bucket policy allows unauthorised
-              public access.
-            </div>
-          </>
-        ) : null}
-        <div style={sec}>Relationships</div>
-        {rels.length ? (
-          rels.map((r) => (
-            <div
-              key={r.id}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "7px 0",
-                fontSize: 12.5,
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
-              }}
-            >
-              <span style={{ color: "#6b7078", width: 12 }}>{r.dir}</span>
-              <span
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {r.label}
-              </span>
-              <span style={{ fontSize: 11, color: "#878d96" }}>{r.type}</span>
-            </div>
-          ))
-        ) : (
-          <div style={{ fontSize: 12.5, color: "#878d96" }}>No connections</div>
-        )}
-        <div style={sec}>Display — hide elements</div>
-        {GRAPH_KINDS.map((k) => (
-          <label
-            key={k}
+      {node && (
+        <>
+          {/* sub-view tabs */}
+          <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "7px 0",
-              fontSize: 12.5,
-              cursor: "pointer",
+              gap: 4,
+              padding: "10px 12px 0",
+              borderBottom: "1px solid var(--cg-border)",
             }}
           >
-            <input
-              type="checkbox"
-              checked={!hidden.has(k)}
-              onChange={() => onToggle(k)}
-              style={{ accentColor: "#5b9bf0" }}
-            />
-            <span style={{ flex: 1 }}>{GKIND_LABEL[k]}</span>
-          </label>
-        ))}
+            {(
+              [
+                ["overview", "Overview"],
+                ["resource", "Resource details"],
+                ["policy", "Policy"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                style={{
+                  padding: "6px 10px 9px",
+                  border: "none",
+                  background: "transparent",
+                  color:
+                    tab === id
+                      ? "var(--cg-text-primary)"
+                      : "var(--cg-text-muted)",
+                  fontSize: 12.5,
+                  fontWeight: tab === id ? 700 : 500,
+                  cursor: "pointer",
+                  borderBottom:
+                    tab === id
+                      ? "2px solid var(--cg-accent)"
+                      : "2px solid transparent",
+                  marginBottom: -1,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
+            {tab === "overview" && (
+              <>
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: "var(--cg-text-primary)",
+                    marginTop: 16,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {node.label ?? node.id}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--cg-text-muted)",
+                    marginTop: 4,
+                  }}
+                >
+                  {kindLabel} · blast radius{" "}
+                  <b style={{ color: "var(--cg-text-primary)" }}>{down}</b>{" "}
+                  downstream
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onDataflow(node.id)}
+                  style={{
+                    ...graphToolBtn(false),
+                    marginTop: 14,
+                    width: "100%",
+                    justifyContent: "center",
+                  }}
+                >
+                  <GitBranch size={14} /> Expand data flow · {flow}
+                  <ChevronRight size={13} />
+                </button>
+                <div
+                  style={{
+                    marginTop: 16,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: `1px solid ${f ? "var(--cg-border)" : "var(--cg-border-subtle)"}`,
+                    background: f ? "rgba(217,154,0,0.08)" : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  {f ? (
+                    <>
+                      <SevChip sev={f.severity} />
+                      <span
+                        style={{
+                          fontSize: 12.5,
+                          color: "var(--cg-text-primary)",
+                        }}
+                      >
+                        {f.category}
+                      </span>
+                    </>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        color: "var(--cg-text-muted)",
+                        fontStyle: "italic",
+                      }}
+                    >
+                      No finding on this resource
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onMark(node.id)}
+                  style={{
+                    ...graphToolBtn(false),
+                    marginTop: 12,
+                    width: "100%",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Star
+                    size={13}
+                    color={marked ? "#f5b301" : undefined}
+                    fill={marked ? "#f5b301" : "none"}
+                  />
+                  {marked ? "Edit mark" : "Mark node"}
+                </button>
+              </>
+            )}
+
+            {tab === "resource" && (
+              <>
+                <GroupHead>Resource type</GroupHead>
+                <SchemaField k="Type" v={kindLabel} />
+                <GroupHead>Cloud & location</GroupHead>
+                <SchemaField k="Cloud" v="AWS" />
+                <SchemaField k="Account / Subscription" v="acct-prod-9021" />
+                <SchemaField k="Region" v={f?.region ?? "us-west-2"} />
+                <SchemaField
+                  k="VPC / Subnet"
+                  v={f?.vpc ?? "demo-vpc / demo-private"}
+                />
+                <GroupHead>Connectivity</GroupHead>
+                <SchemaField k="Data flow (in + out)" v={flow} />
+                <SchemaField k="Downstream (blast radius)" v={down} />
+              </>
+            )}
+
+            {tab === "policy" && (
+              <>
+                <GroupHead>Compliance & context</GroupHead>
+                <SchemaField k="Framework" v={f?.framework} />
+                <SchemaField k="Control ID" v={f?.controlId} />
+                <SchemaField k="Owner / team" v={f?.owner} />
+                <SchemaField k="Suppressed / accepted" v={false} />
+                <SchemaField
+                  k="First seen"
+                  v={f ? daysAgo(f.ageDays) : undefined}
+                />
+                <SchemaField k="Last seen" v={f ? daysAgo(1) : undefined} />
+                <SchemaField k="Age (days open)" v={f?.ageDays} />
+                <SchemaField k="Status" v={f?.status} />
+                <GroupHead>Attached policy</GroupHead>
+                <pre
+                  style={{
+                    margin: 0,
+                    padding: 12,
+                    borderRadius: 8,
+                    background: "var(--cg-code-bg, #1a1a19)",
+                    color: "#dfe6e9",
+                    fontSize: 11.5,
+                    lineHeight: 1.5,
+                    overflowX: "auto",
+                    fontFamily:
+                      "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+                  }}
+                >
+                  {policy}
+                </pre>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+function XIssueSchema({ iss }: { iss: XIssue }) {
+  return (
+    <div>
+      <GroupHead>Attack path type</GroupHead>
+      <SchemaField k="Type" v={iss.attackType} />
+      <SchemaField k="Path risk score" v={<SevChip sev={iss.risk} />} />
+      <GroupHead>Entry → target</GroupHead>
+      <SchemaField k="Entry point" v={iss.entryPoint} />
+      <SchemaField k="Target" v={iss.target} />
+      <GroupHead>Path properties</GroupHead>
+      <SchemaField k="Hop count" v={iss.hopCount} />
+      <SchemaField k="Crosses VPC boundary" v={iss.crossesVpc} />
+      <SchemaField k="Involves public resource" v={iss.involvesPublic} />
+      <SchemaField k="Exploitability" v={iss.exploitability} />
+      <SchemaField k="Chained findings" v={iss.findingIds.length} />
+      <SchemaField
+        k="Min severity on path"
+        v={<SevChip sev={iss.minSeverity} />}
+      />
+      <GroupHead>Status</GroupHead>
+      <SchemaField k="Status" v={iss.status} />
+    </div>
+  );
+}
+// issue "Policy" sub-view — governing controls + a guardrail to break the path
+function XIssuePolicy({ iss }: { iss: XIssue }) {
+  const findings = iss.findingIds
+    .map((id) => X_FINDINGS.find((f) => f.id === id))
+    .filter(Boolean) as XFinding[];
+  const frameworks = Array.from(new Set(findings.map((f) => f.framework)));
+  const controls = Array.from(new Set(findings.map((f) => f.controlId)));
+  const target = X_NODE[iss.path[iss.path.length - 1]];
+  const guardrail = JSON.stringify(
+    {
+      Version: "2012-10-17",
+      Statement: [
+        {
+          Sid: "BreakAttackPath",
+          Effect: "Deny",
+          Principal: iss.involvesPublic ? "*" : { AWS: "arn:aws:iam::*:root" },
+          Action: iss.involvesPublic ? ["s3:GetObject", "s3:PutObject"] : ["*"],
+          Resource: `arn:aws:*:*:9021:${target?.label ?? "*"}`,
+        },
+      ],
+    },
+    null,
+    2,
+  );
+  return (
+    <div>
+      <GroupHead>Governing controls</GroupHead>
+      <SchemaField
+        k="Frameworks"
+        v={frameworks.length ? frameworks.join(", ") : undefined}
+      />
+      <SchemaField
+        k="Control IDs"
+        v={controls.length ? controls.join(", ") : undefined}
+      />
+      <SchemaField k="Findings on path" v={findings.length} />
+      <SchemaField k="Min severity" v={<SevChip sev={iss.minSeverity} />} />
+      <GroupHead>Suggested guardrail policy</GroupHead>
+      <div
+        style={{
+          fontSize: 11.5,
+          color: "var(--cg-text-muted)",
+          margin: "0 0 6px",
+          lineHeight: 1.45,
+        }}
+      >
+        A deny policy that breaks this attack path at the target.
       </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: 12,
+          borderRadius: 8,
+          background: "var(--cg-code-bg, #1a1a19)",
+          color: "#dfe6e9",
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          overflowX: "auto",
+          fontFamily:
+            "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+        }}
+      >
+        {guardrail}
+      </pre>
     </div>
   );
 }
 
-function GraphNavigator({
-  onPan,
-  onZoom,
-  onFit,
-  onPlay,
-  zoomPct,
-  onZoomPct,
-  magnify,
-  onToggleMagnify,
+// findings / issues catalog drawer for the Explorer (Security-Graph styling)
+function XCatalogDrawer({
+  mode,
+  onClose,
+  onPick,
+  onOpenNode,
 }: {
-  onPan: (dx: number, dy: number) => void;
-  onZoom: (f: number) => void;
-  onFit: () => void;
-  onPlay: () => void;
-  zoomPct: number;
-  onZoomPct: (pct: number) => void;
-  magnify: boolean;
-  onToggleMagnify: () => void;
+  mode: "findings" | "issues";
+  onClose: () => void;
+  onPick: (
+    n:
+      | { kind: "finding"; id: string }
+      | { kind: "issue"; id: string }
+      | { kind: "node"; id: string; issueId?: string }
+      | null,
+  ) => void;
+  onOpenNode: (nodeId: string) => void;
 }) {
-  const pad: React.CSSProperties = {
-    position: "absolute",
-    inset: 0,
-    width: 30,
-    height: 30,
-    display: "inline-flex",
+  // two-level navigation (list ↔ issue detail) — parity with the Security Graph
+  const [openIssue, setOpenIssue] = React.useState<string | null>(null);
+  const [issueSub, setIssueSub] = React.useState<
+    "description" | "nodes" | "policy"
+  >("description");
+  const iss = openIssue
+    ? (X_ISSUES.find((i) => i.id === openIssue) ?? null)
+    : null;
+
+  React.useEffect(() => {
+    setOpenIssue(null);
+  }, [mode]);
+
+  const rowStyle: React.CSSProperties = {
+    display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    background: "transparent",
+    gap: 9,
+    width: "100%",
+    textAlign: "left",
+    padding: "11px 14px",
     border: "none",
+    borderBottom: "1px solid var(--cg-border-subtle)",
+    background: "transparent",
+    color: "var(--cg-text-primary)",
     cursor: "pointer",
-    color: "#ffffff",
   };
-  const ring = "rgb(23,23,22)";
-  return (
-    <div
+  const title: React.CSSProperties = {
+    display: "block",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "var(--cg-text-primary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  };
+  const sub: React.CSSProperties = {
+    display: "block",
+    fontSize: 11.5,
+    color: "var(--cg-text-muted)",
+  };
+  const subTab = (id: "description" | "nodes" | "policy", label: string) => (
+    <button
+      key={id}
+      type="button"
+      onClick={() => setIssueSub(id)}
       style={{
-        position: "absolute",
-        top: 16,
-        left: 16,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 10,
-        zIndex: 20,
+        padding: "6px 10px 9px",
+        border: "none",
+        background: "transparent",
+        color:
+          issueSub === id ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
+        fontSize: 12.5,
+        fontWeight: issueSub === id ? 700 : 500,
+        cursor: "pointer",
+        borderBottom:
+          issueSub === id
+            ? "2px solid var(--cg-accent)"
+            : "2px solid transparent",
+        marginBottom: -1,
       }}
     >
-      {/* directional pad */}
-      <div
-        style={{
-          position: "relative",
-          width: 62,
-          height: 62,
-          borderRadius: "50%",
-          background: ring,
-          border: "1px solid rgba(255,255,255,0.08)",
-          boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-        }}
-      >
-        <button
-          type="button"
-          style={{ ...pad, top: 0, left: 16 }}
-          onClick={() => onPan(0, 60)}
-          title="Pan up"
-        >
-          <ChevronUp size={16} />
-        </button>
-        <button
-          type="button"
-          style={{ ...pad, bottom: 0, top: "auto", left: 16 }}
-          onClick={() => onPan(0, -60)}
-          title="Pan down"
-        >
-          <ChevronDown size={16} />
-        </button>
-        <button
-          type="button"
-          style={{ ...pad, left: 0, top: 16 }}
-          onClick={() => onPan(60, 0)}
-          title="Pan left"
-        >
-          <ChevronLeft size={16} />
-        </button>
-        <button
-          type="button"
-          style={{ ...pad, right: 0, left: "auto", top: 16 }}
-          onClick={() => onPan(-60, 0)}
-          title="Pan right"
-        >
-          <ChevronRight size={16} />
-        </button>
-        <span
-          style={{
-            position: "absolute",
-            top: 25,
-            left: 25,
-            width: 12,
-            height: 12,
-            borderRadius: "50%",
-            background: "#ffffff",
-          }}
-        />
-      </div>
-      {/* resize / fit */}
+      {label}
+    </button>
+  );
+  const closeBtn = (
+    <button
+      type="button"
+      aria-label="Close"
+      onClick={onClose}
+      style={{
+        marginLeft: "auto",
+        background: "transparent",
+        border: "none",
+        color: "var(--cg-text-muted)",
+        cursor: "pointer",
+        display: "inline-flex",
+      }}
+    >
+      <X size={17} />
+    </button>
+  );
+
+  // ── header: list = title; issue detail = back arrow + breadcrumb ──────────
+  const header = iss ? (
+    <div style={{ ...drawerHead, gap: 10 }}>
       <button
         type="button"
-        onClick={onFit}
-        title="Resize to fit"
+        aria-label="Back"
+        onClick={() => {
+          setOpenIssue(null);
+          onPick(null);
+        }}
         style={{
-          width: 30,
-          height: 30,
-          borderRadius: 7,
-          background: ring,
-          border: "1px solid rgba(255,255,255,0.08)",
+          background: "transparent",
+          border: "none",
+          color: "var(--cg-text-primary)",
           cursor: "pointer",
-          color: "#ffffff",
           display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
         }}
       >
-        <Frame size={15} />
+        <ArrowLeft size={17} />
       </button>
-      {/* play — replay data-flow reconstruction */}
-      <button
-        type="button"
-        onClick={onPlay}
-        title="Replay data-flow propagation"
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 7,
-          background: ring,
-          border: "1px solid rgba(255,255,255,0.08)",
-          cursor: "pointer",
-          color: "#ffffff",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Play size={15} />
-      </button>
-      {/* magnifier lens toggle */}
-      <button
-        type="button"
-        onClick={onToggleMagnify}
-        title="Magnifier lens"
-        style={{
-          width: 30,
-          height: 30,
-          borderRadius: 7,
-          background: magnify ? "#ffffff" : ring,
-          border: "1px solid rgba(255,255,255,0.08)",
-          cursor: "pointer",
-          color: magnify ? "rgb(23,23,22)" : "#ffffff",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Search size={15} />
-      </button>
-      {/* zoom */}
-      <div
+      <nav
         style={{
           display: "flex",
-          flexDirection: "column",
           alignItems: "center",
           gap: 6,
-          padding: "8px 0",
-          width: 30,
-          borderRadius: 14,
-          background: ring,
-          border: "1px solid rgba(255,255,255,0.08)",
+          fontSize: 12,
+          minWidth: 0,
+          overflow: "hidden",
         }}
       >
         <button
           type="button"
-          onClick={() => onZoom(1.25)}
-          title="Zoom in"
+          onClick={() => {
+            setOpenIssue(null);
+            onPick(null);
+          }}
           style={{
             background: "transparent",
             border: "none",
+            color: "var(--cg-text-muted)",
             cursor: "pointer",
-            color: "#ffffff",
+            padding: 0,
+            fontSize: 12,
+            flexShrink: 0,
           }}
         >
-          <Plus size={15} />
+          Issues
         </button>
-        <input
-          type="range"
-          min={0}
-          max={100}
-          value={Math.round(zoomPct)}
-          onChange={(e) => onZoomPct(Number(e.target.value))}
+        <span style={{ color: "var(--cg-text-muted)", flexShrink: 0 }}>›</span>
+        <span
           style={{
-            writingMode: "vertical-lr",
-            direction: "rtl",
-            width: 6,
-            height: 96,
-            accentColor: "#ffffff",
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => onZoom(0.8)}
-          title="Zoom out"
-          style={{
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            color: "#ffffff",
+            fontWeight: 600,
+            color: "var(--cg-text-primary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
-          <Minus size={15} />
-        </button>
+          {iss.title}
+        </span>
+      </nav>
+      {closeBtn}
+    </div>
+  ) : (
+    <div style={drawerHead}>
+      {mode === "findings" ? (
+        <AlertTriangle size={15} color="#d99a00" />
+      ) : (
+        <GitBranch size={15} color="#5b9bf0" />
+      )}
+      {mode === "findings"
+        ? `Findings · ${X_FINDINGS.length}`
+        : `Issues · ${X_ISSUES.length}`}
+      {closeBtn}
+    </div>
+  );
+
+  // ── body ──────────────────────────────────────────────────────────────────
+  let body: React.ReactNode;
+  if (iss) {
+    body = (
+      <div style={{ overflowY: "auto", flex: 1 }}>
+        <div style={{ display: "flex", gap: 4, padding: "12px 16px 4px" }}>
+          {subTab("description", "Description")}
+          {subTab("nodes", `Affected nodes · ${iss.path.length}`)}
+          {subTab("policy", "Policy")}
+        </div>
+        <div style={{ padding: "6px 16px 20px" }}>
+          {issueSub === "description" && (
+            <>
+              <div
+                style={{
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "var(--cg-text-primary)",
+                  marginTop: 6,
+                }}
+              >
+                {iss.title}
+              </div>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--cg-text-muted)",
+                  margin: "6px 0 2px",
+                }}
+              >
+                Connected path of resources — together they form a risk.
+                Highlighted on the graph.
+              </div>
+              <XIssueSchema iss={iss} />
+            </>
+          )}
+          {issueSub === "policy" && <XIssuePolicy iss={iss} />}
+          {issueSub === "nodes" && (
+            <>
+              <div
+                style={{
+                  fontSize: 11.5,
+                  color: "var(--cg-text-muted)",
+                  margin: "4px 0 8px",
+                }}
+              >
+                Entry → target. Open a node to inspect it — it is boxed and
+                labelled on the graph.
+              </div>
+              {iss.path.map((nid) => {
+                const n = X_NODE[nid];
+                const f = X_FINDING_BY_NODE[nid];
+                return (
+                  <button
+                    key={nid}
+                    type="button"
+                    onClick={() => onOpenNode(nid)}
+                    onMouseEnter={() =>
+                      onPick({ kind: "node", id: nid, issueId: iss.id })
+                    }
+                    onMouseLeave={() => onPick({ kind: "issue", id: iss.id })}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "9px 0",
+                      border: "none",
+                      borderBottom: "1px solid var(--cg-border-subtle)",
+                      background: "transparent",
+                      color: "var(--cg-text-primary)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={title}>{n?.label ?? nid}</span>
+                      {f && <span style={sub}>{f.category}</span>}
+                    </span>
+                    {f && (
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: "50%",
+                          background: SEV_COLOUR[f.severity],
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <ChevronRight size={14} color="var(--cg-text-muted)" />
+                  </button>
+                );
+              })}
+            </>
+          )}
+        </div>
       </div>
+    );
+  } else {
+    body = (
+      <>
+        <div
+          style={{
+            padding: "6px 14px 8px",
+            fontSize: 11.5,
+            color: "var(--cg-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          {mode === "findings"
+            ? "Single resource — something is misconfigured or exposed."
+            : "Connected path of resources — together they form a risk."}
+        </div>
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {mode === "findings"
+            ? X_FINDINGS.map((f) => {
+                const n = X_NODE[f.nodeId];
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    style={rowStyle}
+                    onMouseEnter={() => onPick({ kind: "finding", id: f.id })}
+                    onMouseLeave={() => onPick(null)}
+                    onClick={() => onOpenNode(f.nodeId)}
+                  >
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: SEV_COLOUR[f.severity],
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={title}>{n?.label ?? f.nodeId}</span>
+                      <span style={sub}>{f.category}</span>
+                    </span>
+                    <SevChip sev={f.severity} />
+                    <ChevronRight size={14} color="var(--cg-text-muted)" />
+                  </button>
+                );
+              })
+            : X_ISSUES.map((issue) => (
+                <button
+                  key={issue.id}
+                  type="button"
+                  style={rowStyle}
+                  onMouseEnter={() => onPick({ kind: "issue", id: issue.id })}
+                  onMouseLeave={() => onPick(null)}
+                  onClick={() => {
+                    setIssueSub("description");
+                    setOpenIssue(issue.id);
+                    onPick({ kind: "issue", id: issue.id });
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: SEV_COLOUR[issue.risk],
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={title}>{issue.title}</span>
+                    <span style={sub}>
+                      {issue.attackType} · {issue.hopCount} hops
+                    </span>
+                  </span>
+                  <SevChip sev={issue.risk} />
+                  <ChevronRight size={14} color="var(--cg-text-muted)" />
+                </button>
+              ))}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div style={drawerShell}>
+      {header}
+      {body}
     </div>
   );
 }
@@ -28776,8 +29307,39 @@ const zoomToPct = (z: number) => {
 };
 const pctToZoom = (p: number) =>
   G_MINZOOM * (G_MAXZOOM / G_MINZOOM) ** (p / 100);
+
 function GraphExplorer() {
   const ref = React.useRef<HTMLDivElement | null>(null);
+  const wrapRef = React.useRef<HTMLDivElement | null>(null);
+  const flowRafRef = React.useRef(0);
+  const [isFull, setIsFull] = React.useState(false);
+  const [showMini, setShowMini] = React.useState(true);
+  // Security-Graph-style chrome: mode toggle · filter · findings/issues · marks
+  const [gview, setGview] = React.useState<"graph" | "findings" | "issues">(
+    "graph",
+  );
+  const [gfilters, setGfilters] = React.useState<Set<GKind>>(new Set());
+  const [gmarked, setGmarked] = React.useState<
+    Record<string, { note: string; ts: number }>
+  >({});
+  // active catalog selection → { finding } single node, or { issue } path
+  const [gnav, setGnav] = React.useState<
+    | { kind: "finding"; id: string }
+    | { kind: "issue"; id: string }
+    | { kind: "node"; id: string; issueId?: string }
+    | null
+  >(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [gHover, setGHover] = React.useState<any>(null);
+  // locked view (dependency chain of a node) + category (hide) drawer
+  const [gLocked, setGLocked] = React.useState<string | null>(null);
+  const [gCatOpen, setGCatOpen] = React.useState(false);
+  const [ctxMenu, setCtxMenu] = React.useState<{
+    x: number;
+    y: number;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data: any;
+  } | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cyRef = React.useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28825,23 +29387,37 @@ function GraphExplorer() {
     });
     // interaction handlers FIRST (so nothing below can skip them)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    cy.on("mouseover", "node[kind]", (e: any) => e.target.addClass("hovered"));
+    cy.on("mouseover", "node[kind]", (e: any) => {
+      e.target.addClass("hovered");
+      setGHover(e.target.data());
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    cy.on("mouseout", "node[kind]", (e: any) =>
-      e.target.removeClass("hovered"),
-    );
+    cy.on("mouseout", "node[kind]", (e: any) => {
+      e.target.removeClass("hovered");
+      setGHover(null);
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("tap", "node[kind]", (e: any) => {
       cy.nodes().removeClass("picked");
       e.target.addClass("picked");
       setSel(e.target.data());
+      // activate the node's dependency path on the graph (Security-Graph parity)
+      setGnav({ kind: "node", id: e.target.id() });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("tap", (e: any) => {
       if (e.target === cy) {
         cy.nodes().removeClass("picked");
         setSel(null);
+        setCtxMenu(null);
       }
+    });
+    // right-click → context menu (mirrors the Security-Graph interaction)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    cy.on("cxttap", "node[kind]", (e: any) => {
+      e.originalEvent?.preventDefault?.();
+      const rp = e.renderedPosition || e.target.renderedPosition();
+      setCtxMenu({ x: rp.x, y: rp.y, data: e.target.data() });
     });
     cyRef.current = cy;
     // collapse / expand mechanics (best-effort); we draw our own corner icons
@@ -28981,7 +29557,7 @@ function GraphExplorer() {
     };
   }, []);
   const open = !!sel;
-  // re-fit the graph into the split (left) area when the panel opens/closes
+  // re-fit the graph into the split (left) area when a right panel opens/closes
   React.useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return undefined;
@@ -28990,12 +29566,34 @@ function GraphExplorer() {
       cy.fit(undefined, 6);
     }, 290);
     return () => clearTimeout(t);
-  }, [open]);
+  }, [open, gview]);
   const fit = () =>
     cyRef.current?.animate({
       fit: { eles: cyRef.current.elements(), padding: 6 },
       duration: 300,
     });
+  const toggleFull = () => {
+    const el = wrapRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else el.requestFullscreen?.();
+  };
+  React.useEffect(() => {
+    const onFs = () => {
+      const full = !!document.fullscreenElement;
+      setIsFull(full);
+      const cy = cyRef.current;
+      window.setTimeout(() => {
+        cy?.resize();
+        cy?.animate(
+          { fit: { eles: cy.elements(), padding: full ? 24 : 6 } },
+          { duration: 420 },
+        );
+      }, 90);
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
   const pan = (dx: number, dy: number) =>
     cyRef.current?.panBy({ x: dx, y: dy });
   const zoom = (f: number) => {
@@ -29056,6 +29654,119 @@ function GraphExplorer() {
       else n.add(k);
       return n;
     });
+  const toggleGFilter = (k: GKind) =>
+    setGfilters((prev) => {
+      const n = new Set(prev);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+
+  // ── emphasis: spotlight a filter / finding / issue path; shadow the rest ────
+  React.useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return undefined;
+    let active: Set<string> | null = null;
+    let boxId: string | null = null;
+    if (gLocked) {
+      active = new Set(xChain(gLocked)); // locked dependency chain
+    } else if (gnav?.kind === "issue") {
+      active = new Set(X_ISSUES.find((i) => i.id === gnav.id)?.path ?? []);
+    } else if (gnav?.kind === "finding") {
+      const f = X_FINDINGS.find((x) => x.id === gnav.id);
+      if (f) {
+        active = new Set([f.nodeId]);
+        boxId = f.nodeId;
+      }
+    } else if (gnav?.kind === "node") {
+      if (gnav.issueId) {
+        active = new Set(
+          X_ISSUES.find((i) => i.id === gnav.issueId)?.path ?? [gnav.id],
+        );
+      } else {
+        // a clicked node activates its whole dependency chain
+        active = new Set(xChain(gnav.id));
+      }
+      boxId = gnav.id;
+    } else if (gfilters.size) {
+      active = new Set(
+        A_NODES.filter((n) => gfilters.has(n.kind)).map((n) => n.id),
+      );
+    }
+    // a path activation (not a plain type filter) gets the animated flow edges
+    const isFlow =
+      !!gLocked ||
+      gnav?.kind === "node" ||
+      gnav?.kind === "issue" ||
+      gnav?.kind === "finding";
+    cy.batch(() => {
+      cy.elements().removeClass("xshadow xbox xflow");
+      if (!active) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cy.nodes("[kind]").forEach((n: any) => {
+        if (!active!.has(n.id())) n.addClass("xshadow");
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cy.edges().forEach((e: any) => {
+        const inA =
+          active!.has(e.data("source")) && active!.has(e.data("target"));
+        if (!inA) e.addClass("xshadow");
+        else if (isFlow) e.addClass("xflow");
+      });
+      if (boxId) cy.getElementById(boxId).addClass("xbox");
+    });
+    // marching-ants flow on the active edges
+    cancelAnimationFrame(flowRafRef.current);
+    if (active && isFlow) {
+      let off = 0;
+      const tick = () => {
+        off -= 0.9;
+        cy.edges(".xflow").style("line-dash-offset", off);
+        flowRafRef.current = requestAnimationFrame(tick);
+      };
+      flowRafRef.current = requestAnimationFrame(tick);
+    }
+    return () => cancelAnimationFrame(flowRafRef.current);
+  }, [gnav, gfilters, gLocked]);
+
+  // ── marked nodes → golden border ──────────────────────────────────────────
+  React.useEffect(() => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    cy.batch(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      cy.nodes("[kind]").forEach((n: any) => {
+        if (gmarked[n.id()]) n.addClass("xmark");
+        else n.removeClass("xmark");
+      });
+    });
+  }, [gmarked]);
+
+  // switching to graph mode clears the catalog selection
+  React.useEffect(() => {
+    if (gview === "graph" && !gLocked) setGnav(null);
+  }, [gview, gLocked]);
+
+  // Escape exits a locked view
+  React.useEffect(() => {
+    if (!gLocked) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGLocked(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [gLocked]);
+
+  const gReset = () => {
+    setGnav(null);
+    setGfilters(new Set());
+    setHidden(new Set());
+    setSel(null);
+    cyRef.current?.nodes().removeClass("picked");
+    fit();
+  };
+  const saveGMark = (id: string, note: string) =>
+    setGmarked((p) => ({ ...p, [id]: { note, ts: Date.now() } }));
   const closePanel = () => {
     cyRef.current?.nodes().removeClass("picked");
     setSel(null);
@@ -29068,6 +29779,15 @@ function GraphExplorer() {
     if (api) {
       if (collapsed) api.expand(node);
       else api.collapse(node);
+      // smooth re-fit after the compact/expand transition settles
+      window.setTimeout(
+        () =>
+          cy.animate(
+            { fit: { eles: cy.elements(), padding: 6 } },
+            { duration: 380, easing: "ease-in-out-cubic" },
+          ),
+        280,
+      );
     }
   };
   // chronological reconstruction following data-flow propagation
@@ -29145,103 +29865,654 @@ function GraphExplorer() {
     <div>
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
       <div
+        ref={wrapRef}
         onMouseMove={onMove}
         onMouseLeave={() => setLens((l) => ({ ...l, show: false }))}
+        onContextMenu={(e) => e.preventDefault()}
         style={{
           position: "relative",
           borderRadius: 4,
           overflow: "hidden",
           border: "1px solid var(--cg-border-card)",
           cursor: magnify ? "none" : "default",
+          // section height parity with the Security Graph (fills the viewport)
+          height: isFull ? "100vh" : "calc(100vh - 230px)",
+          minHeight: 540,
+          background: "#ffffff",
+          // own stacking context so the graph chrome (toolbar/filter/menu, z<=46)
+          // never fights the global top bar (search / notifications / profile)
+          isolation: "isolate",
         }}
       >
+        <GraphWatermark />
         <div
           ref={ref}
           style={{
             position: "relative",
-            zIndex: 0, // own stacking context so its canvases stay below overlays
-            height: 720,
-            width: open ? "calc(100% - 316px)" : "100%",
-            background: "#ffffff",
+            zIndex: 1, // above the background watermark, below the overlays
+            height: "100%",
+            width:
+              gview !== "graph"
+                ? "calc(100% - 340px)"
+                : open
+                  ? "calc(100% - 316px)"
+                  : "100%",
+            background: "transparent", // let the background watermark show through
             transition: "width .28s ease",
           }}
         />
-        <GraphNavigator
-          onPan={pan}
-          onZoom={zoom}
-          onFit={fit}
-          onPlay={reconstruct}
-          zoomPct={zoomPct}
-          onZoomPct={zoomTo}
-          magnify={magnify}
-          onToggleMagnify={() => {
-            setMagnifyOn((m) => !m);
-            setLens((l) => ({ ...l, show: false }));
+        {/* top-left toolbar — Reset · Fit · Full screen (parity w/ Security Graph) */}
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: 12,
+            display: "flex",
+            gap: 8,
+            zIndex: 30,
           }}
-        />
-        {/* minimap — current view vs global */}
-        {mini && mini.bb.w > 0 ? (
+        >
+          <button type="button" onClick={gReset} style={graphToolBtn(false)}>
+            <RotateCcw size={13} /> Reset
+          </button>
+          <button type="button" onClick={fit} style={graphToolBtn(false)}>
+            <Maximize2 size={13} /> Fit
+          </button>
+          <button
+            type="button"
+            onClick={toggleFull}
+            style={graphToolBtn(false)}
+          >
+            {isFull ? <Minimize size={13} /> : <Expand size={13} />}
+            {isFull ? "Exit" : "Full screen"}
+          </button>
+        </div>
+
+        {/* filter bar — spotlight by resource type (compact, short labels) */}
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            left: "50%",
+            transform: "translateX(-50%)",
+            display: "flex",
+            gap: 3,
+            zIndex: 30,
+            maxWidth: "42%",
+            overflow: "hidden",
+            background: CHROME.bg,
+            border: "1px solid rgba(30,20,10,0.2)",
+            borderRadius: 9,
+            padding: 3,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+          }}
+        >
+          {GRAPH_KINDS.slice(0, 3).map((k) => {
+            const on = gfilters.has(k);
+            return (
+              <button
+                key={k}
+                type="button"
+                onClick={() => toggleGFilter(k)}
+                title={GKIND_LABEL[k]}
+                style={{
+                  height: 24,
+                  padding: "0 8px",
+                  borderRadius: 6,
+                  border: `1px solid ${on ? CHROME.accent : "transparent"}`,
+                  background: on ? CHROME.accentBg : "transparent",
+                  color: on ? CHROME.text : CHROME.muted,
+                  fontSize: 11.5,
+                  fontWeight: on ? 600 : 500,
+                  cursor: "pointer",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {GKIND_SHORT[k]}
+              </button>
+            );
+          })}
+          {/* more → category drawer with visibility (hide) selectors */}
+          <button
+            type="button"
+            onClick={() => setGCatOpen(true)}
+            style={{
+              height: 24,
+              padding: "0 8px",
+              borderRadius: 6,
+              border: "1px solid transparent",
+              background: "transparent",
+              color: CHROME.muted,
+              fontSize: 11.5,
+              fontWeight: 500,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 4,
+              whiteSpace: "nowrap",
+            }}
+          >
+            <SlidersHorizontal size={12} /> More
+          </button>
+        </div>
+
+        {/* category drawer — all resource types: spotlight filter + hide toggle */}
+        {gCatOpen && (
+          <>
+            <div
+              onClick={() => setGCatOpen(false)}
+              aria-hidden="true"
+              style={{ position: "absolute", inset: 0, zIndex: 55 }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                top: 50,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 56,
+                width: 300,
+                background: CHROME.bg,
+                border: "1px solid rgba(30,20,10,0.2)",
+                borderRadius: 10,
+                padding: 10,
+                boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: CHROME.text,
+                  padding: "2px 4px 8px",
+                }}
+              >
+                Resource categories
+              </div>
+              {GRAPH_KINDS.map((k) => {
+                const on = gfilters.has(k);
+                const hiddenK = hidden.has(k);
+                return (
+                  <div
+                    key={k}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 4px",
+                      borderBottom: "1px solid rgba(30,20,10,0.07)",
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleGFilter(k)}
+                      style={{
+                        flex: 1,
+                        textAlign: "left",
+                        height: 26,
+                        padding: "0 8px",
+                        borderRadius: 6,
+                        border: `1px solid ${on ? CHROME.accent : "transparent"}`,
+                        background: on ? CHROME.accentBg : "transparent",
+                        color: on ? CHROME.text : CHROME.muted,
+                        fontSize: 12.5,
+                        fontWeight: on ? 600 : 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      {GKIND_LABEL[k]}
+                    </button>
+                    <button
+                      type="button"
+                      title={hiddenK ? "Show" : "Hide"}
+                      onClick={() => toggleKind(k)}
+                      style={{
+                        width: 30,
+                        height: 26,
+                        borderRadius: 6,
+                        border: "1px solid rgba(30,20,10,0.2)",
+                        background: "transparent",
+                        color: hiddenK ? CHROME.muted : CHROME.text,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {hiddenK ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* mode toggle — Architecture · Findings · Issues */}
+        <div
+          style={{
+            position: "absolute",
+            top: 12,
+            right: 12,
+            display: "flex",
+            zIndex: 30,
+            background: CHROME.bg,
+            border: "1px solid rgba(30,20,10,0.2)",
+            borderRadius: 8,
+            padding: 3,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+          }}
+        >
+          {(
+            [
+              { id: "graph", label: "Architecture", n: 0 },
+              { id: "findings", label: "Findings", n: X_FINDINGS.length },
+              { id: "issues", label: "Issues", n: X_ISSUES.length },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setGview(m.id)}
+              style={{
+                height: 28,
+                padding: "0 12px",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: gview === m.id ? 700 : 500,
+                background: gview === m.id ? CHROME.accentBg : "transparent",
+                color: gview === m.id ? CHROME.accent : CHROME.muted,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {m.label}
+              {m.n > 0 && (
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    padding: "0 5px",
+                    borderRadius: 8,
+                    background: gview === m.id ? CHROME.accent : CHROME.hover,
+                    color: gview === m.id ? "#fff" : CHROME.muted,
+                  }}
+                >
+                  {m.n}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* hover read-out — terminal-style, top-left under the toolbar */}
+        {gHover && (
           <div
             style={{
               position: "absolute",
-              right: 12,
-              bottom: 12,
-              width: 168,
-              height: 108,
-              borderRadius: 6,
-              background: "rgba(23,23,22,0.92)",
+              top: 54,
+              left: 12,
+              zIndex: 30,
+              minWidth: 220,
+              maxWidth: 320,
+              background: "rgb(23,23,22)",
               border: "1px solid rgba(255,255,255,0.12)",
-              overflow: "hidden",
-              zIndex: 20,
+              borderRadius: 8,
+              padding: "10px 12px",
+              boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
+              fontFamily:
+                "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+              fontSize: 12,
+              lineHeight: 1.65,
+              pointerEvents: "none",
             }}
           >
-            <svg width="168" height="108" viewBox="0 0 168 108">
-              {(() => {
-                const MW = 168;
-                const MH = 108;
-                const pad = 10;
-                const s = Math.min(
-                  (MW - pad * 2) / mini.bb.w,
-                  (MH - pad * 2) / mini.bb.h,
-                );
-                // centre the scaled graph within the minimap
-                const ox = (MW - mini.bb.w * s) / 2;
-                const oy = (MH - mini.bb.h * s) / 2;
-                const mx = (x: number) => ox + (x - mini.bb.x) * s;
-                const my = (y: number) => oy + (y - mini.bb.y) * s;
-                const clamp = (v: number, lo: number, hi: number) =>
-                  Math.max(lo, Math.min(hi, v));
-                const vx = clamp(mx(mini.view.x), 1, MW - 1);
-                const vy = clamp(my(mini.view.y), 1, MH - 1);
-                const vw = clamp(mini.view.w * s, 3, MW - vx - 1);
-                const vh = clamp(mini.view.h * s, 3, MH - vy - 1);
-                return (
-                  <>
-                    {A_NODES.map((n) => (
-                      <circle
-                        key={n.id}
-                        cx={mx(n.x)}
-                        cy={my(n.y)}
-                        r={n.finding ? 2.8 : 2.1}
-                        fill={n.finding ? "#fcae1e" : "#8a96a8"}
-                      />
-                    ))}
-                    <rect
-                      x={vx}
-                      y={vy}
-                      width={vw}
-                      height={vh}
-                      rx={2}
-                      fill="rgba(91,155,240,0.16)"
-                      stroke="#5b9bf0"
-                      strokeWidth={1.3}
-                    />
-                  </>
-                );
-              })()}
-            </svg>
+            {(
+              [
+                ["resource", gHover.label ?? gHover.id],
+                ["type", GKIND_LABEL[gHover.kind as GKind] ?? "—"],
+                [
+                  "finding",
+                  X_FINDING_BY_NODE[gHover.id]
+                    ? `${X_FINDING_BY_NODE[gHover.id].category} · ${X_FINDING_BY_NODE[gHover.id].severity}`
+                    : "none",
+                ],
+                ["on paths", `${xIssuesForNode(gHover.id).length} issue(s)`],
+              ] as [string, string][]
+            ).map(([k, v]) => (
+              <div
+                key={k}
+                style={{ display: "flex", gap: 6, whiteSpace: "nowrap" }}
+              >
+                <span
+                  style={{
+                    color: "#7f8a84",
+                    minWidth: 74,
+                    display: "inline-block",
+                  }}
+                >
+                  {k}
+                </span>
+                <span style={{ color: "#8a96a8" }}>:</span>
+                <span
+                  style={{
+                    color: X_FINDING_BY_NODE[gHover.id] ? "#e8e8e2" : "#e8e8e2",
+                    fontWeight: 600,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {v}
+                </span>
+              </div>
+            ))}
           </div>
-        ) : null}
+        )}
+
+        {/* locked-view banner — Escape to exit */}
+        {gLocked && (
+          <div
+            style={{
+              position: "absolute",
+              top: 54,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 31,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "7px 10px 7px 14px",
+              borderRadius: 8,
+              background: "rgb(23,23,22)",
+              color: "#fff",
+              fontSize: 12.5,
+              boxShadow: "0 3px 12px rgba(0,0,0,0.3)",
+            }}
+          >
+            Locked · {X_NODE[gLocked]?.label ?? gLocked} · data flow
+            <button
+              type="button"
+              onClick={() => setGLocked(null)}
+              style={{
+                height: 24,
+                padding: "0 9px",
+                borderRadius: 6,
+                border: "1px solid rgba(255,255,255,0.25)",
+                background: "transparent",
+                color: "#fff",
+                fontSize: 11.5,
+                cursor: "pointer",
+              }}
+            >
+              Esc
+            </button>
+          </div>
+        )}
+
+        {/* right-click context menu */}
+        {ctxMenu && (
+          <>
+            <div
+              onClick={() => setCtxMenu(null)}
+              aria-hidden="true"
+              style={{ position: "absolute", inset: 0, zIndex: 45 }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                left: ctxMenu.x + 6,
+                top: ctxMenu.y + 6,
+                zIndex: 46,
+                width: 200,
+                background: "rgb(23,23,22)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 10,
+                padding: 6,
+                boxShadow: "0 10px 28px rgba(0,0,0,0.4)",
+              }}
+            >
+              <div
+                style={{
+                  padding: "6px 10px 8px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: "#fff",
+                  borderBottom: "1px solid rgba(255,255,255,0.08)",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {ctxMenu.data.label ?? ctxMenu.data.id}
+              </div>
+              {/* finding / issue tags — clickable → open in the catalog */}
+              {(X_FINDING_BY_NODE[ctxMenu.data.id] ||
+                xIssuesForNode(ctxMenu.data.id).length > 0) && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 5,
+                    padding: "8px 10px",
+                    borderBottom: "1px solid rgba(255,255,255,0.08)",
+                  }}
+                >
+                  {X_FINDING_BY_NODE[ctxMenu.data.id] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setGview("findings");
+                        setGnav({
+                          kind: "finding",
+                          id: X_FINDING_BY_NODE[ctxMenu.data.id].id,
+                        });
+                        setCtxMenu(null);
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        height: 22,
+                        padding: "0 8px",
+                        borderRadius: 11,
+                        border: "1px solid #d99a0066",
+                        background: "#d99a0022",
+                        color: "#e5b23a",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <AlertTriangle size={10} /> Finding
+                    </button>
+                  )}
+                  {xIssuesForNode(ctxMenu.data.id).map((iss) => (
+                    <button
+                      key={iss.id}
+                      type="button"
+                      onClick={() => {
+                        setGview("issues");
+                        setGnav({ kind: "issue", id: iss.id });
+                        setCtxMenu(null);
+                      }}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 5,
+                        height: 22,
+                        padding: "0 8px",
+                        borderRadius: 11,
+                        border: "1px solid rgba(91,155,240,0.5)",
+                        background: "rgba(91,155,240,0.16)",
+                        color: "#90bdf5",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <GitBranch size={10} /> {iss.id}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {[
+                {
+                  label: "View details",
+                  icon: <Info size={14} />,
+                  disabled: false,
+                  on: () => {
+                    const cy = cyRef.current;
+                    if (cy) {
+                      cy.nodes().removeClass("picked");
+                      cy.getElementById(ctxMenu.data.id).addClass("picked");
+                    }
+                    setSel(ctxMenu.data);
+                    setCtxMenu(null);
+                  },
+                },
+                {
+                  label: "Data flow",
+                  icon: <GitBranch size={14} />,
+                  disabled: false,
+                  on: () => {
+                    setGnav({ kind: "node", id: ctxMenu.data.id });
+                    setCtxMenu(null);
+                  },
+                },
+                {
+                  label: "Lock the view",
+                  icon: <Lock size={14} />,
+                  disabled: false,
+                  on: () => {
+                    setGLocked(ctxMenu.data.id);
+                    setCtxMenu(null);
+                  },
+                },
+                {
+                  label: "Ask agent",
+                  icon: <Bot size={14} />,
+                  disabled: true,
+                  on: () => {},
+                },
+                {
+                  label: "Run simulation",
+                  icon: <Play size={14} />,
+                  disabled: true,
+                  on: () => {},
+                },
+                {
+                  label: gmarked[ctxMenu.data.id] ? "Edit mark" : "Mark node",
+                  icon: (
+                    <Star
+                      size={14}
+                      color={gmarked[ctxMenu.data.id] ? "#f5b301" : undefined}
+                      fill={gmarked[ctxMenu.data.id] ? "#f5b301" : "none"}
+                    />
+                  ),
+                  disabled: false,
+                  on: () => {
+                    saveGMark(ctxMenu.data.id, "");
+                    setCtxMenu(null);
+                  },
+                },
+              ].map((it) => (
+                <button
+                  key={it.label}
+                  type="button"
+                  onClick={it.on}
+                  disabled={it.disabled}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 9,
+                    width: "100%",
+                    padding: "8px 10px",
+                    border: "none",
+                    borderRadius: 6,
+                    background: "transparent",
+                    color: it.disabled ? "#6b7178" : "#dfe2e6",
+                    fontSize: 12.5,
+                    cursor: it.disabled ? "default" : "pointer",
+                    textAlign: "left",
+                  }}
+                  onMouseEnter={(ev) => {
+                    if (it.disabled) return;
+                    const el = ev.currentTarget;
+                    el.style.background = "rgba(255,255,255,0.08)";
+                  }}
+                  onMouseLeave={(ev) => {
+                    const el = ev.currentTarget;
+                    el.style.background = "transparent";
+                  }}
+                >
+                  {it.icon}
+                  {it.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        <SharedGraphNavigator
+          onPan={pan}
+          onZoomIn={() => zoom(1.3)}
+          onZoomOut={() => zoom(1 / 1.3)}
+          onFit={fit}
+          zoomPct={zoomPct}
+          onZoomPct={zoomTo}
+          showMini={showMini}
+          onToggleMini={() => setShowMini((m) => !m)}
+          markedCount={Object.keys(gmarked).length}
+          onOpenMarked={() => setGview("findings")}
+          extra={
+            <button
+              type="button"
+              aria-label="Replay data flow"
+              onClick={reconstruct}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 9,
+                border: "none",
+                background: "rgb(23,23,22)",
+                color: "#fff",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Play size={15} />
+            </button>
+          }
+        />
+        {/* minimap — shared frame viewer (clears the right drawer when open) */}
+        {showMini && mini && mini.bb.w > 0 && (
+          <GraphMinimap
+            rightOffset={gview !== "graph" ? 352 : open ? 328 : 12}
+            frame={mini}
+            dots={A_NODES.map((n) => ({
+              x: n.x,
+              y: n.y,
+              a: n.finding ? "error" : "",
+            }))}
+            onJump={(gx, gy) => {
+              const cy = cyRef.current;
+              if (!cy) return;
+              cy.animate(
+                {
+                  pan: {
+                    x: cy.width() / 2 - gx * cy.zoom(),
+                    y: cy.height() / 2 - gy * cy.zoom(),
+                  },
+                },
+                { duration: 180 },
+              );
+            }}
+          />
+        )}
         {/* corner control: compact toggle when expanded, count badge (click=expand) when collapsed */}
         {cues.map((c) =>
           c.collapsed ? (
@@ -29294,12 +30565,25 @@ function GraphExplorer() {
             </button>
           ),
         )}
-        <GraphSidePanel
+        <XNodeDrawer
           node={sel}
-          hidden={hidden}
-          onToggle={toggleKind}
+          marked={!!(sel && gmarked[sel.id])}
           onClose={closePanel}
+          onDataflow={(id) => setGnav({ kind: "node", id })}
+          onMark={(id) => saveGMark(id, "")}
         />
+        {(gview === "findings" || gview === "issues") && (
+          <XCatalogDrawer
+            mode={gview}
+            onClose={() => setGview("graph")}
+            onPick={setGnav}
+            onOpenNode={(nodeId) => {
+              const n = X_NODE[nodeId];
+              if (n) setSel(n);
+              setGnav({ kind: "node", id: nodeId });
+            }}
+          />
+        )}
       </div>
       {/* magnifier lens — a live cytoscape view, follows the cursor while active */}
       <div
