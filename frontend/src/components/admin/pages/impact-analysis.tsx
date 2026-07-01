@@ -15,6 +15,15 @@ import {
   Minimize,
   Bot,
   Play,
+  Copy,
+  Check,
+  ArrowUp,
+  ArrowDown,
+  Save,
+  ChevronDown,
+  Crosshair,
+  Frame,
+  Trash2,
 } from "lucide-react";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -46,6 +55,7 @@ import {
   NotesPanel,
   useNotes,
   MultiFilter,
+  MoreDetail,
 } from "./graph-shell";
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -402,6 +412,48 @@ function chainNodes(id: string): IANode[] {
     .map((x) => NODE_BY_ID[x])
     .filter(Boolean)
     .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
+}
+
+// a recallable saved view — a named snapshot of viewport + emphasis
+type SavedView = {
+  id: string;
+  name: string;
+  kind: "full" | "chain" | "issue" | "node";
+  zoom: number;
+  pan: { x: number; y: number };
+  chainIds?: string[];
+  path?: string[];
+  spot?: string | null;
+};
+
+// directional, degree-bounded chain: dir = downstream (data flows OUT) or
+// upstream (data flows IN); degree 1 / 2 / 0(=full). Returns the node-id set.
+type ChainDir = "down" | "up";
+type ChainDeg = 1 | 2 | 0;
+function chainDir(id: string, dir: ChainDir, degree: ChainDeg): Set<string> {
+  const adj: Record<string, string[]> = {};
+  MODEL.edges.forEach((e) => {
+    if (dir === "down") (adj[e.source] ||= []).push(e.target);
+    else (adj[e.target] ||= []).push(e.source);
+  });
+  const out = new Set<string>([id]);
+  let frontier = [id];
+  let d = 0;
+  const maxD = degree === 0 ? Infinity : degree;
+  while (frontier.length && d < maxD) {
+    const next: string[] = [];
+    frontier.forEach((c) =>
+      (adj[c] || []).forEach((x) => {
+        if (!out.has(x)) {
+          out.add(x);
+          next.push(x);
+        }
+      }),
+    );
+    frontier = next;
+    d += 1;
+  }
+  return out;
 }
 
 // ── Findings (single-resource problems) + Issues (attack paths) ───────────────
@@ -1016,6 +1068,13 @@ export function ImpactAnalysis() {
   const [marked, setMarked] = React.useState<
     Record<string, { note: string; ts: number }>
   >({});
+  // recallable saved views (client-side; Sample)
+  const [saved, setSaved] = React.useState<SavedView[]>([]);
+  const [saveMenu, setSaveMenu] = React.useState(false);
+  const [savedOpen, setSavedOpen] = React.useState(false);
+  const [picking, setPicking] = React.useState(false);
+  const pickingRef = React.useRef(false);
+  pickingRef.current = picking;
   // locked view — chain (path undefined) or a specific issue attack-path
   const [locked, setLocked] = React.useState<{
     id: string;
@@ -1041,6 +1100,7 @@ export function ImpactAnalysis() {
   viewRef.current = view;
   const hoverRef = React.useRef<string | null>(null);
   const pinnedRef = React.useRef<string | null>(null); // finding row / dep-chain pin
+  const chainSetRef = React.useRef<Set<string> | null>(null); // directional dep-chain
   const pathRef = React.useRef<string[] | null>(null); // issue attack-path spotlight
   const spotRef = React.useRef<string | null>(null); // single-node spotlight (dashed box)
   const lockedRef = React.useRef<{
@@ -1098,6 +1158,9 @@ export function ImpactAnalysis() {
       boxId = spotRef.current;
     } else if (hoverRef.current) {
       active = chainSet(hoverRef.current);
+      chain = true;
+    } else if (chainSetRef.current) {
+      active = chainSetRef.current; // directional / degree-bounded dep-chain
       chain = true;
     } else if (pinnedRef.current) {
       active = chainSet(pinnedRef.current);
@@ -1191,8 +1254,26 @@ export function ImpactAnalysis() {
       applyEmphasis(); // falls back to pinned / filter
     });
     cy.on("tap", "node", (e: any) => {
-      if (lockedRef.current) return; // locked: no drilling
       const id = e.target.id();
+      // picker mode: capture this node's downstream dependency chain as a view
+      if (pickingRef.current) {
+        const ids = [...chainDir(id, "down", 0)];
+        setSaved((s) => [
+          {
+            id: `sv-${Date.now()}-${s.length}`,
+            name: `${NODE_BY_ID[id]?.label ?? id} · downstream full`,
+            kind: "chain",
+            zoom: cy.zoom(),
+            pan: { ...cy.pan() },
+            chainIds: ids,
+          },
+          ...s,
+        ]);
+        setSavedOpen(true);
+        setPicking(false);
+        return;
+      }
+      if (lockedRef.current) return; // locked: no drilling
       setSel(nodeInfo(e.target));
       if (e.target.data("reach") > 0) {
         setStack((s) => (s[s.length - 1] === id ? s : [...s, id]));
@@ -1207,6 +1288,7 @@ export function ImpactAnalysis() {
         setStack([]);
         // clear a graph-pinned chain / issue-path / spotlight
         pinnedRef.current = null;
+        chainSetRef.current = null;
         pathRef.current = null;
         spotRef.current = null;
         setTip(null);
@@ -1533,17 +1615,20 @@ export function ImpactAnalysis() {
     closeMenu();
     applyEmphasis();
   };
-  const menuChain = () => {
+  const menuChain = (dir: ChainDir, degree: ChainDeg) => {
     if (ctx) {
-      pinnedRef.current = ctx.node.id;
+      pinnedRef.current = null;
+      hoverRef.current = null;
+      chainSetRef.current = chainDir(ctx.node.id, dir, degree);
       closeMenu();
-      emphasize(ctx.node.id);
+      applyEmphasis();
     }
   };
   // context-menu "Issue" submenu → light that issue's attack path on the graph
   const menuIssuePath = (iss: Issue) => {
     closeMenu();
     pinnedRef.current = null;
+    chainSetRef.current = null;
     spotRef.current = null;
     setTip(null);
     pathRef.current = iss.path;
@@ -1579,8 +1664,89 @@ export function ImpactAnalysis() {
       delete next[id];
       return next;
     });
+  // ── saved views ────────────────────────────────────────────────────────────
+  const vp = () => {
+    const cy = cyRef.current;
+    return cy
+      ? {
+          zoom: cy.zoom() as number,
+          pan: { ...(cy.pan() as { x: number; y: number }) },
+        }
+      : { zoom: 1, pan: { x: 0, y: 0 } };
+  };
+  const pushView = (v: Omit<SavedView, "id">) => {
+    setSaved((s) => [{ ...v, id: `sv-${Date.now()}-${s.length}` }, ...s]);
+    setSavedOpen(true);
+  };
+  const saveCurrentView = () => {
+    setSaveMenu(false);
+    if (chainSetRef.current) {
+      pushView({
+        ...vp(),
+        name: `Chain · ${chainSetRef.current.size} nodes`,
+        kind: "chain",
+        chainIds: [...chainSetRef.current],
+      });
+    } else if (pathRef.current) {
+      pushView({
+        ...vp(),
+        name: "Issue path",
+        kind: "issue",
+        path: [...pathRef.current],
+      });
+    } else if (spotRef.current) {
+      pushView({
+        ...vp(),
+        name: `Node · ${NODE_BY_ID[spotRef.current]?.label ?? spotRef.current}`,
+        kind: "node",
+        spot: spotRef.current,
+      });
+    } else {
+      pushView({
+        ...vp(),
+        name: `Full view · ${saved.length + 1}`,
+        kind: "full",
+      });
+    }
+  };
+  const saveChainAsView = (nodeId: string, dir: ChainDir, degree: ChainDeg) => {
+    const ids = [...chainDir(nodeId, dir, degree)];
+    const dl = dir === "down" ? "downstream" : "upstream";
+    const gl = degree === 0 ? "full" : `${degree}°`;
+    pushView({
+      ...vp(),
+      name: `${NODE_BY_ID[nodeId]?.label ?? nodeId} · ${dl} ${gl}`,
+      kind: "chain",
+      chainIds: ids,
+    });
+  };
+  const saveIssueAsView = (iss: Issue) => {
+    pushView({
+      ...vp(),
+      name: `Issue ${iss.id}`,
+      kind: "issue",
+      path: [...iss.path],
+    });
+  };
+  const applySavedView = (v: SavedView) => {
+    setLocked(null);
+    setSel(null);
+    setTip(null);
+    hoverRef.current = null;
+    pinnedRef.current = null;
+    chainSetRef.current = v.chainIds ? new Set(v.chainIds) : null;
+    pathRef.current = v.path ?? null;
+    spotRef.current = v.spot ?? null;
+    const cy = cyRef.current;
+    if (cy) cy.animate({ zoom: v.zoom, pan: v.pan }, { duration: 320 });
+    applyEmphasis();
+  };
+  const deleteSavedView = (id: string) =>
+    setSaved((s) => s.filter((v) => v.id !== id));
+
   const selectMarked = (id: string) => {
     // activate just this marked node's view; others shadowed (graph stays put)
+    chainSetRef.current = null;
     pinnedRef.current = id;
     emphasize(id);
     setSel(NODE_BY_ID[id]);
@@ -1591,6 +1757,7 @@ export function ImpactAnalysis() {
   const focusNode = React.useCallback(
     (id: string | null) => {
       pinnedRef.current = null;
+      chainSetRef.current = null;
       pathRef.current = null;
       spotRef.current = id;
       setTip(id ? { id } : null);
@@ -1603,6 +1770,7 @@ export function ImpactAnalysis() {
   const focusIssuePath = React.useCallback(
     (iss: Issue | null) => {
       pinnedRef.current = null;
+      chainSetRef.current = null;
       spotRef.current = null;
       setTip(null);
       pathRef.current = iss ? iss.path : null;
@@ -1699,7 +1867,15 @@ export function ImpactAnalysis() {
             issues={issuesForNode(ctx.node.id)}
             onDetails={menuDetails}
             onChain={menuChain}
+            onSaveChain={(dir, deg) => {
+              saveChainAsView(ctx.node.id, dir, deg);
+              closeMenu();
+            }}
             onIssuePath={menuIssuePath}
+            onSaveIssue={(iss) => {
+              saveIssueAsView(iss);
+              closeMenu();
+            }}
             onLock={menuLock}
             onMark={menuMark}
             onJump={jumpToCatalog}
@@ -1782,10 +1958,237 @@ export function ImpactAnalysis() {
             {isFull ? <Minimize size={13} /> : <Expand size={13} />}
             {isFull ? "Exit" : "Full screen"}
           </button>
+
+          {/* Save ▾ — recallable saved views */}
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setSaveMenu((o) => !o)}
+              style={graphToolBtn(saveMenu)}
+              title="Save this view"
+            >
+              <Save size={13} /> Save
+              <ChevronDown size={12} style={{ marginLeft: 1 }} />
+            </button>
+            {saveMenu && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  width: 210,
+                  background: CHROME.bg,
+                  border: `1px solid ${CHROME.border}`,
+                  borderRadius: 9,
+                  padding: 5,
+                  boxShadow: "0 10px 26px rgba(0,0,0,0.18)",
+                  zIndex: 20,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={saveCurrentView}
+                  style={saveMenuItem}
+                >
+                  <Save size={13} /> Save full view
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSaveMenu(false);
+                    setPicking(true);
+                    setSavedOpen(false);
+                  }}
+                  style={saveMenuItem}
+                >
+                  <Crosshair size={13} /> Pick a view to save…
+                </button>
+                <div
+                  style={{
+                    height: 1,
+                    background: CHROME.border,
+                    margin: "4px 2px",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSaveMenu(false);
+                    setSavedOpen(true);
+                  }}
+                  style={saveMenuItem}
+                >
+                  <Frame size={13} /> Saved views · {saved.length}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* hover read-out — terminal-style, top-left under the toolbar */}
         {hoverInfo && <HoverReadout node={hoverInfo} />}
+
+        {/* picker-mode banner */}
+        {picking && (
+          <div
+            style={{
+              position: "absolute",
+              top: 54,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 18,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "7px 10px 7px 14px",
+              borderRadius: 8,
+              background: CHROME.accent,
+              color: "#fff",
+              fontSize: 12.5,
+              boxShadow: "0 3px 12px rgba(0,0,0,0.25)",
+            }}
+          >
+            <Crosshair size={13} /> Click a node to save its dependency chain
+            <button
+              type="button"
+              onClick={() => setPicking(false)}
+              style={{
+                background: "rgba(255,255,255,0.22)",
+                border: "none",
+                color: "#fff",
+                borderRadius: 6,
+                padding: "3px 8px",
+                cursor: "pointer",
+                fontSize: 11.5,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* saved-views panel — top-right, recallable */}
+        {savedOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: 12,
+              right: rightOpen ? ALERTS_W + 12 : 12,
+              width: 234,
+              maxHeight: "calc(100% - 24px)",
+              display: "flex",
+              flexDirection: "column",
+              background: CHROME.bg,
+              border: `1px solid ${CHROME.border}`,
+              borderRadius: 10,
+              boxShadow: "0 10px 26px rgba(0,0,0,0.16)",
+              zIndex: 19,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 12px",
+                borderBottom: `1px solid ${CHROME.border}`,
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: CHROME.text,
+              }}
+            >
+              <Frame size={14} /> Saved views · {saved.length}
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setSavedOpen(false)}
+                style={{
+                  marginLeft: "auto",
+                  background: "transparent",
+                  border: "none",
+                  color: CHROME.muted,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ overflowY: "auto" }}>
+              {saved.length === 0 ? (
+                <div
+                  style={{
+                    padding: "14px 12px",
+                    fontSize: 12,
+                    color: CHROME.muted,
+                    fontStyle: "italic",
+                  }}
+                >
+                  No saved views yet. Use Save ▾ or the context menu.
+                </div>
+              ) : (
+                saved.map((v) => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "9px 12px",
+                      borderBottom: `1px solid ${CHROME.border}`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => applySavedView(v)}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        textAlign: "left",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: CHROME.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {v.name}
+                      </span>
+                      <span style={{ fontSize: 11, color: CHROME.muted }}>
+                        {v.kind}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Delete"
+                      onClick={() => deleteSavedView(v.id)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: CHROME.muted,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* filter bar — compact for responsiveness */}
         <div
@@ -2304,6 +2707,31 @@ const submenuBox: React.CSSProperties = {
   padding: 6,
   boxShadow: "0 10px 28px rgba(0,0,0,0.4)",
 };
+const ctxGroupHead: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "5px 10px 3px",
+  fontSize: 10,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+  color: "#8a96a8",
+};
+const saveMenuItem: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%",
+  padding: "8px 9px",
+  border: "none",
+  borderRadius: 6,
+  background: "transparent",
+  color: CHROME.text,
+  fontSize: 12.5,
+  cursor: "pointer",
+  textAlign: "left",
+};
 
 function NodeContextMenu({
   ctx,
@@ -2312,7 +2740,9 @@ function NodeContextMenu({
   issues,
   onDetails,
   onChain,
+  onSaveChain,
   onIssuePath,
+  onSaveIssue,
   onLock,
   onMark,
   onJump,
@@ -2322,16 +2752,24 @@ function NodeContextMenu({
   finding?: Finding;
   issues: Issue[];
   onDetails: () => void;
-  onChain: () => void;
+  onChain: (dir: ChainDir, degree: ChainDeg) => void;
+  onSaveChain: (dir: ChainDir, degree: ChainDeg) => void;
   onIssuePath: (iss: Issue) => void;
+  onSaveIssue: (iss: Issue) => void;
   onLock: (path?: string[]) => void;
   onMark: () => void;
   onJump: (kind: "finding" | "issue", id: string) => void;
 }) {
-  // one hover-submenu open at a time ("issue" | "lock" | null), with a close delay
-  const [sub, setSub] = React.useState<"issue" | "lock" | null>(null);
+  // one hover-submenu open at a time, with a close delay
+  const [sub, setSub] = React.useState<"issue" | "lock" | "chain" | null>(null);
+  const [copied, setCopied] = React.useState(false);
   const subTimer = React.useRef<number | undefined>(undefined);
-  const openSub = (which: "issue" | "lock") => () => {
+  const copyId = () => {
+    navigator.clipboard?.writeText(ctx.node.id);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  };
+  const openSub = (which: "issue" | "lock" | "chain") => () => {
     window.clearTimeout(subTimer.current);
     setSub(which);
   };
@@ -2361,16 +2799,56 @@ function NodeContextMenu({
       <div
         style={{
           padding: "6px 10px 8px",
-          fontSize: 12,
-          fontWeight: 600,
-          color: "#fff",
           borderBottom: "1px solid rgba(255,255,255,0.08)",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
         }}
       >
-        {ctx.node.label}
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "#fff",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {ctx.node.label}
+        </div>
+        <button
+          type="button"
+          onClick={copyId}
+          title="Copy node ID"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            marginTop: 3,
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            color: "#8a96a8",
+            fontSize: 10.5,
+            fontFamily:
+              "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+            cursor: "pointer",
+            maxWidth: "100%",
+          }}
+        >
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {ctx.node.id}
+          </span>
+          {copied ? (
+            <Check size={11} color="#39b84e" style={{ flexShrink: 0 }} />
+          ) : (
+            <Copy size={11} style={{ flexShrink: 0 }} />
+          )}
+        </button>
       </div>
 
       {/* finding / attack-path tags (clickable → open in the catalog) */}
@@ -2444,15 +2922,93 @@ function NodeContextMenu({
         >
           <Info size={14} /> View node details
         </button>
-        <button
-          type="button"
-          onClick={onChain}
-          style={ctxItem()}
-          onMouseEnter={hoverBg(true)}
-          onMouseLeave={hoverBg(false)}
+        {/* Dependency chain — bifurcates into Upstream / Downstream × degree */}
+        <div
+          style={{ position: "relative" }}
+          onMouseEnter={openSub("chain")}
+          onMouseLeave={closeSub}
         >
-          <GitBranch size={14} /> Dependency chain
-        </button>
+          <button
+            type="button"
+            onClick={() => onChain("down", 0)}
+            style={ctxItem()}
+            onMouseEnter={hoverBg(true)}
+            onMouseLeave={hoverBg(false)}
+          >
+            <GitBranch size={14} /> Dependency chain
+            <ChevronRight
+              size={13}
+              color="#7f8a84"
+              style={{ marginLeft: "auto" }}
+            />
+          </button>
+          {sub === "chain" && (
+            <div
+              onMouseEnter={openSub("chain")}
+              onMouseLeave={closeSub}
+              style={submenuBox}
+            >
+              <div style={ctxGroupHead}>
+                <ArrowDown size={11} /> Downstream · data flows out
+              </div>
+              {(
+                [
+                  [1, "Direct (1st degree)"],
+                  [2, "2nd degree"],
+                  [0, "Full chain"],
+                ] as [ChainDeg, string][]
+              ).map(([deg, label]) => (
+                <button
+                  key={`d${deg}`}
+                  type="button"
+                  onClick={() => onChain("down", deg)}
+                  style={ctxItem()}
+                  onMouseEnter={hoverBg(true)}
+                  onMouseLeave={hoverBg(false)}
+                >
+                  {label}
+                </button>
+              ))}
+              <div style={{ ...ctxGroupHead, marginTop: 4 }}>
+                <ArrowUp size={11} /> Upstream · data flows in
+              </div>
+              {(
+                [
+                  [1, "Direct (1st degree)"],
+                  [2, "2nd degree"],
+                  [0, "Full chain"],
+                ] as [ChainDeg, string][]
+              ).map(([deg, label]) => (
+                <button
+                  key={`u${deg}`}
+                  type="button"
+                  onClick={() => onChain("up", deg)}
+                  style={ctxItem()}
+                  onMouseEnter={hoverBg(true)}
+                  onMouseLeave={hoverBg(false)}
+                >
+                  {label}
+                </button>
+              ))}
+              <div
+                style={{
+                  height: 1,
+                  background: "rgba(255,255,255,0.1)",
+                  margin: "4px 2px",
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => onSaveChain("down", 0)}
+                style={ctxItem()}
+                onMouseEnter={hoverBg(true)}
+                onMouseLeave={hoverBg(false)}
+              >
+                <Save size={13} /> Save this chain
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Issue — adjacent list of the attack paths the node is on */}
         {issues.length > 0 && (
@@ -2482,26 +3038,45 @@ function NodeContextMenu({
                 style={submenuBox}
               >
                 {issues.map((iss) => (
-                  <button
+                  <div
                     key={iss.id}
-                    type="button"
-                    onClick={() => onIssuePath(iss)}
-                    title={iss.title}
-                    style={ctxItem()}
-                    onMouseEnter={hoverBg(true)}
-                    onMouseLeave={hoverBg(false)}
+                    style={{ display: "flex", alignItems: "center" }}
                   >
-                    <GitBranch size={13} color="#90bdf5" />
-                    <span
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => onIssuePath(iss)}
+                      title={iss.title}
+                      style={{ ...ctxItem(), flex: 1, minWidth: 0 }}
+                      onMouseEnter={hoverBg(true)}
+                      onMouseLeave={hoverBg(false)}
                     >
-                      {iss.id} · {iss.attackType}
-                    </span>
-                  </button>
+                      <GitBranch size={13} color="#90bdf5" />
+                      <span
+                        style={{
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {iss.id} · {iss.attackType}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      title="Save this issue chain"
+                      onClick={() => onSaveIssue(iss)}
+                      style={{
+                        ...ctxItem(),
+                        width: "auto",
+                        padding: "8px 8px",
+                        flexShrink: 0,
+                      }}
+                      onMouseEnter={hoverBg(true)}
+                      onMouseLeave={hoverBg(false)}
+                    >
+                      <Save size={13} />
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
@@ -2767,6 +3342,26 @@ function NodeDetailBody({
                 </div>
               </>
             )}
+            <MoreDetail
+              rows={[
+                ["Resource ID", node.id],
+                [
+                  "ARN",
+                  `arn:aws:${node.kind}:${f?.region ?? "us-west-2"}:${f?.account ?? "9021"}:${node.label}`,
+                ],
+                ["Tags", "env=prod, team=platform, managed-by=terraform"],
+                ["Upstream (data in)", rel.up.length],
+                ["Downstream (data out)", rel.down.length],
+                [
+                  "Public exposure",
+                  f?.category === "Public bucket" ? "Yes" : "No",
+                ],
+                [
+                  "Encryption at rest",
+                  f?.category?.includes("Unencrypted") ? "Disabled" : "Enabled",
+                ],
+              ]}
+            />
           </>
         )}
         {tab === "finding" && (
@@ -2795,6 +3390,32 @@ function NodeDetailBody({
             <Field k="First seen" v={f?.firstSeen} />
             <Field k="Last seen" v={f?.lastSeen} />
             <Field k="Age (days open)" v={f?.ageDays} />
+            {f && (
+              <MoreDetail
+                rows={[
+                  ["Finding ID", f.id],
+                  ["Detector / rule", `cg-detect-${f.controlId}`],
+                  ["Scanner", "CloudGuard Posture"],
+                  ["Evidence", node.message ?? "Config snapshot attached"],
+                  [
+                    "CVSS",
+                    (
+                      {
+                        Critical: "9.1",
+                        High: "7.4",
+                        Medium: "5.2",
+                        Low: "3.1",
+                        Informational: "0.0",
+                      } as Record<string, string>
+                    )[f.severity] ?? "5.2",
+                  ],
+                  [
+                    "Exploit maturity",
+                    f.category?.includes("CVE") ? "Public PoC" : "Unproven",
+                  ],
+                ]}
+              />
+            )}
           </div>
         )}
         {tab === "policy" && (
@@ -2804,17 +3425,45 @@ function NodeDetailBody({
             <Field k="Control ID" v={f?.controlId} />
             <Field k="Owner / team" v={f?.owner} />
             <Field k="Suppressed / accepted" v={f?.suppressed} />
+            <MoreDetail
+              rows={[
+                ["Attached policy", `${node.label}-policy`],
+                ["Effective permissions", "s3:*, kms:Decrypt (scoped)"],
+                ["Last evaluated", f?.lastSeen ?? "2026-06-30 04:12"],
+                ["Exception owner", f?.owner ?? "—"],
+                ["Guardrail", "Deny public ACL (SCP)"],
+              ]}
+            />
           </div>
         )}
         {tab === "remediation" && (
-          <RemediationTimeline items={remediationFor(node.id, !!f)} />
+          <>
+            <RemediationTimeline items={remediationFor(node.id, !!f)} />
+            <MoreDetail
+              rows={[
+                ["SLA due", f?.severity === "Critical" ? "24h" : "7d"],
+                ["Ticket", `SEC-${1200 + (REACH[node.id] ?? 0)}`],
+                ["Runbook", "rb/remediate-public-exposure"],
+                ["Auto-remediation", "Available (dry-run)"],
+              ]}
+            />
+          </>
         )}
         {tab === "logs" && (
-          <LogList
-            logs={logsFor([
-              { id: node.id, label: node.label, hasFinding: !!f },
-            ])}
-          />
+          <>
+            <LogList
+              logs={logsFor([
+                { id: node.id, label: node.label, hasFinding: !!f },
+              ])}
+            />
+            <MoreDetail
+              rows={[
+                ["Log source", "CloudTrail + VPC Flow"],
+                ["Retention", "90 days"],
+                ["Query", `resource.id = "${node.id}"`],
+              ]}
+            />
+          </>
         )}
         {tab === "notes" && (
           <NotesPanel
@@ -3558,9 +4207,35 @@ function CatalogDrawer({
                   Highlighted on the graph.
                 </div>
                 <IssueSchema iss={iss} />
+                <MoreDetail
+                  rows={[
+                    ["Issue ID", iss.id],
+                    ["Entry point", iss.entryPoint],
+                    ["Target", iss.target],
+                    ["Hops", iss.hopCount],
+                    ["Crosses VPC", iss.crossesVpc],
+                    ["Involves public", iss.involvesPublic],
+                    ["Exploitability", iss.exploitability],
+                  ]}
+                />
               </>
             )}
-            {top.sub === "policy" && <IssuePolicy iss={iss} />}
+            {top.sub === "policy" && (
+              <>
+                <IssuePolicy iss={iss} />
+                <MoreDetail
+                  rows={[
+                    ["Findings on path", iss.findingIds.join(", ")],
+                    ["Min severity", <SevChip key="s" sev={iss.minSeverity} />],
+                    ["Suggested action", "Break path at first hop"],
+                    [
+                      "Blast radius if breached",
+                      `${iss.path.length} resources`,
+                    ],
+                  ]}
+                />
+              </>
+            )}
             {top.sub === "nodes" && (
               <div>
                 <div

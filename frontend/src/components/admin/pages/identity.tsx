@@ -66,6 +66,12 @@ import {
   Star,
   Bot,
   ArrowLeft,
+  Copy,
+  Save,
+  Crosshair,
+  Frame,
+  ChevronDown,
+  ArrowDown,
 } from "lucide-react";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -103,6 +109,7 @@ import {
   NotesPanel,
   useNotes,
   MultiFilter,
+  MoreDetail,
 } from "./graph-shell";
 import {
   useCollection,
@@ -28623,6 +28630,81 @@ function xChain(id: string): string[] {
   walk(inn); // upstream (data flows in)
   return [...seen];
 }
+// directional, degree-bounded chain: down = data flows out, up = data flows in;
+// degree 1 / 2 / 0(=full). Mirrors the Security Graph's chainDir.
+type XChainDir = "down" | "up";
+type XChainDeg = 1 | 2 | 0;
+function xChainDir(id: string, dir: XChainDir, degree: XChainDeg): Set<string> {
+  const adj: Record<string, string[]> = {};
+  A_EDGES.forEach((e) => {
+    if (dir === "down") (adj[e.source] ||= []).push(e.target);
+    else (adj[e.target] ||= []).push(e.source);
+  });
+  const out = new Set<string>([id]);
+  let frontier = [id];
+  let d = 0;
+  const maxD = degree === 0 ? Infinity : degree;
+  while (frontier.length && d < maxD) {
+    const next: string[] = [];
+    frontier.forEach((c) =>
+      (adj[c] || []).forEach((x) => {
+        if (!out.has(x)) {
+          out.add(x);
+          next.push(x);
+        }
+      }),
+    );
+    frontier = next;
+    d += 1;
+  }
+  return out;
+}
+// context-menu item + group-head styles (shared by the Data-flow submenu)
+function xCtxItem(disabled: boolean): React.CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    width: "100%",
+    padding: "8px 10px",
+    border: "none",
+    borderRadius: 6,
+    background: "transparent",
+    color: disabled ? "#6b7178" : "#dfe2e6",
+    fontSize: 12.5,
+    cursor: disabled ? "default" : "pointer",
+    textAlign: "left",
+  };
+}
+const xCtxGroupHead: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "5px 10px 3px",
+  fontSize: 10,
+  fontWeight: 700,
+  textTransform: "uppercase",
+  letterSpacing: 0.4,
+  color: "#8a96a8",
+};
+const xHoverBg = (on: boolean) => (ev: React.MouseEvent<HTMLButtonElement>) => {
+  const el = ev.currentTarget;
+  el.style.background = on ? "rgba(255,255,255,0.08)" : "transparent";
+};
+const xSaveMenuItem: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  width: "100%",
+  padding: "8px 9px",
+  border: "none",
+  borderRadius: 6,
+  background: "transparent",
+  color: CHROME.text,
+  fontSize: 12.5,
+  cursor: "pointer",
+  textAlign: "left",
+};
 // downstream-only reach (for the "blast radius" count in the details drawer)
 function xDownstream(id: string): string[] {
   const out: Record<string, string[]> = {};
@@ -28850,6 +28932,22 @@ function XNodeDrawer({
                 <GroupHead>Connectivity</GroupHead>
                 <SchemaField k="Data flow (in + out)" v={flow} />
                 <SchemaField k="Downstream (blast radius)" v={down} />
+                <MoreDetail
+                  rows={[
+                    ["Resource ID", node.id],
+                    [
+                      "ARN",
+                      `arn:aws:${node.kind}:${f?.region ?? "us-west-2"}:9021:${node.label ?? node.id}`,
+                    ],
+                    ["Tags", "env=prod, team=platform, managed-by=terraform"],
+                    ["Data flow (in + out)", flow],
+                    ["Downstream (blast radius)", down],
+                    [
+                      "Public exposure",
+                      f?.category === "Public bucket" ? "Yes" : "No",
+                    ],
+                  ]}
+                />
                 <button
                   type="button"
                   onClick={() => onMark(node.id)}
@@ -28900,6 +28998,19 @@ function XNodeDrawer({
                 />
                 <SchemaField k="Last seen" v={f ? daysAgo(1) : undefined} />
                 <SchemaField k="Age (days open)" v={f?.ageDays} />
+                {f && (
+                  <MoreDetail
+                    rows={[
+                      ["Finding ID", f.id],
+                      ["Detector / rule", `cg-detect-${f.controlId}`],
+                      ["Scanner", "CloudGuard Posture"],
+                      [
+                        "Exploit maturity",
+                        f.category?.includes("CVE") ? "Public PoC" : "Unproven",
+                      ],
+                    ]}
+                  />
+                )}
               </>
             )}
 
@@ -28927,22 +29038,50 @@ function XNodeDrawer({
                 >
                   {policy}
                 </pre>
+                <MoreDetail
+                  rows={[
+                    ["Attached policy", `${node.label ?? node.id}-policy`],
+                    ["Effective permissions", "s3:*, kms:Decrypt (scoped)"],
+                    ["Last evaluated", f ? daysAgo(1) : "2026-06-30 04:12"],
+                    ["Exception owner", f?.owner ?? "—"],
+                    ["Guardrail", "Deny public ACL (SCP)"],
+                  ]}
+                />
               </>
             )}
 
             {tab === "remediation" && (
-              <RemediationTimeline items={remediationFor(node.id, !!f)} />
+              <>
+                <RemediationTimeline items={remediationFor(node.id, !!f)} />
+                <MoreDetail
+                  rows={[
+                    ["SLA due", f?.severity === "Critical" ? "24h" : "7d"],
+                    ["Ticket", `SEC-${1200 + down}`],
+                    ["Runbook", "rb/remediate-public-exposure"],
+                    ["Auto-remediation", "Available (dry-run)"],
+                  ]}
+                />
+              </>
             )}
             {tab === "logs" && (
-              <LogList
-                logs={logsFor([
-                  {
-                    id: node.id,
-                    label: node.label ?? node.id,
-                    hasFinding: !!f,
-                  },
-                ])}
-              />
+              <>
+                <LogList
+                  logs={logsFor([
+                    {
+                      id: node.id,
+                      label: node.label ?? node.id,
+                      hasFinding: !!f,
+                    },
+                  ])}
+                />
+                <MoreDetail
+                  rows={[
+                    ["Log source", "CloudTrail + VPC Flow"],
+                    ["Retention", "90 days"],
+                    ["Query", `resource.id = "${node.id}"`],
+                  ]}
+                />
+              </>
             )}
             {tab === "notes" && (
               <NotesPanel
@@ -29266,9 +29405,32 @@ function XCatalogDrawer({
                 Highlighted on the graph.
               </div>
               <XIssueSchema iss={iss} />
+              <MoreDetail
+                rows={[
+                  ["Issue ID", iss.id],
+                  ["Entry point", iss.entryPoint],
+                  ["Target", iss.target],
+                  ["Hops", iss.hopCount],
+                  ["Crosses VPC", iss.crossesVpc],
+                  ["Involves public", iss.involvesPublic],
+                  ["Exploitability", iss.exploitability],
+                ]}
+              />
             </>
           )}
-          {issueSub === "policy" && <XIssuePolicy iss={iss} />}
+          {issueSub === "policy" && (
+            <>
+              <XIssuePolicy iss={iss} />
+              <MoreDetail
+                rows={[
+                  ["Findings on path", iss.findingIds.join(", ")],
+                  ["Min severity", <SevChip key="s" sev={iss.minSeverity} />],
+                  ["Suggested action", "Break path at first hop"],
+                  ["Blast radius if breached", `${iss.path.length} resources`],
+                ]}
+              />
+            </>
+          )}
           {issueSub === "nodes" && (
             <>
               <div
@@ -29484,6 +29646,7 @@ function GraphExplorer() {
     | { kind: "finding"; id: string }
     | { kind: "issue"; id: string }
     | { kind: "node"; id: string; issueId?: string }
+    | { kind: "chain"; id: string; dir: XChainDir; degree: XChainDeg }
     | null
   >(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29497,6 +29660,29 @@ function GraphExplorer() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     data: any;
   } | null>(null);
+  const [ctxSub, setCtxSub] = React.useState<false | "chain">(false);
+  const [ctxCopied, setCtxCopied] = React.useState(false);
+  // recallable saved views (client-side; Sample)
+  const [gSaved, setGSaved] = React.useState<
+    {
+      id: string;
+      name: string;
+      kind: "full" | "chain" | "issue" | "node";
+      zoom: number;
+      pan: { x: number; y: number };
+      nav:
+        | { kind: "finding"; id: string }
+        | { kind: "issue"; id: string }
+        | { kind: "node"; id: string; issueId?: string }
+        | { kind: "chain"; id: string; dir: XChainDir; degree: XChainDeg }
+        | null;
+    }[]
+  >([]);
+  const [gSaveMenu, setGSaveMenu] = React.useState(false);
+  const [gSavedOpen, setGSavedOpen] = React.useState(false);
+  const [gPicking, setGPicking] = React.useState(false);
+  const gPickingRef = React.useRef(false);
+  gPickingRef.current = gPicking;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cyRef = React.useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29555,11 +29741,29 @@ function GraphExplorer() {
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("tap", "node[kind]", (e: any) => {
+      const id = e.target.id();
+      // picker mode: capture this node's downstream dependency chain as a view
+      if (gPickingRef.current) {
+        setGSaved((s) => [
+          {
+            zoom: cy.zoom(),
+            pan: { ...cy.pan() },
+            id: `gsv-${Date.now()}-${s.length}`,
+            name: `${X_NODE[id]?.label ?? id} · downstream full`,
+            kind: "chain",
+            nav: { kind: "chain", id, dir: "down", degree: 0 },
+          },
+          ...s,
+        ]);
+        setGSavedOpen(true);
+        setGPicking(false);
+        return;
+      }
       cy.nodes().removeClass("picked");
       e.target.addClass("picked");
       setSel(e.target.data());
       // activate the node's dependency path on the graph (Security-Graph parity)
-      setGnav({ kind: "node", id: e.target.id() });
+      setGnav({ kind: "node", id });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("tap", (e: any) => {
@@ -29574,6 +29778,7 @@ function GraphExplorer() {
     cy.on("cxttap", "node[kind]", (e: any) => {
       e.originalEvent?.preventDefault?.();
       const rp = e.renderedPosition || e.target.renderedPosition();
+      setCtxSub(false);
       setCtxMenu({ x: rp.x, y: rp.y, data: e.target.data() });
     });
     cyRef.current = cy;
@@ -29827,6 +30032,9 @@ function GraphExplorer() {
     let boxId: string | null = null;
     if (gLocked) {
       active = new Set(xChain(gLocked)); // locked dependency chain
+    } else if (gnav?.kind === "chain") {
+      active = xChainDir(gnav.id, gnav.dir, gnav.degree);
+      boxId = gnav.id;
     } else if (gnav?.kind === "issue") {
       active = new Set(X_ISSUES.find((i) => i.id === gnav.id)?.path ?? []);
     } else if (gnav?.kind === "finding") {
@@ -29854,6 +30062,7 @@ function GraphExplorer() {
     const isFlow =
       !!gLocked ||
       gnav?.kind === "node" ||
+      gnav?.kind === "chain" ||
       gnav?.kind === "issue" ||
       gnav?.kind === "finding";
     cy.batch(() => {
@@ -29924,6 +30133,64 @@ function GraphExplorer() {
   };
   const saveGMark = (id: string, note: string) =>
     setGmarked((p) => ({ ...p, [id]: { note, ts: Date.now() } }));
+
+  // ── saved views ────────────────────────────────────────────────────────────
+  const gVp = () => {
+    const cy = cyRef.current;
+    return cy
+      ? {
+          zoom: cy.zoom() as number,
+          pan: { ...(cy.pan() as { x: number; y: number }) },
+        }
+      : { zoom: 1, pan: { x: 0, y: 0 } };
+  };
+  const gPushView = (
+    name: string,
+    kind: "full" | "chain" | "issue" | "node",
+    nav: (typeof gSaved)[number]["nav"],
+  ) => {
+    setGSaved((s) => [
+      { ...gVp(), id: `gsv-${Date.now()}-${s.length}`, name, kind, nav },
+      ...s,
+    ]);
+    setGSavedOpen(true);
+  };
+  const gSaveCurrent = () => {
+    setGSaveMenu(false);
+    if (gnav?.kind === "chain") {
+      gPushView(
+        `Chain · ${xChainDir(gnav.id, gnav.dir, gnav.degree).size} nodes`,
+        "chain",
+        gnav,
+      );
+    } else if (gnav?.kind === "issue") {
+      gPushView(`Issue ${gnav.id}`, "issue", gnav);
+    } else if (gnav?.kind === "node") {
+      gPushView(`Node · ${X_NODE[gnav.id]?.label ?? gnav.id}`, "node", gnav);
+    } else {
+      gPushView(`Full view · ${gSaved.length + 1}`, "full", null);
+    }
+  };
+  const gSaveChain = (id: string, dir: XChainDir, degree: XChainDeg) => {
+    const dl = dir === "down" ? "downstream" : "upstream";
+    const gl = degree === 0 ? "full" : `${degree}°`;
+    gPushView(`${X_NODE[id]?.label ?? id} · ${dl} ${gl}`, "chain", {
+      kind: "chain",
+      id,
+      dir,
+      degree,
+    });
+  };
+  const gApplyView = (v: (typeof gSaved)[number]) => {
+    setGLocked(null);
+    setSel(null);
+    setGview("graph");
+    setGnav(v.nav);
+    const cy = cyRef.current;
+    if (cy) cy.animate({ zoom: v.zoom, pan: v.pan }, { duration: 320 });
+  };
+  const gDeleteView = (id: string) =>
+    setGSaved((s) => s.filter((v) => v.id !== id));
   const closePanel = () => {
     cyRef.current?.nodes().removeClass("picked");
     setSel(null);
@@ -30079,7 +30346,234 @@ function GraphExplorer() {
             {isFull ? <Minimize size={13} /> : <Expand size={13} />}
             {isFull ? "Exit" : "Full screen"}
           </button>
+
+          {/* Save ▾ — recallable saved views */}
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              onClick={() => setGSaveMenu((o) => !o)}
+              style={graphToolBtn(gSaveMenu)}
+              title="Save this view"
+            >
+              <Save size={13} /> Save
+              <ChevronDown size={12} style={{ marginLeft: 1 }} />
+            </button>
+            {gSaveMenu && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 4px)",
+                  left: 0,
+                  width: 210,
+                  background: CHROME.bg,
+                  border: `1px solid ${CHROME.border}`,
+                  borderRadius: 9,
+                  padding: 5,
+                  boxShadow: "0 10px 26px rgba(0,0,0,0.18)",
+                  zIndex: 40,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={gSaveCurrent}
+                  style={xSaveMenuItem}
+                >
+                  <Save size={13} /> Save full view
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGSaveMenu(false);
+                    setGPicking(true);
+                    setGSavedOpen(false);
+                  }}
+                  style={xSaveMenuItem}
+                >
+                  <Crosshair size={13} /> Pick a view to save…
+                </button>
+                <div
+                  style={{
+                    height: 1,
+                    background: CHROME.border,
+                    margin: "4px 2px",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGSaveMenu(false);
+                    setGSavedOpen(true);
+                  }}
+                  style={xSaveMenuItem}
+                >
+                  <Frame size={13} /> Saved views · {gSaved.length}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* picker-mode banner */}
+        {gPicking && (
+          <div
+            style={{
+              position: "absolute",
+              top: 54,
+              left: "50%",
+              transform: "translateX(-50%)",
+              zIndex: 40,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "7px 10px 7px 14px",
+              borderRadius: 8,
+              background: CHROME.accent,
+              color: "#fff",
+              fontSize: 12.5,
+              boxShadow: "0 3px 12px rgba(0,0,0,0.25)",
+            }}
+          >
+            <Crosshair size={13} /> Click a node to save its dependency chain
+            <button
+              type="button"
+              onClick={() => setGPicking(false)}
+              style={{
+                background: "rgba(255,255,255,0.22)",
+                border: "none",
+                color: "#fff",
+                borderRadius: 6,
+                padding: "3px 8px",
+                cursor: "pointer",
+                fontSize: 11.5,
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+
+        {/* saved-views panel — top-right, recallable */}
+        {gSavedOpen && (
+          <div
+            style={{
+              position: "absolute",
+              top: 12,
+              right: gview !== "graph" || open ? DRAWER_W + 12 : 12,
+              width: 234,
+              maxHeight: "calc(100% - 24px)",
+              display: "flex",
+              flexDirection: "column",
+              background: CHROME.bg,
+              border: `1px solid ${CHROME.border}`,
+              borderRadius: 10,
+              boxShadow: "0 10px 26px rgba(0,0,0,0.16)",
+              zIndex: 39,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "10px 12px",
+                borderBottom: `1px solid ${CHROME.border}`,
+                fontSize: 12.5,
+                fontWeight: 700,
+                color: CHROME.text,
+              }}
+            >
+              <Frame size={14} /> Saved views · {gSaved.length}
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => setGSavedOpen(false)}
+                style={{
+                  marginLeft: "auto",
+                  background: "transparent",
+                  border: "none",
+                  color: CHROME.muted,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <div style={{ overflowY: "auto" }}>
+              {gSaved.length === 0 ? (
+                <div
+                  style={{
+                    padding: "14px 12px",
+                    fontSize: 12,
+                    color: CHROME.muted,
+                    fontStyle: "italic",
+                  }}
+                >
+                  No saved views yet. Use Save ▾ or the context menu.
+                </div>
+              ) : (
+                gSaved.map((v) => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "9px 12px",
+                      borderBottom: `1px solid ${CHROME.border}`,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => gApplyView(v)}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        textAlign: "left",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: CHROME.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {v.name}
+                      </span>
+                      <span style={{ fontSize: 11, color: CHROME.muted }}>
+                        {v.kind}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Delete"
+                      onClick={() => gDeleteView(v.id)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: CHROME.muted,
+                        cursor: "pointer",
+                        display: "inline-flex",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* filter bar — spotlight by resource type (compact, short labels) */}
         <div
@@ -30430,16 +30924,64 @@ function GraphExplorer() {
               <div
                 style={{
                   padding: "6px 10px 8px",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: "#fff",
                   borderBottom: "1px solid rgba(255,255,255,0.08)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
                 }}
               >
-                {ctxMenu.data.label ?? ctxMenu.data.id}
+                <div
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: "#fff",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {ctxMenu.data.label ?? ctxMenu.data.id}
+                </div>
+                <button
+                  type="button"
+                  title="Copy node ID"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(ctxMenu.data.id);
+                    setCtxCopied(true);
+                    window.setTimeout(() => setCtxCopied(false), 1200);
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    marginTop: 3,
+                    padding: 0,
+                    border: "none",
+                    background: "transparent",
+                    color: "#8a96a8",
+                    fontSize: 10.5,
+                    fontFamily:
+                      "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+                    cursor: "pointer",
+                    maxWidth: "100%",
+                  }}
+                >
+                  <span
+                    style={{
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {ctxMenu.data.id}
+                  </span>
+                  {ctxCopied ? (
+                    <Check
+                      size={11}
+                      color="#39b84e"
+                      style={{ flexShrink: 0 }}
+                    />
+                  ) : (
+                    <Copy size={11} style={{ flexShrink: 0 }} />
+                  )}
+                </button>
               </div>
               {/* finding / issue tags — clickable → open in the catalog */}
               {(X_FINDING_BY_NODE[ctxMenu.data.id] ||
@@ -30511,6 +31053,129 @@ function GraphExplorer() {
                   ))}
                 </div>
               )}
+              {/* Data flow — bifurcates into Upstream / Downstream × degree */}
+              <div
+                style={{ position: "relative" }}
+                onMouseEnter={() => setCtxSub("chain")}
+                onMouseLeave={() => setCtxSub(false)}
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGnav({
+                      kind: "chain",
+                      id: ctxMenu.data.id,
+                      dir: "down",
+                      degree: 0,
+                    });
+                    setCtxMenu(null);
+                  }}
+                  style={xCtxItem(false)}
+                  onMouseEnter={xHoverBg(true)}
+                  onMouseLeave={xHoverBg(false)}
+                >
+                  <GitBranch size={14} /> Data flow
+                  <ChevronRight
+                    size={13}
+                    color="#7f8a84"
+                    style={{ marginLeft: "auto" }}
+                  />
+                </button>
+                {ctxSub === "chain" && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: "100%",
+                      top: -6,
+                      marginLeft: 4,
+                      width: 200,
+                      background: "rgb(23,23,22)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 10,
+                      padding: 6,
+                      boxShadow: "0 10px 28px rgba(0,0,0,0.4)",
+                    }}
+                  >
+                    <div style={xCtxGroupHead}>
+                      <ArrowDown size={11} /> Downstream · data flows out
+                    </div>
+                    {(
+                      [
+                        [1, "Direct (1st degree)"],
+                        [2, "2nd degree"],
+                        [0, "Full chain"],
+                      ] as [XChainDeg, string][]
+                    ).map(([deg, label]) => (
+                      <button
+                        key={`d${deg}`}
+                        type="button"
+                        onClick={() => {
+                          setGnav({
+                            kind: "chain",
+                            id: ctxMenu.data.id,
+                            dir: "down",
+                            degree: deg,
+                          });
+                          setCtxMenu(null);
+                        }}
+                        style={xCtxItem(false)}
+                        onMouseEnter={xHoverBg(true)}
+                        onMouseLeave={xHoverBg(false)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div style={{ ...xCtxGroupHead, marginTop: 4 }}>
+                      <ArrowUp size={11} /> Upstream · data flows in
+                    </div>
+                    {(
+                      [
+                        [1, "Direct (1st degree)"],
+                        [2, "2nd degree"],
+                        [0, "Full chain"],
+                      ] as [XChainDeg, string][]
+                    ).map(([deg, label]) => (
+                      <button
+                        key={`u${deg}`}
+                        type="button"
+                        onClick={() => {
+                          setGnav({
+                            kind: "chain",
+                            id: ctxMenu.data.id,
+                            dir: "up",
+                            degree: deg,
+                          });
+                          setCtxMenu(null);
+                        }}
+                        style={xCtxItem(false)}
+                        onMouseEnter={xHoverBg(true)}
+                        onMouseLeave={xHoverBg(false)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                    <div
+                      style={{
+                        height: 1,
+                        background: "rgba(255,255,255,0.1)",
+                        margin: "4px 2px",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        gSaveChain(ctxMenu.data.id, "down", 0);
+                        setCtxMenu(null);
+                      }}
+                      style={xCtxItem(false)}
+                      onMouseEnter={xHoverBg(true)}
+                      onMouseLeave={xHoverBg(false)}
+                    >
+                      <Save size={13} /> Save this chain
+                    </button>
+                  </div>
+                )}
+              </div>
               {[
                 {
                   label: "View details",
@@ -30523,15 +31188,6 @@ function GraphExplorer() {
                       cy.getElementById(ctxMenu.data.id).addClass("picked");
                     }
                     setSel(ctxMenu.data);
-                    setCtxMenu(null);
-                  },
-                },
-                {
-                  label: "Data flow",
-                  icon: <GitBranch size={14} />,
-                  disabled: false,
-                  on: () => {
-                    setGnav({ kind: "node", id: ctxMenu.data.id });
                     setCtxMenu(null);
                   },
                 },

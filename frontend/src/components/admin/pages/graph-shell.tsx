@@ -140,6 +140,49 @@ export function Field({
   );
 }
 
+// "View more detail" disclosure — each drawer view ends with this so an
+// operator can drill into the full Sample record without leaving the view.
+export function MoreDetail({
+  rows,
+  label = "View more detail",
+}: {
+  rows: [string, React.ReactNode][];
+  label?: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  if (!rows.length) return null;
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 0",
+          border: "none",
+          background: "transparent",
+          color: "var(--cg-accent)",
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {open ? "Hide detail" : label}
+      </button>
+      {open && (
+        <div style={{ marginTop: 4 }}>
+          {rows.map(([k, v]) => (
+            <Field key={k} k={k} v={v} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export const DRAWER_W = 420; // wide enough for the multi-view drawers
 
 // The graph drawers are a fixed WHITE panel independent of app theme: we pin the
@@ -422,12 +465,37 @@ export function RemediationTimeline({ items }: { items: RemedItem[] }) {
   );
 }
 
+const LOG_PAGE = 8;
 export function LogList({ logs }: { logs: LogItem[] }) {
   const lc: Record<LogItem["level"], string> = {
     info: "hsl(51deg,3.1%,43.7%)",
     warn: "#d99a00",
     error: "#e0492f",
   };
+  const nodes = React.useMemo(
+    () => Array.from(new Set(logs.map((l) => l.node))),
+    [logs],
+  );
+  const [nodeF, setNodeF] = React.useState<string>("all");
+  const [levelF, setLevelF] = React.useState<string>("all");
+  const [page, setPage] = React.useState(0);
+  const filtered = React.useMemo(
+    () =>
+      logs.filter(
+        (l) =>
+          (nodeF === "all" || l.node === nodeF) &&
+          (levelF === "all" || l.level === levelF),
+      ),
+    [logs, nodeF, levelF],
+  );
+  React.useEffect(() => setPage(0), [nodeF, levelF]);
+  const pages = Math.max(1, Math.ceil(filtered.length / LOG_PAGE));
+  const clamped = Math.min(page, pages - 1);
+  const slice = filtered.slice(
+    clamped * LOG_PAGE,
+    clamped * LOG_PAGE + LOG_PAGE,
+  );
+
   if (!logs.length)
     return (
       <div
@@ -441,40 +509,169 @@ export function LogList({ logs }: { logs: LogItem[] }) {
         No recent logs.
       </div>
     );
+
+  const selStyle: React.CSSProperties = {
+    height: 28,
+    borderRadius: 7,
+    border: "1px solid var(--cg-border)",
+    background: "var(--cg-bg-card)",
+    color: "var(--cg-text-primary)",
+    fontSize: 11.5,
+    padding: "0 6px",
+    cursor: "pointer",
+  };
+  const th: React.CSSProperties = {
+    textAlign: "left",
+    padding: "7px 8px",
+    fontSize: 10.5,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+    color: "var(--cg-text-muted)",
+    borderBottom: "1px solid var(--cg-border)",
+    position: "sticky",
+    top: 0,
+    background: "var(--cg-bg-card)",
+  };
+  const td: React.CSSProperties = {
+    padding: "7px 8px",
+    fontSize: 11.5,
+    color: "var(--cg-text-primary)",
+    borderBottom: "1px solid var(--cg-border-subtle)",
+    verticalAlign: "top",
+    fontFamily: "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+  };
   return (
-    <div style={{ marginTop: 8 }}>
-      {logs.map((l, i) => (
-        <div
-          key={i}
+    <div style={{ marginTop: 10 }}>
+      {/* filters */}
+      <div
+        style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}
+      >
+        {nodes.length > 1 && (
+          <select
+            value={nodeF}
+            onChange={(e) => setNodeF(e.target.value)}
+            style={selStyle}
+          >
+            <option value="all">All nodes · {nodes.length}</option>
+            {nodes.map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        )}
+        <select
+          value={levelF}
+          onChange={(e) => setLevelF(e.target.value)}
+          style={selStyle}
+        >
+          <option value="all">All levels</option>
+          <option value="error">Error</option>
+          <option value="warn">Warn</option>
+          <option value="info">Info</option>
+        </select>
+        <span
           style={{
-            display: "flex",
-            gap: 8,
-            padding: "7px 0",
-            borderBottom: "1px solid var(--cg-border-subtle)",
-            fontSize: 11.5,
-            fontFamily:
-              "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+            marginLeft: "auto",
+            fontSize: 11,
+            color: "var(--cg-text-muted)",
+            alignSelf: "center",
           }}
         >
-          <span style={{ color: "var(--cg-text-muted)", flexShrink: 0 }}>
-            {l.ts}
-          </span>
-          <span
-            style={{
-              color: lc[l.level],
-              fontWeight: 700,
-              textTransform: "uppercase",
-              flexShrink: 0,
-              width: 38,
-            }}
+          {filtered.length} events
+        </span>
+      </div>
+
+      {/* table */}
+      <div
+        style={{
+          border: "1px solid var(--cg-border)",
+          borderRadius: 8,
+          overflow: "hidden",
+        }}
+      >
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={th}>Time</th>
+              <th style={{ ...th, width: 48 }}>Level</th>
+              <th style={th}>Node</th>
+              <th style={th}>Message</th>
+            </tr>
+          </thead>
+          <tbody>
+            {slice.map((l, i) => (
+              <tr key={i}>
+                <td
+                  style={{
+                    ...td,
+                    color: "var(--cg-text-muted)",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {l.ts}
+                </td>
+                <td style={td}>
+                  <span
+                    style={{
+                      color: lc[l.level],
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      fontSize: 10.5,
+                    }}
+                  >
+                    {l.level}
+                  </span>
+                </td>
+                <td
+                  style={{
+                    ...td,
+                    color: "var(--cg-text-nav)",
+                    fontWeight: 600,
+                  }}
+                >
+                  {l.node}
+                </td>
+                <td style={td}>{l.message}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* pagination */}
+      {pages > 1 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 8,
+          }}
+        >
+          <button
+            type="button"
+            disabled={clamped === 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            style={{ ...selStyle, opacity: clamped === 0 ? 0.4 : 1 }}
           >
-            {l.level}
+            Prev
+          </button>
+          <span style={{ fontSize: 11.5, color: "var(--cg-text-muted)" }}>
+            {clamped + 1} / {pages}
           </span>
-          <span style={{ color: "var(--cg-text-primary)", minWidth: 0 }}>
-            <b style={{ color: "var(--cg-text-nav)" }}>{l.node}</b> {l.message}
-          </span>
+          <button
+            type="button"
+            disabled={clamped >= pages - 1}
+            onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
+            style={{ ...selStyle, opacity: clamped >= pages - 1 ? 0.4 : 1 }}
+          >
+            Next
+          </button>
         </div>
-      ))}
+      )}
     </div>
   );
 }
