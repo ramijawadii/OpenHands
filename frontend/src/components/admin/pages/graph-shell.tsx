@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, i18next/no-literal-string -- CloudGuard shared graph chrome (navigator controller + minimap + toolbar). Cloned from the Security Graph so every graph canvas shares the exact same controller UI. */
+/* eslint-disable @typescript-eslint/no-explicit-any, i18next/no-literal-string, no-bitwise, no-nested-ternary -- CloudGuard shared graph chrome (navigator controller + minimap + toolbar). Cloned from the Security Graph so every graph canvas shares the exact same controller UI. */
 import React from "react";
 import {
   ChevronUp,
@@ -10,6 +10,7 @@ import {
   Star,
   Plus,
   Minus,
+  SlidersHorizontal,
 } from "lucide-react";
 import watermarkUrl from "./inference-defense-console.svg?url";
 
@@ -139,6 +140,8 @@ export function Field({
   );
 }
 
+export const DRAWER_W = 420; // wide enough for the multi-view drawers
+
 // The graph drawers are a fixed WHITE panel independent of app theme: we pin the
 // CloudGuard CSS vars to their light values on the drawer root so all descendants
 // (which use var(--cg-*)) render as dark-on-white regardless of dark/light mode.
@@ -147,7 +150,7 @@ export const drawerShell = {
   top: 0,
   right: 0,
   height: "100%",
-  width: 340,
+  width: DRAWER_W,
   display: "flex",
   flexDirection: "column",
   zIndex: 41,
@@ -178,6 +181,562 @@ export const drawerHead: React.CSSProperties = {
   alignItems: "center",
   gap: 8,
 };
+// scrollable sub-view tab strip (Node detail · Finding · Policy · …)
+export const drawerTabStrip: React.CSSProperties = {
+  display: "flex",
+  gap: 2,
+  padding: "10px 10px 0",
+  borderBottom: "1px solid var(--cg-border)",
+  overflowX: "auto",
+  flexWrap: "nowrap",
+};
+export function drawerTab(active: boolean): React.CSSProperties {
+  return {
+    padding: "6px 9px 9px",
+    border: "none",
+    background: "transparent",
+    color: active ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
+    fontSize: 12,
+    fontWeight: active ? 700 : 500,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+    borderBottom: active
+      ? "2px solid var(--cg-accent)"
+      : "2px solid transparent",
+    marginBottom: -1,
+  };
+}
+
+// ── shared drawer view building-blocks (remediation · logs · notes · filter) ──
+const seedRand = (seed: number) => {
+  let s = seed & 0x7fffffff;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+};
+const hash = (str: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+const isoDaysAgo = (d: number) => {
+  const dt = new Date(2026, 6, 1);
+  dt.setDate(dt.getDate() - d);
+  return dt.toISOString().slice(0, 10);
+};
+
+export type RemedItem = {
+  date: string;
+  actor: string;
+  actorType: "agent" | "human";
+  action: string;
+  status: "Investigation" | "In remediation" | "Resolved" | "Suppressed";
+};
+export function remediationFor(key: string, hasFinding: boolean): RemedItem[] {
+  if (!hasFinding) return [];
+  const r = seedRand(hash(key));
+  const agents = ["remediation-01", "guardrail-bot", "recon-agent"];
+  const people = ["j.cooper", "m.lee", "p.nair", "security-oncall"];
+  const steps: [RemedItem["status"], string][] = [
+    ["Investigation", "Detected and triaged the finding"],
+    ["Investigation", "Correlated blast radius and reachability"],
+    ["In remediation", "Proposed remediation — awaiting approval"],
+    ["In remediation", "Applied guardrail / policy change"],
+    ["Resolved", "Verified fix — finding no longer reachable"],
+  ];
+  const n = 2 + Math.floor(r() * 3);
+  let day = 3 + Math.floor(r() * 20);
+  return steps.slice(0, n).map(([status, action]) => {
+    const isAgent = r() > 0.45;
+    day -= 1 + Math.floor(r() * 5);
+    return {
+      date: isoDaysAgo(Math.max(0, day)),
+      actor: isAgent
+        ? agents[Math.floor(r() * agents.length)]
+        : people[Math.floor(r() * people.length)],
+      actorType: isAgent ? "agent" : "human",
+      action,
+      status,
+    };
+  });
+}
+
+export type LogItem = {
+  ts: string;
+  level: "info" | "warn" | "error";
+  node: string;
+  message: string;
+};
+export function logsFor(
+  entries: { id: string; label: string; hasFinding: boolean }[],
+): LogItem[] {
+  const msgs = [
+    "Authorized request",
+    "Config drift detected",
+    "Access from new principal",
+    "Policy evaluation: allow",
+    "Encryption check passed",
+    "Public access blocked",
+    "Credential rotation due",
+    "Unusual data egress volume",
+  ];
+  const out: LogItem[] = [];
+  entries.forEach((e) => {
+    const r = seedRand(hash(e.id) ^ 0x9e3779b9);
+    const count = 2 + Math.floor(r() * 3);
+    for (let i = 0; i < count; i += 1) {
+      const bad = e.hasFinding && r() > 0.55;
+      const dd = new Date(2026, 6, 1);
+      dd.setHours(dd.getHours() - Math.floor(r() * 72));
+      out.push({
+        ts: dd.toISOString().slice(0, 16).replace("T", " "),
+        level: bad ? (r() > 0.5 ? "error" : "warn") : "info",
+        node: e.label,
+        message: msgs[Math.floor(r() * msgs.length)],
+      });
+    }
+  });
+  return out.sort((a, b) => (a.ts < b.ts ? 1 : -1));
+}
+
+export function RemediationTimeline({ items }: { items: RemedItem[] }) {
+  const sc: Record<RemedItem["status"], string> = {
+    Investigation: "#3f9bd6",
+    "In remediation": "#d99a00",
+    Resolved: "#39b84e",
+    Suppressed: "hsl(51deg,3.1%,43.7%)",
+  };
+  if (!items.length)
+    return (
+      <div
+        style={{
+          fontSize: 12.5,
+          color: "var(--cg-text-muted)",
+          fontStyle: "italic",
+          marginTop: 12,
+        }}
+      >
+        No remediation activity on this resource.
+      </div>
+    );
+  return (
+    <div style={{ marginTop: 8 }}>
+      {items.map((it, i) => (
+        <div
+          key={i}
+          style={{ display: "flex", gap: 10, padding: "9px 0", minWidth: 0 }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+            }}
+          >
+            <span
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                background: sc[it.status],
+                flexShrink: 0,
+                marginTop: 3,
+              }}
+            />
+            {i < items.length - 1 && (
+              <span
+                style={{
+                  width: 2,
+                  flex: 1,
+                  background: "var(--cg-border)",
+                  marginTop: 2,
+                }}
+              />
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  color: "var(--cg-text-primary)",
+                }}
+              >
+                {it.status}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--cg-text-muted)" }}>
+                · {it.date}
+              </span>
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: "var(--cg-text-primary)",
+                marginTop: 2,
+              }}
+            >
+              {it.action}
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: "var(--cg-text-muted)",
+                marginTop: 2,
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "0 6px",
+                  borderRadius: 8,
+                  fontWeight: 600,
+                  color:
+                    it.actorType === "agent" ? "#2d86d4" : "var(--cg-text-nav)",
+                  background:
+                    it.actorType === "agent"
+                      ? "rgba(45,134,212,0.1)"
+                      : "hsl(50deg,20.7%,91%)",
+                }}
+              >
+                {it.actorType === "agent" ? "🤖 " : "👤 "}
+                {it.actor}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function LogList({ logs }: { logs: LogItem[] }) {
+  const lc: Record<LogItem["level"], string> = {
+    info: "hsl(51deg,3.1%,43.7%)",
+    warn: "#d99a00",
+    error: "#e0492f",
+  };
+  if (!logs.length)
+    return (
+      <div
+        style={{
+          fontSize: 12.5,
+          color: "var(--cg-text-muted)",
+          fontStyle: "italic",
+          marginTop: 12,
+        }}
+      >
+        No recent logs.
+      </div>
+    );
+  return (
+    <div style={{ marginTop: 8 }}>
+      {logs.map((l, i) => (
+        <div
+          key={i}
+          style={{
+            display: "flex",
+            gap: 8,
+            padding: "7px 0",
+            borderBottom: "1px solid var(--cg-border-subtle)",
+            fontSize: 11.5,
+            fontFamily:
+              "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+          }}
+        >
+          <span style={{ color: "var(--cg-text-muted)", flexShrink: 0 }}>
+            {l.ts}
+          </span>
+          <span
+            style={{
+              color: lc[l.level],
+              fontWeight: 700,
+              textTransform: "uppercase",
+              flexShrink: 0,
+              width: 38,
+            }}
+          >
+            {l.level}
+          </span>
+          <span style={{ color: "var(--cg-text-primary)", minWidth: 0 }}>
+            <b style={{ color: "var(--cg-text-nav)" }}>{l.node}</b> {l.message}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export type Note = { ts: number; author: string; text: string };
+// module-level notes store keyed by node/issue id — survives drawer re-open.
+const NOTES: Record<string, Note[]> = {};
+export function useNotes(id: string): {
+  notes: Note[];
+  add: (text: string) => void;
+} {
+  const [, force] = React.useReducer((x: number) => x + 1, 0);
+  return {
+    notes: NOTES[id] || [],
+    add: (text: string) => {
+      (NOTES[id] ||= []).push({ ts: Date.now(), author: "operator", text });
+      force();
+    },
+  };
+}
+export function NotesPanel({
+  notes,
+  onAdd,
+  placeholder,
+}: {
+  notes: Note[];
+  onAdd: (text: string) => void;
+  placeholder: string;
+}) {
+  const [text, setText] = React.useState("");
+  return (
+    <div style={{ marginTop: 8 }}>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          minHeight: 70,
+          resize: "vertical",
+          background: "#fff",
+          border: "1px solid var(--cg-border-card)",
+          borderRadius: 8,
+          color: "var(--cg-text-primary)",
+          fontSize: 12.5,
+          padding: 10,
+          fontFamily: "inherit",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+      />
+      <button
+        type="button"
+        disabled={!text.trim()}
+        onClick={() => {
+          onAdd(text.trim());
+          setText("");
+        }}
+        style={{
+          marginTop: 8,
+          height: 32,
+          padding: "0 14px",
+          borderRadius: 7,
+          border: "none",
+          background: text.trim()
+            ? "var(--cg-accent)"
+            : "var(--cg-border-card)",
+          color: text.trim() ? "#fff" : "var(--cg-text-muted)",
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: text.trim() ? "pointer" : "default",
+        }}
+      >
+        Add note
+      </button>
+      <div style={{ marginTop: 14 }}>
+        {notes.length === 0 ? (
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--cg-text-muted)",
+              fontStyle: "italic",
+            }}
+          >
+            No notes yet.
+          </div>
+        ) : (
+          notes
+            .slice()
+            .sort((a, b) => b.ts - a.ts)
+            .map((n, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: "9px 0",
+                  borderBottom: "1px solid var(--cg-border-subtle)",
+                }}
+              >
+                <div style={{ fontSize: 11, color: "var(--cg-text-muted)" }}>
+                  {n.author} · {new Date(n.ts).toISOString().slice(0, 10)}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--cg-text-primary)",
+                    marginTop: 2,
+                    lineHeight: 1.45,
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {n.text}
+                </div>
+              </div>
+            ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── multi-select filter dropdown (status / severity / category / …) ───────────
+export function MultiFilter({
+  groups,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  groups: { key: string; label: string; options: string[] }[];
+  selected: Set<string>;
+  onToggle: (k: string) => void;
+  onClear: () => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const count = selected.size;
+  return (
+    <div style={{ position: "relative", padding: "8px 14px 4px" }}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          height: 28,
+          padding: "0 10px",
+          borderRadius: 7,
+          border: "1px solid var(--cg-border-card)",
+          background: count ? "var(--cg-accent-bg)" : "#fff",
+          color: "var(--cg-text-primary)",
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        <SlidersHorizontal size={13} /> Filter
+        {count > 0 && (
+          <span
+            style={{
+              minWidth: 16,
+              height: 16,
+              borderRadius: 8,
+              background: "var(--cg-accent)",
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 4px",
+            }}
+          >
+            {count}
+          </span>
+        )}
+      </button>
+      {count > 0 && (
+        <button
+          type="button"
+          onClick={onClear}
+          style={{
+            marginLeft: 8,
+            background: "transparent",
+            border: "none",
+            color: "var(--cg-text-muted)",
+            fontSize: 11.5,
+            cursor: "pointer",
+          }}
+        >
+          Clear
+        </button>
+      )}
+      {open && (
+        <>
+          <div
+            onClick={() => setOpen(false)}
+            aria-hidden="true"
+            style={{ position: "fixed", inset: 0, zIndex: 60 }}
+          />
+          <div
+            style={{
+              position: "absolute",
+              top: 40,
+              left: 14,
+              zIndex: 61,
+              width: 260,
+              maxHeight: 340,
+              overflowY: "auto",
+              background: "#fff",
+              border: "1px solid var(--cg-border-card)",
+              borderRadius: 10,
+              padding: 8,
+              boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
+            }}
+          >
+            {groups.map((g) => (
+              <div key={g.key} style={{ marginBottom: 6 }}>
+                <div
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                    textTransform: "uppercase",
+                    color: "var(--cg-text-muted)",
+                    padding: "4px 6px",
+                  }}
+                >
+                  {g.label}
+                </div>
+                {g.options.map((o) => {
+                  const k = `${g.key}:${o}`;
+                  const on = selected.has(k);
+                  return (
+                    <label
+                      key={o}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        padding: "5px 6px",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontSize: 12.5,
+                        color: "var(--cg-text-primary)",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={() => onToggle(k)}
+                        style={{ accentColor: "var(--cg-accent)" }}
+                      />
+                      {o}
+                    </label>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // zoom (model) ↔ slider-percent on a log scale
 export const MINZ = 0.06;

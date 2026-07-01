@@ -34,10 +34,18 @@ import {
   GraphWatermark,
   graphToolBtn,
   CHROME,
+  DRAWER_W,
   MINZ,
   MAXZ,
   zoomToPct,
   pctToZoom,
+  RemediationTimeline,
+  remediationFor,
+  LogList,
+  logsFor,
+  NotesPanel,
+  useNotes,
+  MultiFilter,
 } from "./graph-shell";
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -709,6 +717,86 @@ function issuesForNode(id: string): Issue[] {
   return ISSUES.filter((i) => i.path.includes(id));
 }
 
+// ── catalog multi-select filter groups + matchers ────────────────────────────
+function ageBucket(d: number): string {
+  if (d <= 7) return "≤ 7 days";
+  if (d <= 30) return "8–30 days";
+  return "> 30 days";
+}
+const FINDING_FILTER_GROUPS = [
+  { key: "severity", label: "Severity", options: SEV_ORDER as string[] },
+  {
+    key: "status",
+    label: "Status",
+    options: ["Open", "In remediation", "Resolved", "Suppressed"],
+  },
+  {
+    key: "category",
+    label: "Category",
+    options: Array.from(new Set(FINDINGS.map((f) => f.category))),
+  },
+  { key: "env", label: "Environment", options: ["prod", "stage", "dev"] },
+  { key: "cloud", label: "Cloud provider", options: ["AWS"] },
+  { key: "age", label: "Age", options: ["≤ 7 days", "8–30 days", "> 30 days"] },
+];
+const ISSUE_FILTER_GROUPS = [
+  {
+    key: "risk",
+    label: "Path risk",
+    options: ["Critical", "High", "Medium", "Low"],
+  },
+  {
+    key: "status",
+    label: "Status",
+    options: [
+      "Active",
+      "Partially remediated",
+      "Blocked (path broken)",
+      "Suppressed",
+    ],
+  },
+  {
+    key: "attack",
+    label: "Attack type",
+    options: Array.from(new Set(ISSUES.map((i) => i.attackType))),
+  },
+  {
+    key: "exploit",
+    label: "Exploitability",
+    options: ["Known CVE on path", "No known exploit"],
+  },
+];
+// group selected "group:value" keys by group
+function selByGroup(sel: Set<string>): Record<string, Set<string>> {
+  const out: Record<string, Set<string>> = {};
+  sel.forEach((k) => {
+    const i = k.indexOf(":");
+    const g = k.slice(0, i);
+    (out[g] ||= new Set()).add(k.slice(i + 1));
+  });
+  return out;
+}
+function matchFinding(f: Finding, sel: Set<string>): boolean {
+  if (!sel.size) return true;
+  const g = selByGroup(sel);
+  if (g.severity && !g.severity.has(f.severity)) return false;
+  if (g.status && !g.status.has(f.status)) return false;
+  if (g.category && !g.category.has(f.category)) return false;
+  if (g.env && ![...g.env].some((e) => f.account.includes(e))) return false;
+  if (g.cloud && !g.cloud.has(f.cloud)) return false;
+  if (g.age && !g.age.has(ageBucket(f.ageDays))) return false;
+  return true;
+}
+function matchIssue(i: Issue, sel: Set<string>): boolean {
+  if (!sel.size) return true;
+  const g = selByGroup(sel);
+  if (g.risk && !g.risk.has(i.risk)) return false;
+  if (g.status && !g.status.has(i.status)) return false;
+  if (g.attack && !g.attack.has(i.attackType)) return false;
+  if (g.exploit && !g.exploit.has(i.exploitability)) return false;
+  return true;
+}
+
 function elements() {
   const els: any[] = [];
   MODEL.nodes.forEach((n) => {
@@ -893,7 +981,7 @@ function baseStyle(): any[] {
   ];
 }
 
-const ALERTS_W = 340; // right drawer width (graph area shrinks by this)
+const ALERTS_W = DRAWER_W; // right drawer width (graph area shrinks by this)
 
 export function ImpactAnalysis() {
   const ref = React.useRef<HTMLDivElement | null>(null);
@@ -2547,6 +2635,32 @@ const drawerSec: React.CSSProperties = {
   color: "var(--cg-text-muted)",
   margin: "18px 0 8px",
 };
+// scrollable sub-view tab strip (Node detail · Finding · Policy · … )
+const drawerTabStrip: React.CSSProperties = {
+  display: "flex",
+  gap: 2,
+  padding: "10px 10px 0",
+  borderBottom: "1px solid var(--cg-border)",
+  overflowX: "auto",
+  flexWrap: "nowrap",
+};
+function drawerTab(active: boolean): React.CSSProperties {
+  return {
+    padding: "6px 9px 9px",
+    border: "none",
+    background: "transparent",
+    color: active ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
+    fontSize: 12,
+    fontWeight: active ? 700 : 500,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
+    borderBottom: active
+      ? "2px solid var(--cg-accent)"
+      : "2px solid transparent",
+    marginBottom: -1,
+  };
+}
 
 // scrollable node-detail content — reused by the context-menu drawer and the
 // findings/issues catalog navigation (single resource = single finding).
@@ -2559,61 +2673,38 @@ function NodeDetailBody({
   marked: Record<string, { note: string; ts: number }>;
   onExpandChain?: (id: string) => void;
 }) {
-  const [tab, setTab] = React.useState<"overview" | "resource" | "policy">(
-    "overview",
-  );
+  const [tab, setTab] = React.useState<
+    "node" | "finding" | "policy" | "remediation" | "logs" | "notes"
+  >("node");
   const node = NODE_BY_ID[nodeId];
+  const noteApi = useNotes(nodeId);
   if (!node) return null;
   const rel = relationsOf(node.id);
   const f = FINDING_BY_NODE[node.id];
-  let bannerBg = "transparent";
-  if (f)
-    bannerBg =
-      node.alert === "error" ? "rgba(224,73,47,0.12)" : "rgba(217,154,0,0.10)";
+  const TABS: [typeof tab, string][] = [
+    ["node", "Node detail"],
+    ["finding", "Finding"],
+    ["policy", "Policy"],
+    ["remediation", "Remediation"],
+    ["logs", "Logs"],
+    ["notes", "Notes"],
+  ];
   return (
     <>
-      {/* sub-view tabs — unified with the Explorer node drawer */}
-      <div
-        style={{
-          display: "flex",
-          gap: 4,
-          padding: "10px 12px 0",
-          borderBottom: "1px solid var(--cg-border)",
-        }}
-      >
-        {(
-          [
-            ["overview", "Overview"],
-            ["resource", "Resource details"],
-            ["policy", "Policy"],
-          ] as const
-        ).map(([id, label]) => (
+      <div style={drawerTabStrip}>
+        {TABS.map(([id, label]) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            style={{
-              padding: "6px 10px 9px",
-              border: "none",
-              background: "transparent",
-              color:
-                tab === id ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
-              fontSize: 12.5,
-              fontWeight: tab === id ? 700 : 500,
-              cursor: "pointer",
-              borderBottom:
-                tab === id
-                  ? "2px solid var(--cg-accent)"
-                  : "2px solid transparent",
-              marginBottom: -1,
-            }}
+            style={drawerTab(tab === id)}
           >
             {label}
           </button>
         ))}
       </div>
       <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
-        {tab === "overview" && (
+        {tab === "node" && (
           <>
             <div
               style={{
@@ -2655,66 +2746,16 @@ function NodeDetailBody({
                 <ChevronRight size={13} style={{ marginLeft: 2 }} />
               </button>
             )}
-            <div
-              style={{
-                marginTop: 16,
-                padding: "10px 12px",
-                borderRadius: 8,
-                border: `1px solid ${f ? "var(--cg-border)" : "var(--cg-border-subtle)"}`,
-                background: bannerBg,
-              }}
-            >
-              {f ? (
-                <>
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <SevChip sev={f.severity} />
-                    <span
-                      style={{
-                        fontSize: 12.5,
-                        color: "var(--cg-text-primary)",
-                      }}
-                    >
-                      {f.category}
-                    </span>
-                  </div>
-                  {node.message && (
-                    <div
-                      style={{
-                        fontSize: 12,
-                        color: node.alert === "error" ? "#ff9b91" : "#f4d98a",
-                        marginTop: 6,
-                        lineHeight: 1.45,
-                      }}
-                    >
-                      {node.message}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <span
-                  style={{
-                    fontSize: 12.5,
-                    color: "var(--cg-text-muted)",
-                    fontStyle: "italic",
-                  }}
-                >
-                  No finding on this resource
-                </span>
-              )}
-            </div>
+            <GroupHead>Resource type</GroupHead>
+            <Field k="Type" v={f?.resourceType ?? TIER_LABEL[node.tier]} />
+            <GroupHead>Cloud & location</GroupHead>
+            <Field k="Cloud" v={f?.cloud} />
+            <Field k="Account / Subscription" v={f?.account} />
+            <Field k="Region" v={f?.region} />
+            <Field k="VPC / Subnet" v={f?.vpc} />
             {marked[node.id] && (
               <>
-                <div style={drawerSec}>
-                  <Star
-                    size={11}
-                    color="#f5b301"
-                    fill="#f5b301"
-                    style={{ verticalAlign: -1, marginRight: 5 }}
-                  />
-                  Note
-                </div>
+                <GroupHead>Mark note</GroupHead>
                 <div
                   style={{
                     fontSize: 12.5,
@@ -2728,21 +2769,32 @@ function NodeDetailBody({
             )}
           </>
         )}
-        {tab === "resource" && (
+        {tab === "finding" && (
           <div style={{ marginTop: 8 }}>
+            <div
+              style={{
+                fontSize: 12,
+                color: f ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
+                fontStyle: f ? "normal" : "italic",
+                marginBottom: 4,
+              }}
+            >
+              {f
+                ? "Finding — this resource is misconfigured or exposed"
+                : "No finding on this resource"}
+            </div>
             <GroupHead>What is it</GroupHead>
             <Field k="Category" v={f?.category} />
             <Field
               k="Severity"
               v={f ? <SevChip sev={f.severity} /> : undefined}
             />
-            <GroupHead>Resource type</GroupHead>
-            <Field k="Type" v={f?.resourceType ?? TIER_LABEL[node.tier]} />
-            <GroupHead>Cloud & location</GroupHead>
-            <Field k="Cloud" v={f?.cloud} />
-            <Field k="Account / Subscription" v={f?.account} />
-            <Field k="Region" v={f?.region} />
-            <Field k="VPC / Subnet" v={f?.vpc} />
+            {node.message && <Field k="Detail" v={node.message} />}
+            <GroupHead>Status</GroupHead>
+            <Field k="Status" v={f?.status} />
+            <Field k="First seen" v={f?.firstSeen} />
+            <Field k="Last seen" v={f?.lastSeen} />
+            <Field k="Age (days open)" v={f?.ageDays} />
           </div>
         )}
         {tab === "policy" && (
@@ -2752,15 +2804,39 @@ function NodeDetailBody({
             <Field k="Control ID" v={f?.controlId} />
             <Field k="Owner / team" v={f?.owner} />
             <Field k="Suppressed / accepted" v={f?.suppressed} />
-            <Field k="First seen" v={f?.firstSeen} />
-            <Field k="Last seen" v={f?.lastSeen} />
-            <Field k="Age (days open)" v={f?.ageDays} />
-            <GroupHead>Status</GroupHead>
-            <Field k="Status" v={f?.status} />
           </div>
+        )}
+        {tab === "remediation" && (
+          <RemediationTimeline items={remediationFor(node.id, !!f)} />
+        )}
+        {tab === "logs" && (
+          <LogList
+            logs={logsFor([
+              { id: node.id, label: node.label, hasFinding: !!f },
+            ])}
+          />
+        )}
+        {tab === "notes" && (
+          <NotesPanel
+            notes={noteApi.notes}
+            onAdd={noteApi.add}
+            placeholder={`Add a note — mentioning ${node.label}…`}
+          />
         )}
       </div>
     </>
+  );
+}
+
+// issue Notes sub-view — a hook wrapper so useNotes isn't called conditionally
+function IssueNotes({ issueId, title }: { issueId: string; title: string }) {
+  const api = useNotes(issueId);
+  return (
+    <NotesPanel
+      notes={api.notes}
+      onAdd={api.add}
+      placeholder={`Add a note — ${title}…`}
+    />
   );
 }
 
@@ -3018,7 +3094,17 @@ function AuxDrawer({
 type NavEntry =
   | { t: "node"; id: string }
   | { t: "chain"; id: string }
-  | { t: "issue"; id: string; sub: "description" | "nodes" | "policy" };
+  | {
+      t: "issue";
+      id: string;
+      sub:
+        | "description"
+        | "nodes"
+        | "policy"
+        | "remediation"
+        | "logs"
+        | "notes";
+    };
 
 function CatalogDrawer({
   mode,
@@ -3051,10 +3137,17 @@ function CatalogDrawer({
     return [{ t: "issue", id: seed.id, sub: "description" }];
   });
   const top = nav.length ? nav[nav.length - 1] : null;
+  // multi-select catalog filter (status · severity · category · env · cloud · date)
+  const [catFilter, setCatFilter] = React.useState<Set<string>>(new Set());
+  const filterGroups =
+    mode === "findings" ? FINDING_FILTER_GROUPS : ISSUE_FILTER_GROUPS;
+  const shownFindings = FINDINGS.filter((f) => matchFinding(f, catFilter));
+  const shownIssues = ISSUES.filter((i) => matchIssue(i, catFilter));
 
   // reset the stack whenever we switch between Findings and Issues
   React.useEffect(() => {
     setNav([]);
+    setCatFilter(new Set());
   }, [mode]);
 
   // reflect the current view onto the graph. A node opened inside an issue keeps
@@ -3082,7 +3175,9 @@ function CatalogDrawer({
   const pushIssue = (id: string) =>
     setNav((p) => [...p, { t: "issue", id, sub: "description" }]);
   const back = () => setNav((p) => p.slice(0, -1));
-  const setSub = (sub: "description" | "nodes" | "policy") =>
+  const setSub = (
+    sub: "description" | "nodes" | "policy" | "remediation" | "logs" | "notes",
+  ) =>
     setNav((p) =>
       p.map((e, i) =>
         i === p.length - 1 && e.t === "issue" ? { ...e, sub } : e,
@@ -3221,9 +3316,22 @@ function CatalogDrawer({
             ? "Single resource — something is misconfigured or exposed."
             : "Connected path of resources — together they form a risk."}
         </div>
+        <MultiFilter
+          groups={filterGroups}
+          selected={catFilter}
+          onToggle={(k) =>
+            setCatFilter((prev) => {
+              const next = new Set(prev);
+              if (next.has(k)) next.delete(k);
+              else next.add(k);
+              return next;
+            })
+          }
+          onClear={() => setCatFilter(new Set())}
+        />
         <div style={{ overflowY: "auto", flex: 1 }}>
           {mode === "findings"
-            ? FINDINGS.map((f) => (
+            ? shownFindings.map((f) => (
                 <button
                   key={f.id}
                   type="button"
@@ -3253,7 +3361,7 @@ function CatalogDrawer({
                   <ChevronRight size={14} color="var(--cg-text-muted)" />
                 </button>
               ))
-            : ISSUES.map((iss) => (
+            : shownIssues.map((iss) => (
                 <button
                   key={iss.id}
                   type="button"
@@ -3388,45 +3496,45 @@ function CatalogDrawer({
       body = (
         <div style={{ overflowY: "auto", flex: 1 }}>
           {/* sub-view selector */}
-          <div
-            style={{
-              display: "flex",
-              gap: 4,
-              padding: "12px 16px 4px",
-            }}
-          >
+          <div style={drawerTabStrip}>
             {(
               [
-                ["description", "Description"],
-                ["nodes", `Affected nodes · ${iss.path.length}`],
+                ["description", "Issue"],
+                ["nodes", `Affected · ${iss.path.length}`],
                 ["policy", "Policy"],
+                ["remediation", "Remediation"],
+                ["logs", "Logs"],
+                ["notes", "Notes"],
               ] as const
             ).map(([s, label]) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setSub(s)}
-                style={{
-                  height: 28,
-                  padding: "0 12px",
-                  borderRadius: 7,
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: 12,
-                  fontWeight: top.sub === s ? 700 : 500,
-                  background:
-                    top.sub === s ? "var(--cg-bg-hover)" : "transparent",
-                  color:
-                    top.sub === s
-                      ? "var(--cg-text-primary)"
-                      : "var(--cg-text-muted)",
-                }}
+                style={drawerTab(top.sub === s)}
               >
                 {label}
               </button>
             ))}
           </div>
           <div style={{ padding: "6px 16px 20px" }}>
+            {top.sub === "remediation" && (
+              <RemediationTimeline items={remediationFor(iss.id, true)} />
+            )}
+            {top.sub === "logs" && (
+              <LogList
+                logs={logsFor(
+                  iss.path.map((nid) => ({
+                    id: nid,
+                    label: NODE_BY_ID[nid]?.label ?? nid,
+                    hasFinding: !!FINDING_BY_NODE[nid],
+                  })),
+                )}
+              />
+            )}
+            {top.sub === "notes" && (
+              <IssueNotes issueId={iss.id} title={iss.title} />
+            )}
             {top.sub === "description" && (
               <>
                 <div

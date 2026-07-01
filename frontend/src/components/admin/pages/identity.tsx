@@ -91,8 +91,18 @@ import {
   GroupHead,
   drawerShell,
   drawerHead,
+  drawerTabStrip,
+  drawerTab,
   CHROME,
+  DRAWER_W,
   GraphWatermark,
+  RemediationTimeline,
+  remediationFor,
+  LogList,
+  logsFor,
+  NotesPanel,
+  useNotes,
+  MultiFilter,
 } from "./graph-shell";
 import {
   useCollection,
@@ -28505,6 +28515,90 @@ const X_ISSUES: XIssue[] = (
 function xIssuesForNode(id: string): XIssue[] {
   return X_ISSUES.filter((i) => i.path.includes(id));
 }
+// ── catalog filter (findings + issues) — parity with the Security Graph ───────
+function xAgeBucket(d: number): string {
+  if (d <= 7) return "≤ 7 days";
+  if (d <= 30) return "8–30 days";
+  return "> 30 days";
+}
+function xEnv(nodeId: string): string {
+  const envs = ["prod", "stage", "dev"];
+  let h = 0;
+  for (let i = 0; i < nodeId.length; i += 1)
+    h = (h * 31 + nodeId.charCodeAt(i)) % 997;
+  return envs[h % 3];
+}
+const X_FINDING_FILTER_GROUPS = [
+  { key: "severity", label: "Severity", options: SEV_ORDER as string[] },
+  {
+    key: "status",
+    label: "Status",
+    options: ["Open", "In remediation", "Resolved", "Suppressed"],
+  },
+  {
+    key: "category",
+    label: "Category",
+    options: Array.from(new Set(X_FINDINGS.map((f) => f.category))),
+  },
+  { key: "env", label: "Environment", options: ["prod", "stage", "dev"] },
+  { key: "cloud", label: "Cloud provider", options: ["AWS"] },
+  { key: "age", label: "Age", options: ["≤ 7 days", "8–30 days", "> 30 days"] },
+];
+const X_ISSUE_FILTER_GROUPS = [
+  {
+    key: "risk",
+    label: "Path risk",
+    options: ["Critical", "High", "Medium", "Low"],
+  },
+  {
+    key: "status",
+    label: "Status",
+    options: [
+      "Active",
+      "Partially remediated",
+      "Blocked (path broken)",
+      "Suppressed",
+    ],
+  },
+  {
+    key: "attack",
+    label: "Attack type",
+    options: Array.from(new Set(X_ISSUES.map((i) => i.attackType))),
+  },
+  {
+    key: "exploit",
+    label: "Exploitability",
+    options: ["Known CVE on path", "No known exploit"],
+  },
+];
+function xSelByGroup(sel: Set<string>): Record<string, Set<string>> {
+  const out: Record<string, Set<string>> = {};
+  sel.forEach((k) => {
+    const i = k.indexOf(":");
+    (out[k.slice(0, i)] ||= new Set()).add(k.slice(i + 1));
+  });
+  return out;
+}
+function xMatchFinding(f: XFinding, sel: Set<string>): boolean {
+  if (!sel.size) return true;
+  const g = xSelByGroup(sel);
+  if (g.severity && !g.severity.has(f.severity)) return false;
+  if (g.status && !g.status.has(f.status)) return false;
+  if (g.category && !g.category.has(f.category)) return false;
+  if (g.env && !g.env.has(xEnv(f.nodeId))) return false;
+  if (g.cloud && !g.cloud.has("AWS")) return false;
+  if (g.age && !g.age.has(xAgeBucket(f.ageDays))) return false;
+  return true;
+}
+function xMatchIssue(i: XIssue, sel: Set<string>): boolean {
+  if (!sel.size) return true;
+  const g = xSelByGroup(sel);
+  if (g.risk && !g.risk.has(i.risk)) return false;
+  if (g.status && !g.status.has(i.status)) return false;
+  if (g.attack && !g.attack.has(i.attackType)) return false;
+  if (g.exploit && !g.exploit.has(i.exploitability)) return false;
+  return true;
+}
 // the data flow IN and OUT of a node: transitive downstream (out) + upstream
 // (in) along the directed architecture edges.
 function xChain(id: string): string[] {
@@ -28562,9 +28656,10 @@ function XNodeDrawer({
   onDataflow: (id: string) => void;
   onMark: (id: string) => void;
 }) {
-  const [tab, setTab] = React.useState<"overview" | "resource" | "policy">(
-    "overview",
-  );
+  const [tab, setTab] = React.useState<
+    "node" | "finding" | "policy" | "remediation" | "logs" | "notes"
+  >("node");
+  const noteApi = useNotes(node?.id ?? "—");
   const open = !!node;
   const f = node ? X_FINDING_BY_NODE[node.id] : undefined;
   const flow = node ? xChain(node.id).length - 1 : 0;
@@ -28646,43 +28741,22 @@ function XNodeDrawer({
       </div>
       {node && (
         <>
-          {/* sub-view tabs */}
-          <div
-            style={{
-              display: "flex",
-              gap: 4,
-              padding: "10px 12px 0",
-              borderBottom: "1px solid var(--cg-border)",
-            }}
-          >
+          <div style={drawerTabStrip}>
             {(
               [
-                ["overview", "Overview"],
-                ["resource", "Resource details"],
+                ["node", "Node detail"],
+                ["finding", "Finding"],
                 ["policy", "Policy"],
+                ["remediation", "Remediation"],
+                ["logs", "Logs"],
+                ["notes", "Notes"],
               ] as const
             ).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                style={{
-                  padding: "6px 10px 9px",
-                  border: "none",
-                  background: "transparent",
-                  color:
-                    tab === id
-                      ? "var(--cg-text-primary)"
-                      : "var(--cg-text-muted)",
-                  fontSize: 12.5,
-                  fontWeight: tab === id ? 700 : 500,
-                  cursor: "pointer",
-                  borderBottom:
-                    tab === id
-                      ? "2px solid var(--cg-accent)"
-                      : "2px solid transparent",
-                  marginBottom: -1,
-                }}
+                style={drawerTab(tab === id)}
               >
                 {label}
               </button>
@@ -28690,7 +28764,7 @@ function XNodeDrawer({
           </div>
 
           <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
-            {tab === "overview" && (
+            {tab === "node" && (
               <>
                 <div
                   style={{
@@ -28763,12 +28837,25 @@ function XNodeDrawer({
                     </span>
                   )}
                 </div>
+                <GroupHead>Resource type</GroupHead>
+                <SchemaField k="Type" v={kindLabel} />
+                <GroupHead>Cloud & location</GroupHead>
+                <SchemaField k="Cloud" v="AWS" />
+                <SchemaField k="Account / Subscription" v="acct-prod-9021" />
+                <SchemaField k="Region" v={f?.region ?? "us-west-2"} />
+                <SchemaField
+                  k="VPC / Subnet"
+                  v={f?.vpc ?? "demo-vpc / demo-private"}
+                />
+                <GroupHead>Connectivity</GroupHead>
+                <SchemaField k="Data flow (in + out)" v={flow} />
+                <SchemaField k="Downstream (blast radius)" v={down} />
                 <button
                   type="button"
                   onClick={() => onMark(node.id)}
                   style={{
                     ...graphToolBtn(false),
-                    marginTop: 12,
+                    marginTop: 16,
                     width: "100%",
                     justifyContent: "center",
                   }}
@@ -28783,21 +28870,36 @@ function XNodeDrawer({
               </>
             )}
 
-            {tab === "resource" && (
+            {tab === "finding" && (
               <>
-                <GroupHead>Resource type</GroupHead>
-                <SchemaField k="Type" v={kindLabel} />
-                <GroupHead>Cloud & location</GroupHead>
-                <SchemaField k="Cloud" v="AWS" />
-                <SchemaField k="Account / Subscription" v="acct-prod-9021" />
-                <SchemaField k="Region" v={f?.region ?? "us-west-2"} />
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: f
+                      ? "var(--cg-text-primary)"
+                      : "var(--cg-text-muted)",
+                    fontStyle: f ? "normal" : "italic",
+                    margin: "14px 0 4px",
+                  }}
+                >
+                  {f
+                    ? "Finding — this resource is misconfigured or exposed"
+                    : "No finding on this resource"}
+                </div>
+                <GroupHead>What is it</GroupHead>
+                <SchemaField k="Category" v={f?.category} />
                 <SchemaField
-                  k="VPC / Subnet"
-                  v={f?.vpc ?? "demo-vpc / demo-private"}
+                  k="Severity"
+                  v={f ? <SevChip sev={f.severity} /> : undefined}
                 />
-                <GroupHead>Connectivity</GroupHead>
-                <SchemaField k="Data flow (in + out)" v={flow} />
-                <SchemaField k="Downstream (blast radius)" v={down} />
+                <GroupHead>Status</GroupHead>
+                <SchemaField k="Status" v={f?.status} />
+                <SchemaField
+                  k="First seen"
+                  v={f ? daysAgo(f.ageDays) : undefined}
+                />
+                <SchemaField k="Last seen" v={f ? daysAgo(1) : undefined} />
+                <SchemaField k="Age (days open)" v={f?.ageDays} />
               </>
             )}
 
@@ -28808,13 +28910,6 @@ function XNodeDrawer({
                 <SchemaField k="Control ID" v={f?.controlId} />
                 <SchemaField k="Owner / team" v={f?.owner} />
                 <SchemaField k="Suppressed / accepted" v={false} />
-                <SchemaField
-                  k="First seen"
-                  v={f ? daysAgo(f.ageDays) : undefined}
-                />
-                <SchemaField k="Last seen" v={f ? daysAgo(1) : undefined} />
-                <SchemaField k="Age (days open)" v={f?.ageDays} />
-                <SchemaField k="Status" v={f?.status} />
                 <GroupHead>Attached policy</GroupHead>
                 <pre
                   style={{
@@ -28833,6 +28928,28 @@ function XNodeDrawer({
                   {policy}
                 </pre>
               </>
+            )}
+
+            {tab === "remediation" && (
+              <RemediationTimeline items={remediationFor(node.id, !!f)} />
+            )}
+            {tab === "logs" && (
+              <LogList
+                logs={logsFor([
+                  {
+                    id: node.id,
+                    label: node.label ?? node.id,
+                    hasFinding: !!f,
+                  },
+                ])}
+              />
+            )}
+            {tab === "notes" && (
+              <NotesPanel
+                notes={noteApi.notes}
+                onAdd={noteApi.add}
+                placeholder={`Add a note — mentioning ${node.label ?? node.id}…`}
+              />
             )}
           </div>
         </>
@@ -28865,6 +28982,16 @@ function XIssueSchema({ iss }: { iss: XIssue }) {
   );
 }
 // issue "Policy" sub-view — governing controls + a guardrail to break the path
+function XIssueNotes({ issueId, title }: { issueId: string; title: string }) {
+  const api = useNotes(`issue:${issueId}`);
+  return (
+    <NotesPanel
+      notes={api.notes}
+      onAdd={api.add}
+      placeholder={`Add a note — mentioning ${title}…`}
+    />
+  );
+}
 function XIssuePolicy({ iss }: { iss: XIssue }) {
   const findings = iss.findingIds
     .map((id) => X_FINDINGS.find((f) => f.id === id))
@@ -28953,14 +29080,18 @@ function XCatalogDrawer({
   // two-level navigation (list ↔ issue detail) — parity with the Security Graph
   const [openIssue, setOpenIssue] = React.useState<string | null>(null);
   const [issueSub, setIssueSub] = React.useState<
-    "description" | "nodes" | "policy"
+    "description" | "nodes" | "policy" | "remediation" | "logs" | "notes"
   >("description");
   const iss = openIssue
     ? (X_ISSUES.find((i) => i.id === openIssue) ?? null)
     : null;
+  const [catFilter, setCatFilter] = React.useState<Set<string>>(new Set());
+  const shownFindings = X_FINDINGS.filter((f) => xMatchFinding(f, catFilter));
+  const shownIssues = X_ISSUES.filter((i) => xMatchIssue(i, catFilter));
 
   React.useEffect(() => {
     setOpenIssue(null);
+    setCatFilter(new Set());
   }, [mode]);
 
   const rowStyle: React.CSSProperties = {
@@ -28990,26 +29121,15 @@ function XCatalogDrawer({
     fontSize: 11.5,
     color: "var(--cg-text-muted)",
   };
-  const subTab = (id: "description" | "nodes" | "policy", label: string) => (
+  const subTab = (
+    id: "description" | "nodes" | "policy" | "remediation" | "logs" | "notes",
+    label: string,
+  ) => (
     <button
       key={id}
       type="button"
       onClick={() => setIssueSub(id)}
-      style={{
-        padding: "6px 10px 9px",
-        border: "none",
-        background: "transparent",
-        color:
-          issueSub === id ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
-        fontSize: 12.5,
-        fontWeight: issueSub === id ? 700 : 500,
-        cursor: "pointer",
-        borderBottom:
-          issueSub === id
-            ? "2px solid var(--cg-accent)"
-            : "2px solid transparent",
-        marginBottom: -1,
-      }}
+      style={drawerTab(issueSub === id)}
     >
       {label}
     </button>
@@ -29114,10 +29234,13 @@ function XCatalogDrawer({
   if (iss) {
     body = (
       <div style={{ overflowY: "auto", flex: 1 }}>
-        <div style={{ display: "flex", gap: 4, padding: "12px 16px 4px" }}>
+        <div style={drawerTabStrip}>
           {subTab("description", "Description")}
           {subTab("nodes", `Affected nodes · ${iss.path.length}`)}
           {subTab("policy", "Policy")}
+          {subTab("remediation", "Remediation")}
+          {subTab("logs", "Logs")}
+          {subTab("notes", "Notes")}
         </div>
         <div style={{ padding: "6px 16px 20px" }}>
           {issueSub === "description" && (
@@ -29205,6 +29328,23 @@ function XCatalogDrawer({
               })}
             </>
           )}
+          {issueSub === "remediation" && (
+            <RemediationTimeline items={remediationFor(iss.id, true)} />
+          )}
+          {issueSub === "logs" && (
+            <LogList
+              logs={logsFor(
+                iss.path.map((nid) => ({
+                  id: nid,
+                  label: X_NODE[nid]?.label ?? nid,
+                  hasFinding: !!X_FINDING_BY_NODE[nid],
+                })),
+              )}
+            />
+          )}
+          {issueSub === "notes" && (
+            <XIssueNotes issueId={iss.id} title={iss.title} />
+          )}
         </div>
       </div>
     );
@@ -29223,9 +29363,26 @@ function XCatalogDrawer({
             ? "Single resource — something is misconfigured or exposed."
             : "Connected path of resources — together they form a risk."}
         </div>
+        <MultiFilter
+          groups={
+            mode === "findings"
+              ? X_FINDING_FILTER_GROUPS
+              : X_ISSUE_FILTER_GROUPS
+          }
+          selected={catFilter}
+          onToggle={(k) =>
+            setCatFilter((prev) => {
+              const next = new Set(prev);
+              if (next.has(k)) next.delete(k);
+              else next.add(k);
+              return next;
+            })
+          }
+          onClear={() => setCatFilter(new Set())}
+        />
         <div style={{ overflowY: "auto", flex: 1 }}>
           {mode === "findings"
-            ? X_FINDINGS.map((f) => {
+            ? shownFindings.map((f) => {
                 const n = X_NODE[f.nodeId];
                 return (
                   <button
@@ -29254,7 +29411,7 @@ function XCatalogDrawer({
                   </button>
                 );
               })
-            : X_ISSUES.map((issue) => (
+            : shownIssues.map((issue) => (
                 <button
                   key={issue.id}
                   type="button"
@@ -29892,11 +30049,7 @@ function GraphExplorer() {
             zIndex: 1, // above the background watermark, below the overlays
             height: "100%",
             width:
-              gview !== "graph"
-                ? "calc(100% - 340px)"
-                : open
-                  ? "calc(100% - 316px)"
-                  : "100%",
+              gview !== "graph" || open ? `calc(100% - ${DRAWER_W}px)` : "100%",
             background: "transparent", // let the background watermark show through
             transition: "width .28s ease",
           }}
@@ -30491,7 +30644,7 @@ function GraphExplorer() {
         {/* minimap — shared frame viewer (clears the right drawer when open) */}
         {showMini && mini && mini.bb.w > 0 && (
           <GraphMinimap
-            rightOffset={gview !== "graph" ? 352 : open ? 328 : 12}
+            rightOffset={gview !== "graph" || open ? DRAWER_W + 12 : 12}
             frame={mini}
             dots={A_NODES.map((n) => ({
               x: n.x,
