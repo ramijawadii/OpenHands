@@ -1,24 +1,45 @@
-/* eslint-disable i18next/no-literal-string, no-param-reassign, no-nested-ternary -- CloudGuard admin top bar (global search · notifications · profile) */
+/* eslint-disable i18next/no-literal-string, no-param-reassign, no-nested-ternary, @typescript-eslint/no-use-before-define -- CloudGuard admin top bar (global search · notifications · profile) */
 import React from "react";
 import { useNavigate } from "react-router";
 import {
   Search,
   Bell,
   X,
-  Settings,
   User,
   LogOut,
   CheckCheck,
   Folder,
+  Sun,
+  Moon,
+  Monitor,
+  Eye,
+  EyeOff,
+  SlidersHorizontal,
+  ChevronRight,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { create, insertMultiple, search } from "@orama/orama";
 import { NAV_CATALOG, NAV_GROUP_ORDER } from "./admin-nav-catalog";
 import { fetchNotifications, type Notif, type Cat } from "./notif-source";
-import { T, Toggle } from "./admin-kit";
+import { T } from "./admin-kit";
+import { NotificationSettingsPanel } from "./notification-settings";
 import {
   RoleChip,
   useCurrentRole,
 } from "#/components/features/settings/settings-kit";
+import { useTheme } from "#/context/theme-context";
+import { NAVIGATION } from "#/components/features/sidebar/sidebar";
+import {
+  useHiddenNav,
+  setHidden,
+} from "#/components/features/sidebar/sidebar-prefs";
+
+// Shared drawer entry animations (fade + slide) — injected once by AdminTopBar.
+const DRAWER_KEYFRAMES =
+  "@keyframes cgOverlayIn{from{opacity:0}to{opacity:1}}" +
+  "@keyframes cgDrawerIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}";
+const OVERLAY_ANIM = "cgOverlayIn .16s ease both";
+const DRAWER_ANIM = "cgDrawerIn .22s cubic-bezier(.2,.7,.3,1) both";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Global search — grouped, hierarchical result dropdown
@@ -629,78 +650,6 @@ const NOTIFS: Notif[] = [
 ];
 
 // Settings model — concrete, per-category controls (not generic).
-const SETTINGS_SECTIONS: {
-  cat: string;
-  rows: { k: string; desc: string; on: boolean }[];
-  select?: { k: string; options: string[]; value: string };
-}[] = [
-  {
-    cat: "AI Agent Actions",
-    rows: [
-      {
-        k: "Autonomous action alerts",
-        desc: "Every action a security agent proposes or executes",
-        on: true,
-      },
-      {
-        k: "Require approval (HITL) for high-risk actions",
-        desc: "Gate destructive remediations behind a human Approve / Deny",
-        on: true,
-      },
-      {
-        k: "Agent telemetry & detections",
-        desc: "Threat detections and scan results from agents",
-        on: false,
-      },
-    ],
-    select: {
-      k: "Auto-escalate unanswered approvals after",
-      options: ["15 minutes", "1 hour", "4 hours", "Never"],
-      value: "1 hour",
-    },
-  },
-  {
-    cat: "Team Activity",
-    rows: [
-      {
-        k: "Mentions & assignments",
-        desc: "When a teammate @mentions or assigns you",
-        on: true,
-      },
-      {
-        k: "Override & exception requests",
-        desc: "Policy override / waiver requests needing review",
-        on: true,
-      },
-      {
-        k: "Incident hand-offs",
-        desc: "Incidents reassigned to you or your team",
-        on: true,
-      },
-    ],
-  },
-  {
-    cat: "Platform & Posture",
-    rows: [
-      {
-        k: "Scan & benchmark summaries",
-        desc: "CIS / posture scan completion digests",
-        on: true,
-      },
-      {
-        k: "Connector & credential expiry",
-        desc: "Expiring connector tokens, keys and certificates",
-        on: true,
-      },
-      {
-        k: "Maintenance & releases",
-        desc: "Platform maintenance windows and new features",
-        on: false,
-      },
-    ],
-  },
-];
-const DELIVERY = ["In-app", "Email", "Slack"];
 const NOTIF_PAGE = 8;
 
 // Loading skeleton — used for the initial fetch, lazy "load more", and Settings.
@@ -765,21 +714,6 @@ function NotifDrawer({ onClose }: { onClose: () => void }) {
   const [loadingMore, setLoadingMore] = React.useState(false);
   const [settingsReady, setSettingsReady] = React.useState(false);
   const sentinelRef = React.useRef<HTMLDivElement | null>(null);
-  // settings state — seeded from the model so toggles reflect real values
-  const [setVals, setSetVals] = React.useState<Record<string, boolean>>(() => {
-    const v: Record<string, boolean> = {};
-    SETTINGS_SECTIONS.forEach((s) =>
-      s.rows.forEach((r) => {
-        v[r.k] = r.on;
-      }),
-    );
-    DELIVERY.forEach((d) => {
-      v[`ch:${d}`] = d !== "Slack";
-    });
-    v["Critical alerts bypass quiet hours"] = true;
-    return v;
-  });
-  const flip = (k: string) => setSetVals((p) => ({ ...p, [k]: !p[k] }));
 
   const pool = items.filter(
     (n) =>
@@ -879,6 +813,7 @@ function NotifDrawer({ onClose }: { onClose: () => void }) {
           inset: 0,
           background: "var(--cg-overlay, rgba(0,0,0,0.4))",
           zIndex: 70,
+          animation: OVERLAY_ANIM,
         }}
       />
       <aside
@@ -896,6 +831,7 @@ function NotifDrawer({ onClose }: { onClose: () => void }) {
           display: "flex",
           flexDirection: "column",
           boxShadow: "-8px 0 24px rgba(0,0,0,0.18)",
+          animation: DRAWER_ANIM,
         }}
       >
         <div
@@ -1218,165 +1154,10 @@ function NotifDrawer({ onClose }: { onClose: () => void }) {
             </div>
           </>
         ) : settingsReady ? (
-          <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 20px" }}>
-            {SETTINGS_SECTIONS.map((s) => (
-              <div key={s.cat} style={{ marginTop: 8 }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    letterSpacing: "0.04em",
-                    textTransform: "uppercase",
-                    color: T.textMuted,
-                    padding: "10px 0 2px",
-                  }}
-                >
-                  {s.cat}
-                </div>
-                {s.rows.map((r) => (
-                  <div
-                    key={r.k}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 16,
-                      padding: "11px 0",
-                      borderBottom: `1px solid ${T.border}`,
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 500,
-                          color: T.textPrimary,
-                        }}
-                      >
-                        {r.k}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: T.textMuted,
-                          marginTop: 2,
-                        }}
-                      >
-                        {r.desc}
-                      </div>
-                    </div>
-                    <Toggle on={!!setVals[r.k]} onChange={() => flip(r.k)} />
-                  </div>
-                ))}
-                {s.select && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      gap: 16,
-                      padding: "11px 0",
-                    }}
-                  >
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 500,
-                        color: T.textPrimary,
-                      }}
-                    >
-                      {s.select.k}
-                    </div>
-                    <select
-                      defaultValue={s.select.value}
-                      style={{
-                        height: 30,
-                        borderRadius: 6,
-                        border: `1px solid ${T.border}`,
-                        background: "var(--cg-input-bg, var(--cg-bg-card))",
-                        color: T.textPrimary,
-                        fontSize: 12.5,
-                        padding: "0 8px",
-                      }}
-                    >
-                      {s.select.options.map((o) => (
-                        <option key={o} value={o}>
-                          {o}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {/* delivery channels + global */}
-            <div
-              style={{
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: "0.04em",
-                textTransform: "uppercase",
-                color: T.textMuted,
-                padding: "16px 0 2px",
-              }}
-            >
-              Delivery
-            </div>
-            {DELIVERY.map((d) => (
-              <div
-                key={d}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "11px 0",
-                  borderBottom: `1px solid ${T.border}`,
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: T.textPrimary,
-                  }}
-                >
-                  {d}
-                </div>
-                <Toggle
-                  on={!!setVals[`ch:${d}`]}
-                  onChange={() => flip(`ch:${d}`)}
-                />
-              </div>
-            ))}
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 16,
-                padding: "11px 0",
-              }}
-            >
-              <div style={{ minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: T.textPrimary,
-                  }}
-                >
-                  Critical alerts bypass quiet hours
-                </div>
-                <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
-                  Page on criticals (e.g. HITL approvals) even when muted
-                </div>
-              </div>
-              <Toggle
-                on={!!setVals["Critical alerts bypass quiet hours"]}
-                onChange={() => flip("Critical alerts bypass quiet hours")}
-              />
-            </div>
+          <div
+            style={{ flex: 1, overflowY: "auto", padding: "12px 16px 20px" }}
+          >
+            <NotificationSettingsPanel />
           </div>
         ) : (
           <div style={{ flex: 1, overflowY: "auto", padding: "14px 12px" }}>
@@ -1389,40 +1170,459 @@ function NotifDrawer({ onClose }: { onClose: () => void }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profile menu
+// Profile — avatar opens a drawer (profile link · theme/language · sidebar show-hide)
 // ─────────────────────────────────────────────────────────────────────────────
-function ProfileMenu() {
+const LANGS: { code: string; label: string }[] = [
+  { code: "en", label: "English" },
+  { code: "fr", label: "Français" },
+  { code: "es", label: "Español" },
+  { code: "de", label: "Deutsch" },
+  { code: "ja", label: "日本語" },
+  { code: "zh", label: "中文" },
+];
+const SIDEBAR_GLOBALS = ["Dashboard", "Security graph", "Issues", "Findings"];
+
+function ProfileDrawer({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const role = useCurrentRole();
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef<HTMLDivElement | null>(null);
-  React.useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node))
-        setOpen(false);
-    };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, []);
-  const item: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 9,
-    width: "100%",
-    padding: "8px 12px",
-    background: "transparent",
-    border: "none",
-    cursor: "pointer",
-    textAlign: "left",
-    fontSize: 13,
-    color: T.textNav,
+  const { preference, setPreference } = useTheme();
+  const { i18n } = useTranslation();
+  const [customizeOpen, setCustomizeOpen] = React.useState(false);
+
+  const sectionLabel: React.CSSProperties = {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    color: T.textMuted,
+    padding: "16px 0 8px",
   };
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <>
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--cg-overlay, rgba(0,0,0,0.4))",
+          zIndex: 70,
+          animation: OVERLAY_ANIM,
+        }}
+      />
+      <aside
+        role="dialog"
+        aria-label="Profile & preferences"
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          height: "100%",
+          width: 380,
+          background: T.cardBg,
+          borderLeft: `1px solid ${T.border}`,
+          zIndex: 71,
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "-8px 0 24px rgba(0,0,0,0.18)",
+          animation: DRAWER_ANIM,
+        }}
+      >
+        {/* header → links to the personal profile page */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "16px",
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <span
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: "50%",
+              background: "var(--cg-accent-bg-strong, var(--cg-accent-bg))",
+              color: T.accent,
+              fontSize: 14,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            CA
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}
+            >
+              CloudGuard Admin
+            </div>
+            <div style={{ fontSize: 12, color: T.textMuted }}>
+              admin@cloudguard.io
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <RoleChip role={role} />
+            </div>
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: T.textMuted,
+              display: "flex",
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ flex: 1, overflowY: "auto", padding: "4px 16px 20px" }}>
+          <button
+            type="button"
+            onClick={() => {
+              navigate("/profile");
+              onClose();
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              width: "100%",
+              marginTop: 12,
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              background: "transparent",
+              color: T.textPrimary,
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <User size={16} color={T.accent} /> View personal profile
+          </button>
+
+          {/* Appearance — theme + language */}
+          <div style={sectionLabel}>Appearance</div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "8px 0",
+            }}
+          >
+            <span style={{ fontSize: 13, color: T.textPrimary }}>Theme</span>
+            <div style={{ display: "flex", gap: 4 }}>
+              {(["light", "dark", "system"] as const).map((mode) => {
+                const on = preference === mode;
+                const Ico =
+                  mode === "light" ? Sun : mode === "dark" ? Moon : Monitor;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPreference(mode)}
+                    title={mode}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      height: 30,
+                      padding: "0 9px",
+                      borderRadius: 7,
+                      textTransform: "capitalize",
+                      border: `1px solid ${on ? T.accent : T.border}`,
+                      background: on ? "var(--cg-accent-bg)" : "transparent",
+                      color: on ? T.textPrimary : T.textNav,
+                      fontSize: 12,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <Ico size={13} /> {mode}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              padding: "8px 0",
+            }}
+          >
+            <span style={{ fontSize: 13, color: T.textPrimary }}>Language</span>
+            <select
+              value={i18n.language?.split("-")[0] || "en"}
+              onChange={(e) => i18n.changeLanguage(e.target.value)}
+              style={{
+                height: 30,
+                borderRadius: 7,
+                border: `1px solid ${T.border}`,
+                background: "var(--cg-input-bg, var(--cg-bg-card))",
+                color: T.textPrimary,
+                fontSize: 12.5,
+                padding: "0 8px",
+              }}
+            >
+              {LANGS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Sidebar — opens the customize sub-drawer */}
+          <div style={sectionLabel}>Sidebar</div>
+          <button
+            type="button"
+            onClick={() => setCustomizeOpen(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              width: "100%",
+              padding: "10px 12px",
+              borderRadius: 8,
+              border: `1px solid ${T.border}`,
+              background: "transparent",
+              color: T.textPrimary,
+              fontSize: 13,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <SlidersHorizontal size={16} color={T.accent} />
+            <span style={{ flex: 1 }}>Customize sidebar</span>
+            <ChevronRight size={15} color={T.textMuted} />
+          </button>
+        </div>
+
+        <div
+          style={{ padding: "10px 16px", borderTop: `1px solid ${T.border}` }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              width: "100%",
+              padding: "9px 12px",
+              borderRadius: 8,
+              border: "none",
+              background: "transparent",
+              color: T.danger,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            <LogOut size={15} /> Sign out
+          </button>
+        </div>
+      </aside>
+      {customizeOpen && (
+        <CustomizeSidebarDrawer onClose={() => setCustomizeOpen(false)} />
+      )}
+    </>
+  );
+}
+
+// Customize sidebar — the show/hide checklist, in its own drawer.
+function CustomizeSidebarDrawer({ onClose }: { onClose: () => void }) {
+  const committed = useHiddenNav();
+  // edit against a local draft; nothing applies to the sidebar until Save.
+  const [draft, setDraft] = React.useState<Set<string>>(
+    () => new Set(committed),
+  );
+  const dirty =
+    draft.size !== committed.size ||
+    [...draft].some((id) => !committed.has(id));
+  const toggleDraft = (id: string) =>
+    setDraft((p) => {
+      const next = new Set(p);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const save = () => {
+    setHidden(draft);
+    onClose();
+  };
+  const toggles = [
+    ...SIDEBAR_GLOBALS.map((l) => ({ id: `global:${l}`, label: l })),
+    ...NAVIGATION.map((d) => ({ id: `domain:${d.id}`, label: d.label })),
+  ];
+  return (
+    <>
+      <div
+        onClick={onClose}
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "var(--cg-overlay, rgba(0,0,0,0.4))",
+          zIndex: 72,
+          animation: OVERLAY_ANIM,
+        }}
+      />
+      <aside
+        role="dialog"
+        aria-label="Customize sidebar"
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          height: "100%",
+          width: 380,
+          background: T.cardBg,
+          borderLeft: `1px solid ${T.border}`,
+          zIndex: 73,
+          display: "flex",
+          flexDirection: "column",
+          boxShadow: "-8px 0 24px rgba(0,0,0,0.18)",
+          animation: DRAWER_ANIM,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "14px 16px",
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>
+            Customize sidebar
+          </div>
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            style={{
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              color: T.textMuted,
+              display: "flex",
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "8px 16px 18px" }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: T.textMuted,
+              padding: "8px 0 6px",
+            }}
+          >
+            Show or hide items in the main sidebar.
+          </div>
+          {toggles.map((t) => {
+            const shown = !draft.has(t.id);
+            return (
+              <label
+                key={t.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "8px 0",
+                  fontSize: 13,
+                  color: T.textPrimary,
+                  cursor: "pointer",
+                  borderBottom: `1px solid ${T.border}`,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={shown}
+                  onChange={() => toggleDraft(t.id)}
+                  style={{ accentColor: "var(--cg-accent)" }}
+                />
+                <span style={{ flex: 1 }}>{t.label}</span>
+                {shown ? (
+                  <Eye size={14} color={T.textMuted} />
+                ) : (
+                  <EyeOff size={14} color={T.textMuted} />
+                )}
+              </label>
+            );
+          })}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            padding: "12px 16px",
+            borderTop: `1px solid ${T.border}`,
+          }}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              height: 34,
+              padding: "0 14px",
+              borderRadius: 7,
+              border: `1px solid ${T.border}`,
+              background: "transparent",
+              color: T.textNav,
+              fontSize: 13,
+              cursor: "pointer",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={!dirty}
+            style={{
+              height: 34,
+              padding: "0 16px",
+              borderRadius: 7,
+              border: "none",
+              background: dirty ? "var(--cg-accent)" : T.border,
+              color: dirty ? "#fff" : T.textMuted,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: dirty ? "pointer" : "default",
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+function ProfileMenu() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
       <button
         type="button"
         aria-label="Profile"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => setOpen(true)}
         style={{
           width: 30,
           height: 30,
@@ -1437,57 +1637,8 @@ function ProfileMenu() {
       >
         CA
       </button>
-      {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: 38,
-            right: 0,
-            width: 230,
-            background: T.cardBg,
-            border: `1px solid ${T.border}`,
-            borderRadius: 10,
-            boxShadow: "var(--cg-shadow-dropdown, 0 8px 24px rgba(0,0,0,0.3))",
-            zIndex: 60,
-            padding: "6px 0",
-          }}
-        >
-          <div style={{ padding: "8px 12px 10px" }}>
-            <div
-              style={{ fontSize: 13.5, fontWeight: 600, color: T.textPrimary }}
-            >
-              CloudGuard Admin
-            </div>
-            <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
-              admin@cloudguard.io
-            </div>
-            <RoleChip role={role} />
-          </div>
-          <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
-          <button type="button" style={item} onClick={() => setOpen(false)}>
-            <User size={15} /> View profile
-          </button>
-          <button
-            type="button"
-            style={item}
-            onClick={() => {
-              navigate("/admin");
-              setOpen(false);
-            }}
-          >
-            <Settings size={15} /> Platform settings
-          </button>
-          <div style={{ height: 1, background: T.border, margin: "4px 0" }} />
-          <button
-            type="button"
-            style={{ ...item, color: T.danger }}
-            onClick={() => setOpen(false)}
-          >
-            <LogOut size={15} /> Sign out
-          </button>
-        </div>
-      )}
-    </div>
+      {open && <ProfileDrawer onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -1511,6 +1662,7 @@ export function AdminTopBar() {
         borderBottom: `1px solid ${T.border}`,
       }}
     >
+      <style>{DRAWER_KEYFRAMES}</style>
       <GlobalSearch />
       <button
         type="button"

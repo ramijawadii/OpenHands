@@ -55,6 +55,7 @@ import { useLogout } from "#/hooks/mutation/use-logout";
 import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
 import { useTheme } from "#/context/theme-context";
+import { useHiddenNav } from "./sidebar-prefs";
 
 // ── Design tokens — CSS variables for light/dark theme support ────────────────
 const T = {
@@ -661,6 +662,7 @@ export function Sidebar() {
   const { mutate: logout } = useLogout();
 
   const { theme, toggle: toggleTheme } = useTheme();
+  const hiddenNav = useHiddenNav();
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
   const [conversationPanelIsOpen, setConversationPanelIsOpen] =
     React.useState(false);
@@ -809,7 +811,9 @@ export function Sidebar() {
               alignItems: "center",
               justifyContent: "flex-start",
               gap: 10,
-              padding: "14px 12px 12px",
+              height: 50, // align this separator with the top bar's (both 50px)
+              boxSizing: "border-box",
+              padding: "0 12px",
               borderBottom: `1px solid ${T.border}`,
               flexShrink: 0,
             }}
@@ -1171,62 +1175,64 @@ export function Sidebar() {
             )}
 
             {/* Dashboard */}
-            <button
-              type="button"
-              aria-label="Dashboard"
-              onClick={() => navigate("/")}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 10,
-                width: "calc(100% - 12px)",
-                margin: "1px 6px",
-                padding: "10px 12px",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
-                borderRadius: 6,
-                transition: "background 0.12s",
-              }}
-              {...railHover("Dashboard")}
-            >
-              <LayoutDashboard
-                size={15}
-                style={{ color: T.textPrimary, flexShrink: 0 }}
-              />
-              {!collapsed && (
-                <>
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 500,
-                      color: T.textPrimary,
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      opacity: 1,
-                      transition: labelOpacityTransition,
-                    }}
-                  >
-                    Dashboard
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: T.textMuted,
-                      fontWeight: 600,
-                      letterSpacing: "0.02em",
-                      marginLeft: 2,
-                    }}
-                  >
-                    0
-                  </span>
-                </>
-              )}
-            </button>
+            {!hiddenNav.has("global:Dashboard") && (
+              <button
+                type="button"
+                aria-label="Dashboard"
+                onClick={() => navigate("/")}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-start",
+                  gap: 10,
+                  width: "calc(100% - 12px)",
+                  margin: "1px 6px",
+                  padding: "10px 12px",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  borderRadius: 6,
+                  transition: "background 0.12s",
+                }}
+                {...railHover("Dashboard")}
+              >
+                <LayoutDashboard
+                  size={15}
+                  style={{ color: T.textPrimary, flexShrink: 0 }}
+                />
+                {!collapsed && (
+                  <>
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        color: T.textPrimary,
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        opacity: 1,
+                        transition: labelOpacityTransition,
+                      }}
+                    >
+                      Dashboard
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: T.textMuted,
+                        fontWeight: 600,
+                        letterSpacing: "0.02em",
+                        marginLeft: 2,
+                      }}
+                    >
+                      0
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
 
             {/* Security graph · Issues · Findings (global, with severity badges) */}
             {(
@@ -1256,72 +1262,76 @@ export function Sidebar() {
                 badge?: string;
                 badgeColor?: string;
               }[]
-            ).map((g) => {
-              const active =
-                pathname === g.to || pathname.startsWith(`${g.to}/`);
-              return (
-                <button
-                  key={g.to}
-                  type="button"
-                  aria-label={g.label}
-                  onClick={() => navigate(g.to)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "flex-start",
-                    gap: 10,
-                    width: "calc(100% - 12px)",
-                    margin: "1px 6px",
-                    padding: "10px 12px",
-                    background: active ? "var(--cg-bg-active)" : "transparent",
-                    border: "none",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    borderRadius: 6,
-                    transition: "background 0.12s",
-                  }}
-                  {...railHover(g.label, active)}
-                >
-                  <g.Icon
-                    size={15}
-                    style={{ color: T.textPrimary, flexShrink: 0 }}
-                  />
-                  {!collapsed && (
-                    <>
-                      <span
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 500,
-                          color: T.textPrimary,
-                          flex: 1,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                          transition: labelOpacityTransition,
-                        }}
-                      >
-                        {g.label}
-                      </span>
-                      {g.badge && (
+            )
+              .filter((g) => !hiddenNav.has(`global:${g.label}`))
+              .map((g) => {
+                const active =
+                  pathname === g.to || pathname.startsWith(`${g.to}/`);
+                return (
+                  <button
+                    key={g.to}
+                    type="button"
+                    aria-label={g.label}
+                    onClick={() => navigate(g.to)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-start",
+                      gap: 10,
+                      width: "calc(100% - 12px)",
+                      margin: "1px 6px",
+                      padding: "10px 12px",
+                      background: active
+                        ? "var(--cg-bg-active)"
+                        : "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      borderRadius: 6,
+                      transition: "background 0.12s",
+                    }}
+                    {...railHover(g.label, active)}
+                  >
+                    <g.Icon
+                      size={15}
+                      style={{ color: T.textPrimary, flexShrink: 0 }}
+                    />
+                    {!collapsed && (
+                      <>
                         <span
                           style={{
-                            fontSize: 10.5,
-                            fontWeight: 700,
-                            color: g.badgeColor ? "#fff" : T.textMuted,
-                            background: g.badgeColor ?? "transparent",
-                            borderRadius: 9,
-                            padding: g.badgeColor ? "1px 7px" : "0",
-                            letterSpacing: "0.02em",
+                            fontSize: 14,
+                            fontWeight: 500,
+                            color: T.textPrimary,
+                            flex: 1,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            transition: labelOpacityTransition,
                           }}
                         >
-                          {g.badge}
+                          {g.label}
                         </span>
-                      )}
-                    </>
-                  )}
-                </button>
-              );
-            })}
+                        {g.badge && (
+                          <span
+                            style={{
+                              fontSize: 10.5,
+                              fontWeight: 700,
+                              color: g.badgeColor ? "#fff" : T.textMuted,
+                              background: g.badgeColor ?? "transparent",
+                              borderRadius: 9,
+                              padding: g.badgeColor ? "1px 7px" : "0",
+                              letterSpacing: "0.02em",
+                            }}
+                          >
+                            {g.badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </button>
+                );
+              })}
 
             {/* DOMAINS zone caption */}
             {!collapsed && (
@@ -1340,7 +1350,9 @@ export function Sidebar() {
             )}
 
             {/* Domain list */}
-            {NAVIGATION.map((domain) => {
+            {NAVIGATION.filter(
+              (domain) => !hiddenNav.has(`domain:${domain.id}`),
+            ).map((domain) => {
               const isExpanded = expandedDomain === domain.id;
               const DomainIcon = domain.icon;
 
@@ -1500,74 +1512,8 @@ export function Sidebar() {
               );
             })}
 
-            {/* Divider before Agent Control Plane + Settings */}
+            {/* Divider before Platform settings */}
             <div style={{ height: 1, background: T.border, margin: "6px 0" }} />
-
-            {/* Agent Control Plane */}
-            <button
-              type="button"
-              aria-label="Agent Control Plane"
-              onClick={() => {
-                navigate("/agent-control-plane");
-              }}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: 10,
-                width: "calc(100% - 12px)",
-                margin: "1px 6px",
-                padding: "10px 12px",
-                background: pathname.startsWith("/agent-control-plane")
-                  ? T.bgActive
-                  : "transparent",
-                border: "none",
-                cursor: "pointer",
-                textAlign: "left",
-                borderRadius: 6,
-                transition: "background 0.12s",
-              }}
-              {...railHover(
-                "Agent Control Plane",
-                pathname.startsWith("/agent-control-plane"),
-              )}
-            >
-              <span
-                style={{ color: T.textPrimary, display: "flex", flexShrink: 0 }}
-              >
-                <Bot size={15} />
-              </span>
-              {!collapsed && (
-                <>
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 400,
-                      color: T.textPrimary,
-                      flex: 1,
-                      transition: labelOpacityTransition,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Agent Control Plane
-                  </span>
-                  <span
-                    title="Pending approvals"
-                    style={{
-                      fontSize: 10.5,
-                      fontWeight: 700,
-                      color: "#fff",
-                      background: "#e09a2d",
-                      borderRadius: 9,
-                      padding: "1px 7px",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    3
-                  </span>
-                </>
-              )}
-            </button>
 
             {/* Platform settings — routes to the Enterprise Administration console */}
             <button

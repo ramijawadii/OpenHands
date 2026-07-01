@@ -76,6 +76,7 @@ import elbIcon from "thesvg/aws-res-elastic-load-balancing-gateway-load-balancer
 import albIcon from "thesvg/aws-res-elastic-load-balancing-application-load-balancer";
 import igwIcon from "thesvg/aws-res-amazon-vpc-internet-gateway";
 import dbIcon from "thesvg/aws-amazon-dynamodb";
+import { ImpactAnalysis } from "./impact-analysis";
 import {
   useCollection,
   useAddCollectionItem,
@@ -151,7 +152,10 @@ const NAV_GROUPS = [
   },
   {
     group: "IAM Graph",
-    tabs: [{ id: "graph-explorer", label: "Explorer" }],
+    tabs: [
+      { id: "graph-explorer", label: "Explorer" },
+      { id: "graph-impact", label: "Impact Analysis" },
+    ],
   },
 ];
 const GROUP_BY_PARAM: Record<string, string> = {
@@ -222,6 +226,7 @@ export function IdentityPage({ scope }: { scope: "workspace" | "enterprise" }) {
       {tab === "alerts-config" && <AlertConfigGroup />}
       {tab === "alerts-history" && <AlertHistory />}
       {tab === "graph-explorer" && <GraphExplorer />}
+      {tab === "graph-impact" && <ImpactAnalysis />}
     </Page>
   );
 }

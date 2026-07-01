@@ -23,7 +23,6 @@ import {
 } from "#/components/features/settings/settings-kit";
 import "#/components/features/settings/settings-polish.css";
 import { T } from "./admin-kit";
-import { AdminTopBar } from "./admin-topbar";
 import { ConsoleSwitcher } from "./workspace-context";
 import { EmergencyButton } from "./emergency-button";
 
@@ -261,7 +260,35 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         }}
         className="custom-scrollbar-always"
       >
-        <AdminTopBar />
+        {/* root path */}
+        {(() => {
+          const active = NAV.find(
+            (n) => pathname === n.to || pathname.startsWith(`${n.to}/`),
+          );
+          return (
+            <nav
+              aria-label="Breadcrumb"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 7,
+                fontSize: 12.5,
+                color: T.textMuted,
+                padding: "12px 36px 0",
+              }}
+            >
+              <span>Enterprise Administration</span>
+              {active && (
+                <>
+                  <span style={{ opacity: 0.6 }}>›</span>
+                  <span style={{ color: T.textPrimary, fontWeight: 600 }}>
+                    {active.text}
+                  </span>
+                </>
+              )}
+            </nav>
+          );
+        })()}
         {children}
       </main>
     </div>

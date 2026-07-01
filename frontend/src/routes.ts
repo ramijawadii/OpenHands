@@ -9,16 +9,6 @@ export default [
   layout("routes/root-layout.tsx", [
     index("routes/home.tsx"),
     route("accept-tos", "routes/accept-tos.tsx"),
-    route("agent-control-plane", "routes/acp.tsx", [
-      index("routes/acp-overview.tsx", { id: "acp-overview-index" }),
-      route("overview", "routes/acp-overview.tsx"),
-      route("runs", "routes/acp-runs.tsx"),
-      route("sandboxes", "routes/acp-sandboxes.tsx"),
-      route("monitoring", "routes/acp-monitoring.tsx"),
-      route("enforcement", "routes/acp-enforcement.tsx"),
-      route("audit", "routes/acp-audit.tsx"),
-      route("incidents", "routes/acp-incidents.tsx"),
-    ]),
     route("settings", "routes/settings.tsx", [
       index("routes/settings-profile.tsx", { id: "settings-profile-index" }),
       route("profile", "routes/settings-profile.tsx"),
@@ -63,6 +53,7 @@ export default [
       route("secrets", "routes/secrets-settings.tsx"),
       route("api-keys", "routes/api-keys.tsx"),
     ]),
+    route("profile", "routes/account-profile.tsx"),
     route("admin", "routes/admin.tsx", [
       index("routes/admin-overview.tsx", { id: "admin-overview-index" }),
       route("overview", "routes/admin-overview.tsx"),

@@ -61,7 +61,6 @@ import {
   CircleDot,
 } from "lucide-react";
 import { NAVIGATION, slugify } from "#/components/features/sidebar/sidebar";
-import { Page } from "#/components/admin/admin-kit";
 
 type LucideIcon = React.ComponentType<{ size?: number; color?: string }>;
 
@@ -791,7 +790,16 @@ export default function ExploreView() {
   };
 
   return (
-    <Page>
+    <div
+      style={{
+        padding: "10px 36px 28px",
+        maxWidth: 1760,
+        margin: "0 auto",
+        width: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+      }}
+    >
       {/* breadcrumb — Domain (clickable) › Sub-tab (current). No capability dup. */}
       <nav
         aria-label="Breadcrumb"
@@ -801,7 +809,7 @@ export default function ExploreView() {
           gap: 7,
           fontSize: 12.5,
           color: "var(--cg-text-muted)",
-          marginBottom: 14,
+          marginBottom: 10,
         }}
       >
         <button
@@ -878,6 +886,6 @@ export default function ExploreView() {
           </div>
         </div>
       )}
-    </Page>
+    </div>
   );
 }

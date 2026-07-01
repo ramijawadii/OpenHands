@@ -911,7 +911,7 @@ export function Page({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        padding: "28px 36px",
+        padding: "12px 36px 28px",
         maxWidth: 1760,
         margin: "0 auto",
         width: "100%",
@@ -930,7 +930,7 @@ export function Tabs({
   active,
   onChange,
 }: {
-  tabs: { id: string; label: string; badge?: string }[];
+  tabs: { id: string; label: string; badge?: string; icon?: React.ReactNode }[];
   active: string;
   onChange: (id: string) => void;
 }) {
@@ -969,6 +969,7 @@ export function Tabs({
               gap: 7,
             }}
           >
+            {t.icon}
             {t.label}
             {t.badge && (
               <span

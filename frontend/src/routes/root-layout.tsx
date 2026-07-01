@@ -13,6 +13,7 @@ import { useGitHubAuthUrl } from "#/hooks/use-github-auth-url";
 import { useIsAuthed } from "#/hooks/query/use-is-authed";
 import { useConfig } from "#/hooks/query/use-config";
 import { Sidebar } from "#/components/features/sidebar/sidebar";
+import { AdminTopBar } from "#/components/admin/admin-topbar";
 import { AuthModal } from "#/components/features/waitlist/auth-modal";
 import { ReauthModal } from "#/components/features/waitlist/reauth-modal";
 import { AnalyticsConsentFormModal } from "#/components/features/analytics/analytics-consent-form-modal";
@@ -222,12 +223,16 @@ export default function MainApp() {
               !pathname.startsWith("/settings") &&
               !pathname.startsWith("/admin") &&
               !pathname.startsWith("/workspace") &&
+              !pathname.startsWith("/profile") &&
+              !pathname.startsWith("/explore") &&
               "md:p-3",
           )}
         >
           {config.data?.MAINTENANCE && (
             <MaintenanceBanner startTime={config.data.MAINTENANCE.startTime} />
           )}
+          {/* Global chrome — search · notifications · profile, on every page */}
+          <AdminTopBar />
           <div
             id="root-outlet"
             className="flex-1 relative overflow-auto custom-scrollbar"
