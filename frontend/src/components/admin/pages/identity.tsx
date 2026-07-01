@@ -154,7 +154,7 @@ const NAV_GROUPS = [
     group: "IAM Graph",
     tabs: [
       { id: "graph-explorer", label: "Explorer" },
-      { id: "graph-impact", label: "Impact Analysis" },
+      { id: "graph-impact", label: "Security Graph" },
     ],
   },
 ];

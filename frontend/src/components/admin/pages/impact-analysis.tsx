@@ -361,6 +361,315 @@ function relationsOf(id: string): { up: IANode[]; down: IANode[] } {
   return { up, down };
 }
 
+// ── Findings (single-resource problems) + Issues (attack paths) ───────────────
+type Severity = "Critical" | "High" | "Medium" | "Low" | "Informational";
+const SEV_ORDER: Severity[] = [
+  "Critical",
+  "High",
+  "Medium",
+  "Low",
+  "Informational",
+];
+const SEV_COLOUR: Record<Severity, string> = {
+  Critical: "#e0492f",
+  High: "#f0733a",
+  Medium: "#d99a00",
+  Low: "#3f9bd6",
+  Informational: "#8a96a8",
+};
+type FStatus = "Open" | "In remediation" | "Resolved" | "Suppressed";
+type IStatus =
+  | "Active"
+  | "Partially remediated"
+  | "Blocked (path broken)"
+  | "Suppressed";
+
+type Finding = {
+  id: string;
+  nodeId: string;
+  title: string;
+  category: string; // what is it
+  severity: Severity;
+  resourceType: string;
+  cloud: string;
+  account: string;
+  region: string;
+  vpc: string;
+  framework: string;
+  controlId: string;
+  owner: string;
+  suppressed: boolean;
+  firstSeen: string;
+  lastSeen: string;
+  ageDays: number;
+  status: FStatus;
+};
+type Issue = {
+  id: string;
+  title: string;
+  path: string[]; // node ids, entry → target
+  attackType: string;
+  risk: Severity;
+  entryPoint: string;
+  target: string;
+  hopCount: number;
+  crossesAccount: boolean;
+  crossesVpc: boolean;
+  involvesPublic: boolean;
+  exploitability: string;
+  findingIds: string[];
+  minSeverity: Severity;
+  findingTypes: string[];
+  hasActiveExploit: boolean;
+  status: IStatus;
+};
+
+const RES_TYPE: Record<string, string> = {
+  ec2: "EC2 / VM",
+  s3: "S3 / Blob",
+  lambda: "Lambda / Function",
+  role: "IAM Role / Policy",
+  policy: "IAM Role / Policy",
+  identity: "IAM Role / Policy",
+  rds: "RDS / Database",
+  dynamodb: "RDS / Database",
+  kms: "Secret / Key",
+  secrets: "Secret / Key",
+};
+
+function buildFindings(): Finding[] {
+  let s = 42;
+  const r = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+  const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
+  const REGIONS = ["us-east-1", "us-west-2", "eu-west-1"];
+  const FW = ["SOC 2", "CIS AWS 1.5", "NIST 800-53"];
+  const TEAMS = ["platform", "data-eng", "security", "payments"];
+  const daysAgo = (d: number) => {
+    const dt = new Date(2026, 6, 1);
+    dt.setDate(dt.getDate() - d);
+    return dt.toISOString().slice(0, 10);
+  };
+  // curated, node-anchored findings (the flagged story) + a spread of resources
+  const seeds: {
+    label: string;
+    category: string;
+    severity: Severity;
+    status: FStatus;
+  }[] = [
+    {
+      label: "prod/customer-pii-bucket",
+      category: "Public bucket",
+      severity: "Critical",
+      status: "Open",
+    },
+    {
+      label: "prod-AdminAccess-*",
+      category: "Over-permissioned role",
+      severity: "Critical",
+      status: "Open",
+    },
+    {
+      label: "prod-break-glass",
+      category: "Over-permissioned role",
+      severity: "High",
+      status: "In remediation",
+    },
+    {
+      label: "svc-scanner",
+      category: "Missing MFA",
+      severity: "High",
+      status: "Open",
+    },
+    {
+      label: "prod-DataExport",
+      category: "Misconfiguration",
+      severity: "High",
+      status: "Open",
+    },
+    {
+      label: "prod-vendor",
+      category: "Over-permissioned role",
+      severity: "Medium",
+      status: "Open",
+    },
+  ];
+  const out: Finding[] = [];
+  const add = (
+    node: IANode | undefined,
+    category: string,
+    severity: Severity,
+    status: FStatus,
+  ) => {
+    if (!node) return;
+    const age = 3 + Math.floor(r() * 180);
+    const env = node.label.split(/[-/]/)[0];
+    out.push({
+      id: `F-${1000 + out.length}`,
+      nodeId: node.id,
+      title: `${category} — ${node.label}`,
+      category,
+      severity,
+      resourceType: RES_TYPE[node.kind] || "—",
+      cloud: "AWS",
+      account: `acct-${["prod", "stage", "dev"].includes(env) ? env : "prod"}-9021`,
+      region: pick(REGIONS),
+      vpc: `demo-vpc / ${pick(["private-1a", "private-1f", "public-1a"])}`,
+      framework: pick(FW),
+      controlId: `${pick(["CC6.1", "1.14", "AC-6", "SC-13", "IA-2"])}`,
+      owner: pick(TEAMS),
+      suppressed: status === "Suppressed",
+      firstSeen: daysAgo(age),
+      lastSeen: daysAgo(Math.floor(r() * 3)),
+      ageDays: age,
+      status,
+    });
+  };
+  seeds.forEach((sd) =>
+    add(
+      MODEL.nodes.find((n) => n.label === sd.label),
+      sd.category,
+      sd.severity,
+      sd.status,
+    ),
+  );
+  // spread more findings across representative resources
+  const cats = [
+    "Misconfiguration",
+    "Vulnerability (CVE)",
+    "Exposed secret",
+    "Unencrypted storage",
+    "Public bucket",
+  ];
+  const resPool = MODEL.nodes.filter(
+    (n) => n.tier === "resource" && !out.some((f) => f.nodeId === n.id),
+  );
+  for (let i = 0; i < 10 && i < resPool.length; i += 1) {
+    add(
+      resPool[Math.floor(r() * resPool.length)],
+      pick(cats),
+      pick(SEV_ORDER),
+      pick<FStatus>([
+        "Open",
+        "Open",
+        "In remediation",
+        "Resolved",
+        "Suppressed",
+      ]),
+    );
+  }
+  return out;
+}
+const FINDINGS = buildFindings();
+const FINDING_BY_NODE: Record<string, Finding> = {};
+FINDINGS.forEach((f) => {
+  if (!FINDING_BY_NODE[f.nodeId]) FINDING_BY_NODE[f.nodeId] = f;
+});
+
+// path from an upstream identity down to a node (entry → target)
+function pathTo(id: string): string[] {
+  const parent: Record<string, string> = {};
+  const seen = new Set([id]);
+  const q = [id];
+  let entry: string | null = null;
+  while (q.length) {
+    const cur = q.shift() as string;
+    if (NODE_BY_ID[cur]?.tier === "identity") {
+      entry = cur;
+      break;
+    }
+    MODEL.edges.forEach((e) => {
+      if (e.target === cur && !seen.has(e.source)) {
+        seen.add(e.source);
+        parent[e.source] = cur;
+        q.push(e.source);
+      }
+    });
+  }
+  if (!entry) return [id];
+  const path = [entry];
+  let c = entry;
+  while (parent[c]) {
+    c = parent[c];
+    path.push(c);
+  }
+  return path;
+}
+
+function buildIssues(): Issue[] {
+  let s = 77;
+  const r = () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+  const ATTACK = [
+    "Internet exposure → sensitive data",
+    "Privilege escalation path",
+    "Lateral movement path",
+    "Data exfiltration path",
+    "Supply chain path",
+  ];
+  const ENTRY = [
+    "Internet-facing",
+    "Compromised identity",
+    "Vulnerable workload",
+    "Exposed secret",
+    "Third-party / SaaS",
+  ];
+  const TARGET: Record<string, string> = {
+    s3: "Sensitive data store",
+    rds: "Sensitive data store",
+    dynamodb: "Sensitive data store",
+    kms: "Secrets manager",
+    secrets: "Secrets manager",
+    ec2: "Production workload",
+    lambda: "Production workload",
+  };
+  const targetFor = (kind: string) => TARGET[kind] || "Admin / root role";
+  // anchor issues on the highest-impact findings
+  const anchors = FINDINGS.filter((f) =>
+    ["Critical", "High"].includes(f.severity),
+  ).slice(0, 6);
+  return anchors.map((f, i) => {
+    const path = pathTo(f.nodeId);
+    const findingIds = FINDINGS.filter((x) => path.includes(x.nodeId)).map(
+      (x) => x.id,
+    );
+    const sevs = findingIds
+      .map((fid) => FINDINGS.find((x) => x.id === fid)!.severity)
+      .sort((a, b) => SEV_ORDER.indexOf(a) - SEV_ORDER.indexOf(b));
+    const node = NODE_BY_ID[f.nodeId];
+    return {
+      id: `ISS-${200 + i}`,
+      title: `${ENTRY[i % ENTRY.length]} → ${node?.label}`,
+      path,
+      attackType: ATTACK[i % ATTACK.length],
+      risk: f.severity,
+      entryPoint: ENTRY[i % ENTRY.length],
+      target: targetFor(node?.kind || ""),
+      hopCount: Math.max(1, path.length - 1),
+      crossesAccount: r() > 0.6,
+      crossesVpc: r() > 0.5,
+      involvesPublic: f.category === "Public bucket" || r() > 0.7,
+      exploitability: r() > 0.5 ? "Known CVE on path" : "No known exploit",
+      findingIds,
+      minSeverity: sevs[sevs.length - 1] || f.severity,
+      findingTypes: Array.from(
+        new Set(
+          findingIds.map((fid) => FINDINGS.find((x) => x.id === fid)!.category),
+        ),
+      ),
+      hasActiveExploit: r() > 0.6,
+      status: (
+        ["Active", "Active", "Partially remediated", "Suppressed"] as IStatus[]
+      )[Math.floor(r() * 4)],
+    };
+  });
+}
+const ISSUES = buildIssues();
+
 function elements() {
   const els: any[] = [];
   MODEL.nodes.forEach((n) => {
@@ -475,6 +784,16 @@ function baseStyle(): any[] {
       style: { "border-width": 3, "border-color": "#10221c" },
     },
     { selector: "edge.chain", style: { width: 2.2, opacity: 0.95 } },
+    // single-node spotlight — a dashed focus box (drawer node navigation)
+    {
+      selector: "node.focusbox",
+      style: {
+        "border-width": 3,
+        "border-color": "#2d86d4",
+        "border-style": "dashed",
+        "background-opacity": 0.22,
+      },
+    },
     // hover / filter / lock de-emphasis — LAST so it wins over alert colouring
     { selector: "node.shadow", style: { opacity: 0.1 } },
     { selector: "edge.shadow", style: { opacity: 0.04 } },
@@ -535,17 +854,7 @@ function baseStyle(): any[] {
   ];
 }
 
-const ALERT_ROWS = MODEL.nodes
-  .filter((n) => n.alert)
-  .map((n) => ({
-    id: n.id,
-    label: n.label,
-    type: n.alert as "error" | "warning",
-    message: n.message || "",
-    tier: n.tier,
-  }));
-
-const ALERTS_W = 320; // alerts drawer width (graph area shrinks by this)
+const ALERTS_W = 340; // right drawer width (graph area shrinks by this)
 
 // zoom (model) ↔ slider-percent on a log scale
 const MINZ = 0.06;
@@ -560,9 +869,11 @@ const pctToZoom = (p: number) =>
 export function ImpactAnalysis() {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const cyRef = React.useRef<any>(null);
-  const [view, setView] = React.useState<"impact" | "alerts">("impact");
+  const [view, setView] = React.useState<"graph" | "findings" | "issues">(
+    "graph",
+  );
   const [stack, setStack] = React.useState<string[]>([]);
-  const [sel, setSel] = React.useState<IANode | null>(null);
+  const [, setSel] = React.useState<IANode | null>(null);
   const [filters, setFilters] = React.useState<Set<Tier>>(new Set());
   const [zoomPct, setZoomPct] = React.useState(40);
   const [showMini, setShowMini] = React.useState(true);
@@ -599,12 +910,22 @@ export function ImpactAnalysis() {
   const viewRef = React.useRef(view);
   viewRef.current = view;
   const hoverRef = React.useRef<string | null>(null);
-  const pinnedRef = React.useRef<string | null>(null); // alert row / dep-chain pin
+  const pinnedRef = React.useRef<string | null>(null); // finding row / dep-chain pin
+  const pathRef = React.useRef<string[] | null>(null); // issue attack-path spotlight
+  const spotRef = React.useRef<string | null>(null); // single-node spotlight (dashed box)
   const lockedRef = React.useRef<string | null>(null);
   lockedRef.current = locked;
   const ctxRef = React.useRef<string | null>(null);
   const filterRef = React.useRef(filters);
   filterRef.current = filters;
+  // node the graph tooltip points at (single-node spotlight)
+  const [tip, setTip] = React.useState<{ id: string } | null>(null);
+  const tipRef = React.useRef<{ id: string } | null>(null);
+  tipRef.current = tip;
+  const [tipPos, setTipPos] = React.useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const updateFrameRef = React.useRef<(() => void) | null>(null);
 
   // ── emphasis: one place decides which elements are lit vs shadowed. Priority:
   // context-menu spotlight → locked view → hover → pinned (alert/chain) → filter.
@@ -624,10 +945,17 @@ export function ImpactAnalysis() {
     };
     let active: Set<string> | null = null;
     let chain = false;
+    let boxId: string | null = null; // single node → dashed focus box
     if (ctxRef.current) {
       active = new Set([ctxRef.current]); // menu spotlight: just the node
     } else if (lockedRef.current) {
       active = chainSet(lockedRef.current);
+      chain = true;
+    } else if (spotRef.current) {
+      active = new Set([spotRef.current]); // single-resource finding / node view
+      boxId = spotRef.current;
+    } else if (pathRef.current) {
+      active = new Set(pathRef.current); // issue attack-path
       chain = true;
     } else if (hoverRef.current) {
       active = chainSet(hoverRef.current);
@@ -644,12 +972,13 @@ export function ImpactAnalysis() {
       );
     }
     cy.batch(() => {
-      cy.elements().removeClass("shadow chain");
+      cy.elements().removeClass("shadow chain focusbox");
       if (!active) return;
       cy.nodes().forEach((n: any) => {
         if (!active!.has(n.id())) n.addClass("shadow");
         else if (chain) n.addClass("chain");
       });
+      if (boxId) cy.getElementById(boxId).addClass("focusbox");
       cy.edges().forEach((e: any) => {
         const inA =
           active!.has(e.source().id()) && active!.has(e.target().id());
@@ -708,17 +1037,17 @@ export function ImpactAnalysis() {
 
     cy.on("mouseover", "node", (e: any) => {
       setHoverInfo(nodeInfo(e.target));
-      // locked view / alerts pin / open context menu own the emphasis — don't
-      // let a graph hover drop the current selection.
-      if (lockedRef.current || ctxRef.current) return;
-      if (viewRef.current === "alerts") return;
+      // lock / context menu / a catalog selection own the emphasis — a graph
+      // hover must not drop the current selection. Hover only drives the graph.
+      if (lockedRef.current || ctxRef.current || pathRef.current) return;
+      if (viewRef.current !== "graph") return;
       hoverRef.current = e.target.id();
       applyEmphasis();
     });
     cy.on("mouseout", "node", () => {
       setHoverInfo(null);
-      if (lockedRef.current || ctxRef.current) return;
-      if (viewRef.current === "alerts") return;
+      if (lockedRef.current || ctxRef.current || pathRef.current) return;
+      if (viewRef.current !== "graph") return;
       hoverRef.current = null;
       applyEmphasis(); // falls back to pinned / filter
     });
@@ -762,14 +1091,34 @@ export function ImpactAnalysis() {
           bb: bbRef.current,
           view: { x: ext.x1, y: ext.y1, w: ext.w, h: ext.h },
         });
+        // keep the graph tooltip glued to the spotlit node (skip if hidden)
+        if (tipRef.current) {
+          const n = cy.getElementById(tipRef.current.id);
+          if (n && n.length && n.visible()) {
+            const rp = n.renderedPosition();
+            const h = n.renderedHeight();
+            setTipPos({ x: rp.x, y: rp.y - h / 2 });
+          } else {
+            setTipPos(null);
+          }
+        }
       });
     };
-    // expensive update: re-read node dots + graph bbox — only when layout changes
+    updateFrameRef.current = updateFrame;
+    // expensive update: re-read node dots + graph bbox — only when layout changes.
+    // Cap the dot count so the minimap SVG stays cheap on production-scale graphs;
+    // alert nodes are always kept, the rest are sampled.
     const recomputeMini = () => {
+      const vis = cy.nodes(":visible");
+      const CAP = 600;
+      const step = vis.length > CAP ? Math.ceil(vis.length / CAP) : 1;
       const next: { x: number; y: number; a: string }[] = [];
-      cy.nodes(":visible").forEach((n: any) => {
-        const p = n.position();
-        next.push({ x: p.x, y: p.y, a: n.data("alert") });
+      vis.forEach((n: any, i: number) => {
+        const a = n.data("alert");
+        if (step === 1 || a || i % step === 0) {
+          const p = n.position();
+          next.push({ x: p.x, y: p.y, a });
+        }
       });
       const bb = cy.elements(":visible").boundingBox();
       bbRef.current = { x: bb.x1, y: bb.y1, w: bb.w, h: bb.h };
@@ -785,54 +1134,30 @@ export function ImpactAnalysis() {
     };
   }, [applyEmphasis]);
 
-  // ── Impact / Alerts colouring ─────────────────────────────────────────────
-  React.useEffect(() => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    cy.batch(() => {
-      cy.elements().removeClass("err warn muted");
-      if (view === "impact") return;
-      const errSet = new Set<string>();
-      const warnSet = new Set<string>();
-      cy.nodes().forEach((n: any) => {
-        if (n.data("alert") === "error") {
-          errSet.add(n.id());
-          n.successors("node").forEach((s: any) => errSet.add(s.id()));
-        }
-      });
-      cy.nodes().forEach((n: any) => {
-        if (n.data("alert") === "warning") {
-          warnSet.add(n.id());
-          n.successors("node").forEach((s: any) => {
-            if (!errSet.has(s.id())) warnSet.add(s.id());
-          });
-        }
-      });
-      cy.nodes().forEach((n: any) => {
-        if (errSet.has(n.id())) n.addClass("err");
-        else if (warnSet.has(n.id())) n.addClass("warn");
-        else n.addClass("muted");
-      });
-      cy.edges().forEach((edge: any) => {
-        const t = edge.target().id();
-        if (errSet.has(t)) edge.addClass("err");
-        else if (warnSet.has(t)) edge.addClass("warn");
-      });
-    });
-  }, [view]);
-
   // ── filter re-emphasis ────────────────────────────────────────────────────
   React.useEffect(() => {
     applyEmphasis();
   }, [filters, applyEmphasis]);
 
-  // ── any right drawer open/close: resize the canvas (graph stays put) ──────
-  const rightOpen = view === "alerts" || panel !== null;
+  // reposition the graph tooltip whenever the spotlit node changes
+  React.useEffect(() => {
+    if (!tip) {
+      setTipPos(null);
+      return;
+    }
+    updateFrameRef.current?.();
+  }, [tip]);
+
+  // ── switching mode clears any catalog selection; drawer resizes the canvas ──
+  const rightOpen = view !== "graph" || panel !== null;
   React.useEffect(() => {
     const cy = cyRef.current;
     if (!cy) return undefined;
-    if (view === "impact" && !locked) {
+    if (view === "graph" && !locked) {
       pinnedRef.current = null;
+      pathRef.current = null;
+      spotRef.current = null;
+      setTip(null);
       hoverRef.current = null;
       applyEmphasis();
     }
@@ -1008,6 +1333,11 @@ export function ImpactAnalysis() {
   const reset = () => {
     setStack([]);
     setSel(null);
+    pinnedRef.current = null;
+    pathRef.current = null;
+    spotRef.current = null;
+    setTip(null);
+    applyEmphasis();
   };
   const back = () => setStack((s) => s.slice(0, -1));
   const toggleFilter = (t: Tier) =>
@@ -1063,6 +1393,31 @@ export function ImpactAnalysis() {
     emphasize(id);
     setSel(NODE_BY_ID[id]);
   };
+  // single-resource spotlight: dashed box + tooltip on exactly one node.
+  // Used by a finding (single resource) and by a node opened inside an issue.
+  // useCallback-stable so the drawer's sync effect doesn't loop.
+  const focusNode = React.useCallback(
+    (id: string | null) => {
+      pinnedRef.current = null;
+      pathRef.current = null;
+      spotRef.current = id;
+      setTip(id ? { id } : null);
+      applyEmphasis();
+      if (id) setSel(NODE_BY_ID[id] ?? null);
+    },
+    [applyEmphasis],
+  );
+  // issue: spotlight the whole attack path (the chain of resources)
+  const focusIssuePath = React.useCallback(
+    (iss: Issue | null) => {
+      pinnedRef.current = null;
+      spotRef.current = null;
+      setTip(null);
+      pathRef.current = iss ? iss.path : null;
+      applyEmphasis();
+    },
+    [applyEmphasis],
+  );
 
   const C = {
     border: "var(--cg-border-card)",
@@ -1071,7 +1426,6 @@ export function ImpactAnalysis() {
     card: "var(--cg-bg-card)",
   };
 
-  const alertsOpen = view === "alerts";
   return (
     <div
       style={{
@@ -1250,7 +1604,7 @@ export function ImpactAnalysis() {
           })}
         </div>
 
-        {/* impact / alerts toggle */}
+        {/* mode toggle: Security graph · Findings · Issues */}
         <div
           style={{
             position: "absolute",
@@ -1265,13 +1619,29 @@ export function ImpactAnalysis() {
             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
           }}
         >
-          {(["impact", "alerts"] as const).map((v) => (
+          {(
+            [
+              { id: "graph", label: "Security Graph", icon: null, n: 0 },
+              {
+                id: "findings",
+                label: "Findings",
+                icon: <AlertTriangle size={12} />,
+                n: FINDINGS.length,
+              },
+              {
+                id: "issues",
+                label: "Issues",
+                icon: <GitBranch size={12} />,
+                n: ISSUES.length,
+              },
+            ] as const
+          ).map((m) => (
             <button
-              key={v}
+              key={m.id}
               type="button"
               onClick={() => {
-                setView(v);
-                if (v === "alerts") reset();
+                setView(m.id);
+                if (m.id === "graph") reset();
               }}
               style={{
                 height: 28,
@@ -1280,16 +1650,32 @@ export function ImpactAnalysis() {
                 border: "none",
                 cursor: "pointer",
                 fontSize: 12,
-                fontWeight: view === v ? 700 : 500,
-                background: view === v ? "var(--cg-accent-bg)" : "transparent",
-                color: view === v ? "var(--cg-accent)" : C.muted,
+                fontWeight: view === m.id ? 700 : 500,
+                background:
+                  view === m.id ? "var(--cg-accent-bg)" : "transparent",
+                color: view === m.id ? "var(--cg-accent)" : C.muted,
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
               }}
             >
-              {v === "alerts" && <AlertTriangle size={12} />}
-              {v === "impact" ? "Impact Analysis" : "Alerts"}
+              {m.icon}
+              {m.label}
+              {m.n > 0 && (
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    fontWeight: 700,
+                    padding: "0 5px",
+                    borderRadius: 8,
+                    background:
+                      view === m.id ? "var(--cg-accent)" : "var(--cg-bg-hover)",
+                    color: view === m.id ? "#fff" : C.muted,
+                  }}
+                >
+                  {m.n}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1329,9 +1715,55 @@ export function ImpactAnalysis() {
             }}
           />
         )}
+
+        {/* graph tooltip — glued above the spotlit node */}
+        {tip && tipPos && NODE_BY_ID[tip.id] && (
+          <div
+            style={{
+              position: "absolute",
+              left: tipPos.x,
+              top: tipPos.y - 10,
+              transform: "translate(-50%, -100%)",
+              zIndex: 15,
+              pointerEvents: "none",
+              background: "rgb(23,23,22)",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.14)",
+              borderRadius: 7,
+              padding: "6px 9px",
+              fontSize: 11.5,
+              whiteSpace: "nowrap",
+              boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                background: TIER_COLOUR[NODE_BY_ID[tip.id].tier],
+                marginRight: 6,
+              }}
+            />
+            <b>{NODE_BY_ID[tip.id].label}</b>
+            <span style={{ color: "#9aa3ad" }}>
+              {" "}
+              · {TIER_LABEL[NODE_BY_ID[tip.id].tier]}
+            </span>
+            {FINDING_BY_NODE[tip.id] && (
+              <span
+                style={{ color: SEV_COLOUR[FINDING_BY_NODE[tip.id].severity] }}
+              >
+                {" "}
+                · {FINDING_BY_NODE[tip.id].severity}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* auxiliary drawer — node details · mark · marked list */}
+      {/* auxiliary drawer — mark · marked list (from the graph context menu) */}
       {panel && (
         <AuxDrawer
           panel={panel}
@@ -1346,107 +1778,16 @@ export function ImpactAnalysis() {
         />
       )}
 
-      {/* alerts drawer — styled exactly like the Explorer side panel */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          right: 0,
-          height: "100%",
-          width: ALERTS_W,
-          background: "rgb(23,23,22)",
-          borderLeft: "1px solid rgba(255,255,255,0.09)",
-          color: "#e8eaed",
-          display: "flex",
-          flexDirection: "column",
-          opacity: alertsOpen && !panel ? 1 : 0,
-          transform:
-            alertsOpen && !panel ? "translateX(0)" : "translateX(18px)",
-          pointerEvents: alertsOpen && !panel ? "auto" : "none",
-          transition: "opacity .25s ease, transform .25s ease",
-          zIndex: 40,
-        }}
-      >
-        <div
-          style={{
-            padding: "16px 16px 14px",
-            borderBottom: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 14.5,
-            fontWeight: 600,
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <AlertTriangle size={15} color={C_WARN} />
-          Alerts · {ALERT_ROWS.length}
-        </div>
-        <div style={{ overflowY: "auto", flex: 1 }}>
-          {ALERT_ROWS.map((a) => (
-            <button
-              key={a.id}
-              type="button"
-              onMouseEnter={() => emphasize(a.id)}
-              onMouseLeave={() => emphasize(null)}
-              onClick={() => {
-                // pin this alert's path; graph stays exactly where it is
-                pinnedRef.current = pinnedRef.current === a.id ? null : a.id;
-                setSel({
-                  id: a.id,
-                  tier: a.tier as Tier,
-                  kind: "",
-                  label: a.label,
-                  alert: a.type,
-                  message: a.message,
-                });
-                emphasize(pinnedRef.current);
-              }}
-              style={{
-                display: "block",
-                width: "100%",
-                textAlign: "left",
-                padding: "11px 16px",
-                border: "none",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
-                borderLeft:
-                  sel?.id === a.id
-                    ? `3px solid ${a.type === "error" ? C_ERROR : C_WARN}`
-                    : "3px solid transparent",
-                background:
-                  sel?.id === a.id ? "rgba(255,255,255,0.06)" : "transparent",
-                color: "#e8eaed",
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: "50%",
-                    background: a.type === "error" ? C_ERROR : C_WARN,
-                    flexShrink: 0,
-                  }}
-                />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>
-                  {a.label}
-                </span>
-              </div>
-              <div
-                style={{
-                  fontSize: 11.5,
-                  color: "#9aa3ad",
-                  marginTop: 4,
-                  lineHeight: 1.45,
-                }}
-              >
-                {a.message}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+      {/* findings / issues catalog drawer — navigable (list → detail → node) */}
+      {(view === "findings" || view === "issues") && !panel && (
+        <CatalogDrawer
+          mode={view}
+          marked={marked}
+          onFocusNode={focusNode}
+          onFocusIssue={focusIssuePath}
+          onMark={(nodeId) => setPanel({ type: "mark", nodeId })}
+        />
+      )}
     </div>
   );
 }
@@ -1791,6 +2132,147 @@ function Minimap({
   );
 }
 
+// ── shared schema renderers (grey when a field is absent) ─────────────────────
+function SevChip({ sev }: { sev: Severity }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "1px 8px",
+        borderRadius: 6,
+        fontSize: 11,
+        fontWeight: 700,
+        color: SEV_COLOUR[sev],
+        background: `${SEV_COLOUR[sev]}22`,
+        border: `1px solid ${SEV_COLOUR[sev]}66`,
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: SEV_COLOUR[sev],
+        }}
+      />
+      {sev}
+    </span>
+  );
+}
+function Field({
+  k,
+  v,
+}: {
+  k: string;
+  v: React.ReactNode | string | number | boolean | undefined | null;
+}) {
+  const absent =
+    v === undefined || v === null || v === "" || v === "—" || v === false;
+  let display: React.ReactNode = "—";
+  if (!absent) display = v === true ? "Yes" : (v as React.ReactNode);
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        padding: "6px 0",
+        fontSize: 12.5,
+        borderBottom: "1px solid var(--cg-border-subtle)",
+      }}
+    >
+      <span
+        style={{ color: "var(--cg-text-muted)", minWidth: 132, flexShrink: 0 }}
+      >
+        {k}
+      </span>
+      <span
+        style={{
+          color: absent ? "var(--cg-text-muted)" : "var(--cg-text-primary)",
+          fontStyle: absent ? "italic" : "normal",
+          wordBreak: "break-word",
+        }}
+      >
+        {display}
+      </span>
+    </div>
+  );
+}
+function GroupHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        fontSize: 11,
+        fontWeight: 700,
+        letterSpacing: "0.05em",
+        textTransform: "uppercase",
+        color: "var(--cg-text-muted)",
+        margin: "16px 0 6px",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+// full finding schema — reused by node details + findings catalog accordion
+function FindingSchema({ f }: { f?: Finding }) {
+  return (
+    <div>
+      <GroupHead>What is it</GroupHead>
+      <Field k="Category" v={f?.category} />
+      <Field k="Severity" v={f ? <SevChip sev={f.severity} /> : undefined} />
+      <GroupHead>Resource type</GroupHead>
+      <Field k="Type" v={f?.resourceType} />
+      <GroupHead>Cloud & location</GroupHead>
+      <Field k="Cloud" v={f?.cloud} />
+      <Field k="Account / Subscription" v={f?.account} />
+      <Field k="Region" v={f?.region} />
+      <Field k="VPC / Subnet" v={f?.vpc} />
+      <GroupHead>Compliance & context</GroupHead>
+      <Field k="Framework" v={f?.framework} />
+      <Field k="Control ID" v={f?.controlId} />
+      <Field k="Owner / team" v={f?.owner} />
+      <Field k="Suppressed / accepted" v={f?.suppressed} />
+      <Field k="First seen" v={f?.firstSeen} />
+      <Field k="Last seen" v={f?.lastSeen} />
+      <Field k="Age (days open)" v={f?.ageDays} />
+      <GroupHead>Status</GroupHead>
+      <Field k="Status" v={f?.status} />
+    </div>
+  );
+}
+function IssueSchema({ iss }: { iss: Issue }) {
+  return (
+    <div>
+      <GroupHead>Attack path type</GroupHead>
+      <Field k="Type" v={iss.attackType} />
+      <Field k="Path risk score" v={<SevChip sev={iss.risk} />} />
+      <GroupHead>Entry point (start node)</GroupHead>
+      <Field k="Entry point" v={iss.entryPoint} />
+      <GroupHead>Target (end node)</GroupHead>
+      <Field k="Target" v={iss.target} />
+      <GroupHead>Path properties</GroupHead>
+      <Field k="Hop count" v={iss.hopCount} />
+      <Field k="Crosses account boundary" v={iss.crossesAccount} />
+      <Field k="Crosses VPC boundary" v={iss.crossesVpc} />
+      <Field k="Involves public resource" v={iss.involvesPublic} />
+      <Field k="Exploitability" v={iss.exploitability} />
+      <Field k="Chained findings" v={iss.findingIds.length} />
+      <GroupHead>Findings on the path</GroupHead>
+      <Field k="Min severity on path" v={<SevChip sev={iss.minSeverity} />} />
+      <Field
+        k="Finding types"
+        v={iss.findingTypes.length ? iss.findingTypes.join(", ") : undefined}
+      />
+      <Field k="Has active exploit" v={iss.hasActiveExploit} />
+      <GroupHead>Status</GroupHead>
+      <Field k="Status" v={iss.status} />
+    </div>
+  );
+}
+
 // ── hover read-out — terminal-style key:value lines ──────────────────────────
 function HoverReadout({ node }: { node: IANode }) {
   const rows: [string, string][] = [
@@ -1954,19 +2436,20 @@ const drawerShell: React.CSSProperties = {
   right: 0,
   height: "100%",
   width: ALERTS_W,
-  background: "rgb(23,23,22)",
-  borderLeft: "1px solid rgba(255,255,255,0.09)",
-  color: "#e8eaed",
+  background: "var(--cg-bg-card)",
+  borderLeft: "1px solid var(--cg-border)",
+  color: "var(--cg-text-primary)",
   display: "flex",
   flexDirection: "column",
   zIndex: 41,
+  boxShadow: "-6px 0 18px rgba(0,0,0,0.08)",
 };
 const drawerHead: React.CSSProperties = {
   padding: "16px 16px 14px",
-  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  borderBottom: "1px solid var(--cg-border)",
   fontSize: 14.5,
   fontWeight: 600,
-  color: "#fff",
+  color: "var(--cg-text-primary)",
   display: "flex",
   alignItems: "center",
   gap: 8,
@@ -1976,9 +2459,173 @@ const drawerSec: React.CSSProperties = {
   fontWeight: 700,
   letterSpacing: "0.05em",
   textTransform: "uppercase",
-  color: "#878d96",
+  color: "var(--cg-text-muted)",
   margin: "18px 0 8px",
 };
+
+// scrollable node-detail content — reused by the context-menu drawer and the
+// findings/issues catalog navigation (single resource = single finding).
+function NodeDetailBody({
+  nodeId,
+  marked,
+  onOpenNode,
+}: {
+  nodeId: string;
+  marked: Record<string, { note: string; ts: number }>;
+  onOpenNode?: (id: string) => void;
+}) {
+  const node = NODE_BY_ID[nodeId];
+  if (!node) return null;
+  const rel = relationsOf(node.id);
+  const relRow = (r: IANode, dir: string) => {
+    const inner = (
+      <>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 2,
+            background: TIER_COLOUR[r.tier],
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ color: "var(--cg-text-muted)" }}>{dir}</span>
+        <span
+          style={{
+            flex: 1,
+            color: "var(--cg-text-primary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            textAlign: "left",
+          }}
+        >
+          {r.label}
+        </span>
+        {onOpenNode && <ChevronRight size={13} color="var(--cg-text-muted)" />}
+      </>
+    );
+    const style: React.CSSProperties = {
+      display: "flex",
+      alignItems: "center",
+      gap: 8,
+      width: "100%",
+      padding: "7px 0",
+      fontSize: 12.5,
+      borderBottom: "1px solid var(--cg-border-subtle)",
+      background: "transparent",
+      border: "none",
+      color: "var(--cg-text-primary)",
+      cursor: onOpenNode ? "pointer" : "default",
+    };
+    return onOpenNode ? (
+      <button
+        key={dir + r.id}
+        type="button"
+        onClick={() => onOpenNode(r.id)}
+        style={style}
+      >
+        {inner}
+      </button>
+    ) : (
+      <div key={dir + r.id} style={style}>
+        {inner}
+      </div>
+    );
+  };
+  return (
+    <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
+      <div
+        style={{
+          fontSize: 16,
+          fontWeight: 600,
+          color: "var(--cg-text-primary)",
+          marginTop: 16,
+          wordBreak: "break-all",
+        }}
+      >
+        {node.label}
+      </div>
+      <div
+        style={{ fontSize: 12, color: "var(--cg-text-muted)", marginTop: 4 }}
+      >
+        {TIER_LABEL[node.tier]} · blast radius{" "}
+        <b style={{ color: "var(--cg-text-primary)" }}>{REACH[node.id] ?? 0}</b>{" "}
+        downstream
+      </div>
+      {node.message && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: "9px 11px",
+            borderRadius: 8,
+            background:
+              node.alert === "error"
+                ? "rgba(224,73,47,0.14)"
+                : "rgba(217,154,0,0.14)",
+            border: `1px solid ${node.alert === "error" ? C_ERROR : C_WARN}55`,
+            fontSize: 12,
+            color: node.alert === "error" ? "#ff9b91" : "#f4d98a",
+            lineHeight: 1.45,
+          }}
+        >
+          {node.message}
+        </div>
+      )}
+      {marked[node.id] && (
+        <>
+          <div style={drawerSec}>
+            <Star
+              size={11}
+              color="#f5b301"
+              fill="#f5b301"
+              style={{ verticalAlign: -1, marginRight: 5 }}
+            />
+            Note
+          </div>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: "var(--cg-text-primary)",
+              lineHeight: 1.5,
+            }}
+          >
+            {marked[node.id].note || "—"}
+          </div>
+        </>
+      )}
+      <div style={{ marginTop: 8 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: FINDING_BY_NODE[node.id]
+              ? "var(--cg-text-primary)"
+              : "var(--cg-text-muted)",
+            margin: "14px 0 2px",
+            fontStyle: FINDING_BY_NODE[node.id] ? "normal" : "italic",
+          }}
+        >
+          {FINDING_BY_NODE[node.id]
+            ? "Finding — this resource is misconfigured or exposed"
+            : "No finding on this resource"}
+        </div>
+        <FindingSchema f={FINDING_BY_NODE[node.id]} />
+      </div>
+      {rel.up.length > 0 && (
+        <>
+          <div style={drawerSec}>Upstream ({rel.up.length})</div>
+          {rel.up.map((r) => relRow(r, "←"))}
+        </>
+      )}
+      {rel.down.length > 0 && (
+        <>
+          <div style={drawerSec}>Downstream ({rel.down.length})</div>
+          {rel.down.map((r) => relRow(r, "→"))}
+        </>
+      )}
+    </div>
+  );
+}
 
 function AuxDrawer({
   panel,
@@ -2008,7 +2655,7 @@ function AuxDrawer({
         marginLeft: "auto",
         background: "transparent",
         border: "none",
-        color: "#9aa3ad",
+        color: "var(--cg-text-muted)",
         cursor: "pointer",
         display: "inline-flex",
       }}
@@ -2018,41 +2665,6 @@ function AuxDrawer({
   );
 
   if (panel.type === "details" && node) {
-    const rel = relationsOf(node.id);
-    const relRow = (r: IANode, dir: string) => (
-      <div
-        key={dir + r.id}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "6px 0",
-          fontSize: 12.5,
-          borderBottom: "1px solid rgba(255,255,255,0.05)",
-        }}
-      >
-        <span
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 2,
-            background: TIER_COLOUR[r.tier],
-            flexShrink: 0,
-          }}
-        />
-        <span style={{ color: "#8a96a8" }}>{dir}</span>
-        <span
-          style={{
-            color: "#e8eaed",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {r.label}
-        </span>
-      </div>
-    );
     return (
       <div style={drawerShell}>
         <div style={drawerHead}>
@@ -2067,72 +2679,7 @@ function AuxDrawer({
           Node details
           {closeBtn}
         </div>
-        <div style={{ overflowY: "auto", padding: "0 16px 20px", flex: 1 }}>
-          <div
-            style={{
-              fontSize: 16,
-              fontWeight: 600,
-              color: "#fff",
-              marginTop: 16,
-              wordBreak: "break-all",
-            }}
-          >
-            {node.label}
-          </div>
-          <div style={{ fontSize: 12, color: "#9aa3ad", marginTop: 4 }}>
-            {TIER_LABEL[node.tier]} · blast radius{" "}
-            <b style={{ color: "#fff" }}>{REACH[node.id] ?? 0}</b> downstream
-          </div>
-          {node.message && (
-            <div
-              style={{
-                marginTop: 12,
-                padding: "9px 11px",
-                borderRadius: 8,
-                background:
-                  node.alert === "error"
-                    ? "rgba(224,73,47,0.14)"
-                    : "rgba(217,154,0,0.14)",
-                border: `1px solid ${node.alert === "error" ? C_ERROR : C_WARN}55`,
-                fontSize: 12,
-                color: node.alert === "error" ? "#ff9b91" : "#f4d98a",
-                lineHeight: 1.45,
-              }}
-            >
-              {node.message}
-            </div>
-          )}
-          {marked[node.id] && (
-            <>
-              <div style={drawerSec}>
-                <Star
-                  size={11}
-                  color="#f5b301"
-                  fill="#f5b301"
-                  style={{ verticalAlign: -1, marginRight: 5 }}
-                />
-                Note
-              </div>
-              <div
-                style={{ fontSize: 12.5, color: "#e8eaed", lineHeight: 1.5 }}
-              >
-                {marked[node.id].note || "—"}
-              </div>
-            </>
-          )}
-          {rel.up.length > 0 && (
-            <>
-              <div style={drawerSec}>Upstream ({rel.up.length})</div>
-              {rel.up.map((r) => relRow(r, "←"))}
-            </>
-          )}
-          {rel.down.length > 0 && (
-            <>
-              <div style={drawerSec}>Downstream ({rel.down.length})</div>
-              {rel.down.map((r) => relRow(r, "→"))}
-            </>
-          )}
-        </div>
+        <NodeDetailBody nodeId={node.id} marked={marked} />
       </div>
     );
   }
@@ -2157,13 +2704,19 @@ function AuxDrawer({
             style={{
               fontSize: 14,
               fontWeight: 600,
-              color: "#fff",
+              color: "var(--cg-text-primary)",
               wordBreak: "break-all",
             }}
           >
             {node.label}
           </div>
-          <div style={{ fontSize: 12, color: "#9aa3ad", marginTop: 3 }}>
+          <div
+            style={{
+              fontSize: 12,
+              color: "var(--cg-text-muted)",
+              marginTop: 3,
+            }}
+          >
             {TIER_LABEL[node.tier]}
           </div>
           <div style={drawerSec}>Note</div>
@@ -2175,10 +2728,10 @@ function AuxDrawer({
               width: "100%",
               minHeight: 120,
               resize: "vertical",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.14)",
+              background: "var(--cg-border-subtle)",
+              border: "1px solid var(--cg-border)",
               borderRadius: 8,
-              color: "#e8eaed",
+              color: "var(--cg-text-primary)",
               fontSize: 13,
               padding: 10,
               fontFamily: "inherit",
@@ -2218,9 +2771,9 @@ function AuxDrawer({
                   height: 36,
                   padding: "0 14px",
                   borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.2)",
+                  border: "1px solid var(--cg-border)",
                   background: "transparent",
-                  color: "#dfe2e6",
+                  color: "var(--cg-text-primary)",
                   fontSize: 13,
                   cursor: "pointer",
                 }}
@@ -2249,7 +2802,7 @@ function AuxDrawer({
             style={{
               padding: 20,
               fontSize: 12.5,
-              color: "#9aa3ad",
+              color: "var(--cg-text-muted)",
               lineHeight: 1.5,
             }}
           >
@@ -2271,22 +2824,28 @@ function AuxDrawer({
                 textAlign: "left",
                 padding: "11px 16px",
                 border: "none",
-                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                borderBottom: "1px solid var(--cg-border-subtle)",
                 background: "transparent",
-                color: "#e8eaed",
+                color: "var(--cg-text-primary)",
                 cursor: "pointer",
               }}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Star size={12} color="#f5b301" fill="#f5b301" />
-                <span style={{ fontSize: 13, fontWeight: 600, color: "#fff" }}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "var(--cg-text-primary)",
+                  }}
+                >
                   {n.label}
                 </span>
                 <span
                   style={{
                     marginLeft: "auto",
                     fontSize: 10.5,
-                    color: "#7f8a84",
+                    color: "var(--cg-text-muted)",
                   }}
                 >
                   {TIER_LABEL[n.tier]}
@@ -2296,7 +2855,7 @@ function AuxDrawer({
                 <div
                   style={{
                     fontSize: 11.5,
-                    color: "#9aa3ad",
+                    color: "var(--cg-text-muted)",
                     marginTop: 4,
                     lineHeight: 1.45,
                   }}
@@ -2310,6 +2869,457 @@ function AuxDrawer({
       </div>
     </div>
   );
+}
+
+// ── findings / issues catalog drawer (accordion rows) ─────────────────────────
+type NavEntry =
+  | { t: "node"; id: string }
+  | { t: "issue"; id: string; sub: "description" | "nodes" };
+
+function CatalogDrawer({
+  mode,
+  marked,
+  onFocusNode,
+  onFocusIssue,
+  onMark,
+}: {
+  mode: "findings" | "issues";
+  marked: Record<string, { note: string; ts: number }>;
+  onFocusNode: (id: string | null) => void;
+  onFocusIssue: (i: Issue | null) => void;
+  onMark: (nodeId: string) => void;
+}) {
+  const [nav, setNav] = React.useState<NavEntry[]>([]);
+  const top = nav.length ? nav[nav.length - 1] : null;
+
+  // reset the stack whenever we switch between Findings and Issues
+  React.useEffect(() => {
+    setNav([]);
+  }, [mode]);
+
+  // reflect the current view onto the graph (single node vs whole path)
+  React.useEffect(() => {
+    if (!top) {
+      onFocusNode(null);
+      onFocusIssue(null);
+    } else if (top.t === "node") {
+      onFocusNode(top.id);
+    } else {
+      onFocusIssue(ISSUES.find((x) => x.id === top.id) ?? null);
+    }
+  }, [top, onFocusNode, onFocusIssue]);
+
+  const pushNode = (id: string) => setNav((p) => [...p, { t: "node", id }]);
+  const pushIssue = (id: string) =>
+    setNav((p) => [...p, { t: "issue", id, sub: "description" }]);
+  const back = () => setNav((p) => p.slice(0, -1));
+  const setSub = (sub: "description" | "nodes") =>
+    setNav((p) =>
+      p.map((e, i) =>
+        i === p.length - 1 && e.t === "issue" ? { ...e, sub } : e,
+      ),
+    );
+
+  const crumbLabel = (e: NavEntry) =>
+    e.t === "node"
+      ? (NODE_BY_ID[e.id]?.label ?? e.id)
+      : (ISSUES.find((x) => x.id === e.id)?.title ?? e.id);
+
+  // ── header: list mode = title only; detail mode = back arrow + breadcrumb ──
+  const header =
+    nav.length === 0 ? (
+      <div style={drawerHead}>
+        {mode === "findings" ? (
+          <AlertTriangle size={15} color={C_WARN} />
+        ) : (
+          <GitBranch size={15} color="#5b9bf0" />
+        )}
+        {mode === "findings"
+          ? `Findings · ${FINDINGS.length}`
+          : `Issues · ${ISSUES.length}`}
+      </div>
+    ) : (
+      <div style={{ ...drawerHead, gap: 10 }}>
+        <button
+          type="button"
+          aria-label="Back"
+          onClick={back}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "var(--cg-text-primary)",
+            cursor: "pointer",
+            display: "inline-flex",
+          }}
+        >
+          <ArrowLeft size={17} />
+        </button>
+        <nav
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12,
+            minWidth: 0,
+            flexWrap: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setNav([])}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--cg-text-muted)",
+              cursor: "pointer",
+              padding: 0,
+              fontSize: 12,
+              flexShrink: 0,
+            }}
+          >
+            {mode === "findings" ? "Findings" : "Issues"}
+          </button>
+          {nav.map((e, i) => (
+            <React.Fragment key={`${e.t}-${"id" in e ? e.id : i}`}>
+              <span style={{ color: "var(--cg-text-muted)", flexShrink: 0 }}>
+                ›
+              </span>
+              <button
+                type="button"
+                onClick={() => setNav((p) => p.slice(0, i + 1))}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: 0,
+                  fontSize: 12,
+                  fontWeight: i === nav.length - 1 ? 600 : 400,
+                  color:
+                    i === nav.length - 1
+                      ? "var(--cg-text-primary)"
+                      : "var(--cg-text-muted)",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  maxWidth: 150,
+                }}
+              >
+                {crumbLabel(e)}
+              </button>
+            </React.Fragment>
+          ))}
+        </nav>
+      </div>
+    );
+
+  // ── body ──────────────────────────────────────────────────────────────────
+  let body: React.ReactNode = null;
+  if (!top) {
+    body = (
+      <>
+        <div
+          style={{
+            padding: "6px 14px 8px",
+            fontSize: 11.5,
+            color: "var(--cg-text-muted)",
+            lineHeight: 1.5,
+          }}
+        >
+          {mode === "findings"
+            ? "Single resource — something is misconfigured or exposed."
+            : "Connected path of resources — together they form a risk."}
+        </div>
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {mode === "findings"
+            ? FINDINGS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => pushNode(f.nodeId)}
+                  onMouseEnter={() => onFocusNode(f.nodeId)}
+                  onMouseLeave={() => {
+                    if (!top) onFocusNode(null);
+                  }}
+                  style={catalogRow(false)}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: SEV_COLOUR[f.severity],
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={catalogTitle}>
+                      {NODE_BY_ID[f.nodeId]?.label ?? f.title}
+                    </span>
+                    <span style={catalogSub}>{f.category}</span>
+                  </span>
+                  <SevChip sev={f.severity} />
+                  <ChevronRight size={14} color="var(--cg-text-muted)" />
+                </button>
+              ))
+            : ISSUES.map((iss) => (
+                <button
+                  key={iss.id}
+                  type="button"
+                  onClick={() => pushIssue(iss.id)}
+                  onMouseEnter={() => onFocusIssue(iss)}
+                  onMouseLeave={() => {
+                    if (!top) onFocusIssue(null);
+                  }}
+                  style={catalogRow(false)}
+                >
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      background: SEV_COLOUR[iss.risk],
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={catalogTitle}>{iss.title}</span>
+                    <span style={catalogSub}>
+                      {iss.attackType} · {iss.hopCount} hops ·{" "}
+                      {iss.findingIds.length} findings
+                    </span>
+                  </span>
+                  <SevChip sev={iss.risk} />
+                  <ChevronRight size={14} color="var(--cg-text-muted)" />
+                </button>
+              ))}
+        </div>
+      </>
+    );
+  } else if (top.t === "node") {
+    body = (
+      <>
+        <NodeDetailBody nodeId={top.id} marked={marked} onOpenNode={pushNode} />
+        <div
+          style={{
+            padding: "10px 16px",
+            borderTop: "1px solid var(--cg-border)",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => onMark(top.id)}
+            style={catalogCta}
+          >
+            <Star size={13} color="#f5b301" fill="#f5b301" /> Mark node
+          </button>
+        </div>
+      </>
+    );
+  } else {
+    const iss = ISSUES.find((x) => x.id === top.id);
+    if (iss) {
+      body = (
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {/* sub-view selector */}
+          <div
+            style={{
+              display: "flex",
+              gap: 4,
+              padding: "12px 16px 4px",
+            }}
+          >
+            {(["description", "nodes"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSub(s)}
+                style={{
+                  height: 28,
+                  padding: "0 12px",
+                  borderRadius: 7,
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: top.sub === s ? 700 : 500,
+                  background:
+                    top.sub === s ? "var(--cg-bg-hover)" : "transparent",
+                  color:
+                    top.sub === s
+                      ? "var(--cg-text-primary)"
+                      : "var(--cg-text-muted)",
+                }}
+              >
+                {s === "description"
+                  ? "Description"
+                  : `Affected nodes · ${iss.path.length}`}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: "6px 16px 20px" }}>
+            {top.sub === "description" ? (
+              <>
+                <div
+                  style={{
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "var(--cg-text-primary)",
+                    marginTop: 6,
+                  }}
+                >
+                  {iss.title}
+                </div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--cg-text-muted)",
+                    margin: "6px 0 2px",
+                  }}
+                >
+                  Connected path of resources — together they form a risk.
+                  Highlighted on the graph.
+                </div>
+                <IssueSchema iss={iss} />
+              </>
+            ) : (
+              <div>
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--cg-text-muted)",
+                    margin: "4px 0 8px",
+                  }}
+                >
+                  Entry → target. Open a node to inspect it — it is boxed and
+                  labelled on the graph.
+                </div>
+                {iss.path.map((nid, i) => {
+                  const n = NODE_BY_ID[nid];
+                  if (!n) return null;
+                  const f = FINDING_BY_NODE[nid];
+                  return (
+                    <button
+                      key={nid}
+                      type="button"
+                      onClick={() => pushNode(nid)}
+                      onMouseEnter={() => onFocusNode(nid)}
+                      onMouseLeave={() => onFocusNode(null)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 9,
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "9px 0",
+                        border: "none",
+                        borderBottom: "1px solid var(--cg-border-subtle)",
+                        background: "transparent",
+                        color: "var(--cg-text-primary)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 10,
+                          color: "var(--cg-text-muted)",
+                          width: 16,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span
+                        style={{
+                          width: 9,
+                          height: 9,
+                          borderRadius: 2,
+                          background: TIER_COLOUR[n.tier],
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={catalogTitle}>{n.label}</span>
+                        <span style={catalogSub}>
+                          {TIER_LABEL[n.tier]}
+                          {f ? ` · ${f.category}` : ""}
+                        </span>
+                      </span>
+                      {f && (
+                        <span
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            background: SEV_COLOUR[f.severity],
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <ChevronRight size={14} color="var(--cg-text-muted)" />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+  }
+
+  return (
+    <div style={drawerShell}>
+      {header}
+      {body}
+    </div>
+  );
+}
+
+const catalogTitle: React.CSSProperties = {
+  display: "block",
+  fontSize: 13,
+  fontWeight: 600,
+  color: "var(--cg-text-primary)",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+const catalogSub: React.CSSProperties = {
+  display: "block",
+  fontSize: 11.5,
+  color: "var(--cg-text-muted)",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+const catalogCta: React.CSSProperties = {
+  height: 34,
+  width: "100%",
+  borderRadius: 7,
+  border: "1px solid var(--cg-border)",
+  background: "transparent",
+  color: "var(--cg-text-primary)",
+  fontSize: 12.5,
+  cursor: "pointer",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 7,
+};
+function catalogRow(isOpen: boolean): React.CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: 9,
+    width: "100%",
+    textAlign: "left",
+    padding: "11px 14px",
+    border: "none",
+    borderBottom: "1px solid var(--cg-border-subtle)",
+    background: isOpen ? "var(--cg-border-subtle)" : "transparent",
+    color: "var(--cg-text-primary)",
+    cursor: "pointer",
+  };
 }
 
 function toolBtn(disabled: boolean): React.CSSProperties {
