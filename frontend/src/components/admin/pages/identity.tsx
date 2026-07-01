@@ -29652,7 +29652,15 @@ function GraphExplorer() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [gHover, setGHover] = React.useState<any>(null);
   // locked view (dependency chain of a node) + category (hide) drawer
-  const [gLocked, setGLocked] = React.useState<string | null>(null);
+  // locked view — the emphasised id-set + a label + the nav to save/recall
+  const [gLocked, setGLocked] = React.useState<{
+    label: string;
+    ids: string[];
+    nav:
+      | { kind: "node"; id: string; issueId?: string }
+      | { kind: "chain"; id: string; dir: XChainDir; degree: XChainDeg }
+      | { kind: "issue"; id: string };
+  } | null>(null);
   const [gCatOpen, setGCatOpen] = React.useState(false);
   const [ctxMenu, setCtxMenu] = React.useState<{
     x: number;
@@ -29670,6 +29678,7 @@ function GraphExplorer() {
       kind: "full" | "chain" | "issue" | "node";
       zoom: number;
       pan: { x: number; y: number };
+      ts: number;
       nav:
         | { kind: "finding"; id: string }
         | { kind: "issue"; id: string }
@@ -29683,6 +29692,9 @@ function GraphExplorer() {
   const [gPicking, setGPicking] = React.useState(false);
   const gPickingRef = React.useRef(false);
   gPickingRef.current = gPicking;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const gLockedRef = React.useRef<any>(null);
+  gLockedRef.current = gLocked;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cyRef = React.useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29742,23 +29754,16 @@ function GraphExplorer() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("tap", "node[kind]", (e: any) => {
       const id = e.target.id();
-      // picker mode: capture this node's downstream dependency chain as a view
+      // picker mode: open the node's context menu so the operator can choose
+      // WHICH view to save (a dependency chain + its submenu, or an issue chain)
       if (gPickingRef.current) {
-        setGSaved((s) => [
-          {
-            zoom: cy.zoom(),
-            pan: { ...cy.pan() },
-            id: `gsv-${Date.now()}-${s.length}`,
-            name: `${X_NODE[id]?.label ?? id} · downstream full`,
-            kind: "chain",
-            nav: { kind: "chain", id, dir: "down", degree: 0 },
-          },
-          ...s,
-        ]);
-        setGSavedOpen(true);
+        const rp = e.renderedPosition || e.target.renderedPosition();
+        setCtxSub(false);
+        setCtxMenu({ x: rp.x, y: rp.y, data: e.target.data() });
         setGPicking(false);
         return;
       }
+      if (gLockedRef.current) return; // locked: no drilling
       cy.nodes().removeClass("picked");
       e.target.addClass("picked");
       setSel(e.target.data());
@@ -30031,7 +30036,8 @@ function GraphExplorer() {
     let active: Set<string> | null = null;
     let boxId: string | null = null;
     if (gLocked) {
-      active = new Set(xChain(gLocked)); // locked dependency chain
+      active = new Set(gLocked.ids); // locked path (chain / issue / node)
+      boxId = gLocked.nav.kind === "issue" ? null : gLocked.nav.id;
     } else if (gnav?.kind === "chain") {
       active = xChainDir(gnav.id, gnav.dir, gnav.degree);
       boxId = gnav.id;
@@ -30150,14 +30156,28 @@ function GraphExplorer() {
     nav: (typeof gSaved)[number]["nav"],
   ) => {
     setGSaved((s) => [
-      { ...gVp(), id: `gsv-${Date.now()}-${s.length}`, name, kind, nav },
+      {
+        ...gVp(),
+        id: `gsv-${Date.now()}-${s.length}`,
+        ts: Date.now(),
+        name,
+        kind,
+        nav,
+      },
       ...s,
     ]);
     setGSavedOpen(true);
   };
   const gSaveCurrent = () => {
     setGSaveMenu(false);
-    if (gnav?.kind === "chain") {
+    // capture whatever the operator is actually looking at
+    if (gLocked) {
+      gPushView(
+        gLocked.label,
+        gLocked.nav.kind === "issue" ? "issue" : "chain",
+        gLocked.nav,
+      );
+    } else if (gnav?.kind === "chain") {
       gPushView(
         `Chain · ${xChainDir(gnav.id, gnav.dir, gnav.degree).size} nodes`,
         "chain",
@@ -30166,10 +30186,26 @@ function GraphExplorer() {
     } else if (gnav?.kind === "issue") {
       gPushView(`Issue ${gnav.id}`, "issue", gnav);
     } else if (gnav?.kind === "node") {
-      gPushView(`Node · ${X_NODE[gnav.id]?.label ?? gnav.id}`, "node", gnav);
+      gPushView(
+        `${X_NODE[gnav.id]?.label ?? gnav.id} · dependency chain`,
+        "node",
+        gnav,
+      );
     } else {
       gPushView(`Full view · ${gSaved.length + 1}`, "full", null);
     }
+  };
+  // activating a dependency chain from the context menu LOCKS the view on it
+  const lockChain = (id: string, dir: XChainDir, degree: XChainDeg) => {
+    const dl = dir === "down" ? "downstream" : "upstream";
+    const gl = degree === 0 ? "full" : `${degree}°`;
+    setGnav(null);
+    setGLocked({
+      label: `${X_NODE[id]?.label ?? id} · ${dl} ${gl}`,
+      ids: [...xChainDir(id, dir, degree)],
+      nav: { kind: "chain", id, dir, degree },
+    });
+    setCtxMenu(null);
   };
   const gSaveChain = (id: string, dir: XChainDir, degree: XChainDeg) => {
     const dl = dir === "down" ? "downstream" : "upstream";
@@ -30181,7 +30217,12 @@ function GraphExplorer() {
       degree,
     });
   };
+  const gSaveIssue = (issId: string) => {
+    gPushView(`Issue ${issId}`, "issue", { kind: "issue", id: issId });
+    setCtxMenu(null);
+  };
   const gApplyView = (v: (typeof gSaved)[number]) => {
+    setGSavedOpen(false);
     setGLocked(null);
     setSel(null);
     setGview("graph");
@@ -30191,6 +30232,16 @@ function GraphExplorer() {
   };
   const gDeleteView = (id: string) =>
     setGSaved((s) => s.filter((v) => v.id !== id));
+  const gRenameView = (id: string, name: string) =>
+    setGSaved((s) => s.map((v) => (v.id === id ? { ...v, name } : v)));
+  const gViewRef = (v: (typeof gSaved)[number]): string => {
+    if (v.kind === "full") return "Entire graph";
+    if (v.nav?.kind === "issue") return "Attack path";
+    if (v.nav?.kind === "node") return `Resource · ${v.nav.id}`;
+    if (v.nav?.kind === "chain")
+      return `Dependency chain · ${xChainDir(v.nav.id, v.nav.dir, v.nav.degree).size} resources`;
+    return "—";
+  };
   const closePanel = () => {
     cyRef.current?.nodes().removeClass("picked");
     setSel(null);
@@ -30298,7 +30349,7 @@ function GraphExplorer() {
           borderRadius: 4,
           overflow: "hidden",
           border: "1px solid var(--cg-border-card)",
-          cursor: magnify ? "none" : "default",
+          cursor: gPicking ? "crosshair" : magnify ? "none" : "default",
           // section height parity with the Security Graph (fills the viewport)
           height: isFull ? "100vh" : "calc(100vh - 230px)",
           minHeight: 540,
@@ -30433,7 +30484,7 @@ function GraphExplorer() {
               boxShadow: "0 3px 12px rgba(0,0,0,0.25)",
             }}
           >
-            <Crosshair size={13} /> Click a node to save its dependency chain
+            <Crosshair size={13} /> Click a node — pick a chain or issue to save
             <button
               type="button"
               onClick={() => setGPicking(false)}
@@ -30452,37 +30503,11 @@ function GraphExplorer() {
           </div>
         )}
 
-        {/* saved-views panel — top-right, recallable */}
+        {/* saved-views drawer — right panel; names editable, with a data ref */}
         {gSavedOpen && (
-          <div
-            style={{
-              position: "absolute",
-              top: 12,
-              right: gview !== "graph" || open ? DRAWER_W + 12 : 12,
-              width: 234,
-              maxHeight: "calc(100% - 24px)",
-              display: "flex",
-              flexDirection: "column",
-              background: CHROME.bg,
-              border: `1px solid ${CHROME.border}`,
-              borderRadius: 10,
-              boxShadow: "0 10px 26px rgba(0,0,0,0.16)",
-              zIndex: 39,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "10px 12px",
-                borderBottom: `1px solid ${CHROME.border}`,
-                fontSize: 12.5,
-                fontWeight: 700,
-                color: CHROME.text,
-              }}
-            >
-              <Frame size={14} /> Saved views · {gSaved.length}
+          <div style={drawerShell}>
+            <div style={drawerHead}>
+              <Frame size={15} /> Saved views · {gSaved.length}
               <button
                 type="button"
                 aria-label="Close"
@@ -30491,82 +30516,121 @@ function GraphExplorer() {
                   marginLeft: "auto",
                   background: "transparent",
                   border: "none",
-                  color: CHROME.muted,
+                  color: "var(--cg-text-muted)",
                   cursor: "pointer",
                   display: "inline-flex",
                 }}
               >
-                <X size={15} />
+                <X size={17} />
               </button>
             </div>
-            <div style={{ overflowY: "auto" }}>
+            <div style={{ overflowY: "auto", flex: 1 }}>
               {gSaved.length === 0 ? (
                 <div
                   style={{
-                    padding: "14px 12px",
-                    fontSize: 12,
-                    color: CHROME.muted,
+                    padding: "16px",
+                    fontSize: 12.5,
+                    color: "var(--cg-text-muted)",
                     fontStyle: "italic",
                   }}
                 >
-                  No saved views yet. Use Save ▾ or the context menu.
+                  No saved views yet. Use Save ▾ (Save full view / Pick a view
+                  to save) or the node context menu.
                 </div>
               ) : (
                 gSaved.map((v) => (
                   <div
                     key={v.id}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "9px 12px",
-                      borderBottom: `1px solid ${CHROME.border}`,
+                      padding: "12px 14px",
+                      borderBottom: "1px solid var(--cg-border-subtle)",
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => gApplyView(v)}
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <input
+                        value={v.name}
+                        onChange={(e) => gRenameView(v.id, e.target.value)}
+                        aria-label="View name"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--cg-text-primary)",
+                          background: "transparent",
+                          border: "1px solid transparent",
+                          borderRadius: 6,
+                          padding: "4px 6px",
+                        }}
+                        onFocus={(e) => {
+                          const el = e.currentTarget;
+                          el.style.borderColor = "var(--cg-border)";
+                          el.style.background = "var(--cg-bg-card)";
+                        }}
+                        onBlur={(e) => {
+                          const el = e.currentTarget;
+                          el.style.borderColor = "transparent";
+                          el.style.background = "transparent";
+                        }}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Delete"
+                        onClick={() => gDeleteView(v.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--cg-text-muted)",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div
                       style={{
-                        flex: 1,
-                        minWidth: 0,
-                        textAlign: "left",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        margin: "6px 6px 0",
+                        fontSize: 11.5,
+                        color: "var(--cg-text-muted)",
                       }}
                     >
                       <span
                         style={{
-                          display: "block",
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          color: CHROME.text,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
                         }}
                       >
-                        {v.name}
+                        <GitBranch size={11} /> {gViewRef(v)}
                       </span>
-                      <span style={{ fontSize: 11, color: CHROME.muted }}>
-                        {v.kind}
+                      <span>·</span>
+                      <span>
+                        {new Date(v.ts).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
-                    </button>
+                    </div>
                     <button
                       type="button"
-                      aria-label="Delete"
-                      onClick={() => gDeleteView(v.id)}
+                      onClick={() => gApplyView(v)}
                       style={{
-                        background: "transparent",
-                        border: "none",
-                        color: CHROME.muted,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        flexShrink: 0,
+                        ...graphToolBtn(false),
+                        marginTop: 10,
+                        width: "100%",
+                        justifyContent: "center",
                       }}
                     >
-                      <Trash2 size={13} />
+                      <Crosshair size={13} /> Open view
                     </button>
                   </div>
                 ))
@@ -30879,7 +30943,7 @@ function GraphExplorer() {
               boxShadow: "0 3px 12px rgba(0,0,0,0.3)",
             }}
           >
-            Locked · {X_NODE[gLocked]?.label ?? gLocked} · data flow
+            <Lock size={13} /> Locked · {gLocked.label}
             <button
               type="button"
               onClick={() => setGLocked(null)}
@@ -30912,6 +30976,10 @@ function GraphExplorer() {
                 position: "absolute",
                 left: ctxMenu.x + 6,
                 top: ctxMenu.y + 6,
+                transform:
+                  ctxMenu.y > (ref.current?.clientHeight ?? 700) - 320
+                    ? "translateY(-100%)"
+                    : undefined,
                 zIndex: 46,
                 width: 200,
                 background: "rgb(23,23,22)",
@@ -31025,31 +31093,65 @@ function GraphExplorer() {
                     </button>
                   )}
                   {xIssuesForNode(ctxMenu.data.id).map((iss) => (
-                    <button
+                    <span
                       key={iss.id}
-                      type="button"
-                      onClick={() => {
-                        setGview("issues");
-                        setGnav({ kind: "issue", id: iss.id });
-                        setCtxMenu(null);
-                      }}
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 5,
                         height: 22,
-                        padding: "0 8px",
                         borderRadius: 11,
                         border: "1px solid rgba(91,155,240,0.5)",
                         background: "rgba(91,155,240,0.16)",
-                        color: "#90bdf5",
-                        fontSize: 11,
-                        fontWeight: 600,
-                        cursor: "pointer",
+                        overflow: "hidden",
                       }}
                     >
-                      <GitBranch size={10} /> {iss.id}
-                    </button>
+                      <button
+                        type="button"
+                        title={`Lock on ${iss.id}`}
+                        onClick={() => {
+                          setGnav(null);
+                          setGLocked({
+                            label: `${iss.id} · attack path`,
+                            ids: iss.path,
+                            nav: { kind: "issue", id: iss.id },
+                          });
+                          setCtxMenu(null);
+                        }}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          height: 22,
+                          padding: "0 6px 0 8px",
+                          border: "none",
+                          background: "transparent",
+                          color: "#90bdf5",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <GitBranch size={10} /> {iss.id}
+                      </button>
+                      <button
+                        type="button"
+                        title="Save this issue chain"
+                        onClick={() => gSaveIssue(iss.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          height: 22,
+                          padding: "0 6px",
+                          border: "none",
+                          borderLeft: "1px solid rgba(91,155,240,0.4)",
+                          background: "transparent",
+                          color: "#90bdf5",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Save size={10} />
+                      </button>
+                    </span>
                   ))}
                 </div>
               )}
@@ -31061,15 +31163,7 @@ function GraphExplorer() {
               >
                 <button
                   type="button"
-                  onClick={() => {
-                    setGnav({
-                      kind: "chain",
-                      id: ctxMenu.data.id,
-                      dir: "down",
-                      degree: 0,
-                    });
-                    setCtxMenu(null);
-                  }}
+                  onClick={() => lockChain(ctxMenu.data.id, "down", 0)}
                   style={xCtxItem(false)}
                   onMouseEnter={xHoverBg(true)}
                   onMouseLeave={xHoverBg(false)}
@@ -31086,7 +31180,9 @@ function GraphExplorer() {
                     style={{
                       position: "absolute",
                       left: "100%",
-                      top: -6,
+                      ...(ctxMenu.y > (ref.current?.clientHeight ?? 700) - 320
+                        ? { bottom: -6 }
+                        : { top: -6 }),
                       marginLeft: 4,
                       width: 200,
                       background: "rgb(23,23,22)",
@@ -31109,15 +31205,7 @@ function GraphExplorer() {
                       <button
                         key={`d${deg}`}
                         type="button"
-                        onClick={() => {
-                          setGnav({
-                            kind: "chain",
-                            id: ctxMenu.data.id,
-                            dir: "down",
-                            degree: deg,
-                          });
-                          setCtxMenu(null);
-                        }}
+                        onClick={() => lockChain(ctxMenu.data.id, "down", deg)}
                         style={xCtxItem(false)}
                         onMouseEnter={xHoverBg(true)}
                         onMouseLeave={xHoverBg(false)}
@@ -31138,15 +31226,7 @@ function GraphExplorer() {
                       <button
                         key={`u${deg}`}
                         type="button"
-                        onClick={() => {
-                          setGnav({
-                            kind: "chain",
-                            id: ctxMenu.data.id,
-                            dir: "up",
-                            degree: deg,
-                          });
-                          setCtxMenu(null);
-                        }}
+                        onClick={() => lockChain(ctxMenu.data.id, "up", deg)}
                         style={xCtxItem(false)}
                         onMouseEnter={xHoverBg(true)}
                         onMouseLeave={xHoverBg(false)}
@@ -31196,7 +31276,12 @@ function GraphExplorer() {
                   icon: <Lock size={14} />,
                   disabled: false,
                   on: () => {
-                    setGLocked(ctxMenu.data.id);
+                    setGnav(null);
+                    setGLocked({
+                      label: `${ctxMenu.data.label ?? ctxMenu.data.id} · dependency chain`,
+                      ids: xChain(ctxMenu.data.id),
+                      nav: { kind: "node", id: ctxMenu.data.id },
+                    });
                     setCtxMenu(null);
                   },
                 },

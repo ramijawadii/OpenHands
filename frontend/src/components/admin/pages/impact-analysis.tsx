@@ -424,7 +424,16 @@ type SavedView = {
   chainIds?: string[];
   path?: string[];
   spot?: string | null;
+  ts: number;
 };
+// human-readable "data reference" for a saved view (what it points at)
+function savedViewRef(v: SavedView): string {
+  if (v.kind === "full") return "Entire graph";
+  if (v.kind === "issue")
+    return `Attack path · ${v.path?.length ?? 0} resources`;
+  if (v.kind === "node") return `Resource · ${v.spot ?? "—"}`;
+  return `Dependency chain · ${v.chainIds?.length ?? 0} resources`;
+}
 
 // directional, degree-bounded chain: dir = downstream (data flows OUT) or
 // upstream (data flows IN); degree 1 / 2 / 0(=full). Returns the node-id set.
@@ -1255,22 +1264,16 @@ export function ImpactAnalysis() {
     });
     cy.on("tap", "node", (e: any) => {
       const id = e.target.id();
-      // picker mode: capture this node's downstream dependency chain as a view
+      // picker mode: open the node's context menu so the operator can choose
+      // WHICH view to save (a dependency chain + its submenu, or an issue chain)
       if (pickingRef.current) {
-        const ids = [...chainDir(id, "down", 0)];
-        setSaved((s) => [
-          {
-            id: `sv-${Date.now()}-${s.length}`,
-            name: `${NODE_BY_ID[id]?.label ?? id} · downstream full`,
-            kind: "chain",
-            zoom: cy.zoom(),
-            pan: { ...cy.pan() },
-            chainIds: ids,
-          },
-          ...s,
-        ]);
-        setSavedOpen(true);
+        const rp = e.renderedPosition || e.target.renderedPosition();
+        const info = nodeInfo(e.target);
+        ctxRef.current = id;
+        setCtx({ x: rp.x, y: rp.y, node: info });
+        setSel(info);
         setPicking(false);
+        applyEmphasis();
         return;
       }
       if (lockedRef.current) return; // locked: no drilling
@@ -1615,24 +1618,36 @@ export function ImpactAnalysis() {
     closeMenu();
     applyEmphasis();
   };
+  // activating a dependency chain from the context menu LOCKS the view on it
   const menuChain = (dir: ChainDir, degree: ChainDeg) => {
     if (ctx) {
+      const ids = [...chainDir(ctx.node.id, dir, degree)];
       pinnedRef.current = null;
       hoverRef.current = null;
-      chainSetRef.current = chainDir(ctx.node.id, dir, degree);
+      chainSetRef.current = null;
+      const dl = dir === "down" ? "downstream" : "upstream";
+      const gl = degree === 0 ? "full" : `${degree}°`;
+      setLocked({
+        id: ctx.node.id,
+        path: ids,
+        label: `${ctx.node.label} · ${dl} ${gl}`,
+      });
       closeMenu();
-      applyEmphasis();
     }
   };
-  // context-menu "Issue" submenu → light that issue's attack path on the graph
+  // context-menu "Issue" → LOCK the graph on that issue's attack path
   const menuIssuePath = (iss: Issue) => {
     closeMenu();
     pinnedRef.current = null;
     chainSetRef.current = null;
     spotRef.current = null;
+    pathRef.current = null;
     setTip(null);
-    pathRef.current = iss.path;
-    applyEmphasis();
+    setLocked({
+      id: iss.path[iss.path.length - 1] ?? iss.id,
+      path: iss.path,
+      label: iss.title,
+    });
   };
   // lock the graph on the node's dependency chain, or on a specific issue path
   const menuLock = (path?: string[]) => {
@@ -1674,13 +1689,29 @@ export function ImpactAnalysis() {
         }
       : { zoom: 1, pan: { x: 0, y: 0 } };
   };
-  const pushView = (v: Omit<SavedView, "id">) => {
-    setSaved((s) => [{ ...v, id: `sv-${Date.now()}-${s.length}` }, ...s]);
+  const pushView = (v: Omit<SavedView, "id" | "ts">) => {
+    setSaved((s) => [
+      { ...v, id: `sv-${Date.now()}-${s.length}`, ts: Date.now() },
+      ...s,
+    ]);
     setSavedOpen(true);
   };
+  const renameSavedView = (id: string, name: string) =>
+    setSaved((s) => s.map((v) => (v.id === id ? { ...v, name } : v)));
   const saveCurrentView = () => {
     setSaveMenu(false);
-    if (chainSetRef.current) {
+    // capture whatever the operator is actually looking at — priority mirrors
+    // applyEmphasis: locked path → pinned chain → issue path → single node →
+    // the drilled-into node's chain → full graph.
+    if (locked) {
+      const ids = locked.path ?? [...chainDir(locked.id, "down", 0)];
+      pushView({
+        ...vp(),
+        name: locked.label,
+        kind: "chain",
+        chainIds: ids,
+      });
+    } else if (chainSetRef.current) {
       pushView({
         ...vp(),
         name: `Chain · ${chainSetRef.current.size} nodes`,
@@ -1700,6 +1731,13 @@ export function ImpactAnalysis() {
         name: `Node · ${NODE_BY_ID[spotRef.current]?.label ?? spotRef.current}`,
         kind: "node",
         spot: spotRef.current,
+      });
+    } else if (focusId) {
+      pushView({
+        ...vp(),
+        name: `${NODE_BY_ID[focusId]?.label ?? focusId} · dependency chain`,
+        kind: "chain",
+        chainIds: [...chainDir(focusId, "down", 0)],
       });
     } else {
       pushView({
@@ -1729,6 +1767,7 @@ export function ImpactAnalysis() {
     });
   };
   const applySavedView = (v: SavedView) => {
+    setSavedOpen(false);
     setLocked(null);
     setSel(null);
     setTip(null);
@@ -1841,10 +1880,19 @@ export function ImpactAnalysis() {
           bottom: 0,
           right: rightOpen ? ALERTS_W : 0,
           transition: "right .25s ease",
+          cursor: picking ? "crosshair" : undefined,
         }}
       >
         <GraphWatermark />
-        <div ref={ref} style={{ position: "absolute", inset: 0, zIndex: 1 }} />
+        <div
+          ref={ref}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 1,
+            cursor: picking ? "crosshair" : undefined,
+          }}
+        />
 
         {/* context-menu spotlight backdrop — click to dismiss */}
         {ctx && (
@@ -1862,6 +1910,7 @@ export function ImpactAnalysis() {
         {ctx && (
           <NodeContextMenu
             ctx={ctx}
+            flipUp={ctx.y > (ref.current?.clientHeight ?? 700) - 320}
             marked={!!marked[ctx.node.id]}
             finding={FINDING_BY_NODE[ctx.node.id]}
             issues={issuesForNode(ctx.node.id)}
@@ -2048,7 +2097,7 @@ export function ImpactAnalysis() {
               boxShadow: "0 3px 12px rgba(0,0,0,0.25)",
             }}
           >
-            <Crosshair size={13} /> Click a node to save its dependency chain
+            <Crosshair size={13} /> Click a node — pick a chain or issue to save
             <button
               type="button"
               onClick={() => setPicking(false)}
@@ -2067,37 +2116,11 @@ export function ImpactAnalysis() {
           </div>
         )}
 
-        {/* saved-views panel — top-right, recallable */}
+        {/* saved-views drawer — right panel; names editable, with a data ref */}
         {savedOpen && (
-          <div
-            style={{
-              position: "absolute",
-              top: 12,
-              right: rightOpen ? ALERTS_W + 12 : 12,
-              width: 234,
-              maxHeight: "calc(100% - 24px)",
-              display: "flex",
-              flexDirection: "column",
-              background: CHROME.bg,
-              border: `1px solid ${CHROME.border}`,
-              borderRadius: 10,
-              boxShadow: "0 10px 26px rgba(0,0,0,0.16)",
-              zIndex: 19,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "10px 12px",
-                borderBottom: `1px solid ${CHROME.border}`,
-                fontSize: 12.5,
-                fontWeight: 700,
-                color: CHROME.text,
-              }}
-            >
-              <Frame size={14} /> Saved views · {saved.length}
+          <div style={drawerShell}>
+            <div style={drawerHead}>
+              <Frame size={15} /> Saved views · {saved.length}
               <button
                 type="button"
                 aria-label="Close"
@@ -2106,82 +2129,122 @@ export function ImpactAnalysis() {
                   marginLeft: "auto",
                   background: "transparent",
                   border: "none",
-                  color: CHROME.muted,
+                  color: "var(--cg-text-muted)",
                   cursor: "pointer",
                   display: "inline-flex",
                 }}
               >
-                <X size={15} />
+                <X size={17} />
               </button>
             </div>
-            <div style={{ overflowY: "auto" }}>
+            <div style={{ overflowY: "auto", flex: 1 }}>
               {saved.length === 0 ? (
                 <div
                   style={{
-                    padding: "14px 12px",
-                    fontSize: 12,
-                    color: CHROME.muted,
+                    padding: "16px",
+                    fontSize: 12.5,
+                    color: "var(--cg-text-muted)",
                     fontStyle: "italic",
                   }}
                 >
-                  No saved views yet. Use Save ▾ or the context menu.
+                  No saved views yet. Use Save ▾ (Save full view / Pick a view
+                  to save) or the node context menu.
                 </div>
               ) : (
                 saved.map((v) => (
                   <div
                     key={v.id}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      padding: "9px 12px",
-                      borderBottom: `1px solid ${CHROME.border}`,
+                      padding: "12px 14px",
+                      borderBottom: "1px solid var(--cg-border-subtle)",
                     }}
                   >
-                    <button
-                      type="button"
-                      onClick={() => applySavedView(v)}
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <input
+                        value={v.name}
+                        onChange={(e) => renameSavedView(v.id, e.target.value)}
+                        aria-label="View name"
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: "var(--cg-text-primary)",
+                          background: "transparent",
+                          border: "1px solid transparent",
+                          borderRadius: 6,
+                          padding: "4px 6px",
+                        }}
+                        onFocus={(e) => {
+                          e.currentTarget.style.borderColor =
+                            "var(--cg-border)";
+                          e.currentTarget.style.background =
+                            "var(--cg-bg-card)";
+                        }}
+                        onBlur={(e) => {
+                          e.currentTarget.style.borderColor = "transparent";
+                          e.currentTarget.style.background = "transparent";
+                        }}
+                      />
+                      <button
+                        type="button"
+                        aria-label="Delete"
+                        onClick={() => deleteSavedView(v.id)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "var(--cg-text-muted)",
+                          cursor: "pointer",
+                          display: "inline-flex",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    {/* data reference */}
+                    <div
                       style={{
-                        flex: 1,
-                        minWidth: 0,
-                        textAlign: "left",
-                        background: "transparent",
-                        border: "none",
-                        cursor: "pointer",
-                        padding: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        margin: "6px 6px 0",
+                        fontSize: 11.5,
+                        color: "var(--cg-text-muted)",
                       }}
                     >
                       <span
                         style={{
-                          display: "block",
-                          fontSize: 12.5,
-                          fontWeight: 600,
-                          color: CHROME.text,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
                         }}
                       >
-                        {v.name}
+                        <GitBranch size={11} /> {savedViewRef(v)}
                       </span>
-                      <span style={{ fontSize: 11, color: CHROME.muted }}>
-                        {v.kind}
+                      <span>·</span>
+                      <span>
+                        {new Date(v.ts).toLocaleString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
-                    </button>
+                    </div>
                     <button
                       type="button"
-                      aria-label="Delete"
-                      onClick={() => deleteSavedView(v.id)}
+                      onClick={() => applySavedView(v)}
                       style={{
-                        background: "transparent",
-                        border: "none",
-                        color: CHROME.muted,
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        flexShrink: 0,
+                        ...graphToolBtn(false),
+                        marginTop: 10,
+                        width: "100%",
+                        justifyContent: "center",
                       }}
                     >
-                      <Trash2 size={13} />
+                      <Crosshair size={13} /> Open view
                     </button>
                   </div>
                 ))
@@ -2735,6 +2798,7 @@ const saveMenuItem: React.CSSProperties = {
 
 function NodeContextMenu({
   ctx,
+  flipUp,
   marked,
   finding,
   issues,
@@ -2748,6 +2812,7 @@ function NodeContextMenu({
   onJump,
 }: {
   ctx: { x: number; y: number; node: IANode };
+  flipUp: boolean;
   marked: boolean;
   finding?: Finding;
   issues: Issue[];
@@ -2781,12 +2846,17 @@ function NodeContextMenu({
       ? "rgba(255,255,255,0.08)"
       : "transparent";
   };
+  // a flyout submenu that opens upward when the menu is near the bottom edge
+  const subStyle: React.CSSProperties = flipUp
+    ? { ...submenuBox, top: "auto", bottom: -6 }
+    : submenuBox;
   return (
     <div
       style={{
         position: "absolute",
         left: ctx.x + 6,
         top: ctx.y + 6,
+        transform: flipUp ? "translateY(-100%)" : undefined,
         zIndex: 16,
         width: 210,
         background: "rgb(23,23,22)",
@@ -2946,7 +3016,7 @@ function NodeContextMenu({
             <div
               onMouseEnter={openSub("chain")}
               onMouseLeave={closeSub}
-              style={submenuBox}
+              style={subStyle}
             >
               <div style={ctxGroupHead}>
                 <ArrowDown size={11} /> Downstream · data flows out
@@ -3035,7 +3105,7 @@ function NodeContextMenu({
               <div
                 onMouseEnter={openSub("issue")}
                 onMouseLeave={closeSub}
-                style={submenuBox}
+                style={subStyle}
               >
                 {issues.map((iss) => (
                   <div
@@ -3109,7 +3179,7 @@ function NodeContextMenu({
             <div
               onMouseEnter={openSub("lock")}
               onMouseLeave={closeSub}
-              style={submenuBox}
+              style={subStyle}
             >
               <button
                 type="button"
