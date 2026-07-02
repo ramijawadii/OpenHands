@@ -113,6 +113,7 @@ import {
   PolicyBlock,
   policiesFor,
   Breadcrumb,
+  NodeIdChip,
 } from "./graph-shell";
 import {
   useCollection,
@@ -28832,6 +28833,9 @@ function XNodeDrawer({
                 >
                   {node.label ?? node.id}
                 </div>
+                <div style={{ marginTop: 4 }}>
+                  <NodeIdChip id={node.id} />
+                </div>
                 <div
                   style={{
                     fontSize: 12,
@@ -29163,11 +29167,17 @@ function XIssuePolicy({ iss }: { iss: XIssue }) {
 // findings / issues catalog drawer for the Explorer (Security-Graph styling)
 function XCatalogDrawer({
   mode,
+  seed,
   onClose,
   onPick,
   onOpenNode,
 }: {
   mode: "findings" | "issues";
+  // a context-menu tag can jump straight to a finding / issue detail
+  seed?:
+    | { kind: "finding"; fid: string; nodeId: string }
+    | { kind: "issue"; id: string }
+    | null;
   onClose: () => void;
   onPick: (
     n:
@@ -29176,10 +29186,16 @@ function XCatalogDrawer({
       | { kind: "node"; id: string; issueId?: string }
       | null,
   ) => void;
-  onOpenNode: (nodeId: string) => void;
+  onOpenNode: (
+    nodeId: string,
+    nav?: { kind: "finding"; id: string } | { kind: "node"; id: string },
+  ) => void;
 }) {
   // two-level navigation (list ↔ issue detail) — parity with the Security Graph
   const [openIssue, setOpenIssue] = React.useState<string | null>(null);
+  // the finding whose node drawer is open — keeps it lit on the graph even
+  // after the pointer leaves the row (fixes: selection lost on open)
+  const [openFinding, setOpenFinding] = React.useState<string | null>(null);
   const [issueSub, setIssueSub] = React.useState<
     "description" | "nodes" | "policy" | "remediation" | "logs" | "notes"
   >("description");
@@ -29190,10 +29206,33 @@ function XCatalogDrawer({
   const shownFindings = X_FINDINGS.filter((f) => xMatchFinding(f, catFilter));
   const shownIssues = X_ISSUES.filter((i) => xMatchIssue(i, catFilter));
 
+  // switching Findings ↔ Issues resets the two-level nav — but not on the
+  // initial mount, so a seeded jump survives
+  const firstMode = React.useRef(true);
   React.useEffect(() => {
+    if (firstMode.current) {
+      firstMode.current = false;
+      return;
+    }
     setOpenIssue(null);
+    setOpenFinding(null);
     setCatFilter(new Set());
   }, [mode]);
+
+  // a context-menu tag seeds direct navigation to the finding / issue detail
+  React.useEffect(() => {
+    if (!seed) return;
+    if (seed.kind === "issue") {
+      setIssueSub("description");
+      setOpenIssue(seed.id);
+      onPick({ kind: "issue", id: seed.id });
+    } else {
+      setOpenFinding(seed.fid);
+      onPick({ kind: "finding", id: seed.fid });
+      onOpenNode(seed.nodeId, { kind: "finding", id: seed.fid });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seed]);
 
   const rowStyle: React.CSSProperties = {
     display: "flex",
@@ -29337,7 +29376,7 @@ function XCatalogDrawer({
       <div style={{ overflowY: "auto", flex: 1 }}>
         <div style={drawerTabStrip}>
           {subTab("description", "Description")}
-          {subTab("nodes", `Affected nodes · ${iss.path.length}`)}
+          {subTab("nodes", `Affected · ${iss.path.length}`)}
           {subTab("policy", "Policy")}
           {subTab("remediation", "Remediation")}
           {subTab("logs", "Logs")}
@@ -29434,6 +29473,20 @@ function XCatalogDrawer({
                     <span style={{ flex: 1, minWidth: 0 }}>
                       <span style={title}>{n?.label ?? nid}</span>
                       {f && <span style={sub}>{f.category}</span>}
+                      <span
+                        style={{
+                          display: "block",
+                          fontSize: 10.5,
+                          color: "var(--cg-text-muted)",
+                          fontFamily:
+                            "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {nid}
+                      </span>
                     </span>
                     {f && (
                       <span
@@ -29512,10 +29565,26 @@ function XCatalogDrawer({
                   <button
                     key={f.id}
                     type="button"
-                    style={rowStyle}
+                    style={{
+                      ...rowStyle,
+                      background:
+                        openFinding === f.id
+                          ? "var(--cg-bg-hover)"
+                          : "transparent",
+                    }}
                     onMouseEnter={() => onPick({ kind: "finding", id: f.id })}
-                    onMouseLeave={() => onPick(null)}
-                    onClick={() => onOpenNode(f.nodeId)}
+                    onMouseLeave={() =>
+                      onPick(
+                        openFinding
+                          ? { kind: "finding", id: openFinding }
+                          : null,
+                      )
+                    }
+                    onClick={() => {
+                      setOpenFinding(f.id);
+                      onPick({ kind: "finding", id: f.id });
+                      onOpenNode(f.nodeId, { kind: "finding", id: f.id });
+                    }}
                   >
                     <span
                       style={{
@@ -29632,6 +29701,12 @@ function GraphExplorer() {
   } | null>(null);
   const [ctxSub, setCtxSub] = React.useState<false | "chain">(false);
   const [ctxCopied, setCtxCopied] = React.useState(false);
+  // context-menu tag → jump the catalog straight to that finding / issue
+  const [gSeed, setGSeed] = React.useState<
+    | { kind: "finding"; fid: string; nodeId: string }
+    | { kind: "issue"; id: string }
+    | null
+  >(null);
   // recallable saved views (client-side; Sample)
   const [gSaved, setGSaved] = React.useState<
     {
@@ -30026,10 +30101,17 @@ function GraphExplorer() {
         active = new Set(xChain(gnav.id));
       }
       boxId = gnav.id;
-    } else if (gfilters.size) {
-      active = new Set(
+    }
+    // resource-type filter — works standalone AND refines a locked/selected
+    // view (intersect), so filtering keeps working when a view is locked.
+    if (gfilters.size) {
+      const byKind = new Set(
         A_NODES.filter((n) => gfilters.has(n.kind)).map((n) => n.id),
       );
+      active = active
+        ? new Set([...active].filter((id) => byKind.has(id)))
+        : byKind;
+      if (boxId && !active.has(boxId)) boxId = null;
     }
     // a path activation (not a plain type filter) gets the animated flow edges
     const isFlow =
@@ -30088,6 +30170,7 @@ function GraphExplorer() {
       gApplyingRef.current = false;
       return;
     }
+    if (gview === "graph") setGSeed(null); // don't re-fire a stale tag jump
     if (gview === "graph" && !gLocked) setGnav(null);
   }, [gview, gLocked]);
 
@@ -30667,28 +30750,48 @@ function GraphExplorer() {
               </button>
             );
           })}
-          {/* more → category drawer with visibility (hide) selectors */}
-          <button
-            type="button"
-            onClick={() => setGCatOpen(true)}
-            style={{
-              height: 24,
-              padding: "0 8px",
-              borderRadius: 6,
-              border: "1px solid transparent",
-              background: "transparent",
-              color: CHROME.muted,
-              fontSize: 11.5,
-              fontWeight: 500,
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              whiteSpace: "nowrap",
-            }}
-          >
-            <SlidersHorizontal size={12} /> More
-          </button>
+          {/* more → category drawer with visibility (hide) selectors.
+              A dot flags that filters inside are applied. */}
+          {(() => {
+            const moreActive =
+              hidden.size > 0 ||
+              GRAPH_KINDS.slice(3).some((k) => gfilters.has(k));
+            return (
+              <button
+                type="button"
+                onClick={() => setGCatOpen(true)}
+                style={{
+                  position: "relative",
+                  height: 24,
+                  padding: "0 8px",
+                  borderRadius: 6,
+                  border: `1px solid ${moreActive ? CHROME.accent : "transparent"}`,
+                  background: moreActive ? CHROME.accentBg : "transparent",
+                  color: moreActive ? CHROME.accent : CHROME.muted,
+                  fontSize: 11.5,
+                  fontWeight: moreActive ? 700 : 500,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <SlidersHorizontal size={12} /> More
+                {moreActive && (
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: CHROME.accent,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+              </button>
+            );
+          })()}
         </div>
 
         {/* category drawer — all resource types: spotlight filter + hide toggle */}
@@ -31104,11 +31207,11 @@ function GraphExplorer() {
                     <button
                       type="button"
                       onClick={() => {
+                        const fid = X_FINDING_BY_NODE[ctxMenu.data.id].id;
+                        const nodeId = ctxMenu.data.id;
+                        setGSeed({ kind: "finding", fid, nodeId });
                         setGview("findings");
-                        setGnav({
-                          kind: "finding",
-                          id: X_FINDING_BY_NODE[ctxMenu.data.id].id,
-                        });
+                        setGnav({ kind: "finding", id: fid });
                         setCtxMenu(null);
                       }}
                       style={{
@@ -31144,14 +31247,11 @@ function GraphExplorer() {
                     >
                       <button
                         type="button"
-                        title={`Lock on ${iss.id}`}
+                        title={`Open ${iss.id}`}
                         onClick={() => {
-                          setGnav(null);
-                          setGLocked({
-                            label: `${iss.id} · attack path`,
-                            ids: iss.path,
-                            nav: { kind: "issue", id: iss.id },
-                          });
+                          setGSeed({ kind: "issue", id: iss.id });
+                          setGview("issues");
+                          setGnav({ kind: "issue", id: iss.id });
                           setCtxMenu(null);
                         }}
                         style={{
@@ -31506,12 +31606,13 @@ function GraphExplorer() {
         {(gview === "findings" || gview === "issues") && (
           <XCatalogDrawer
             mode={gview}
+            seed={gSeed}
             onClose={() => setGview("graph")}
             onPick={setGnav}
-            onOpenNode={(nodeId) => {
+            onOpenNode={(nodeId, nav) => {
               const n = X_NODE[nodeId];
               if (n) setSel(n);
-              setGnav({ kind: "node", id: nodeId });
+              setGnav(nav ?? { kind: "node", id: nodeId });
             }}
           />
         )}

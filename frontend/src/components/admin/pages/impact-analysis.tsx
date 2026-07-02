@@ -24,6 +24,7 @@ import {
   Crosshair,
   Frame,
   Trash2,
+  Home,
 } from "lucide-react";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -59,6 +60,7 @@ import {
   PolicyBlock,
   policiesFor,
   Breadcrumb,
+  NodeIdChip,
 } from "./graph-shell";
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1061,6 +1063,14 @@ export function ImpactAnalysis() {
     "graph",
   );
   const [stack, setStack] = React.useState<string[]>([]);
+  // breakdown direction: downstream (data flows out) or upstream (data in),
+  // bounded to a degree (1 / 2 / 0 = full)
+  const [focusDir, setFocusDir] = React.useState<"down" | "up">("down");
+  const [focusDeg, setFocusDeg] = React.useState<ChainDeg>(0);
+  // the focus node of the PREVIOUS breakdown render — lets us tell a fresh
+  // drill from a direction/degree change (same node) so we can keep the
+  // converged node fixed and recenter afterwards.
+  const prevFocusRef = React.useRef<string | null>(null);
   const [, setSel] = React.useState<IANode | null>(null);
   const [filters, setFilters] = React.useState<Set<Tier>>(new Set());
   const [zoomPct, setZoomPct] = React.useState(40);
@@ -1184,13 +1194,20 @@ export function ImpactAnalysis() {
     } else if (pinnedRef.current) {
       active = chainSet(pinnedRef.current);
       chain = true;
-    } else if (filterRef.current.size) {
-      active = new Set(
+    }
+    // tier filter — works standalone AND refines a locked/selected view
+    // (intersect), so filtering keeps working when a view is locked.
+    if (filterRef.current.size) {
+      const byTier = new Set<string>(
         cy
           .nodes()
           .filter((x: any) => filterRef.current.has(x.data("tier") as Tier))
           .map((x: any) => x.id()),
       );
+      active = active
+        ? new Set([...active].filter((id) => byTier.has(id)))
+        : byTier;
+      if (boxId && !active.has(boxId)) boxId = null;
     }
     cy.batch(() => {
       cy.elements().removeClass("shadow chain focusbox");
@@ -1291,6 +1308,8 @@ export function ImpactAnalysis() {
       if (lockedRef.current) return; // locked: no drilling
       setSel(nodeInfo(e.target));
       if (e.target.data("reach") > 0) {
+        setFocusDir("down"); // tapping drills into the full downstream breakdown
+        setFocusDeg(0);
         setStack((s) => (s[s.length - 1] === id ? s : [...s, id]));
       }
     });
@@ -1471,6 +1490,7 @@ export function ImpactAnalysis() {
     cy.nodes().removeClass("picked rect");
     cy.edges().removeClass("fedge");
     if (!focusId) {
+      prevFocusRef.current = null;
       hoverRef.current = null;
       cy.batch(() => {
         cy.elements().style("display", "element");
@@ -1487,18 +1507,40 @@ export function ImpactAnalysis() {
       return;
     }
     const root = cy.getElementById(focusId);
-    // expand strictly rightward from the source: downstream reach only
-    const keep = root.successors().union(root);
+    // expand rightward from the source: downstream (data out) or, when the
+    // breakdown direction is "up", the upstream (data in) closure — bounded to
+    // focusDeg hops (0 = full transitive).
+    let keep;
+    if (focusDeg === 0) {
+      keep =
+        focusDir === "down"
+          ? root.successors().union(root)
+          : root.predecessors().union(root);
+    } else {
+      keep = root;
+      let frontier = root;
+      for (let d = 0; d < focusDeg; d += 1) {
+        const step =
+          focusDir === "down" ? frontier.outgoers() : frontier.incomers();
+        keep = keep.union(step);
+        frontier = step.nodes();
+      }
+    }
     const kept = keep.nodes();
 
-    // longest-path rank from the root → strict left→right columns
+    // longest-path rank from the root → strict left→right columns (root at 0).
+    // Down: rank grows along edge direction; Up: against it (toward sources).
     const rank: Record<string, number> = { [root.id()]: 0 };
     TIER_ORDER.forEach(() => {
       keep.edges().forEach((e: any) => {
         const s = e.source().id();
         const t = e.target().id();
-        if (rank[s] !== undefined)
-          rank[t] = Math.max(rank[t] ?? 0, rank[s] + 1);
+        if (focusDir === "down") {
+          if (rank[s] !== undefined)
+            rank[t] = Math.max(rank[t] ?? 0, rank[s] + 1);
+        } else if (rank[t] !== undefined) {
+          rank[s] = Math.max(rank[s] ?? 0, rank[t] + 1);
+        }
       });
     });
 
@@ -1511,11 +1553,18 @@ export function ImpactAnalysis() {
     });
     const rowOf: Record<string, number> = {};
     const positions: Record<string, { x: number; y: number }> = {};
+    // Anchor the root at model x=0 in BOTH directions: downstream columns go to
+    // +x (right), upstream columns to −x (left) so the original node stays put
+    // when you flip direction and the upstream nodes converge into it.
     cols.forEach((list, col) => {
       if (col > 0) {
         list.sort((a: any, b: any) => {
           const bary = (nd: any) => {
-            const ps = nd.incomers("node").filter((p: any) => keep.contains(p));
+            // the neighbour toward the root: incomers when drilling down,
+            // outgoers when drilling up
+            const ps = (
+              focusDir === "down" ? nd.incomers("node") : nd.outgoers("node")
+            ).filter((p: any) => keep.contains(p));
             if (!ps.length) return Number.MAX_SAFE_INTEGER;
             let s = 0;
             ps.forEach((p: any) => {
@@ -1527,9 +1576,10 @@ export function ImpactAnalysis() {
         });
       }
       const offset = ((list.length - 1) * ROW_GAP) / 2;
+      const xCol = focusDir === "up" ? -col : col;
       list.forEach((n: any, i: number) => {
         rowOf[n.id()] = i;
-        positions[n.id()] = { x: col * COL_GAP, y: i * ROW_GAP - offset };
+        positions[n.id()] = { x: xCol * COL_GAP, y: i * ROW_GAP - offset };
       });
     });
 
@@ -1546,26 +1596,54 @@ export function ImpactAnalysis() {
         name: "preset",
         positions: (n: any) => positions[n.id()],
         animate: true,
-        animationDuration: 520,
+        animationDuration: 620,
         animationEasing: "ease-in-out-cubic",
         fit: false,
       })
       .run();
-    setTimeout(() => {
-      cy.animate(
-        { fit: { eles: keep, padding: 60 } },
-        { duration: 320, easing: "ease-in-out-cubic" },
+    // A direction/degree change on the SAME node keeps the converged node
+    // fixed: we hold the viewport while the new nodes animate into place, then
+    // recentre. A fresh drill recentres promptly.
+    const isDirSwitch = prevFocusRef.current === focusId;
+    prevFocusRef.current = focusId;
+    const recentre = () => {
+      // compute the TARGET bounding box from the final positions (+ node sizes)
+      // — reading a live boundingBox mid-animation gives a wrong box, which is
+      // why some expansions weren't recentring.
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      kept.forEach((n: any) => {
+        const p = positions[n.id()];
+        if (!p) return;
+        const hw = n.width() / 2 + 34;
+        const hh = n.height() / 2 + 22;
+        minX = Math.min(minX, p.x - hw);
+        maxX = Math.max(maxX, p.x + hw);
+        minY = Math.min(minY, p.y - hh);
+        maxY = Math.max(maxY, p.y + hh);
+      });
+      if (!Number.isFinite(minX)) return;
+      const bw = maxX - minX;
+      const bh = maxY - minY;
+      const cx = (minX + maxX) / 2;
+      const cyc = (minY + maxY) / 2;
+      const w = cy.width();
+      const h = cy.height();
+      const fitZ = Math.min(
+        (w - 200) / Math.max(bw, 1),
+        (h - 140) / Math.max(bh, 1),
       );
-      setTimeout(() => {
-        if (cy.zoom() < 0.55) {
-          cy.animate(
-            { zoom: { level: 0.55, position: root.position() } },
-            { duration: 260, easing: "ease-out" },
-          );
-        }
-      }, 340);
-    }, 540);
-  }, [focusId]);
+      const z = Math.max(0.34, Math.min(1.05, fitZ));
+      cy.animate(
+        { zoom: z, pan: { x: w / 2 - cx * z, y: h / 2 - cyc * z } },
+        { duration: 620, easing: "ease-in-out-cubic" },
+      );
+    };
+    // hold the converged node fixed a beat before recentring on a flip
+    setTimeout(recentre, isDirSwitch ? 640 : 200);
+  }, [focusId, focusDir, focusDeg]);
 
   // ── navigator actions ─────────────────────────────────────────────────────
   const pan = (dx: number, dy: number) =>
@@ -1599,6 +1677,8 @@ export function ImpactAnalysis() {
   };
   const reset = () => {
     setStack([]);
+    setFocusDir("down");
+    setFocusDeg(0);
     setSel(null);
     setLocked(null);
     setFilters(new Set());
@@ -1611,7 +1691,17 @@ export function ImpactAnalysis() {
     setCatalogKey((k) => k + 1); // reset the catalog drawer's navigation
     cyRef.current?.animate({ fit: { padding: 40 } }, { duration: 260 });
   };
-  const back = () => setStack((s) => s.slice(0, -1));
+  const back = () => {
+    setFocusDir("down");
+    setFocusDeg(0);
+    setStack((s) => s.slice(0, -1));
+  };
+  // jump the breakdown breadcrumb to a given depth (0 = root / whole graph)
+  const breadcrumbTo = (depth: number) => {
+    setFocusDir("down");
+    setFocusDeg(0);
+    setStack((s) => s.slice(0, depth));
+  };
   const toggleFilter = (t: Tier) =>
     setFilters((prev) => {
       const next = new Set(prev);
@@ -1630,22 +1720,47 @@ export function ImpactAnalysis() {
     closeMenu();
     applyEmphasis();
   };
-  // activating a dependency chain from the context menu LOCKS the view on it
+  // Expand → drill into the node's FULL breakdown in the chosen direction,
+  // from anywhere (enters a breakdown, or transitions the current one).
+  const menuExpand = (dir: ChainDir) => {
+    if (!ctx) return;
+    const { id } = ctx.node;
+    setFocusDir(dir);
+    setFocusDeg(0);
+    setStack((s) => (s[s.length - 1] === id ? s : [...s, id]));
+    setLocked(null);
+    chainSetRef.current = null;
+    closeMenu();
+  };
+  // dependency chain from the context menu:
+  //  • inside a breakdown (drilled) → TRANSITION to that node's breakdown in
+  //    the chosen direction (the upstream may include nodes not in the current
+  //    downstream tree, so we re-lay-out rather than just lighting them)
+  //  • on the full graph → LOCK the view on the chain
   const menuChain = (dir: ChainDir, degree: ChainDeg) => {
-    if (ctx) {
-      const ids = [...chainDir(ctx.node.id, dir, degree)];
-      pinnedRef.current = null;
-      hoverRef.current = null;
+    if (!ctx) return;
+    if (focusId) {
+      const { id } = ctx.node;
+      setFocusDir(dir);
+      setFocusDeg(degree);
+      setStack((s) => (s[s.length - 1] === id ? s : [...s, id]));
+      setLocked(null);
       chainSetRef.current = null;
-      const dl = dir === "down" ? "downstream" : "upstream";
-      const gl = degree === 0 ? "full" : `${degree}°`;
-      setLocked({
-        id: ctx.node.id,
-        path: ids,
-        label: `${ctx.node.label} · ${dl} ${gl}`,
-      });
       closeMenu();
+      return;
     }
+    const ids = [...chainDir(ctx.node.id, dir, degree)];
+    pinnedRef.current = null;
+    hoverRef.current = null;
+    chainSetRef.current = null;
+    const dl = dir === "down" ? "downstream" : "upstream";
+    const gl = degree === 0 ? "full" : `${degree}°`;
+    setLocked({
+      id: ctx.node.id,
+      path: ids,
+      label: `${ctx.node.label} · ${dl} ${gl}`,
+    });
+    closeMenu();
   };
   // context-menu "Issue" → LOCK the graph on that issue's attack path
   const menuIssuePath = (iss: Issue) => {
@@ -1951,6 +2066,7 @@ export function ImpactAnalysis() {
             finding={FINDING_BY_NODE[ctx.node.id]}
             issues={issuesForNode(ctx.node.id)}
             onDetails={menuDetails}
+            onExpand={menuExpand}
             onChain={menuChain}
             onSaveChain={(dir, deg) => {
               saveChainAsView(ctx.node.id, dir, deg);
@@ -2109,6 +2225,89 @@ export function ImpactAnalysis() {
             )}
           </div>
         </div>
+
+        {/* breakdown breadcrumb — root path navigation while drilled in */}
+        {stack.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: 50,
+              left: 12,
+              zIndex: 11,
+              display: "flex",
+              alignItems: "center",
+              gap: 4,
+              maxWidth: "60%",
+              overflow: "hidden",
+              padding: "5px 10px",
+              borderRadius: 8,
+              background: CHROME.bg,
+              border: `1px solid ${CHROME.border}`,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              fontSize: 12,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => breadcrumbTo(0)}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: CHROME.muted,
+                cursor: "pointer",
+                padding: 0,
+                flexShrink: 0,
+                display: "inline-flex",
+              }}
+              title="Whole graph"
+            >
+              <Home size={13} />
+            </button>
+            {stack.map((id, i) => (
+              <React.Fragment key={id}>
+                <ChevronRight
+                  size={12}
+                  color={CHROME.muted}
+                  style={{ flexShrink: 0 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => breadcrumbTo(i + 1)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: 0,
+                    fontSize: 12,
+                    fontWeight: i === stack.length - 1 ? 700 : 500,
+                    color: i === stack.length - 1 ? CHROME.text : CHROME.muted,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    maxWidth: 150,
+                  }}
+                >
+                  {NODE_BY_ID[id]?.label ?? id}
+                </button>
+              </React.Fragment>
+            ))}
+            <span
+              style={{
+                flexShrink: 0,
+                marginLeft: 4,
+                padding: "1px 6px",
+                borderRadius: 6,
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: CHROME.accent,
+                background: CHROME.accentBg,
+              }}
+            >
+              {focusDir === "down" ? "downstream" : "upstream"}
+              {focusDeg !== 0 ? ` · ${focusDeg}°` : ""}
+            </span>
+          </div>
+        )}
 
         {/* hover read-out — terminal-style, top-left under the toolbar */}
         {hoverInfo && <HoverReadout node={hoverInfo} />}
@@ -2739,9 +2938,9 @@ function HoverReadout({ node }: { node: IANode }) {
     <div
       style={{
         position: "absolute",
-        top: 54,
+        top: 92,
         left: 12,
-        zIndex: 10,
+        zIndex: 15,
         display: "flex",
         alignItems: "stretch",
         background: "rgb(23,23,22)",
@@ -2898,6 +3097,7 @@ function NodeContextMenu({
   finding,
   issues,
   onDetails,
+  onExpand,
   onChain,
   onSaveChain,
   onIssuePath,
@@ -2912,6 +3112,7 @@ function NodeContextMenu({
   finding?: Finding;
   issues: Issue[];
   onDetails: () => void;
+  onExpand: (dir: ChainDir) => void;
   onChain: (dir: ChainDir, degree: ChainDeg) => void;
   onSaveChain: (dir: ChainDir, degree: ChainDeg) => void;
   onIssuePath: (iss: Issue) => void;
@@ -2921,7 +3122,9 @@ function NodeContextMenu({
   onJump: (kind: "finding" | "issue", id: string) => void;
 }) {
   // one hover-submenu open at a time, with a close delay
-  const [sub, setSub] = React.useState<"issue" | "lock" | "chain" | null>(null);
+  const [sub, setSub] = React.useState<
+    "issue" | "lock" | "chain" | "expand" | null
+  >(null);
   const [copied, setCopied] = React.useState(false);
   const subTimer = React.useRef<number | undefined>(undefined);
   const copyId = () => {
@@ -2929,7 +3132,7 @@ function NodeContextMenu({
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1200);
   };
-  const openSub = (which: "issue" | "lock" | "chain") => () => {
+  const openSub = (which: "issue" | "lock" | "chain" | "expand") => () => {
     window.clearTimeout(subTimer.current);
     setSub(which);
   };
@@ -3087,6 +3290,55 @@ function NodeContextMenu({
         >
           <Info size={14} /> View node details
         </button>
+
+        {/* Expand — drill into the full breakdown in the chosen direction */}
+        <div
+          style={{ position: "relative" }}
+          onMouseEnter={openSub("expand")}
+          onMouseLeave={closeSub}
+        >
+          <button
+            type="button"
+            onClick={() => onExpand("down")}
+            style={ctxItem()}
+            onMouseEnter={hoverBg(true)}
+            onMouseLeave={hoverBg(false)}
+          >
+            <Expand size={14} /> Expand
+            <ChevronRight
+              size={13}
+              color="#7f8a84"
+              style={{ marginLeft: "auto" }}
+            />
+          </button>
+          {sub === "expand" && (
+            <div
+              onMouseEnter={openSub("expand")}
+              onMouseLeave={closeSub}
+              style={subStyle}
+            >
+              <button
+                type="button"
+                onClick={() => onExpand("down")}
+                style={ctxItem()}
+                onMouseEnter={hoverBg(true)}
+                onMouseLeave={hoverBg(false)}
+              >
+                <ArrowDown size={13} /> Downstream · full chain
+              </button>
+              <button
+                type="button"
+                onClick={() => onExpand("up")}
+                style={ctxItem()}
+                onMouseEnter={hoverBg(true)}
+                onMouseLeave={hoverBg(false)}
+              >
+                <ArrowUp size={13} /> Upstream · full chain
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Dependency chain — bifurcates into Upstream / Downstream × degree */}
         <div
           style={{ position: "relative" }}
@@ -3456,6 +3708,9 @@ function NodeDetailBody({
               }}
             >
               {node.label}
+            </div>
+            <div style={{ marginTop: 4 }}>
+              <NodeIdChip id={node.id} />
             </div>
             <div
               style={{
@@ -3965,8 +4220,15 @@ function CatalogDrawer({
   const shownFindings = FINDINGS.filter((f) => matchFinding(f, catFilter));
   const shownIssues = ISSUES.filter((i) => matchIssue(i, catFilter));
 
-  // reset the stack whenever we switch between Findings and Issues
+  // reset the stack whenever we switch between Findings and Issues — but NOT
+  // on the initial mount, so a context-menu tag's seeded navigation (jump
+  // straight to a finding / issue detail) survives.
+  const firstMode = React.useRef(true);
   React.useEffect(() => {
+    if (firstMode.current) {
+      firstMode.current = false;
+      return;
+    }
     setNav([]);
     setCatFilter(new Set());
   }, [mode]);
@@ -4470,6 +4732,20 @@ function CatalogDrawer({
                         <span style={catalogSub}>
                           {TIER_LABEL[n.tier]}
                           {f ? ` · ${f.category}` : ""}
+                        </span>
+                        <span
+                          style={{
+                            display: "block",
+                            fontSize: 10.5,
+                            color: "var(--cg-text-muted)",
+                            fontFamily:
+                              "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {nid}
                         </span>
                       </span>
                       {f && (

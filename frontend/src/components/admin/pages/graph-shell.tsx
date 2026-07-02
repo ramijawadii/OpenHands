@@ -245,6 +245,52 @@ export function Breadcrumb({ root, name }: { root: string; name?: string }) {
   );
 }
 
+// a copyable, monospace node-id line for drawers / list rows
+export function NodeIdChip({ id, size = 11 }: { id: string; size?: number }) {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <button
+      type="button"
+      title="Copy node ID"
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard?.writeText(id);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1200);
+      }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        maxWidth: "100%",
+        padding: 0,
+        border: "none",
+        background: "transparent",
+        color: "var(--cg-text-muted)",
+        fontSize: size,
+        fontFamily:
+          "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+        cursor: "pointer",
+      }}
+    >
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {id}
+      </span>
+      {copied ? (
+        <Check size={size} color="#39b84e" style={{ flexShrink: 0 }} />
+      ) : (
+        <Copy size={size} style={{ flexShrink: 0 }} />
+      )}
+    </button>
+  );
+}
+
 // small copy-to-clipboard icon button (policy code, log JSON, …)
 export function CopyButton({
   text,
@@ -484,19 +530,19 @@ export const drawerHead: React.CSSProperties = {
 // scrollable sub-view tab strip (Node detail · Finding · Policy · …)
 export const drawerTabStrip: React.CSSProperties = {
   display: "flex",
-  gap: 2,
-  padding: "10px 10px 0",
+  gap: 1,
+  padding: "10px 8px 0",
   borderBottom: "1px solid var(--cg-border)",
   overflowX: "auto",
   flexWrap: "nowrap",
 };
 export function drawerTab(active: boolean): React.CSSProperties {
   return {
-    padding: "6px 9px 9px",
+    padding: "6px 6px 9px",
     border: "none",
     background: "transparent",
     color: active ? "var(--cg-text-primary)" : "var(--cg-text-muted)",
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: active ? 700 : 500,
     cursor: "pointer",
     whiteSpace: "nowrap",
