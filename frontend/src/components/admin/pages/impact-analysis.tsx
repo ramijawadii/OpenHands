@@ -56,6 +56,9 @@ import {
   useNotes,
   MultiFilter,
   MoreDetail,
+  PolicyBlock,
+  policiesFor,
+  Breadcrumb,
 } from "./graph-shell";
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1254,7 +1257,9 @@ export function ImpactAnalysis() {
     });
 
     cy.on("mouseover", "node", (e: any) => {
-      setHoverInfo(nodeInfo(e.target));
+      // only show the read-out card for ACTIVE nodes — a shadowed (dimmed)
+      // node is out of the current selection, so its card must not appear.
+      setHoverInfo(e.target.hasClass("shadow") ? null : nodeInfo(e.target));
       // lock / context menu / a catalog selection own the emphasis — a graph
       // hover must not drop the current selection. Hover only drives the graph.
       if (lockedRef.current || ctxRef.current || pathRef.current) return;
@@ -2717,14 +2722,19 @@ function IssuePolicy({ iss }: { iss: Issue }) {
   );
 }
 
-// ── hover read-out — terminal-style key:value lines ──────────────────────────
+// ── hover read-out — terminal-style: data on the left, blast radius on the
+// right, split by a vertical separator ───────────────────────────────────────
 function HoverReadout({ node }: { node: IANode }) {
+  const f = FINDING_BY_NODE[node.id];
+  const env = f?.account?.match(/prod|stage|dev/)?.[0] ?? "prod";
   const rows: [string, string][] = [
-    [node.tier === "resource" ? "resource" : node.tier, node.label],
-    ["category", TIER_LABEL[node.tier]],
-    ["blast radius", `${REACH[node.id] ?? 0} downstream`],
+    ["cloud", f?.cloud ?? "AWS"],
+    ["env", env],
+    ["type", f?.resourceType ?? TIER_LABEL[node.tier]],
+    ["tags", `env=${env}, team=platform`],
   ];
-  if (node.alert) rows.push(["status", node.alert.toUpperCase()]);
+  const down = REACH[node.id] ?? 0;
+  const up = Math.max(0, chainDir(node.id, "up", 0).size - 1);
   return (
     <div
       style={{
@@ -2732,12 +2742,11 @@ function HoverReadout({ node }: { node: IANode }) {
         top: 54,
         left: 12,
         zIndex: 10,
-        minWidth: 230,
-        maxWidth: 320,
+        display: "flex",
+        alignItems: "stretch",
         background: "rgb(23,23,22)",
         border: "1px solid rgba(255,255,255,0.12)",
         borderRadius: 8,
-        padding: "10px 12px",
         boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
         fontFamily:
           "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
@@ -2746,30 +2755,85 @@ function HoverReadout({ node }: { node: IANode }) {
         pointerEvents: "none",
       }}
     >
-      {rows.map(([k, v]) => (
-        <div key={k} style={{ display: "flex", gap: 6, whiteSpace: "nowrap" }}>
-          <span
-            style={{
-              color: "#7f8a84",
-              minWidth: 92,
-              display: "inline-block",
-            }}
-          >
-            {k}
-          </span>
-          <span style={{ color: "#8a96a8" }}>:</span>
-          <span
-            style={{
-              color: node.alert === "error" ? "#ff8c82" : "#e8e8e2",
-              fontWeight: 600,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {v}
-          </span>
+      {/* left — data */}
+      <div style={{ padding: "10px 12px", minWidth: 210, maxWidth: 300 }}>
+        <div
+          style={{
+            color: node.alert === "error" ? "#ff8c82" : "#e8e8e2",
+            fontWeight: 700,
+            marginBottom: 4,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {node.label}
         </div>
-      ))}
+        {rows.map(([k, v]) => (
+          <div
+            key={k}
+            style={{ display: "flex", gap: 6, whiteSpace: "nowrap" }}
+          >
+            <span
+              style={{
+                color: "#7f8a84",
+                minWidth: 46,
+                display: "inline-block",
+              }}
+            >
+              {k}
+            </span>
+            <span style={{ color: "#8a96a8" }}>:</span>
+            <span
+              style={{
+                color: "#e8e8e2",
+                fontWeight: 600,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {v}
+            </span>
+          </div>
+        ))}
+      </div>
+      {/* vertical separator */}
+      <div style={{ width: 1, background: "rgba(255,255,255,0.14)" }} />
+      {/* right — blast radius */}
+      <div
+        style={{
+          padding: "10px 14px",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          gap: 6,
+        }}
+      >
+        <div
+          style={{
+            color: "#7f8a84",
+            fontSize: 10,
+            textTransform: "uppercase",
+            letterSpacing: 0.4,
+          }}
+        >
+          Blast radius
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#e8e8e2", fontWeight: 700, fontSize: 16 }}>
+              ↑ {up}
+            </div>
+            <div style={{ color: "#7f8a84", fontSize: 10 }}>upstream</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ color: "#e8e8e2", fontWeight: 700, fontSize: 16 }}>
+              ↓ {down}
+            </div>
+            <div style={{ color: "#7f8a84", fontSize: 10 }}>downstream</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3467,6 +3531,10 @@ function NodeDetailBody({
         )}
         {tab === "finding" && (
           <div style={{ marginTop: 8 }}>
+            <Breadcrumb
+              root="Findings"
+              name={f ? (f.title ?? f.category ?? node.label) : undefined}
+            />
             <div
               style={{
                 fontSize: 12,
@@ -3521,14 +3589,17 @@ function NodeDetailBody({
         )}
         {tab === "policy" && (
           <div style={{ marginTop: 8 }}>
-            <GroupHead>Compliance & context</GroupHead>
-            <Field k="Framework" v={f?.framework} />
-            <Field k="Control ID" v={f?.controlId} />
-            <Field k="Owner / team" v={f?.owner} />
-            <Field k="Suppressed / accepted" v={f?.suppressed} />
+            <PolicyBlock
+              policies={policiesFor({
+                id: node.id,
+                label: node.label,
+                owner: f?.owner,
+                category: f?.category,
+                suppressed: f?.suppressed,
+              })}
+            />
             <MoreDetail
               rows={[
-                ["Attached policy", `${node.label}-policy`],
                 ["Effective permissions", "s3:*, kms:Decrypt (scoped)"],
                 ["Last evaluated", f?.lastSeen ?? "2026-06-30 04:12"],
                 ["Exception owner", f?.owner ?? "—"],

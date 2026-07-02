@@ -110,6 +110,9 @@ import {
   useNotes,
   MultiFilter,
   MoreDetail,
+  PolicyBlock,
+  policiesFor,
+  Breadcrumb,
 } from "./graph-shell";
 import {
   useCollection,
@@ -28752,36 +28755,6 @@ function XNodeDrawer({
     dt.setDate(dt.getDate() - d);
     return dt.toISOString().slice(0, 10);
   };
-  const X_ACTIONS: Record<string, string[]> = {
-    s3: ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
-    ec2: ["ec2:DescribeInstances", "ec2:StartInstances"],
-    lambda: ["lambda:InvokeFunction"],
-    db: ["dynamodb:GetItem", "dynamodb:PutItem"],
-    elb: ["elasticloadbalancing:*"],
-    alb: ["elasticloadbalancing:*"],
-    internet: ["*"],
-  };
-  const policy = node
-    ? JSON.stringify(
-        {
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Effect: "Allow",
-              Principal:
-                f?.category === "Public bucket"
-                  ? "*"
-                  : { AWS: "arn:aws:iam::9021:role/app" },
-              Action: X_ACTIONS[node.kind as string] ?? ["*"],
-              Resource: `arn:aws:${node.kind}:us-west-2:9021:${node.label}`,
-            },
-          ],
-        },
-        null,
-        2,
-      )
-    : "";
-
   return (
     <div
       style={{
@@ -28970,6 +28943,10 @@ function XNodeDrawer({
 
             {tab === "finding" && (
               <>
+                <Breadcrumb
+                  root="Findings"
+                  name={f ? (f.category ?? node.label ?? node.id) : undefined}
+                />
                 <div
                   style={{
                     fontSize: 12,
@@ -28977,7 +28954,7 @@ function XNodeDrawer({
                       ? "var(--cg-text-primary)"
                       : "var(--cg-text-muted)",
                     fontStyle: f ? "normal" : "italic",
-                    margin: "14px 0 4px",
+                    margin: "4px 0 4px",
                   }}
                 >
                   {f
@@ -29016,31 +28993,16 @@ function XNodeDrawer({
 
             {tab === "policy" && (
               <>
-                <GroupHead>Compliance & context</GroupHead>
-                <SchemaField k="Framework" v={f?.framework} />
-                <SchemaField k="Control ID" v={f?.controlId} />
-                <SchemaField k="Owner / team" v={f?.owner} />
-                <SchemaField k="Suppressed / accepted" v={false} />
-                <GroupHead>Attached policy</GroupHead>
-                <pre
-                  style={{
-                    margin: 0,
-                    padding: 12,
-                    borderRadius: 8,
-                    background: "var(--cg-code-bg, #1a1a19)",
-                    color: "#dfe6e9",
-                    fontSize: 11.5,
-                    lineHeight: 1.5,
-                    overflowX: "auto",
-                    fontFamily:
-                      "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
-                  }}
-                >
-                  {policy}
-                </pre>
+                <PolicyBlock
+                  policies={policiesFor({
+                    id: node.id,
+                    label: node.label ?? node.id,
+                    owner: f?.owner,
+                    category: f?.category,
+                  })}
+                />
                 <MoreDetail
                   rows={[
-                    ["Attached policy", `${node.label ?? node.id}-policy`],
                     ["Effective permissions", "s3:*, kms:Decrypt (scoped)"],
                     ["Last evaluated", f ? daysAgo(1) : "2026-06-30 04:12"],
                     ["Exception owner", f?.owner ?? "—"],
@@ -29747,7 +29709,9 @@ function GraphExplorer() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("mouseover", "node[kind]", (e: any) => {
       e.target.addClass("hovered");
-      setGHover(e.target.data());
+      // only show the read-out card for ACTIVE nodes — a shadowed (dimmed)
+      // node is out of the current selection, so its card must not appear.
+      setGHover(e.target.hasClass("xshadow") ? null : e.target.data());
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     cy.on("mouseout", "node[kind]", (e: any) => {
@@ -30879,7 +30843,8 @@ function GraphExplorer() {
           ))}
         </div>
 
-        {/* hover read-out — terminal-style, top-left under the toolbar */}
+        {/* hover read-out — data on the left, blast radius on the right,
+            split by a vertical separator */}
         {gHover && (
           <div
             style={{
@@ -30887,12 +30852,11 @@ function GraphExplorer() {
               top: 54,
               left: 12,
               zIndex: 30,
-              minWidth: 220,
-              maxWidth: 320,
+              display: "flex",
+              alignItems: "stretch",
               background: "rgb(23,23,22)",
               border: "1px solid rgba(255,255,255,0.12)",
               borderRadius: 8,
-              padding: "10px 12px",
               boxShadow: "0 6px 20px rgba(0,0,0,0.3)",
               fontFamily:
                 "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
@@ -30901,45 +30865,98 @@ function GraphExplorer() {
               pointerEvents: "none",
             }}
           >
-            {(
-              [
-                ["resource", gHover.label ?? gHover.id],
-                ["type", GKIND_LABEL[gHover.kind as GKind] ?? "—"],
-                [
-                  "finding",
-                  X_FINDING_BY_NODE[gHover.id]
-                    ? `${X_FINDING_BY_NODE[gHover.id].category} · ${X_FINDING_BY_NODE[gHover.id].severity}`
-                    : "none",
-                ],
-                ["on paths", `${xIssuesForNode(gHover.id).length} issue(s)`],
-              ] as [string, string][]
-            ).map(([k, v]) => (
+            {/* left — data */}
+            <div style={{ padding: "10px 12px", minWidth: 200, maxWidth: 300 }}>
               <div
-                key={k}
-                style={{ display: "flex", gap: 6, whiteSpace: "nowrap" }}
+                style={{
+                  color: "#e8e8e2",
+                  fontWeight: 700,
+                  marginBottom: 4,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
               >
-                <span
-                  style={{
-                    color: "#7f8a84",
-                    minWidth: 74,
-                    display: "inline-block",
-                  }}
-                >
-                  {k}
-                </span>
-                <span style={{ color: "#8a96a8" }}>:</span>
-                <span
-                  style={{
-                    color: X_FINDING_BY_NODE[gHover.id] ? "#e8e8e2" : "#e8e8e2",
-                    fontWeight: 600,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {v}
-                </span>
+                {gHover.label ?? gHover.id}
               </div>
-            ))}
+              {(
+                [
+                  ["cloud", "AWS"],
+                  ["env", xEnv(gHover.id)],
+                  ["type", GKIND_LABEL[gHover.kind as GKind] ?? "—"],
+                  ["tags", `env=${xEnv(gHover.id)}, team=platform`],
+                ] as [string, string][]
+              ).map(([k, v]) => (
+                <div
+                  key={k}
+                  style={{ display: "flex", gap: 6, whiteSpace: "nowrap" }}
+                >
+                  <span
+                    style={{
+                      color: "#7f8a84",
+                      minWidth: 46,
+                      display: "inline-block",
+                    }}
+                  >
+                    {k}
+                  </span>
+                  <span style={{ color: "#8a96a8" }}>:</span>
+                  <span
+                    style={{
+                      color: "#e8e8e2",
+                      fontWeight: 600,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {v}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {/* vertical separator */}
+            <div style={{ width: 1, background: "rgba(255,255,255,0.14)" }} />
+            {/* right — blast radius */}
+            <div
+              style={{
+                padding: "10px 14px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              <div
+                style={{
+                  color: "#7f8a84",
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.4,
+                }}
+              >
+                Blast radius
+              </div>
+              <div style={{ display: "flex", gap: 12 }}>
+                <div style={{ textAlign: "center" }}>
+                  <div
+                    style={{ color: "#e8e8e2", fontWeight: 700, fontSize: 16 }}
+                  >
+                    ↑ {Math.max(0, xChainDir(gHover.id, "up", 0).size - 1)}
+                  </div>
+                  <div style={{ color: "#7f8a84", fontSize: 10 }}>upstream</div>
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  <div
+                    style={{ color: "#e8e8e2", fontWeight: 700, fontSize: 16 }}
+                  >
+                    ↓ {xDownstream(gHover.id).length}
+                  </div>
+                  <div style={{ color: "#7f8a84", fontSize: 10 }}>
+                    downstream
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

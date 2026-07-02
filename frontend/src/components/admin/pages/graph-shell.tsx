@@ -11,8 +11,32 @@ import {
   Plus,
   Minus,
   SlidersHorizontal,
+  Copy,
+  Check,
 } from "lucide-react";
 import watermarkUrl from "./inference-defense-console.svg?url";
+
+// ── deterministic Sample-data helpers (seeded RNG + hash) ─────────────────────
+const seedRand = (seed: number) => {
+  let s = seed & 0x7fffffff;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+};
+const hash = (str: string) => {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i += 1) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+};
+const isoDaysAgo = (d: number) => {
+  const dt = new Date(2026, 6, 1);
+  dt.setDate(dt.getDate() - d);
+  return dt.toISOString().slice(0, 10);
+};
 
 // Inference Defense Console wordmark — a faint watermark in the graph background
 // (bottom-left, aligned with the navigator). It sits UNDER the transparent
@@ -183,6 +207,239 @@ export function MoreDetail({
   );
 }
 
+// breadcrumb-style header inside a view: "Findings › <name>"
+export function Breadcrumb({ root, name }: { root: string; name?: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 12.5,
+        margin: "12px 0 6px",
+        minWidth: 0,
+      }}
+    >
+      <span style={{ color: "var(--cg-text-muted)", flexShrink: 0 }}>
+        {root}
+      </span>
+      {name && (
+        <>
+          <span style={{ color: "var(--cg-text-muted)", flexShrink: 0 }}>
+            ›
+          </span>
+          <span
+            style={{
+              fontWeight: 700,
+              color: "var(--cg-text-primary)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {name}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+// small copy-to-clipboard icon button (policy code, log JSON, …)
+export function CopyButton({
+  text,
+  title = "Copy",
+}: {
+  text: string;
+  title?: string;
+}) {
+  const [copied, setCopied] = React.useState(false);
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard?.writeText(text);
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1200);
+      }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "3px 7px",
+        borderRadius: 6,
+        border: "1px solid rgba(255,255,255,0.16)",
+        background: "rgba(255,255,255,0.06)",
+        color: copied ? "#39b84e" : "#c8ccd0",
+        fontSize: 11,
+        cursor: "pointer",
+      }}
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? "Copied" : "Copy"}
+    </button>
+  );
+}
+
+// a black code box with a copy button in the top-right — used for the policy
+// document and for the per-log JSON expansion.
+export function CodeBlock({ code }: { code: string }) {
+  return (
+    <div style={{ position: "relative", marginTop: 6 }}>
+      <div style={{ position: "absolute", top: 6, right: 6, zIndex: 1 }}>
+        <CopyButton text={code} />
+      </div>
+      <pre
+        style={{
+          margin: 0,
+          padding: "12px 12px 12px 12px",
+          borderRadius: 8,
+          background: "#1a1a19",
+          color: "#dfe6e9",
+          fontSize: 11.5,
+          lineHeight: 1.5,
+          overflowX: "auto",
+          fontFamily:
+            "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+        }}
+      >
+        {code}
+      </pre>
+    </div>
+  );
+}
+
+// Policy view: compliance & context fields + (if the resource is subject to
+// more than one framework) a framework filter, plus the attached policy code
+// with a copy button.
+export type PolicyDoc = {
+  framework: string;
+  controlId: string;
+  owner?: string;
+  suppressed?: boolean;
+  code: string;
+};
+export function PolicyBlock({ policies }: { policies: PolicyDoc[] }) {
+  const [idx, setIdx] = React.useState(0);
+  const p = policies[Math.min(idx, policies.length - 1)] ?? policies[0];
+  if (!p)
+    return (
+      <div
+        style={{
+          fontSize: 12.5,
+          color: "var(--cg-text-muted)",
+          fontStyle: "italic",
+          marginTop: 12,
+        }}
+      >
+        No policy attached to this resource.
+      </div>
+    );
+  return (
+    <div style={{ marginTop: 8 }}>
+      <GroupHead>Compliance &amp; context</GroupHead>
+      {policies.length > 1 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "2px 0 8px",
+          }}
+        >
+          <span style={{ fontSize: 11.5, color: "var(--cg-text-muted)" }}>
+            Framework
+          </span>
+          <select
+            value={idx}
+            onChange={(e) => setIdx(Number(e.target.value))}
+            style={{
+              flex: 1,
+              height: 30,
+              borderRadius: 7,
+              border: "1px solid var(--cg-border)",
+              background: "var(--cg-bg-card)",
+              color: "var(--cg-text-primary)",
+              fontSize: 12,
+              padding: "0 8px",
+              cursor: "pointer",
+            }}
+          >
+            {policies.map((pd, i) => (
+              <option key={pd.framework} value={i}>
+                {pd.framework} · {pd.controlId}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <Field k="Framework" v={p.framework} />
+      <Field k="Control ID" v={p.controlId} />
+      <Field k="Owner / team" v={p.owner} />
+      <Field k="Suppressed / accepted" v={p.suppressed} />
+      <GroupHead>Attached policy</GroupHead>
+      <CodeBlock code={p.code} />
+    </div>
+  );
+}
+
+// deterministic set of governing frameworks for a resource — some resources
+// are subject to more than one (drives the PolicyBlock framework filter).
+const FW_POOL = [
+  ["CIS AWS 1.5", "2.1.1"],
+  ["SOC 2", "CC6.1"],
+  ["NIST 800-53", "AC-6"],
+  ["PCI DSS 4.0", "7.2.1"],
+  ["ISO 27001", "A.9.4"],
+];
+export function policiesFor(opts: {
+  id: string;
+  label: string;
+  owner?: string;
+  category?: string;
+  suppressed?: boolean;
+}): PolicyDoc[] {
+  const r = seedRand(hash(opts.id));
+  const n = 1 + Math.floor(r() * 3); // 1..3 frameworks
+  const start = Math.floor(r() * FW_POOL.length);
+  const out: PolicyDoc[] = [];
+  for (let i = 0; i < n; i += 1) {
+    const [framework, controlId] = FW_POOL[(start + i) % FW_POOL.length];
+    const code = JSON.stringify(
+      {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Sid: framework.replace(/[^A-Za-z0-9]/g, ""),
+            Effect: opts.category === "Public bucket" ? "Deny" : "Allow",
+            Principal:
+              opts.category === "Public bucket"
+                ? "*"
+                : { AWS: "arn:aws:iam::acct-prod-9021:root" },
+            Action: ["s3:GetObject", "s3:PutObject", "kms:Decrypt"],
+            Resource: `arn:aws:*:us-west-2:acct-prod-9021:${opts.label}`,
+            Condition: {
+              StringEquals: { "aws:PrincipalTag/framework": framework },
+            },
+          },
+        ],
+      },
+      null,
+      2,
+    );
+    out.push({
+      framework,
+      controlId,
+      owner: opts.owner ?? ["platform", "data-eng", "security"][i % 3],
+      suppressed: !!opts.suppressed,
+      code,
+    });
+  }
+  return out;
+}
+
 export const DRAWER_W = 420; // wide enough for the multi-view drawers
 
 // The graph drawers are a fixed WHITE panel independent of app theme: we pin the
@@ -250,28 +507,6 @@ export function drawerTab(active: boolean): React.CSSProperties {
     marginBottom: -1,
   };
 }
-
-// ── shared drawer view building-blocks (remediation · logs · notes · filter) ──
-const seedRand = (seed: number) => {
-  let s = seed & 0x7fffffff;
-  return () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
-  };
-};
-const hash = (str: string) => {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i += 1) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-};
-const isoDaysAgo = (d: number) => {
-  const dt = new Date(2026, 6, 1);
-  dt.setDate(dt.getDate() - d);
-  return dt.toISOString().slice(0, 10);
-};
 
 export type RemedItem = {
   date: string;
@@ -488,6 +723,7 @@ export function LogList({ logs }: { logs: LogItem[] }) {
       ),
     [logs, nodeF, levelF],
   );
+  const [openRow, setOpenRow] = React.useState<string | null>(null);
   React.useEffect(() => setPage(0), [nodeF, levelF]);
   const pages = Math.max(1, Math.ceil(filtered.length / LOG_PAGE));
   const clamped = Math.min(page, pages - 1);
@@ -495,6 +731,24 @@ export function LogList({ logs }: { logs: LogItem[] }) {
     clamped * LOG_PAGE,
     clamped * LOG_PAGE + LOG_PAGE,
   );
+  // a representative JSON record for one log line (expanded view)
+  const logJson = (l: LogItem, i: number) =>
+    JSON.stringify(
+      {
+        timestamp: l.ts,
+        level: l.level,
+        resource: l.node,
+        message: l.message,
+        actor: l.level === "info" ? "system" : "principal/analyst",
+        source_ip: `10.0.${(i * 7) % 255}.${(i * 31) % 255}`,
+        request_id: `req-${(hash(l.ts + l.node + i) % 0xffffff)
+          .toString(16)
+          .padStart(6, "0")}`,
+        outcome: l.level === "error" ? "deny" : "allow",
+      },
+      null,
+      2,
+    );
 
   if (!logs.length)
     return (
@@ -594,6 +848,7 @@ export function LogList({ logs }: { logs: LogItem[] }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
+              <th style={{ ...th, width: 22 }} aria-label="expand" />
               <th style={th}>Time</th>
               <th style={{ ...th, width: 48 }}>Level</th>
               <th style={th}>Node</th>
@@ -601,41 +856,70 @@ export function LogList({ logs }: { logs: LogItem[] }) {
             </tr>
           </thead>
           <tbody>
-            {slice.map((l, i) => (
-              <tr key={i}>
-                <td
-                  style={{
-                    ...td,
-                    color: "var(--cg-text-muted)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {l.ts}
-                </td>
-                <td style={td}>
-                  <span
-                    style={{
-                      color: lc[l.level],
-                      fontWeight: 700,
-                      textTransform: "uppercase",
-                      fontSize: 10.5,
-                    }}
+            {slice.map((l, i) => {
+              const key = `${clamped}-${i}`;
+              const isOpen = openRow === key;
+              return (
+                <React.Fragment key={key}>
+                  <tr
+                    onClick={() => setOpenRow(isOpen ? null : key)}
+                    style={{ cursor: "pointer" }}
                   >
-                    {l.level}
-                  </span>
-                </td>
-                <td
-                  style={{
-                    ...td,
-                    color: "var(--cg-text-nav)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {l.node}
-                </td>
-                <td style={td}>{l.message}</td>
-              </tr>
-            ))}
+                    <td style={{ ...td, color: "var(--cg-text-muted)" }}>
+                      {isOpen ? (
+                        <ChevronDown size={13} />
+                      ) : (
+                        <ChevronRight size={13} />
+                      )}
+                    </td>
+                    <td
+                      style={{
+                        ...td,
+                        color: "var(--cg-text-muted)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {l.ts}
+                    </td>
+                    <td style={td}>
+                      <span
+                        style={{
+                          color: lc[l.level],
+                          fontWeight: 700,
+                          textTransform: "uppercase",
+                          fontSize: 10.5,
+                        }}
+                      >
+                        {l.level}
+                      </span>
+                    </td>
+                    <td
+                      style={{
+                        ...td,
+                        color: "var(--cg-text-nav)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {l.node}
+                    </td>
+                    <td style={td}>{l.message}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        style={{
+                          padding: "0 8px 8px",
+                          borderBottom: "1px solid var(--cg-border-subtle)",
+                        }}
+                      >
+                        <CodeBlock code={logJson(l, i)} />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
