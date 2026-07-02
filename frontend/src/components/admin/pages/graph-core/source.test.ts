@@ -4,6 +4,8 @@ import {
   GraphEngine,
   LocalGraphSource,
   Neo4jGraphSource,
+  HttpGraphSource,
+  graphMetrics,
   type GraphSource,
   type GraphSpec,
   type CypherRunner,
@@ -59,6 +61,50 @@ describe("LocalGraphSource satisfies the GraphSource contract", () => {
   it("passes the full contract", async () => {
     const { engine, report } = GraphEngine.build(spec);
     await runGraphSourceContract(new LocalGraphSource(engine, report, "t1"));
+  });
+});
+
+// ── HttpGraphSource: browser client == server engine (mock fetch = the API) ──
+describe("HttpGraphSource matches the server engine over HTTP", () => {
+  it("routes queries to the API and maps responses back", async () => {
+    const { engine } = GraphEngine.build(spec);
+    // a fake fetch that answers exactly like cloudguard/api/graph.py would,
+    // backed by the same engine — proving client and server agree end-to-end.
+    const fetcher = async (url: string) => {
+      const u = new URL(url, "http://x");
+      const root = u.searchParams.get("root") ?? "";
+      const dir = (u.searchParams.get("direction") ?? "down") as
+        | "down"
+        | "up"
+        | "both";
+      let body: unknown = {};
+      if (u.pathname.endsWith("/graph/reach"))
+        body = { ids: engine.reach(root, { dir }) };
+      else if (u.pathname.endsWith("/graph/blast-radius"))
+        body = {
+          blastRadius: engine.blastRadius(root),
+          fanIn: engine.fanIn(root),
+        };
+      else if (u.pathname.endsWith("/graph/neighborhood"))
+        body = engine.neighborhood(root, {
+          dir,
+          nodeLimit: Number(u.searchParams.get("limit") ?? 1500),
+        });
+      else if (u.pathname.endsWith("/graph/metrics"))
+        body = graphMetrics(engine);
+      return { json: async () => body };
+    };
+    const http = new HttpGraphSource("/api/cloudguard", "acme", fetcher);
+
+    expect(new Set(await http.reach("a", { dir: "down" }))).toEqual(
+      new Set(["a", "b", "c", "d"]),
+    );
+    expect(await http.blastRadius("a")).toBe(3);
+    expect(await http.fanIn("d")).toBe(3);
+    const nb = await http.neighborhood("a", { dir: "down", nodeLimit: 2 });
+    expect(nb.truncated).toBe(true);
+    const m = await http.metrics();
+    expect(m.nodes).toBe(4);
   });
 });
 
