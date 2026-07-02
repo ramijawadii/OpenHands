@@ -25,6 +25,7 @@ import {
   Frame,
   Trash2,
   Home,
+  Activity,
 } from "lucide-react";
 import cytoscape from "cytoscape";
 import fcose from "cytoscape-fcose";
@@ -38,7 +39,8 @@ import kmsIcon from "thesvg/aws-aws-key-management-service";
 import secretsIcon from "thesvg/aws-aws-secrets-manager";
 import ec2Icon from "thesvg/aws-amazon-ec2";
 import lambdaIcon from "thesvg/aws-aws-lambda";
-import { GraphEngine, type EdgeKind } from "./graph-core";
+import { GraphEngine, LocalGraphSource, type EdgeKind } from "./graph-core";
+import { GraphHealthPanel } from "./graph-health-panel";
 import {
   GraphNavigator,
   GraphMinimap,
@@ -373,7 +375,7 @@ function iaEdgeKind(source: string, target: string): EdgeKind {
 
 // The graph-core engine is the SINGLE SOURCE OF TRUTH for reachability, chains
 // and blast radius (CSR adjacency + bounded BFS; scale-ready, test-verified).
-const ENGINE = GraphEngine.build({
+const ENGINE_BUILD = GraphEngine.build({
   nodes: MODEL.nodes.map((n) => ({
     id: n.id,
     kind: n.kind,
@@ -388,7 +390,15 @@ const ENGINE = GraphEngine.build({
     confidence: 1,
     provenance: "sample",
   })),
-}).engine;
+});
+const ENGINE = ENGINE_BUILD.engine;
+// async query seam — LocalGraphSource today; a graph-DB (Neo4jGraphSource)
+// drops in behind the same interface with no call-site change.
+const GRAPH_SOURCE = new LocalGraphSource(
+  ENGINE,
+  ENGINE_BUILD.report,
+  "impact",
+);
 
 // downstream reach (blast radius) for every node — drives node sizing
 const REACH: Record<string, number> = Object.fromEntries(
@@ -1075,6 +1085,7 @@ export function ImpactAnalysis() {
   const [saved, setSaved] = React.useState<SavedView[]>([]);
   const [saveMenu, setSaveMenu] = React.useState(false);
   const [savedOpen, setSavedOpen] = React.useState(false);
+  const [healthOpen, setHealthOpen] = React.useState(false);
   const [picking, setPicking] = React.useState(false);
   const pickingRef = React.useRef(false);
   pickingRef.current = picking;
@@ -2134,6 +2145,15 @@ export function ImpactAnalysis() {
             {isFull ? "Exit" : "Full screen"}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setHealthOpen((o) => !o)}
+            style={graphToolBtn(healthOpen)}
+            title="Graph health — accuracy + scale signals"
+          >
+            <Activity size={13} /> Health
+          </button>
+
           {/* Save ▾ — recallable saved views */}
           <div style={{ position: "relative" }}>
             <button
@@ -2281,6 +2301,14 @@ export function ImpactAnalysis() {
               {focusDeg !== 0 ? ` · ${focusDeg}°` : ""}
             </span>
           </div>
+        )}
+
+        {/* graph health — accuracy + scale signals via the async GraphSource */}
+        {healthOpen && (
+          <GraphHealthPanel
+            source={GRAPH_SOURCE}
+            onClose={() => setHealthOpen(false)}
+          />
         )}
 
         {/* hover read-out — terminal-style, top-left under the toolbar */}
