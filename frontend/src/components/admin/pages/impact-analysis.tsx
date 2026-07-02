@@ -414,11 +414,14 @@ function chainNodes(id: string): IANode[] {
     .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
 }
 
-// a recallable saved view — a named snapshot of viewport + emphasis
+// a recallable saved view — a named snapshot of viewport + emphasis + mode +
+// the drill stack (so an expanded-dependency view is re-entered, not just lit)
 type SavedView = {
   id: string;
   name: string;
-  kind: "full" | "chain" | "issue" | "node";
+  kind: "full" | "chain" | "issue" | "node" | "catalog";
+  view: "graph" | "findings" | "issues"; // which mode was open
+  stack: string[]; // drill-in path (expanded dependency); [] = whole graph
   zoom: number;
   pan: { x: number; y: number };
   chainIds?: string[];
@@ -428,6 +431,10 @@ type SavedView = {
 };
 // human-readable "data reference" for a saved view (what it points at)
 function savedViewRef(v: SavedView): string {
+  if (v.stack.length)
+    return `Expanded dependency · ${NODE_BY_ID[v.stack[v.stack.length - 1]]?.label ?? v.stack[v.stack.length - 1]}`;
+  if (v.kind === "catalog")
+    return v.view === "issues" ? "Issues catalog" : "Findings catalog";
   if (v.kind === "full") return "Entire graph";
   if (v.kind === "issue")
     return `Attack path · ${v.path?.length ?? 0} resources`;
@@ -1689,9 +1696,15 @@ export function ImpactAnalysis() {
         }
       : { zoom: 1, pan: { x: 0, y: 0 } };
   };
-  const pushView = (v: Omit<SavedView, "id" | "ts">) => {
+  const pushView = (v: Omit<SavedView, "id" | "ts" | "view" | "stack">) => {
     setSaved((s) => [
-      { ...v, id: `sv-${Date.now()}-${s.length}`, ts: Date.now() },
+      {
+        ...v,
+        id: `sv-${Date.now()}-${s.length}`,
+        ts: Date.now(),
+        view,
+        stack: [...stack],
+      },
       ...s,
     ]);
     setSavedOpen(true);
@@ -1735,9 +1748,21 @@ export function ImpactAnalysis() {
     } else if (focusId) {
       pushView({
         ...vp(),
-        name: `${NODE_BY_ID[focusId]?.label ?? focusId} · dependency chain`,
+        name: `${NODE_BY_ID[focusId]?.label ?? focusId} · expanded dependency`,
         kind: "chain",
         chainIds: [...chainDir(focusId, "down", 0)],
+      });
+    } else if (view === "issues") {
+      pushView({
+        ...vp(),
+        name: `Issues catalog · ${ISSUES.length}`,
+        kind: "catalog",
+      });
+    } else if (view === "findings") {
+      pushView({
+        ...vp(),
+        name: `Findings catalog · ${FINDINGS.length}`,
+        kind: "catalog",
       });
     } else {
       pushView({
@@ -1768,6 +1793,7 @@ export function ImpactAnalysis() {
   };
   const applySavedView = (v: SavedView) => {
     setSavedOpen(false);
+    setView(v.view); // restore the mode (graph / findings / issues catalog)
     setLocked(null);
     setSel(null);
     setTip(null);
@@ -1776,8 +1802,13 @@ export function ImpactAnalysis() {
     chainSetRef.current = v.chainIds ? new Set(v.chainIds) : null;
     pathRef.current = v.path ?? null;
     spotRef.current = v.spot ?? null;
+    // re-enter the expanded-dependency drill (navigates back into that view);
+    // the drill effect re-lays-out + fits, so skip the manual pan/zoom there.
+    setStack(v.stack);
     const cy = cyRef.current;
-    if (cy) cy.animate({ zoom: v.zoom, pan: v.pan }, { duration: 320 });
+    if (cy && v.stack.length === 0) {
+      cy.animate({ zoom: v.zoom, pan: v.pan }, { duration: 320 });
+    }
     applyEmphasis();
   };
   const deleteSavedView = (id: string) =>

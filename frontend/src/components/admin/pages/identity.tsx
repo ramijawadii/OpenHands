@@ -29675,7 +29675,9 @@ function GraphExplorer() {
     {
       id: string;
       name: string;
-      kind: "full" | "chain" | "issue" | "node";
+      kind: "full" | "chain" | "issue" | "node" | "finding" | "catalog";
+      // which mode the graph was in (so recall reopens the right catalog)
+      gv: "graph" | "findings" | "issues";
       zoom: number;
       pan: { x: number; y: number };
       ts: number;
@@ -29695,6 +29697,7 @@ function GraphExplorer() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const gLockedRef = React.useRef<any>(null);
   gLockedRef.current = gLocked;
+  const gApplyingRef = React.useRef(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cyRef = React.useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -30114,8 +30117,13 @@ function GraphExplorer() {
     });
   }, [gmarked]);
 
-  // switching to graph mode clears the catalog selection
+  // switching to graph mode clears the catalog selection — unless we just
+  // recalled a saved view (which sets its own gnav)
   React.useEffect(() => {
+    if (gApplyingRef.current) {
+      gApplyingRef.current = false;
+      return;
+    }
     if (gview === "graph" && !gLocked) setGnav(null);
   }, [gview, gLocked]);
 
@@ -30152,7 +30160,7 @@ function GraphExplorer() {
   };
   const gPushView = (
     name: string,
-    kind: "full" | "chain" | "issue" | "node",
+    kind: (typeof gSaved)[number]["kind"],
     nav: (typeof gSaved)[number]["nav"],
   ) => {
     setGSaved((s) => [
@@ -30160,6 +30168,7 @@ function GraphExplorer() {
         ...gVp(),
         id: `gsv-${Date.now()}-${s.length}`,
         ts: Date.now(),
+        gv: gview,
         name,
         kind,
         nav,
@@ -30185,12 +30194,19 @@ function GraphExplorer() {
       );
     } else if (gnav?.kind === "issue") {
       gPushView(`Issue ${gnav.id}`, "issue", gnav);
+    } else if (gnav?.kind === "finding") {
+      gPushView(`Finding ${gnav.id}`, "finding", gnav);
     } else if (gnav?.kind === "node") {
       gPushView(
         `${X_NODE[gnav.id]?.label ?? gnav.id} · dependency chain`,
         "node",
         gnav,
       );
+    } else if (gview === "issues") {
+      // Issues catalog open, nothing pinned → save the catalog view itself
+      gPushView(`Issues catalog · ${X_ISSUES.length}`, "catalog", null);
+    } else if (gview === "findings") {
+      gPushView(`Findings catalog · ${X_FINDINGS.length}`, "catalog", null);
     } else {
       gPushView(`Full view · ${gSaved.length + 1}`, "full", null);
     }
@@ -30225,7 +30241,8 @@ function GraphExplorer() {
     setGSavedOpen(false);
     setGLocked(null);
     setSel(null);
-    setGview("graph");
+    gApplyingRef.current = true; // keep the clear-on-graph effect from wiping nav
+    setGview(v.gv); // restore the mode (graph / findings / issues catalog)
     setGnav(v.nav);
     const cy = cyRef.current;
     if (cy) cy.animate({ zoom: v.zoom, pan: v.pan }, { duration: 320 });
@@ -30235,8 +30252,11 @@ function GraphExplorer() {
   const gRenameView = (id: string, name: string) =>
     setGSaved((s) => s.map((v) => (v.id === id ? { ...v, name } : v)));
   const gViewRef = (v: (typeof gSaved)[number]): string => {
+    if (v.kind === "catalog")
+      return v.gv === "issues" ? "Issues catalog" : "Findings catalog";
     if (v.kind === "full") return "Entire graph";
     if (v.nav?.kind === "issue") return "Attack path";
+    if (v.nav?.kind === "finding") return "Finding";
     if (v.nav?.kind === "node") return `Resource · ${v.nav.id}`;
     if (v.nav?.kind === "chain")
       return `Dependency chain · ${xChainDir(v.nav.id, v.nav.dir, v.nav.degree).size} resources`;
