@@ -6,3 +6,5 @@ export * from "./model";
 export * from "./validate";
 export * from "./engine";
 export * from "./metrics";
+export * from "./source";
+export * from "./neo4j-source";
