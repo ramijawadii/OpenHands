@@ -38,6 +38,7 @@ import kmsIcon from "thesvg/aws-aws-key-management-service";
 import secretsIcon from "thesvg/aws-aws-secrets-manager";
 import ec2Icon from "thesvg/aws-amazon-ec2";
 import lambdaIcon from "thesvg/aws-aws-lambda";
+import { GraphEngine, type EdgeKind } from "./graph-core";
 import {
   GraphNavigator,
   GraphMinimap,
@@ -355,30 +356,43 @@ function buildModel(): { nodes: IANode[]; edges: IAEdge[] } {
 
 const MODEL = buildModel();
 
-// downstream reach (blast radius) for every node — drives node sizing
-function downstreamCounts(): Record<string, number> {
-  const adj: Record<string, string[]> = {};
-  MODEL.edges.forEach((e) => {
-    (adj[e.source] ||= []).push(e.target);
-  });
-  const out: Record<string, number> = {};
-  MODEL.nodes.forEach((n) => {
-    const seen = new Set<string>();
-    const stack = [...(adj[n.id] || [])];
-    while (stack.length) {
-      const cur = stack.pop() as string;
-      if (seen.has(cur)) continue;
-      seen.add(cur);
-      (adj[cur] || []).forEach((x) => stack.push(x));
-    }
-    out[n.id] = seen.size;
-  });
-  return out;
-}
-const REACH = downstreamCounts();
-
 const NODE_BY_ID: Record<string, IANode> = Object.fromEntries(
   MODEL.nodes.map((n) => [n.id, n]),
+);
+
+// classify an edge by the tiers it connects, so the engine can reason about
+// privilege vs network relationships instead of an untyped source→target pair.
+function iaEdgeKind(source: string, target: string): EdgeKind {
+  const st = NODE_BY_ID[source]?.tier;
+  const tt = NODE_BY_ID[target]?.tier;
+  if (st === "identity" && tt === "role") return "assumes_role";
+  if (st === "role" && tt === "policy") return "attached_policy";
+  if (st === "policy" && tt === "resource") return "grants_access";
+  return "network_path";
+}
+
+// The graph-core engine is the SINGLE SOURCE OF TRUTH for reachability, chains
+// and blast radius (CSR adjacency + bounded BFS; scale-ready, test-verified).
+const ENGINE = GraphEngine.build({
+  nodes: MODEL.nodes.map((n) => ({
+    id: n.id,
+    kind: n.kind,
+    label: n.label,
+    tier: n.tier,
+    attrs: { alert: n.alert },
+  })),
+  edges: MODEL.edges.map((e) => ({
+    source: e.source,
+    target: e.target,
+    kind: iaEdgeKind(e.source, e.target),
+    confidence: 1,
+    provenance: "sample",
+  })),
+}).engine;
+
+// downstream reach (blast radius) for every node — drives node sizing
+const REACH: Record<string, number> = Object.fromEntries(
+  MODEL.nodes.map((n) => [n.id, ENGINE.blastRadius(n.id)]),
 );
 // direct neighbours of a node, split by direction (for the details drawer)
 function relationsOf(id: string): { up: IANode[]; down: IANode[] } {
@@ -392,28 +406,10 @@ function relationsOf(id: string): { up: IANode[]; down: IANode[] } {
   return { up, down };
 }
 
-// full transitive dependency chain of a node (upstream + downstream), tier-ordered
-// — the navigable list behind "Expand dependency chain".
+// full transitive dependency chain of a node (upstream + downstream),
+// tier-ordered — via the engine (single source of truth).
 function chainNodes(id: string): IANode[] {
-  const outAdj: Record<string, string[]> = {};
-  const inAdj: Record<string, string[]> = {};
-  MODEL.edges.forEach((e) => {
-    (outAdj[e.source] ||= []).push(e.target);
-    (inAdj[e.target] ||= []).push(e.source);
-  });
-  const seen = new Set<string>();
-  const walk = (adj: Record<string, string[]>) => {
-    const stack = [...(adj[id] || [])];
-    while (stack.length) {
-      const cur = stack.pop() as string;
-      if (seen.has(cur) || cur === id) continue;
-      seen.add(cur);
-      (adj[cur] || []).forEach((x) => stack.push(x));
-    }
-  };
-  walk(outAdj);
-  walk(inAdj);
-  return [...seen]
+  return ENGINE.reach(id, { dir: "both", includeRoot: false })
     .map((x) => NODE_BY_ID[x])
     .filter(Boolean)
     .sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
@@ -448,33 +444,11 @@ function savedViewRef(v: SavedView): string {
 }
 
 // directional, degree-bounded chain: dir = downstream (data flows OUT) or
-// upstream (data flows IN); degree 1 / 2 / 0(=full). Returns the node-id set.
+// upstream (data flows IN); degree 1 / 2 / 0(=full). Delegates to the engine.
 type ChainDir = "down" | "up";
 type ChainDeg = 1 | 2 | 0;
 function chainDir(id: string, dir: ChainDir, degree: ChainDeg): Set<string> {
-  const adj: Record<string, string[]> = {};
-  MODEL.edges.forEach((e) => {
-    if (dir === "down") (adj[e.source] ||= []).push(e.target);
-    else (adj[e.target] ||= []).push(e.source);
-  });
-  const out = new Set<string>([id]);
-  let frontier = [id];
-  let d = 0;
-  const maxD = degree === 0 ? Infinity : degree;
-  while (frontier.length && d < maxD) {
-    const next: string[] = [];
-    frontier.forEach((c) =>
-      (adj[c] || []).forEach((x) => {
-        if (!out.has(x)) {
-          out.add(x);
-          next.push(x);
-        }
-      }),
-    );
-    frontier = next;
-    d += 1;
-  }
-  return out;
+  return new Set(ENGINE.reach(id, { dir, maxDepth: degree }));
 }
 
 // ── Findings (single-resource problems) + Issues (attack paths) ───────────────

@@ -84,6 +84,7 @@ import elbIcon from "thesvg/aws-res-elastic-load-balancing-gateway-load-balancer
 import albIcon from "thesvg/aws-res-elastic-load-balancing-application-load-balancer";
 import igwIcon from "thesvg/aws-res-amazon-vpc-internet-gateway";
 import dbIcon from "thesvg/aws-amazon-dynamodb";
+import { GraphEngine } from "./graph-core";
 import { ImpactAnalysis } from "./impact-analysis";
 import {
   GraphNavigator as SharedGraphNavigator,
@@ -28403,6 +28404,24 @@ const GRAPH_KINDS: GKind[] = [
 ];
 // ── Explorer Findings + Issues (representative, on the AWS architecture) ───────
 const X_NODE = Object.fromEntries(A_NODES.map((n) => [n.id, n]));
+
+// graph-core engine — SINGLE SOURCE OF TRUTH for the Explorer's reachability /
+// data-flow chains (CSR adjacency + bounded BFS; scale-ready, test-verified).
+const X_ENGINE = GraphEngine.build({
+  nodes: A_NODES.map((n) => ({
+    id: n.id,
+    kind: n.kind,
+    label: n.label,
+    attrs: { finding: n.finding },
+  })),
+  edges: A_EDGES.map((e) => ({
+    source: e.source,
+    target: e.target,
+    kind: e.kind === "finding" ? "generic" : "network_path",
+    confidence: 1,
+    provenance: "sample",
+  })),
+}).engine;
 type XSeverity = Severity;
 type XFinding = {
   id: string;
@@ -28612,56 +28631,16 @@ function xMatchIssue(i: XIssue, sel: Set<string>): boolean {
 }
 // the data flow IN and OUT of a node: transitive downstream (out) + upstream
 // (in) along the directed architecture edges.
+// full data-flow chain (downstream + upstream) via the engine.
 function xChain(id: string): string[] {
-  const out: Record<string, string[]> = {};
-  const inn: Record<string, string[]> = {};
-  A_EDGES.forEach((e) => {
-    (out[e.source] ||= []).push(e.target);
-    (inn[e.target] ||= []).push(e.source);
-  });
-  const seen = new Set<string>([id]);
-  const walk = (adj: Record<string, string[]>) => {
-    const stack = [...(adj[id] || [])];
-    while (stack.length) {
-      const cur = stack.pop() as string;
-      if (!seen.has(cur)) {
-        seen.add(cur);
-        (adj[cur] || []).forEach((x) => stack.push(x));
-      }
-    }
-  };
-  walk(out); // downstream (data flows out)
-  walk(inn); // upstream (data flows in)
-  return [...seen];
+  return X_ENGINE.reach(id, { dir: "both" });
 }
 // directional, degree-bounded chain: down = data flows out, up = data flows in;
-// degree 1 / 2 / 0(=full). Mirrors the Security Graph's chainDir.
+// degree 1 / 2 / 0(=full). Delegates to the engine (single source of truth).
 type XChainDir = "down" | "up";
 type XChainDeg = 1 | 2 | 0;
 function xChainDir(id: string, dir: XChainDir, degree: XChainDeg): Set<string> {
-  const adj: Record<string, string[]> = {};
-  A_EDGES.forEach((e) => {
-    if (dir === "down") (adj[e.source] ||= []).push(e.target);
-    else (adj[e.target] ||= []).push(e.source);
-  });
-  const out = new Set<string>([id]);
-  let frontier = [id];
-  let d = 0;
-  const maxD = degree === 0 ? Infinity : degree;
-  while (frontier.length && d < maxD) {
-    const next: string[] = [];
-    frontier.forEach((c) =>
-      (adj[c] || []).forEach((x) => {
-        if (!out.has(x)) {
-          out.add(x);
-          next.push(x);
-        }
-      }),
-    );
-    frontier = next;
-    d += 1;
-  }
-  return out;
+  return new Set(X_ENGINE.reach(id, { dir, maxDepth: degree }));
 }
 // context-menu item + group-head styles (shared by the Data-flow submenu)
 function xCtxItem(disabled: boolean): React.CSSProperties {
@@ -28711,20 +28690,7 @@ const xSaveMenuItem: React.CSSProperties = {
 };
 // downstream-only reach (for the "blast radius" count in the details drawer)
 function xDownstream(id: string): string[] {
-  const out: Record<string, string[]> = {};
-  A_EDGES.forEach((e) => {
-    (out[e.source] ||= []).push(e.target);
-  });
-  const seen = new Set<string>();
-  const stack = [...(out[id] || [])];
-  while (stack.length) {
-    const cur = stack.pop() as string;
-    if (!seen.has(cur)) {
-      seen.add(cur);
-      (out[cur] || []).forEach((x) => stack.push(x));
-    }
-  }
-  return [...seen];
+  return X_ENGINE.reach(id, { dir: "down", includeRoot: false });
 }
 
 // node-details drawer — mirrors the Security Graph's node detail exactly
