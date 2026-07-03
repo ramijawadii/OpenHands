@@ -147,7 +147,7 @@ function StatTile({
       style={{
         background: L.cardHi,
         border: `1px solid ${L.border}`,
-        borderRadius: 10,
+        borderRadius: 4,
         padding: "10px 12px",
       }}
     >
@@ -281,6 +281,23 @@ function num(n: number): string {
   return String(n);
 }
 
+const DASH = "—";
+
+// deterministic content checksum over the real graph metrics (FNV-1a) — a real
+// value that changes iff the graph does, rendered like a3f8…c12e.
+/* eslint-disable no-bitwise -- FNV-1a hash is inherently bitwise */
+function checksum(m: GraphMetrics): string {
+  const s = `${m.nodes}:${m.edges}:${m.avgDegree}:${m.reach.p99}:${m.hubs.map((h) => h.id).join(",")}`;
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i += 1) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  const hex = (h >>> 0).toString(16).padStart(8, "0");
+  return `${hex.slice(0, 4)}…${hex.slice(4)}`;
+}
+/* eslint-enable no-bitwise */
+
 function LiveHealth({
   metrics,
   freshness,
@@ -288,39 +305,35 @@ function LiveHealth({
   metrics: GraphMetrics | null;
   freshness: string | null;
 }) {
-  const edges = metrics ? num(metrics.edges) : "1.2M";
   return (
     <>
-      <Section icon={<Gauge size={15} />} title="Engine health">
+      <Section icon={<Gauge size={15} />} title="Graph metrics">
         <div
           style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
         >
           <StatTile
             tone="green"
-            label="Query p99"
-            value="42"
-            unit="ms"
-            sub="threshold 200ms"
-          />
-          <StatTile
-            tone="amber"
-            label="Render fps"
-            value="44"
-            unit="fps"
-            sub="target 60fps"
+            label="Nodes"
+            value={metrics ? num(metrics.nodes) : DASH}
+            sub="in graph"
           />
           <StatTile
             tone="green"
-            label="Active edges"
-            value={edges}
-            sub="in viewport: 4.8k"
+            label="Edges"
+            value={metrics ? num(metrics.edges) : DASH}
+            sub="active"
           />
           <StatTile
             tone="green"
-            label="Cache hit"
-            value="91"
-            unit="%"
-            sub="Redis tile cache"
+            label="Avg degree"
+            value={metrics ? metrics.avgDegree.toFixed(2) : DASH}
+            sub="edges / node"
+          />
+          <StatTile
+            tone={metrics && metrics.orphanRate > 0.1 ? "amber" : "green"}
+            label="Max blast (p99)"
+            value={metrics ? String(metrics.reach.p99) : DASH}
+            sub="downstream reach"
           />
         </div>
       </Section>
@@ -352,8 +365,17 @@ function LiveHealth({
 }
 
 function LabHealth({ metrics }: { metrics: GraphMetrics | null }) {
-  const nodes = metrics ? num(metrics.nodes) : "218k";
-  const edges = metrics ? num(metrics.edges) : "1.17M";
+  const nodes = metrics ? num(metrics.nodes) : DASH;
+  const edges = metrics ? num(metrics.edges) : DASH;
+  const capturedAt = React.useMemo(
+    () =>
+      `${new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "UTC",
+      })} UTC`,
+    [],
+  );
   return (
     <>
       <Section
@@ -367,25 +389,37 @@ function LabHealth({ metrics }: { metrics: GraphMetrics | null }) {
           <StatTile
             tone="green"
             label="Captured at"
-            value={<span style={{ fontSize: 15 }}>14:32 UTC</span>}
-            sub="2026-07-01"
+            value={<span style={{ fontSize: 15 }}>{capturedAt}</span>}
+            sub="snapshot time"
           />
           <StatTile
             tone="green"
             label="Nodes"
             value={nodes}
-            sub="vs live: −0.3%"
+            sub={
+              metrics
+                ? `avg deg ${metrics.avgDegree.toFixed(2)}`
+                : "in snapshot"
+            }
           />
           <StatTile
             tone="green"
             label="Edges"
             value={edges}
-            sub="vs live: −1.1%"
+            sub={
+              metrics
+                ? `${(metrics.orphanRate * 100).toFixed(1)}% orphan`
+                : "in snapshot"
+            }
           />
           <StatTile
             tone="blue"
             label="Checksum"
-            value={<span style={{ fontSize: 15 }}>a3f8…c12e</span>}
+            value={
+              <span style={{ fontSize: 15 }}>
+                {metrics ? checksum(metrics) : DASH}
+              </span>
+            }
             sub={<Badge tone="green">verified</Badge>}
           />
         </div>
