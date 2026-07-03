@@ -39,7 +39,15 @@ import kmsIcon from "thesvg/aws-aws-key-management-service";
 import secretsIcon from "thesvg/aws-aws-secrets-manager";
 import ec2Icon from "thesvg/aws-amazon-ec2";
 import lambdaIcon from "thesvg/aws-aws-lambda";
-import { GraphEngine, LocalGraphSource, type EdgeKind } from "./graph-core";
+import {
+  GraphEngine,
+  LocalGraphSource,
+  HttpGraphSource,
+  graphDataFlag,
+  type EdgeKind,
+  type GraphSource,
+  type GraphSpec,
+} from "./graph-core";
 import { GraphHealthPanel } from "./graph-health-panel";
 import {
   GraphNavigator,
@@ -392,13 +400,13 @@ const ENGINE_BUILD = GraphEngine.build({
   })),
 });
 const ENGINE = ENGINE_BUILD.engine;
-// async query seam — LocalGraphSource today; a graph-DB (Neo4jGraphSource)
-// drops in behind the same interface with no call-site change.
-const GRAPH_SOURCE = new LocalGraphSource(
-  ENGINE,
-  ENGINE_BUILD.report,
-  "impact",
-);
+// async query seam — LocalGraphSource (Sample) by default; behind the
+// `graph.data=http` flag it becomes the live server graph (HttpGraphSource →
+// /api/cloudguard/graph/*), tenant resolved server-side. Default is unchanged.
+const GRAPH_SOURCE: GraphSource =
+  graphDataFlag() === "http"
+    ? new HttpGraphSource("/api/cloudguard")
+    : new LocalGraphSource(ENGINE, ENGINE_BUILD.report, "impact");
 
 // downstream reach (blast radius) for every node — drives node sizing
 const REACH: Record<string, number> = Object.fromEntries(
@@ -879,6 +887,43 @@ function elements() {
         source: e.source,
         target: e.target,
         srcTier: MODEL.nodes.find((n) => n.id === e.source)?.tier,
+      },
+    });
+  });
+  return els;
+}
+
+// Build cy elements from an arbitrary graph spec (the live server snapshot),
+// mirroring elements() but with reach/sizing computed from THAT spec's engine.
+// Used only on the `graph.data=http` path; the Sample path is untouched.
+function elementsFromSpec(spec: GraphSpec): any[] {
+  const { engine } = GraphEngine.build(spec);
+  const els: any[] = [];
+  spec.nodes.forEach((n) => {
+    const reach = engine.blastRadius(n.id) || 0;
+    const scale = reach > 0 ? reach ** (1 / 3) : 1;
+    const attrs = ((n as { attrs?: Record<string, unknown> }).attrs ??
+      {}) as Record<string, unknown>;
+    els.push({
+      data: {
+        id: n.id,
+        tier: n.tier ?? "resource",
+        kind: n.kind,
+        label: n.label,
+        message: String(attrs.message ?? ""),
+        alert: String(attrs.alert ?? ""),
+        reach,
+        baseSize: Math.round(30 + scale * 8),
+      },
+    });
+  });
+  spec.edges.forEach((e, i) => {
+    els.push({
+      data: {
+        id: `e${i}`,
+        source: e.source,
+        target: e.target,
+        srcTier: spec.nodes.find((n) => n.id === e.source)?.tier,
       },
     });
   });
@@ -1379,6 +1424,38 @@ export function ImpactAnalysis() {
       cy.destroy();
     };
   }, [applyEmphasis]);
+
+  // ── live data (graph.data=http): one-time snapshot overlay after mount ──────
+  // Default (Sample) path is untouched. When the flag is on, fetch the tenant's
+  // real estate from /api/cloudguard/graph/snapshot and replace the rendered
+  // graph. Fails safe to the Sample already on screen if the fetch fails/empties.
+  React.useEffect(() => {
+    if (graphDataFlag() !== "http") return undefined;
+    let cancelled = false;
+    GRAPH_SOURCE.snapshot()
+      .then((spec) => {
+        const cy = cyRef.current;
+        if (cancelled || !cy || !spec.nodes.length) return;
+        cy.batch(() => {
+          cy.elements().remove();
+          cy.add(elementsFromSpec(spec));
+        });
+        cy.layout({
+          name: "fcose",
+          quality: "default",
+          animate: true,
+          animationDuration: 520,
+          nodeRepulsion: 9000,
+          idealEdgeLength: 64,
+        }).run();
+      })
+      .catch(() => {
+        /* fail-safe: keep the Sample estate already rendered */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── filter re-emphasis ────────────────────────────────────────────────────
   React.useEffect(() => {
