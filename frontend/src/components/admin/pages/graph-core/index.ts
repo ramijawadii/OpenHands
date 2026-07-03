@@ -11,3 +11,4 @@ export * from "./neo4j-source";
 export * from "./http-source";
 export * from "./canvas";
 export * from "./cytoscape-canvas";
+export * from "./webgl";
