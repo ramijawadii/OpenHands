@@ -125,6 +125,16 @@ describe("WebglCanvas — GraphCanvasHandle conformance", () => {
     expect(c.pick([0, 0, 0])).toBeNull();
   });
 
+  it("resolves a screen-space pointer to the node under it (CPU pick)", () => {
+    const c = makeCanvas();
+    c.zoom(1);
+    c.pan({ x: 0, y: 0 }); // world == screen
+    // alice sits at world (0,0) with default radius → a click near it hits alice
+    expect(c.pickAt(3, 3)?.id()).toBe("u:alice");
+    // far from any node → miss
+    expect(c.pickAt(500, 500)).toBeNull();
+  });
+
   it("renders headless with draw calls ≤ 2", () => {
     const c = makeCanvas();
     c.render();

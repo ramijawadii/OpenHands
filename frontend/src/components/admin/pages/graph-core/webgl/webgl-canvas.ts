@@ -75,6 +75,29 @@ export class WebglCanvas implements GraphCanvasHandle {
     return id ? this.nodeHandle(id) : null;
   }
 
+  /**
+   * Resolve a SCREEN-space pointer to the node under it (or null). CPU fallback
+   * used until the GPU pick FBO is wired: converts to world space and returns the
+   * nearest node whose radius covers the point. Tenant-scoped (only this scene).
+   */
+  pickAt(screenX: number, screenY: number): ElementHandle | null {
+    const w = this.renderer.camera.screenToWorld({ x: screenX, y: screenY });
+    let best: string | null = null;
+    let bestD = Infinity;
+    for (const id of this.scene.ids()) {
+      const n = this.scene.node(id);
+      if (!n) continue; // eslint-disable-line no-continue -- skip stale id
+      const dx = n.x - w.x;
+      const dy = n.y - w.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= n.r * n.r && d2 < bestD) {
+        bestD = d2;
+        best = id;
+      }
+    }
+    return best ? this.nodeHandle(best) : null;
+  }
+
   render(): void {
     this.renderer.render();
   }
