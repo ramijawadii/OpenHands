@@ -152,6 +152,20 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard search routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard graph read API (tenant-scoped security graph from the graph platform).
+try:
+    from openhands.server.routes.cloudguard_graph import (
+        router as cloudguard_graph_router,
+    )
+
+    app.include_router(cloudguard_graph_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard graph routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard notifications (tenant-scoped Novu subscriber handshake).
 try:
     from openhands.server.routes.cloudguard_notifications import (
