@@ -21,6 +21,8 @@ export interface SceneNode {
   r: number; // radius (world units)
   color: [number, number, number]; // 0..1 rgb
   classes: Set<string>;
+  /** domain payload (kind/label/tier/attrs) the UI reads via data() */
+  data: Record<string, unknown>;
 }
 
 export interface SceneNodeInput {
@@ -30,12 +32,20 @@ export interface SceneNodeInput {
   r?: number;
   color?: [number, number, number];
   classes?: string[];
+  data?: Record<string, unknown>;
 }
 
 export interface SceneEdgeInput {
   source: string;
   target: string;
 }
+
+/** A live update (B5) — one node or edge upserted/removed, applied in place. */
+export type SceneDelta =
+  | { kind: "node"; op: "upsert"; node: SceneNodeInput }
+  | { kind: "node"; op: "tombstone"; id: string; node?: undefined }
+  | { kind: "edge"; op: "upsert"; edge: SceneEdgeInput }
+  | { kind: "edge"; op: "tombstone"; edge: SceneEdgeInput };
 
 const DEFAULT_COLOR: [number, number, number] = [0.6, 0.63, 0.68];
 const DEFAULT_R = 12;
@@ -89,6 +99,7 @@ export class GraphScene {
       r: n.r ?? DEFAULT_R,
       color: n.color ?? DEFAULT_COLOR,
       classes: new Set(n.classes ?? []),
+      data: n.data ?? {},
     });
     if (!this.adj.has(n.id)) this.adj.set(n.id, new Set());
   }
@@ -103,6 +114,76 @@ export class GraphScene {
     );
   }
 
+  // ── live delta patching (B5) — apply WS deltas in place, no full rebuild ─────
+  /**
+   * Apply a single live delta. `upsert` adds/updates a node (or edge) without
+   * touching the rest of the scene; `tombstone` removes it. Node position/attr
+   * changes mark the quadtree dirty (structure moved); an edge-only or class
+   * change does not. Returns true if anything changed. Tenant isolation is the
+   * caller's job (the WS subscription filter only ever delivers in-tenant deltas).
+   */
+  applyDelta(delta: SceneDelta): boolean {
+    if (delta.kind === "node") {
+      if (delta.op === "tombstone") return this.removeNode(delta.id);
+      if (delta.node) {
+        const existed = this.nodes.has(delta.node.id);
+        const prev = this.nodes.get(delta.node.id);
+        this.addNodeInternal(delta.node);
+        // moved or new → tree stale; a pure attr/color change on the same spot
+        // still safely re-queries, but only flag when position actually changes.
+        if (!existed || prev?.x !== delta.node.x || prev?.y !== delta.node.y) {
+          this.treeDirty = true;
+        }
+        return true;
+      }
+      return false;
+    }
+    // edge delta
+    if (delta.op === "tombstone" && delta.edge)
+      return this.removeEdge(delta.edge.source, delta.edge.target);
+    if (delta.op === "upsert" && delta.edge) {
+      if (this.hasEdge(delta.edge.source, delta.edge.target)) return false;
+      this.addEdgeInternal(delta.edge.source, delta.edge.target);
+      return true;
+    }
+    return false;
+  }
+
+  applyDeltas(deltas: SceneDelta[]): number {
+    let n = 0;
+    for (const d of deltas) if (this.applyDelta(d)) n += 1;
+    return n;
+  }
+
+  private hasEdge(source: string, target: string): boolean {
+    return this.adj.get(source)?.has(target) ?? false;
+  }
+
+  private removeNode(id: string): boolean {
+    if (!this.nodes.has(id)) return false;
+    this.nodes.delete(id);
+    // drop incident edges + adjacency
+    this.edges = this.edges.filter((e) => e.source !== id && e.target !== id);
+    for (const nbr of this.adj.get(id) ?? []) this.adj.get(nbr)?.delete(id);
+    this.adj.delete(id);
+    this.treeDirty = true;
+    return true;
+  }
+
+  private removeEdge(source: string, target: string): boolean {
+    const before = this.edges.length;
+    this.edges = this.edges.filter(
+      (e) =>
+        !(
+          (e.source === source && e.target === target) ||
+          (e.source === target && e.target === source)
+        ),
+    );
+    this.adj.get(source)?.delete(target);
+    this.adj.get(target)?.delete(source);
+    return this.edges.length !== before;
+  }
+
   get nodeCount(): number {
     return this.nodes.size;
   }
@@ -113,6 +194,11 @@ export class GraphScene {
 
   node(id: string): SceneNode | undefined {
     return this.nodes.get(id);
+  }
+
+  /** All node ids (insertion order) — the handle's nodes()/elements() source. */
+  ids(): string[] {
+    return [...this.nodes.keys()];
   }
 
   /** neighbour node ids — the dep-chain BFS primitive (renderer-agnostic). */

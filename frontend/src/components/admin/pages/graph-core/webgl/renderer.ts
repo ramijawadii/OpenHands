@@ -127,6 +127,14 @@ export class WebglRenderer {
     if (this.gl) this.gl.viewport(0, 0, width, height);
   }
 
+  get viewportWidth(): number {
+    return this.width;
+  }
+
+  get viewportHeight(): number {
+    return this.height;
+  }
+
   setElements(nodes: SceneNodeInput[], edges: SceneEdgeInput[]): void {
     this.scene.setElements(nodes, edges);
   }

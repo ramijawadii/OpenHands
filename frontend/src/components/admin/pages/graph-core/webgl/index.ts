@@ -6,3 +6,5 @@ export * from "./scene";
 export * from "./renderer";
 export * from "./picking";
 export * from "./labels";
+export * from "./lod";
+export * from "./webgl-canvas";
