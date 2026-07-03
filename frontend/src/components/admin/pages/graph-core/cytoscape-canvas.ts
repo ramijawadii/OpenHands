@@ -78,7 +78,9 @@ function wrapEl(el: CySingular): ElementHandle {
     predecessors: () => wrapCol(el.predecessors()),
     source: () => wrapEl(el.source()),
     target: () => wrapEl(el.target()),
-  };
+    // stash the raw cy singular so union() can accept an element handle too
+    __cy: el,
+  } as ElementHandle & { __cy: CySingular };
 }
 
 function buildLayoutOpts(spec: LayoutSpec): Record<string, unknown> {
@@ -141,8 +143,14 @@ function wrapCol(col: CyCollection): ElementCollection {
     predecessors: () => wrapCol(col.predecessors()),
     contains: (el: ElementHandle) =>
       col.contains(col.cy().getElementById(el.id())),
-    union: (other: ElementCollection) =>
-      wrapCol(col.union((other as any).__cy ?? col)),
+    // accept a wrapped collection OR a wrapped element handle (both carry __cy);
+    // fall back to resolving the id if a bare handle slips through.
+    union: (other: ElementCollection | ElementHandle) => {
+      const raw =
+        (other as any).__cy ??
+        col.cy().getElementById((other as ElementHandle).id());
+      return wrapCol(col.union(raw));
+    },
     map: <T>(fn: (el: ElementHandle) => T) =>
       col.map((el: CySingular) => fn(wrapEl(el))),
     // stash the raw collection so union() across wrapped collections works

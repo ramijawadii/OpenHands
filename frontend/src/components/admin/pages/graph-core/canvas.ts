@@ -112,7 +112,9 @@ export interface ElementCollection {
   /** full transitive closure downstream / upstream */
   successors(): ElementCollection;
   predecessors(): ElementCollection;
-  union(other: ElementCollection): ElementCollection;
+  /** union with another collection OR a single element (cytoscape singulars are
+   *  collections, so the pages pass a node handle here — both must work). */
+  union(other: ElementCollection | ElementHandle): ElementCollection;
   /** membership test (used to keep dep-chain barycentre within the kept set) */
   contains(el: ElementHandle): boolean;
   map<T>(fn: (el: ElementHandle) => T): T[];

@@ -174,6 +174,13 @@ describe("cytoscapeCanvas — GraphCanvasHandle conformance", () => {
     const succ = canvas.getElementById("u:alice").successors();
     expect(succ.contains(canvas.getElementById("r:admin"))).toBe(true);
     expect(succ.contains(canvas.getElementById("u:alice"))).toBe(false);
+    // union MUST accept a single element handle (cytoscape singular == collection)
+    // — this is the chainSet(hover) path: predecessors∪successors∪self.
+    const chain = canvas
+      .getElementById("u:alice")
+      .successors()
+      .union(canvas.getElementById("u:alice")); // add self back
+    expect(chain.nodes().map((n) => n.id())).toContain("u:alice");
     // singular length + visible + renderedHeight
     expect(canvas.getElementById("u:alice").length).toBe(1);
     expect(canvas.getElementById("nope:x").length).toBe(0);

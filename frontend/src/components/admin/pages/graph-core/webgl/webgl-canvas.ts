@@ -369,8 +369,14 @@ export class WebglCanvas implements GraphCanvasHandle {
           ...new Set(ids.flatMap((id) => self.scene.predecessors(id))),
         ]),
       contains: (el: ElementHandle) => ids.includes(el.id()),
-      union: (other) =>
-        self.collection([...new Set([...ids, ...other.map((h) => h.id())])]),
+      union: (other) => {
+        // other is a collection (has map) or a single element handle
+        const add =
+          typeof (other as ElementCollection).map === "function"
+            ? (other as ElementCollection).map((h) => h.id())
+            : [(other as ElementHandle).id()];
+        return self.collection([...new Set([...ids, ...add])]);
+      },
       map: <T>(fn: (el: ElementHandle) => T) => handles().map(fn),
     };
     return col;

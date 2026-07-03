@@ -190,6 +190,9 @@ describe("WebglCanvas — GraphCanvasHandle conformance", () => {
     // contains + singular length/visible/renderedHeight
     const succ = c.getElementById("u:alice").successors();
     expect(succ.contains(c.getElementById("r:admin"))).toBe(true);
+    // union accepts a single element handle (chainSet self-inclusion)
+    const chain = succ.union(c.getElementById("u:alice"));
+    expect(chain.map((n) => n.id())).toContain("u:alice");
     expect(c.getElementById("u:alice").length).toBe(1);
     expect(c.getElementById("nope").length).toBe(0);
     expect(c.getElementById("u:alice").visible()).toBe(true);
