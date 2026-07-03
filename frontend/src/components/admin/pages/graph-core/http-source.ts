@@ -9,7 +9,7 @@
 // sent from the client (never trust a tenant from the body).
 // ─────────────────────────────────────────────────────────────────────────────
 import { type GraphMetrics } from "./metrics";
-import { type NeighborhoodOpts, type Subgraph } from "./model";
+import { type GraphSpec, type NeighborhoodOpts, type Subgraph } from "./model";
 import { type ValidationReport } from "./validate";
 import { type GraphSource, type ReachQuery } from "./source";
 
@@ -43,6 +43,17 @@ export class HttpGraphSource implements GraphSource {
     const q = params.toString();
     const res = await this.fetcher(`${this.base}${path}${q ? `?${q}` : ""}`);
     return (await res.json()) as T;
+  }
+
+  async snapshot(): Promise<GraphSpec> {
+    const r = await this.get<{ nodes?: unknown[]; edges?: unknown[] }>(
+      "/graph/snapshot",
+      {},
+    );
+    return {
+      nodes: (r.nodes ?? []) as GraphSpec["nodes"],
+      edges: (r.edges ?? []) as GraphSpec["edges"],
+    };
   }
 
   async reach(rootId: string, opts: ReachQuery = {}): Promise<string[]> {

@@ -55,6 +55,13 @@ async function runGraphSourceContract(source: GraphSource) {
 
   const m = await source.metrics();
   expect(m.nodes).toBeGreaterThan(0);
+
+  // full-estate snapshot (initial render) — every node + edge, tenant-scoped
+  const snap = await source.snapshot();
+  expect(new Set(snap.nodes.map((n) => n.id))).toEqual(
+    new Set(["a", "b", "c", "d"]),
+  );
+  expect(snap.edges.length).toBe(3);
 }
 
 describe("LocalGraphSource satisfies the GraphSource contract", () => {
@@ -92,6 +99,7 @@ describe("HttpGraphSource matches the server engine over HTTP", () => {
         });
       else if (u.pathname.endsWith("/graph/metrics"))
         body = graphMetrics(engine);
+      else if (u.pathname.endsWith("/graph/snapshot")) body = engine.snapshot();
       return { json: async () => body };
     };
     const http = new HttpGraphSource("/api/cloudguard", "acme", fetcher);

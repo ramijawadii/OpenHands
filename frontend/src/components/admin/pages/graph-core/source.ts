@@ -14,6 +14,7 @@ import {
   type Subgraph,
   type Dir,
   type EdgeKind,
+  type GraphSpec,
 } from "./model";
 import { type ValidationReport } from "./validate";
 
@@ -31,6 +32,8 @@ export interface GraphSource {
   /** tenant this source is scoped to — never crosses tenants */
   readonly tenantId: string;
 
+  /** full estate (nodes + edges) — the initial graph the page renders */
+  snapshot(): Promise<GraphSpec>;
   /** bounded neighborhood (LOD) — the primary query the drill UI fetches */
   neighborhood(rootId: string, opts?: NeighborhoodOpts): Promise<Subgraph>;
   /** reachable node ids in a direction, bounded by depth */
@@ -69,6 +72,10 @@ export class LocalGraphSource implements GraphSource {
     this.engine = engine;
     this.validation = report;
     this.tenantId = tenantId;
+  }
+
+  async snapshot(): Promise<GraphSpec> {
+    return this.engine.snapshot();
   }
 
   async neighborhood(

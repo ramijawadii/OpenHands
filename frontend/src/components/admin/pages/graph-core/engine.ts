@@ -391,4 +391,9 @@ export class GraphEngine {
   allNodeIds(): string[] {
     return this.idxToId.slice();
   }
+
+  /** Full estate (nodes + normalised edges) — the initial graph the UI renders. */
+  snapshot(): GraphSpec {
+    return { nodes: this.nodesByIdx.slice(), edges: this.allEdges() };
+  }
 }

@@ -13,6 +13,7 @@ import { type GraphMetrics } from "./metrics";
 import {
   type Dir,
   type GraphNodeInput,
+  type GraphSpec,
   type NeighborhoodOpts,
   type NormEdge,
   type Subgraph,
@@ -98,6 +99,27 @@ export class Neo4jGraphSource implements GraphSource {
       RETURN count(DISTINCT n) AS c`;
     const rows = await this.run(cypher, this.base({ id: rootId }));
     return Number(rows[0]?.c ?? 0);
+  }
+
+  async snapshot(): Promise<GraphSpec> {
+    // Full tenant estate — every node + edge pinned to this tenant. At large N
+    // the page should prefer bounded neighborhood/tile fetches; snapshot backs
+    // the initial render and small graphs.
+    const cypher = `
+      MATCH (n {tenantId: $tenant})
+      WITH collect(DISTINCT n) AS nodes
+      UNWIND nodes AS a
+      OPTIONAL MATCH (a)-[e:REL {tenantId: $tenant}]->(b {tenantId: $tenant})
+      RETURN nodes, collect(DISTINCT e) AS edges`;
+    const rows = await this.run(cypher, this.base());
+    const row = rows[0] ?? {};
+    const nodes = ((row.nodes as { properties?: GraphNodeInput }[]) ?? []).map(
+      (r) => r.properties ?? (r as unknown as GraphNodeInput),
+    );
+    const edges = ((row.edges as { properties?: NormEdge }[]) ?? [])
+      .filter(Boolean)
+      .map((r) => r.properties ?? (r as unknown as NormEdge));
+    return { nodes, edges };
   }
 
   async neighborhood(

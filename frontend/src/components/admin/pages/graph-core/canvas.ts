@@ -251,6 +251,25 @@ export function rendererFlag(): RendererKind | null {
   }
 }
 
+export type GraphDataSource = "local" | "http";
+
+/** Feature-flag reader — `graph.data=http|local` via localStorage/env. Selects
+ *  the live server graph (HttpGraphSource → /api/cloudguard/graph/*) vs the
+ *  in-page Sample estate. Defaults to `local` (Sample) so nothing changes until
+ *  explicitly flipped, and it is instantly revertible. */
+export function graphDataFlag(): GraphDataSource {
+  try {
+    const v =
+      (typeof localStorage !== "undefined" &&
+        localStorage.getItem("graph.data")) ||
+      (typeof process !== "undefined" && process.env?.GRAPH_DATA) ||
+      null;
+    return v === "http" ? "http" : "local";
+  } catch {
+    return "local";
+  }
+}
+
 /** Detect renderer capabilities in the current environment. */
 export function detectCapabilities(elementCount: number): RendererCapabilities {
   let webgl2 = false;
