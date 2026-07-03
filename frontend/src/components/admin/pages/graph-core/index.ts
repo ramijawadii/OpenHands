@@ -9,3 +9,4 @@ export * from "./metrics";
 export * from "./source";
 export * from "./neo4j-source";
 export * from "./http-source";
+export * from "./canvas";
