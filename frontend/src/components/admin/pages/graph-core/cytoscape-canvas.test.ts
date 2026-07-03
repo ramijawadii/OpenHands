@@ -140,6 +140,46 @@ describe("cytoscapeCanvas — GraphCanvasHandle conformance", () => {
     expect(cy.getElementById("res:bucket").length).toBe(0);
   });
 
+  it("supports transitive traversal + edge endpoints + contains (dep-chain surface)", () => {
+    const { canvas } = makeCanvas();
+    // successors/predecessors = transitive closure (nodes + edges, cytoscape
+    // semantics); the page splits them via .nodes()/.edges().
+    expect(
+      canvas
+        .getElementById("u:alice")
+        .successors()
+        .nodes()
+        .map((n) => n.id())
+        .sort(),
+    ).toEqual(["r:admin", "res:bucket"]);
+    expect(
+      canvas
+        .getElementById("res:bucket")
+        .predecessors()
+        .nodes()
+        .map((n) => n.id())
+        .sort(),
+    ).toEqual(["r:admin", "u:alice"]);
+    // element outgoers/incomers = one hop
+    expect(
+      canvas
+        .getElementById("r:admin")
+        .outgoers("node")
+        .map((n) => n.id()),
+    ).toEqual(["res:bucket"]);
+    // edge endpoints
+    const anyEdge = canvas.edges();
+    expect(anyEdge.length).toBe(2);
+    // contains membership
+    const succ = canvas.getElementById("u:alice").successors();
+    expect(succ.contains(canvas.getElementById("r:admin"))).toBe(true);
+    expect(succ.contains(canvas.getElementById("u:alice"))).toBe(false);
+    // singular length + visible + renderedHeight
+    expect(canvas.getElementById("u:alice").length).toBe(1);
+    expect(canvas.getElementById("nope:x").length).toBe(0);
+    expect(canvas.getElementById("u:alice").visible()).toBe(true);
+  });
+
   it("subscribes to events through on()", () => {
     const { cy, canvas } = makeCanvas();
     let fired = 0;

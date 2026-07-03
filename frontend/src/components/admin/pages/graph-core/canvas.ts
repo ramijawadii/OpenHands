@@ -55,13 +55,19 @@ export type ElementQuery = string | undefined;
 
 /** One node/edge as the renderer exposes it back to the page (read side). */
 export interface ElementHandle {
+  /** 1 if the element exists, 0 if not (cytoscape-singular semantics) */
+  length: number;
   id(): string;
   isNode(): boolean;
   isEdge(): boolean;
+  /** currently displayed (not style("display","none")) */
+  visible(): boolean;
   data<T = unknown>(key?: string): T;
   position(): { x: number; y: number };
   /** screen-space position (for tooltip / context-menu placement) */
   renderedPosition(): { x: number; y: number };
+  /** on-screen height in px (tooltip anchoring) */
+  renderedHeight(): number;
   boundingBox(): BBox;
   addClass(cls: string): ElementHandle;
   removeClass(cls: string): ElementHandle;
@@ -71,6 +77,15 @@ export interface ElementHandle {
   /** neighborhood step used by the dependency-chain BFS in the pages */
   connectedEdges(sel?: ElementQuery): ElementCollection;
   connectedNodes(sel?: ElementQuery): ElementCollection;
+  /** one hop out/in (dep-chain step); sel typically "node" */
+  outgoers(sel?: ElementQuery): ElementCollection;
+  incomers(sel?: ElementQuery): ElementCollection;
+  /** full transitive closure downstream / upstream (dep-chain, degree 0) */
+  successors(): ElementCollection;
+  predecessors(): ElementCollection;
+  /** for an EDGE handle: its endpoint node handles */
+  source(): ElementHandle;
+  target(): ElementHandle;
 }
 
 /** A collection supporting the fluent ops the pages use on `cy.nodes()` etc. */
@@ -94,7 +109,12 @@ export interface ElementCollection {
   /** BFS one hop out — powers directional dep-chain expansion */
   outgoers(sel?: ElementQuery): ElementCollection;
   incomers(sel?: ElementQuery): ElementCollection;
+  /** full transitive closure downstream / upstream */
+  successors(): ElementCollection;
+  predecessors(): ElementCollection;
   union(other: ElementCollection): ElementCollection;
+  /** membership test (used to keep dep-chain barycentre within the kept set) */
+  contains(el: ElementHandle): boolean;
   map<T>(fn: (el: ElementHandle) => T): T[];
 }
 
@@ -123,10 +143,16 @@ export interface LayoutSpec {
   name: "fcose" | "preset" | "concentric" | "breadthfirst" | "grid";
   animate?: boolean;
   animationDuration?: number;
+  animationEasing?: string;
   fit?: boolean;
   padding?: number;
+  /** preset layout: explicit per-node position (n → {x,y}) */
+  positions?: (n: ElementHandle) => { x: number; y: number } | undefined;
   /** eles to lay out (a subset — used when expanding a dep-chain) */
   eles?: ElementQuery;
+  /** fcose tuning (repulsion / edge length) — passed straight through */
+  nodeRepulsion?: number;
+  idealEdgeLength?: number;
   /** free-form per-layout options passed straight through */
   options?: Record<string, unknown>;
 }

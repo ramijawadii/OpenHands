@@ -253,9 +253,16 @@ export class WebglCanvas implements GraphCanvasHandle {
     const { scene } = this;
     const self = this;
     return {
+      get length() {
+        return scene.node(id) ? 1 : 0;
+      },
       id: () => id,
       isNode: () => scene.node(id) !== undefined,
       isEdge: () => false,
+      visible: () => {
+        const n = scene.node(id);
+        return !!n && !n.classes.has(HIDDEN_CLASS);
+      },
       data: <T = unknown>(key?: string) => {
         const d = scene.node(id)?.data ?? {};
         return (key === undefined ? d : d[key]) as T;
@@ -269,6 +276,10 @@ export class WebglCanvas implements GraphCanvasHandle {
         return n
           ? self.renderer.camera.worldToScreen({ x: n.x, y: n.y })
           : { x: 0, y: 0 };
+      },
+      renderedHeight: () => {
+        const n = scene.node(id);
+        return n ? n.r * 2 * self.renderer.camera.zoom : 0;
       },
       boundingBox: () => EMPTY_BBOX,
       addClass: (cls: string) => {
@@ -286,6 +297,15 @@ export class WebglCanvas implements GraphCanvasHandle {
       },
       connectedEdges: () => self.collection([]),
       connectedNodes: () => self.collection(scene.neighbors(id)),
+      outgoers: () => self.collection(scene.outNeighbors(id)),
+      incomers: () => self.collection(scene.inNeighbors(id)),
+      successors: () => self.collection(scene.successors(id)),
+      predecessors: () => self.collection(scene.predecessors(id)),
+      // edges aren't individually handle-addressed in the WebGL scene yet, so
+      // source()/target() (called only on EDGE handles) return self — never hit
+      // on the node handles the WebGL path exercises.
+      source: () => self.nodeHandle(id),
+      target: () => self.nodeHandle(id),
     };
   }
 
@@ -337,9 +357,18 @@ export class WebglCanvas implements GraphCanvasHandle {
       },
       layout: () => ({ run: () => {} }), // WebGL uses precomputed positions
       outgoers: () =>
-        self.collection(ids.flatMap((id) => self.scene.neighbors(id))),
+        self.collection(ids.flatMap((id) => self.scene.outNeighbors(id))),
       incomers: () =>
-        self.collection(ids.flatMap((id) => self.scene.neighbors(id))),
+        self.collection(ids.flatMap((id) => self.scene.inNeighbors(id))),
+      successors: () =>
+        self.collection([
+          ...new Set(ids.flatMap((id) => self.scene.successors(id))),
+        ]),
+      predecessors: () =>
+        self.collection([
+          ...new Set(ids.flatMap((id) => self.scene.predecessors(id))),
+        ]),
+      contains: (el: ElementHandle) => ids.includes(el.id()),
       union: (other) =>
         self.collection([...new Set([...ids, ...other.map((h) => h.id())])]),
       map: <T>(fn: (el: ElementHandle) => T) => handles().map(fn),

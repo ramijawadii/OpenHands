@@ -157,6 +157,46 @@ describe("WebglCanvas — GraphCanvasHandle conformance", () => {
     expect(c.getElementById("res:bucket").isNode()).toBe(false);
   });
 
+  it("supports directed transitive traversal + contains (dep-chain surface)", () => {
+    const c = makeCanvas();
+    // directed closure over the scene's out/in adjacency
+    expect(
+      c
+        .getElementById("u:alice")
+        .successors()
+        .map((n) => n.id())
+        .sort(),
+    ).toEqual(["r:admin", "res:bucket"]);
+    expect(
+      c
+        .getElementById("res:bucket")
+        .predecessors()
+        .map((n) => n.id())
+        .sort(),
+    ).toEqual(["r:admin", "u:alice"]);
+    // one-hop directed
+    expect(
+      c
+        .getElementById("r:admin")
+        .outgoers()
+        .map((n) => n.id()),
+    ).toEqual(["res:bucket"]);
+    expect(
+      c
+        .getElementById("r:admin")
+        .incomers()
+        .map((n) => n.id()),
+    ).toEqual(["u:alice"]);
+    // contains + singular length/visible/renderedHeight
+    const succ = c.getElementById("u:alice").successors();
+    expect(succ.contains(c.getElementById("r:admin"))).toBe(true);
+    expect(c.getElementById("u:alice").length).toBe(1);
+    expect(c.getElementById("nope").length).toBe(0);
+    expect(c.getElementById("u:alice").visible()).toBe(true);
+    c.getElementById("u:alice").style("display", "none");
+    expect(c.getElementById("u:alice").visible()).toBe(false);
+  });
+
   it("renders headless with draw calls ≤ 2", () => {
     const c = makeCanvas();
     c.render();

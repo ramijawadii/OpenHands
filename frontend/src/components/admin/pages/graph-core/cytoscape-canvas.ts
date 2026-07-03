@@ -41,13 +41,18 @@ function toBBox(b: any): BBox {
 
 function wrapEl(el: CySingular): ElementHandle {
   return {
+    get length() {
+      return el.length;
+    },
     id: () => el.id(),
     isNode: () => el.isNode(),
     isEdge: () => el.isEdge(),
+    visible: () => el.visible(),
     data: <T = unknown>(key?: string) =>
       (key === undefined ? el.data() : el.data(key)) as T,
     position: () => ({ ...el.position() }),
     renderedPosition: () => ({ ...el.renderedPosition() }),
+    renderedHeight: () => el.renderedHeight(),
     boundingBox: () => toBBox(el.boundingBox()),
     addClass: (cls: string) => {
       el.addClass(cls);
@@ -67,7 +72,32 @@ function wrapEl(el: CySingular): ElementHandle {
     // only exposes connectedNodes() on edge collections, so route via neighborhood.
     connectedNodes: (sel?: ElementQuery) =>
       wrapCol(el.neighborhood(sel).nodes()),
+    outgoers: (sel?: ElementQuery) => wrapCol(el.outgoers(sel)),
+    incomers: (sel?: ElementQuery) => wrapCol(el.incomers(sel)),
+    successors: () => wrapCol(el.successors()),
+    predecessors: () => wrapCol(el.predecessors()),
+    source: () => wrapEl(el.source()),
+    target: () => wrapEl(el.target()),
   };
+}
+
+function buildLayoutOpts(spec: LayoutSpec): Record<string, unknown> {
+  const opts: Record<string, unknown> = {
+    name: spec.name,
+    animate: spec.animate,
+    animationDuration: spec.animationDuration,
+    animationEasing: spec.animationEasing,
+    fit: spec.fit,
+    padding: spec.padding,
+    nodeRepulsion: spec.nodeRepulsion,
+    idealEdgeLength: spec.idealEdgeLength,
+    ...(spec.options ?? {}),
+  };
+  if (spec.positions) {
+    const fn = spec.positions;
+    opts.positions = (node: CySingular) => fn(wrapEl(node));
+  }
+  return opts;
 }
 
 function wrapCol(col: CyCollection): ElementCollection {
@@ -104,17 +134,13 @@ function wrapCol(col: CyCollection): ElementCollection {
       col.remove();
       return wrapCol(col);
     },
-    layout: (spec) =>
-      col.layout({
-        name: spec.name,
-        animate: spec.animate,
-        animationDuration: spec.animationDuration,
-        fit: spec.fit,
-        padding: spec.padding,
-        ...(spec.options ?? {}),
-      }),
+    layout: (spec) => col.layout(buildLayoutOpts(spec)),
     outgoers: (sel?: ElementQuery) => wrapCol(col.outgoers(sel)),
     incomers: (sel?: ElementQuery) => wrapCol(col.incomers(sel)),
+    successors: () => wrapCol(col.successors()),
+    predecessors: () => wrapCol(col.predecessors()),
+    contains: (el: ElementHandle) =>
+      col.contains(col.cy().getElementById(el.id())),
     union: (other: ElementCollection) =>
       wrapCol(col.union((other as any).__cy ?? col)),
     map: <T>(fn: (el: ElementHandle) => T) =>
@@ -168,14 +194,7 @@ export function cytoscapeCanvas(cy: CyCore): GraphCanvasHandle {
     // structure + layout
     layout: (spec: LayoutSpec) => {
       const eles = spec.eles ? cy.$(spec.eles) : cy;
-      return eles.layout({
-        name: spec.name,
-        animate: spec.animate,
-        animationDuration: spec.animationDuration,
-        fit: spec.fit,
-        padding: spec.padding,
-        ...(spec.options ?? {}),
-      });
+      return eles.layout(buildLayoutOpts(spec));
     },
     add: (elements: CanvasElements) => {
       cy.add([

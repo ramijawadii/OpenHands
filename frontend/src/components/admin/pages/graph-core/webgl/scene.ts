@@ -58,6 +58,20 @@ export const EDGE_STRIDE = 4; // x1,y1,x2,y2
 /** reserved class marking a node hidden via style("display","none"). */
 export const HIDDEN_CLASS = "__display_none";
 
+/** transitive closure over a directed adjacency map (iterative BFS). */
+function closure(id: string, dir: Map<string, Set<string>>): string[] {
+  const seen = new Set<string>();
+  const stack = [...(dir.get(id) ?? [])];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    if (!seen.has(cur)) {
+      seen.add(cur);
+      for (const nxt of dir.get(cur) ?? []) if (!seen.has(nxt)) stack.push(nxt);
+    }
+  }
+  return [...seen];
+}
+
 /** expand a viewport bbox by the cull margin so near-offscreen nodes stay warm. */
 function marginBox(view: BBox): BBox {
   const mx = Math.abs(view.w) * CULL_MARGIN;
@@ -79,6 +93,11 @@ export class GraphScene {
 
   private adj = new Map<string, Set<string>>();
 
+  // directed adjacency for successors/predecessors + outgoers/incomers
+  private out = new Map<string, Set<string>>();
+
+  private inc = new Map<string, Set<string>>();
+
   private tree: Quadtree | null = null;
 
   private treeDirty = true;
@@ -88,6 +107,8 @@ export class GraphScene {
     this.nodes.clear();
     this.edges = [];
     this.adj.clear();
+    this.out.clear();
+    this.inc.clear();
     for (const n of nodes) this.addNodeInternal(n);
     for (const e of edges) this.addEdgeInternal(e.source, e.target);
     this.treeDirty = true;
@@ -112,6 +133,12 @@ export class GraphScene {
       target,
     );
     (this.adj.get(target) ?? this.adj.set(target, new Set()).get(target)!).add(
+      source,
+    );
+    (this.out.get(source) ?? this.out.set(source, new Set()).get(source)!).add(
+      target,
+    );
+    (this.inc.get(target) ?? this.inc.set(target, new Set()).get(target)!).add(
       source,
     );
   }
@@ -206,6 +233,24 @@ export class GraphScene {
   /** neighbour node ids — the dep-chain BFS primitive (renderer-agnostic). */
   neighbors(id: string): string[] {
     return [...(this.adj.get(id) ?? [])];
+  }
+
+  /** direct downstream (out) / upstream (in) neighbour ids. */
+  outNeighbors(id: string): string[] {
+    return [...(this.out.get(id) ?? [])];
+  }
+
+  inNeighbors(id: string): string[] {
+    return [...(this.inc.get(id) ?? [])];
+  }
+
+  /** transitive closure downstream (successors) / upstream (predecessors). */
+  successors(id: string): string[] {
+    return closure(id, this.out);
+  }
+
+  predecessors(id: string): string[] {
+    return closure(id, this.inc);
   }
 
   // ── styling state (classes drive shader color/size selection) ───────────────

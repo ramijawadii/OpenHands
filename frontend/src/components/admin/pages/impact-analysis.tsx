@@ -44,6 +44,7 @@ import {
   LocalGraphSource,
   HttpGraphSource,
   graphDataFlag,
+  createGraphHandle,
   type EdgeKind,
   type GraphSource,
   type GraphSpec,
@@ -1269,8 +1270,9 @@ export function ImpactAnalysis() {
   React.useEffect(() => {
     ensureFcose();
     if (!ref.current) return undefined;
-    const cy = (cytoscape as any)({
-      container: ref.current,
+    // Renderer-agnostic handle: Cytoscape by default; WebGL behind the
+    // `graph.renderer=webgl` flag. The page drives the SAME handle either way.
+    const cy = createGraphHandle(ref.current, {
       elements: elements(),
       style: baseStyle(),
       minZoom: MINZ,
