@@ -49,7 +49,7 @@ import {
   type GraphSource,
   type GraphSpec,
 } from "./graph-core";
-import { GraphHealthPanel } from "./graph-health-panel";
+import { GraphHealthDrawer } from "./graph-health-drawer";
 import {
   GraphNavigator,
   GraphMinimap,
@@ -2382,9 +2382,9 @@ export function ImpactAnalysis() {
           </div>
         )}
 
-        {/* graph health — accuracy + scale signals via the async GraphSource */}
+        {/* graph health — mode-aware drawer (Health · Warnings · Connectors) */}
         {healthOpen && (
-          <GraphHealthPanel
+          <GraphHealthDrawer
             source={GRAPH_SOURCE}
             onClose={() => setHealthOpen(false)}
           />
