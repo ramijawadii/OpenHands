@@ -55,6 +55,8 @@ const CULL_MARGIN = 0.15;
 /** floats per instance in the packed buffers (kept in sync with the shaders). */
 export const NODE_STRIDE = 6; // x,y,r,r_,g_,b_  → cx,cy,radius,red,green,blue
 export const EDGE_STRIDE = 4; // x1,y1,x2,y2
+/** reserved class marking a node hidden via style("display","none"). */
+export const HIDDEN_CLASS = "__display_none";
 
 /** expand a viewport bbox by the cull margin so near-offscreen nodes stay warm. */
 function marginBox(view: BBox): BBox {
@@ -238,11 +240,13 @@ export class GraphScene {
     return boundsOf(pts);
   }
 
-  /** Node ids visible in the camera's viewport (+ cull margin). */
+  /** Node ids visible in the camera's viewport (+ cull margin), excluding any
+   *  hidden via style("display","none") — parity with the Cytoscape path. */
   visibleNodeIds(camera: Camera, width: number, height: number): string[] {
     if (this.treeDirty || !this.tree) this.rebuildTree();
     const view = marginBox(camera.visibleExtent(width, height));
-    return this.tree!.query(view);
+    const ids = this.tree!.query(view);
+    return ids.filter((id) => !this.nodes.get(id)?.classes.has(HIDDEN_CLASS));
   }
 
   // ── instanced buffer packing ────────────────────────────────────────────────

@@ -47,6 +47,7 @@ function wrapEl(el: CySingular): ElementHandle {
     data: <T = unknown>(key?: string) =>
       (key === undefined ? el.data() : el.data(key)) as T,
     position: () => ({ ...el.position() }),
+    renderedPosition: () => ({ ...el.renderedPosition() }),
     boundingBox: () => toBBox(el.boundingBox()),
     addClass: (cls: string) => {
       el.addClass(cls);
@@ -57,6 +58,10 @@ function wrapEl(el: CySingular): ElementHandle {
       return wrapEl(el);
     },
     hasClass: (cls: string) => el.hasClass(cls),
+    style: (name: string, value: string) => {
+      el.style(name, value);
+      return wrapEl(el);
+    },
     connectedEdges: (sel?: ElementQuery) => wrapCol(el.connectedEdges(sel)),
     // works on a node (neighbour nodes) OR an edge (its endpoints); cytoscape
     // only exposes connectedNodes() on edge collections, so route via neighborhood.
@@ -91,6 +96,23 @@ function wrapCol(col: CyCollection): ElementCollection {
       return wrapCol(col);
     },
     boundingBox: () => toBBox(col.boundingBox()),
+    style: (name: string, value: string) => {
+      col.style(name, value);
+      return wrapCol(col);
+    },
+    remove: () => {
+      col.remove();
+      return wrapCol(col);
+    },
+    layout: (spec) =>
+      col.layout({
+        name: spec.name,
+        animate: spec.animate,
+        animationDuration: spec.animationDuration,
+        fit: spec.fit,
+        padding: spec.padding,
+        ...(spec.options ?? {}),
+      }),
     outgoers: (sel?: ElementQuery) => wrapCol(col.outgoers(sel)),
     incomers: (sel?: ElementQuery) => wrapCol(col.incomers(sel)),
     union: (other: ElementCollection) =>

@@ -60,10 +60,14 @@ export interface ElementHandle {
   isEdge(): boolean;
   data<T = unknown>(key?: string): T;
   position(): { x: number; y: number };
+  /** screen-space position (for tooltip / context-menu placement) */
+  renderedPosition(): { x: number; y: number };
   boundingBox(): BBox;
   addClass(cls: string): ElementHandle;
   removeClass(cls: string): ElementHandle;
   hasClass(cls: string): boolean;
+  /** set an inline style property (e.g. "display" → "none"/"element") */
+  style(name: string, value: string): ElementHandle;
   /** neighborhood step used by the dependency-chain BFS in the pages */
   connectedEdges(sel?: ElementQuery): ElementCollection;
   connectedNodes(sel?: ElementQuery): ElementCollection;
@@ -81,6 +85,12 @@ export interface ElementCollection {
   addClass(cls: string): ElementCollection;
   removeClass(cls: string): ElementCollection;
   boundingBox(): BBox;
+  /** set an inline style across the collection (e.g. "display" → "none") */
+  style(name: string, value: string): ElementCollection;
+  /** remove these elements from the graph */
+  remove(): ElementCollection;
+  /** run a layout over just this sub-collection (dep-chain expansion) */
+  layout(spec: LayoutSpec): { run(): void };
   /** BFS one hop out — powers directional dep-chain expansion */
   outgoers(sel?: ElementQuery): ElementCollection;
   incomers(sel?: ElementQuery): ElementCollection;

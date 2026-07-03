@@ -20,7 +20,7 @@ import type {
   ElementQuery,
   GraphCanvasHandle,
 } from "../canvas";
-import { GraphScene, type SceneDelta } from "./scene";
+import { GraphScene, HIDDEN_CLASS, type SceneDelta } from "./scene";
 import { WebglRenderer } from "./renderer";
 import { PickingIndex, type RGB } from "./picking";
 
@@ -264,6 +264,12 @@ export class WebglCanvas implements GraphCanvasHandle {
         const n = scene.node(id);
         return n ? { x: n.x, y: n.y } : { x: 0, y: 0 };
       },
+      renderedPosition: () => {
+        const n = scene.node(id);
+        return n
+          ? self.renderer.camera.worldToScreen({ x: n.x, y: n.y })
+          : { x: 0, y: 0 };
+      },
       boundingBox: () => EMPTY_BBOX,
       addClass: (cls: string) => {
         scene.addClass(id, cls);
@@ -274,9 +280,23 @@ export class WebglCanvas implements GraphCanvasHandle {
         return self.nodeHandle(id);
       },
       hasClass: (cls: string) => scene.node(id)?.classes.has(cls) ?? false,
+      style: (name: string, value: string) => {
+        self.styleNode(id, name, value);
+        return self.nodeHandle(id);
+      },
       connectedEdges: () => self.collection([]),
       connectedNodes: () => self.collection(scene.neighbors(id)),
     };
+  }
+
+  /** Map an inline style to the scene. Only "display" is meaningful to the WebGL
+   *  renderer (visibility); other props are Cytoscape stylesheet concerns and are
+   *  no-ops here (styling is class/shader-driven). */
+  private styleNode(id: string, name: string, value: string): void {
+    if (name === "display") {
+      if (value === "none") this.scene.addClass(id, HIDDEN_CLASS);
+      else this.scene.removeClass(id, HIDDEN_CLASS);
+    }
   }
 
   private collection(ids: string[]): ElementCollection {
@@ -306,6 +326,16 @@ export class WebglCanvas implements GraphCanvasHandle {
         return col;
       },
       boundingBox: () => EMPTY_BBOX,
+      style: (name: string, value: string) => {
+        for (const id of ids) self.styleNode(id, name, value);
+        return col;
+      },
+      remove: () => {
+        for (const id of ids)
+          self.applyDelta({ kind: "node", op: "tombstone", id });
+        return col;
+      },
+      layout: () => ({ run: () => {} }), // WebGL uses precomputed positions
       outgoers: () =>
         self.collection(ids.flatMap((id) => self.scene.neighbors(id))),
       incomers: () =>

@@ -119,6 +119,27 @@ describe("cytoscapeCanvas — GraphCanvasHandle conformance", () => {
     expect(() => canvas.layout({ name: "preset" }).run()).not.toThrow();
   });
 
+  it("supports style/renderedPosition/remove/layout (renderer-swap surface)", () => {
+    const { cy, canvas } = makeCanvas();
+    // style setter chains without throwing (headless cy can't read computed
+    // style back — the WebGL conformance test proves display actually culls).
+    expect(() => {
+      canvas.nodes().style("display", "none");
+      canvas.getElementById("u:alice").style("display", "element");
+    }).not.toThrow();
+    // renderedPosition returns a screen point
+    const rp = canvas.getElementById("u:alice").renderedPosition();
+    expect(Number.isFinite(rp.x) && Number.isFinite(rp.y)).toBe(true);
+    // collection layout runs without throwing (headless preset)
+    expect(() => canvas.nodes().layout({ name: "preset" }).run()).not.toThrow();
+    // collection remove drops the elements
+    canvas
+      .nodes()
+      .filter((n) => n.id() === "res:bucket")
+      .remove();
+    expect(cy.getElementById("res:bucket").length).toBe(0);
+  });
+
   it("subscribes to events through on()", () => {
     const { cy, canvas } = makeCanvas();
     let fired = 0;

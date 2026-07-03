@@ -135,6 +135,28 @@ describe("WebglCanvas — GraphCanvasHandle conformance", () => {
     expect(c.pickAt(500, 500)).toBeNull();
   });
 
+  it("supports style(display)/renderedPosition/remove (renderer-swap surface)", () => {
+    const c = makeCanvas();
+    c.render();
+    expect(c.renderer.stats().visibleNodes).toBe(3);
+    // hide one via style("display","none") → culled from the next frame
+    c.getElementById("u:alice").style("display", "none");
+    c.render();
+    expect(c.renderer.stats().visibleNodes).toBe(2);
+    // un-hide restores it
+    c.nodes().style("display", "element");
+    c.render();
+    expect(c.renderer.stats().visibleNodes).toBe(3);
+    // renderedPosition is a screen point (world→screen via the camera)
+    const rp = c.getElementById("r:admin").renderedPosition();
+    expect(Number.isFinite(rp.x) && Number.isFinite(rp.y)).toBe(true);
+    // collection remove drops nodes (live-delta path)
+    c.nodes()
+      .filter((n) => n.id() === "res:bucket")
+      .remove();
+    expect(c.getElementById("res:bucket").isNode()).toBe(false);
+  });
+
   it("renders headless with draw calls ≤ 2", () => {
     const c = makeCanvas();
     c.render();
