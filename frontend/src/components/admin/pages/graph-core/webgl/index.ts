@@ -4,3 +4,5 @@ export * from "./camera";
 export * from "./quadtree";
 export * from "./scene";
 export * from "./renderer";
+export * from "./picking";
+export * from "./labels";
