@@ -13,33 +13,37 @@ import {
   Database,
   FlaskConical,
   Radio,
+  Ticket,
 } from "lucide-react";
 import { type GraphSource, type GraphMetrics } from "./graph-core";
+import { CHROME } from "./graph-shell";
 
-// ── dark "operations cockpit" theme (matches the health mockups) ──────────────
-const D = {
-  bg: "#0e0f12",
-  card: "#17181c",
-  cardHi: "#1d1f24",
-  border: "rgba(255,255,255,0.08)",
-  text: "#e9eaed",
-  muted: "#8b909a",
-  faint: "#5c616b",
-  green: "#37b34a",
-  amber: "#e6a417",
-  blue: "#3d8ee6",
-  red: "#e0492f",
+// ── light theme (matches the other graph drawers via CHROME) ──────────────────
+const L = {
+  bg: CHROME.bg, // #ffffff
+  card: "hsl(50deg,20%,97.5%)",
+  cardHi: "#ffffff",
+  border: CHROME.border,
+  text: CHROME.text,
+  muted: CHROME.muted,
+  faint: "hsl(51deg,3%,62%)",
+  green: "#1f9d4d",
+  greenBar: "#2fb85e",
+  greenFaint: "#a9e2be",
+  amber: "#c8820a",
+  blue: CHROME.accent,
+  red: "#cf3c26",
   mono: "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
 };
 
 export type GraphMode = "live" | "lab";
 type Tone = "green" | "amber" | "red" | "blue" | "muted";
 const TONE: Record<Tone, string> = {
-  green: D.green,
-  amber: D.amber,
-  red: D.red,
-  blue: D.blue,
-  muted: D.muted,
+  green: L.green,
+  amber: L.amber,
+  red: L.red,
+  blue: L.blue,
+  muted: L.muted,
 };
 const toneColor = (t: Tone) => TONE[t];
 
@@ -77,7 +81,7 @@ function Badge({
         padding: "2px 8px",
         borderRadius: 999,
         color: c,
-        background: outline ? "transparent" : `${c}22`,
+        background: outline ? "transparent" : `${c}1a`,
         border: outline ? `1px solid ${c}66` : "none",
         whiteSpace: "nowrap",
       }}
@@ -101,8 +105,8 @@ function Section({
   return (
     <div
       style={{
-        background: D.card,
-        border: `1px solid ${D.border}`,
+        background: L.card,
+        border: `1px solid ${L.border}`,
         borderRadius: 12,
         padding: 14,
         marginBottom: 12,
@@ -116,7 +120,7 @@ function Section({
           marginBottom: 12,
         }}
       >
-        <span style={{ color: D.muted, display: "inline-flex" }}>{icon}</span>
+        <span style={{ color: L.muted, display: "inline-flex" }}>{icon}</span>
         <span style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</span>
         {right && <span style={{ marginLeft: "auto" }}>{right}</span>}
       </div>
@@ -141,8 +145,8 @@ function StatTile({
   return (
     <div
       style={{
-        background: D.cardHi,
-        border: `1px solid ${D.border}`,
+        background: L.cardHi,
+        border: `1px solid ${L.border}`,
         borderRadius: 10,
         padding: "10px 12px",
       }}
@@ -156,25 +160,25 @@ function StatTile({
         }}
       >
         <Dot tone={tone} />
-        <span style={{ fontSize: 12, color: D.muted }}>{label}</span>
+        <span style={{ fontSize: 12, color: L.muted }}>{label}</span>
       </div>
       <div
         style={{
           fontSize: 22,
           fontWeight: 700,
           lineHeight: 1.05,
-          fontFamily: D.mono,
+          fontFamily: L.mono,
         }}
       >
         {value}
         {unit && (
-          <span style={{ fontSize: 13, color: D.muted, fontWeight: 500 }}>
+          <span style={{ fontSize: 13, color: L.muted, fontWeight: 500 }}>
             {unit}
           </span>
         )}
       </div>
       {sub && (
-        <div style={{ fontSize: 11, color: D.faint, marginTop: 4 }}>{sub}</div>
+        <div style={{ fontSize: 11, color: L.faint, marginTop: 4 }}>{sub}</div>
       )}
     </div>
   );
@@ -201,7 +205,7 @@ function Meter({
       }}
     >
       <Dot tone={tone} />
-      <span style={{ fontSize: 12.5, color: D.text, minWidth: 130 }}>
+      <span style={{ fontSize: 12.5, color: L.text, minWidth: 130 }}>
         {label}
       </span>
       <div
@@ -209,7 +213,7 @@ function Meter({
           flex: 1,
           height: 6,
           borderRadius: 3,
-          background: "rgba(255,255,255,0.06)",
+          background: "rgba(30,20,10,0.07)",
           overflow: "hidden",
         }}
       >
@@ -228,7 +232,7 @@ function Meter({
           fontWeight: 600,
           minWidth: 78,
           textAlign: "right",
-          fontFamily: D.mono,
+          fontFamily: L.mono,
         }}
       >
         {right}
@@ -251,17 +255,17 @@ function SignalRow({
         alignItems: "center",
         gap: 10,
         padding: "9px 0",
-        borderTop: `1px solid ${D.border}`,
+        borderTop: `1px solid ${L.border}`,
       }}
     >
-      <Radio size={13} color={D.faint} />
-      <span style={{ fontSize: 12.5, color: D.text }}>{label}</span>
+      <Radio size={13} color={L.faint} />
+      <span style={{ fontSize: 12.5, color: L.text }}>{label}</span>
       <span
         style={{
           marginLeft: "auto",
           fontSize: 12.5,
           fontWeight: 600,
-          fontFamily: D.mono,
+          fontFamily: L.mono,
         }}
       >
         {children}
@@ -336,7 +340,7 @@ function LiveHealth({
           <Badge tone="amber">14 flagged</Badge>
         </SignalRow>
         <SignalRow label="Edge delta (5min)">
-          +2,410 / <span style={{ color: D.red }}>−87</span>
+          +2,410 / <span style={{ color: L.red }}>−87</span>
         </SignalRow>
         <SignalRow label="Active sessions">6 analysts</SignalRow>
         <SignalRow label="Data freshness">
@@ -420,7 +424,7 @@ function LabHealth({ metrics }: { metrics: GraphMetrics | null }) {
   );
 }
 
-// ── warning registry + non-interrupting resync jobs ───────────────────────────
+// ── warning registry + non-interrupting resync jobs + ticket reporting ────────
 type Warning = {
   id: string;
   tone: Tone;
@@ -491,7 +495,6 @@ function useResyncJobs() {
   >({});
   const run = React.useCallback((id: string) => {
     setJobs((j) => ({ ...j, [id]: { state: "running", pct: 0 } }));
-    // non-interrupting background job: ticks progress without blocking the UI
     const t = setInterval(() => {
       setJobs((j) => {
         const cur = j[id];
@@ -530,7 +533,7 @@ function FixAction({
           alignItems: "center",
           gap: 6,
           fontSize: 12,
-          color: D.green,
+          color: L.green,
           fontWeight: 600,
         }}
       >
@@ -540,13 +543,13 @@ function FixAction({
   }
   if (state === "running") {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, flex: 1 }}>
         <div
           style={{
             flex: 1,
             height: 5,
             borderRadius: 3,
-            background: "rgba(255,255,255,0.07)",
+            background: "rgba(30,20,10,0.08)",
             overflow: "hidden",
           }}
         >
@@ -554,13 +557,13 @@ function FixAction({
             style={{
               width: `${Math.min(100, pct)}%`,
               height: "100%",
-              background: D.blue,
+              background: L.blue,
               borderRadius: 3,
               transition: "width 0.3s",
             }}
           />
         </div>
-        <span style={{ fontSize: 11.5, color: D.blue }}>{fix.running}</span>
+        <span style={{ fontSize: 11.5, color: L.blue }}>{fix.running}</span>
       </div>
     );
   }
@@ -574,9 +577,9 @@ function FixAction({
         gap: 6,
         fontSize: 12,
         fontWeight: 600,
-        color: D.text,
-        background: D.cardHi,
-        border: `1px solid ${D.border}`,
+        color: L.text,
+        background: L.cardHi,
+        border: `1px solid ${L.border}`,
         borderRadius: 7,
         padding: "5px 11px",
         cursor: "pointer",
@@ -587,20 +590,71 @@ function FixAction({
   );
 }
 
+function ReportAction({
+  ticket,
+  onReport,
+}: {
+  ticket?: string;
+  onReport: () => void;
+}) {
+  if (ticket) {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          fontSize: 12,
+          color: L.muted,
+          fontWeight: 600,
+        }}
+      >
+        <Ticket size={12} /> Reported ·{" "}
+        <span style={{ color: L.blue, fontFamily: L.mono }}>{ticket}</span>
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={onReport}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 12,
+        fontWeight: 600,
+        color: L.text,
+        background: "transparent",
+        border: `1px solid ${L.border}`,
+        borderRadius: 7,
+        padding: "5px 11px",
+        cursor: "pointer",
+      }}
+    >
+      <Ticket size={12} /> Report
+    </button>
+  );
+}
+
 function WarningCard({
   w,
   job,
+  ticket,
   onFix,
+  onReport,
 }: {
   w: Warning;
   job?: { state: JobState; pct: number };
+  ticket?: string;
   onFix: () => void;
+  onReport: () => void;
 }) {
   return (
     <div
       style={{
-        background: D.card,
-        border: `1px solid ${D.border}`,
+        background: L.cardHi,
+        border: `1px solid ${L.border}`,
         borderRadius: 10,
         padding: "11px 13px",
         marginBottom: 10,
@@ -613,106 +667,207 @@ function WarningCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ fontWeight: 600, fontSize: 13 }}>{w.title}</span>
-            <span style={{ marginLeft: "auto", fontSize: 11, color: D.faint }}>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: L.faint }}>
               {w.age} ago
             </span>
           </div>
           <div
             style={{
               fontSize: 12,
-              color: D.muted,
+              color: L.muted,
               marginTop: 3,
               lineHeight: 1.4,
             }}
           >
             {w.detail}
           </div>
-          {w.fix && (
-            <div style={{ marginTop: 9 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              marginTop: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            {w.fix && (
               <FixAction
                 fix={w.fix}
                 state={job?.state ?? "idle"}
                 pct={job?.pct ?? 0}
                 onFix={onFix}
               />
-            </div>
-          )}
+            )}
+            <ReportAction ticket={ticket} onReport={onReport} />
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-// ── connector health (compact, operational) ───────────────────────────────────
-type Connector = { name: string; tone: Tone; status: string; sync: string };
+// ── connector health — status-page uptime timeline per source ─────────────────
+type DayState = "up" | "degraded" | "down";
+type Connector = {
+  name: string;
+  tone: Tone;
+  status: string;
+  uptime: string;
+  history: DayState[];
+};
+
+// deterministic 90-day history: mostly up, with the given incidents seeded
+function history(
+  seed: number,
+  incidents: Record<number, DayState>,
+): DayState[] {
+  const out: DayState[] = [];
+  let x = seed * 9301 + 49297;
+  for (let i = 0; i < 90; i += 1) {
+    x = (x * 9301 + 49297) % 233280;
+    const r = x / 233280;
+    out.push(incidents[i] ?? (r > 0.985 ? "degraded" : "up"));
+  }
+  return out;
+}
+
 const CONNECTORS: Connector[] = [
   {
     name: "AWS CloudTrail",
     tone: "green",
     status: "streaming",
-    sync: "3s ago",
+    uptime: "99.999%",
+    history: history(1, { 71: "down" }),
   },
   {
     name: "IAM / Access Analyzer",
     tone: "green",
     status: "streaming",
-    sync: "9s ago",
+    uptime: "99.994%",
+    history: history(2, {}),
   },
-  { name: "AWS Config", tone: "green", status: "streaming", sync: "14s ago" },
-  { name: "GuardDuty", tone: "amber", status: "degraded", sync: "6m ago" },
+  {
+    name: "AWS Config",
+    tone: "green",
+    status: "streaming",
+    uptime: "99.981%",
+    history: history(3, { 40: "degraded", 41: "degraded" }),
+  },
+  {
+    name: "GuardDuty",
+    tone: "amber",
+    status: "degraded",
+    uptime: "98.441%",
+    history: history(4, {
+      84: "down",
+      85: "down",
+      24: "degraded",
+      33: "degraded",
+      55: "degraded",
+    }),
+  },
   {
     name: "Prowler (scheduled)",
     tone: "green",
     status: "healthy",
-    sync: "22m ago",
+    uptime: "99.900%",
+    history: history(5, { 12: "degraded" }),
   },
   {
     name: "Kubernetes audit",
     tone: "red",
     status: "disconnected",
-    sync: "1h ago",
+    uptime: "96.220%",
+    history: history(6, { 88: "down", 89: "down", 87: "down" }),
   },
 ];
+
+const BAR_COLOR: Record<DayState, string> = {
+  up: L.greenBar,
+  degraded: L.greenFaint,
+  down: L.red,
+};
+const barColor = (d: DayState) => BAR_COLOR[d];
+
+function UptimeStrip({ history: h }: { history: DayState[] }) {
+  return (
+    <>
+      <div
+        style={{ display: "flex", gap: 1.5, height: 26, alignItems: "stretch" }}
+      >
+        {h.map((d, i) => (
+          <div
+            /* eslint-disable-next-line react/no-array-index-key */
+            key={i}
+            title={d}
+            style={{
+              flex: 1,
+              minWidth: 2,
+              borderRadius: 1.5,
+              background: barColor(d),
+            }}
+          />
+        ))}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          marginTop: 5,
+          fontSize: 10.5,
+          color: L.faint,
+        }}
+      >
+        <span>90 days ago</span>
+        <span>Today</span>
+      </div>
+    </>
+  );
+}
 
 function Connectors() {
   return (
     <Section
       icon={<Plug size={15} />}
       title="Connector health"
-      right={<span style={{ fontSize: 11, color: D.faint }}>6 sources</span>}
+      right={<Badge tone="green">Operational</Badge>}
     >
-      {CONNECTORS.map((c) => (
+      {CONNECTORS.map((c, idx) => (
         <div
           key={c.name}
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "9px 0",
-            borderTop: `1px solid ${D.border}`,
+            padding: "12px 0",
+            borderTop: idx === 0 ? "none" : `1px solid ${L.border}`,
           }}
         >
-          <Dot tone={c.tone} />
-          <span style={{ fontSize: 12.5, color: D.text }}>{c.name}</span>
-          <span
+          <div
             style={{
-              marginLeft: "auto",
-              fontSize: 11.5,
-              color: toneColor(c.tone),
+              display: "flex",
+              alignItems: "center",
+              gap: 9,
+              marginBottom: 8,
             }}
           >
-            {c.status}
-          </span>
-          <span
-            style={{
-              fontSize: 11,
-              color: D.faint,
-              minWidth: 56,
-              textAlign: "right",
-            }}
-          >
-            {c.sync}
-          </span>
+            <Dot tone={c.tone} />
+            <span style={{ fontSize: 13, fontWeight: 600, color: L.text }}>
+              {c.name}
+            </span>
+            <span style={{ fontSize: 11, color: toneColor(c.tone) }}>
+              · {c.status}
+            </span>
+            <span
+              style={{
+                marginLeft: "auto",
+                fontSize: 12,
+                fontWeight: 700,
+                color: L.green,
+                fontFamily: L.mono,
+              }}
+            >
+              {c.uptime} uptime
+            </span>
+          </div>
+          <UptimeStrip history={c.history} />
         </div>
       ))}
     </Section>
@@ -735,6 +890,7 @@ export function GraphHealthDrawer({
   const [tab, setTab] = React.useState<Tab>("health");
   const [metrics, setMetrics] = React.useState<GraphMetrics | null>(null);
   const [freshness, setFreshness] = React.useState<string | null>(null);
+  const [tickets, setTickets] = React.useState<Record<string, string>>({});
   const { jobs, run } = useResyncJobs();
 
   React.useEffect(() => {
@@ -753,6 +909,14 @@ export function GraphHealthDrawer({
     };
   }, [source]);
 
+  const report = React.useCallback((id: string) => {
+    setTickets((t) =>
+      t[id]
+        ? t
+        : { ...t, [id]: `INC-${4800 + Math.floor(Math.random() * 200)}` },
+    );
+  }, []);
+
   const warnings = WARNINGS[mode];
   const openCount = warnings.filter((w) => jobs[w.id]?.state !== "done").length;
   const primary = warnings.find(
@@ -768,10 +932,10 @@ export function GraphHealthDrawer({
     width: 460,
     maxWidth: "100%",
     zIndex: 40,
-    background: D.bg,
-    borderLeft: `1px solid ${D.border}`,
-    boxShadow: "-14px 0 40px rgba(0,0,0,0.35)",
-    color: D.text,
+    background: L.bg,
+    borderLeft: `1px solid ${L.border}`,
+    boxShadow: "-14px 0 40px rgba(30,20,10,0.12)",
+    color: L.text,
     display: "flex",
     flexDirection: "column",
     fontSize: 13,
@@ -788,8 +952,9 @@ export function GraphHealthDrawer({
         borderRadius: 7,
         border: "none",
         cursor: "pointer",
-        color: mode === m ? D.text : D.muted,
-        background: mode === m ? D.cardHi : "transparent",
+        color: mode === m ? L.text : L.muted,
+        background: mode === m ? "#fff" : "transparent",
+        boxShadow: mode === m ? "0 1px 2px rgba(30,20,10,0.12)" : "none",
       }}
     >
       {label}
@@ -808,9 +973,9 @@ export function GraphHealthDrawer({
         fontWeight: 600,
         padding: "8px 4px",
         border: "none",
-        borderBottom: `2px solid ${tab === t ? D.blue : "transparent"}`,
+        borderBottom: `2px solid ${tab === t ? L.blue : "transparent"}`,
         background: "transparent",
-        color: tab === t ? D.text : D.muted,
+        color: tab === t ? L.text : L.muted,
         cursor: "pointer",
       }}
     >
@@ -828,17 +993,18 @@ export function GraphHealthDrawer({
           alignItems: "center",
           gap: 10,
           padding: "13px 16px",
-          borderBottom: `1px solid ${D.border}`,
+          borderBottom: `1px solid ${L.border}`,
         }}
       >
-        <ShieldCheck size={17} color={D.blue} />
+        <ShieldCheck size={17} color={L.blue} />
         <span style={{ fontWeight: 700, fontSize: 14.5 }}>Health</span>
         <div
           style={{
             display: "flex",
             gap: 2,
             marginLeft: 6,
-            background: D.card,
+            background: L.card,
+            border: `1px solid ${L.border}`,
             borderRadius: 8,
             padding: 2,
           }}
@@ -854,7 +1020,7 @@ export function GraphHealthDrawer({
             marginLeft: "auto",
             background: "transparent",
             border: "none",
-            color: D.muted,
+            color: L.muted,
             cursor: "pointer",
             display: "inline-flex",
           }}
@@ -870,14 +1036,14 @@ export function GraphHealthDrawer({
           alignItems: "center",
           gap: 8,
           padding: "7px 16px",
-          borderBottom: `1px solid ${D.border}`,
+          borderBottom: `1px solid ${L.border}`,
           fontSize: 11.5,
-          color: D.muted,
+          color: L.muted,
         }}
       >
         <Dot tone={mode === "live" ? "green" : "blue"} />
         {mode === "live" ? "Live · read-only" : "Lab · sandboxed snapshot"}
-        <span style={{ color: D.faint }}>· {source.kind}</span>
+        <span style={{ color: L.faint }}>· {source.kind}</span>
         <span style={{ marginLeft: "auto" }}>Last refresh: 3s ago</span>
       </div>
 
@@ -889,12 +1055,12 @@ export function GraphHealthDrawer({
             alignItems: "center",
             gap: 10,
             padding: "9px 16px",
-            background: "rgba(230,164,23,0.10)",
-            borderBottom: `1px solid ${D.border}`,
+            background: "rgba(200,130,10,0.08)",
+            borderBottom: `1px solid ${L.border}`,
           }}
         >
-          <AlertTriangle size={14} color={D.amber} />
-          <span style={{ fontSize: 12.5, color: D.text }}>
+          <AlertTriangle size={14} color={L.amber} />
+          <span style={{ fontSize: 12.5, color: L.text }}>
             {openCount} open warning{openCount > 1 ? "s" : ""}
           </span>
           {primary?.fix && (
@@ -908,9 +1074,9 @@ export function GraphHealthDrawer({
                 gap: 6,
                 fontSize: 12,
                 fontWeight: 600,
-                color: D.amber,
+                color: L.amber,
                 background: "transparent",
-                border: `1px solid ${D.amber}55`,
+                border: `1px solid ${L.amber}66`,
                 borderRadius: 7,
                 padding: "4px 10px",
                 cursor: "pointer",
@@ -928,7 +1094,7 @@ export function GraphHealthDrawer({
           display: "flex",
           gap: 18,
           padding: "0 16px",
-          borderBottom: `1px solid ${D.border}`,
+          borderBottom: `1px solid ${L.border}`,
         }}
       >
         {tabBtn("health", "Health")}
@@ -951,37 +1117,21 @@ export function GraphHealthDrawer({
                 key={w.id}
                 w={w}
                 job={jobs[w.id]}
+                ticket={tickets[w.id]}
                 onFix={() => run(w.id)}
+                onReport={() => report(w.id)}
               />
             ))}
-            {warnings.every((w) => jobs[w.id]?.state === "done" || !w.fix) &&
-              openCount === 0 && (
-                <div
-                  style={{
-                    textAlign: "center",
-                    color: D.muted,
-                    padding: 24,
-                    fontSize: 12.5,
-                  }}
-                >
-                  <CheckCircle2
-                    size={22}
-                    color={D.green}
-                    style={{ marginBottom: 8 }}
-                  />
-                  <div>All warnings cleared.</div>
-                </div>
-              )}
             <div
               style={{
                 fontSize: 11,
-                color: D.faint,
+                color: L.faint,
                 marginTop: 6,
                 lineHeight: 1.5,
               }}
             >
               Fixes run as non-interrupting background jobs — the graph stays
-              interactive while they complete.
+              interactive. Report opens an incident ticket for tracking.
             </div>
           </>
         )}
@@ -990,7 +1140,7 @@ export function GraphHealthDrawer({
         <div
           style={{
             fontSize: 10.5,
-            color: D.faint,
+            color: L.faint,
             marginTop: 8,
             lineHeight: 1.5,
           }}
