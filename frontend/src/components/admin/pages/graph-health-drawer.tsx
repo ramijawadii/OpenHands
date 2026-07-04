@@ -164,15 +164,14 @@ function StatTile({
       </div>
       <div
         style={{
-          fontSize: 22,
+          fontSize: 19,
           fontWeight: 700,
-          lineHeight: 1.05,
-          fontFamily: L.mono,
+          lineHeight: 1.1,
         }}
       >
         {value}
         {unit && (
-          <span style={{ fontSize: 13, color: L.muted, fontWeight: 500 }}>
+          <span style={{ fontSize: 12.5, color: L.muted, fontWeight: 500 }}>
             {unit}
           </span>
         )}
@@ -232,7 +231,6 @@ function Meter({
           fontWeight: 600,
           minWidth: 78,
           textAlign: "right",
-          fontFamily: L.mono,
         }}
       >
         {right}
@@ -265,7 +263,6 @@ function SignalRow({
           marginLeft: "auto",
           fontSize: 12.5,
           fontWeight: 600,
-          fontFamily: L.mono,
         }}
       >
         {children}
@@ -824,25 +821,36 @@ const BAR_COLOR: Record<DayState, string> = {
 const barColor = (d: DayState) => BAR_COLOR[d];
 
 function UptimeStrip({ history: h }: { history: DayState[] }) {
+  const n = h.length;
+  const step = 3; // per-bar advance in viewBox units
+  const bw = 2.1; // bar width (leaves a thin gap)
+  const H = 26;
   return (
     <>
-      <div
-        style={{ display: "flex", gap: 1.5, height: 26, alignItems: "stretch" }}
+      <svg
+        width="100%"
+        height={H}
+        viewBox={`0 0 ${n * step} ${H}`}
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="90-day uptime"
+        style={{ display: "block" }}
       >
         {h.map((d, i) => (
-          <div
-            /* eslint-disable-next-line react/no-array-index-key */
+          /* eslint-disable-next-line react/no-array-index-key */
+          <rect
             key={i}
-            title={d}
-            style={{
-              flex: 1,
-              minWidth: 2,
-              borderRadius: 1.5,
-              background: barColor(d),
-            }}
-          />
+            x={i * step}
+            y={0}
+            width={bw}
+            height={H}
+            rx={1}
+            fill={barColor(d)}
+          >
+            <title>{d}</title>
+          </rect>
         ))}
-      </div>
+      </svg>
       <div
         style={{
           display: "flex",
@@ -883,7 +891,7 @@ function Connectors() {
             }}
           >
             <Dot tone={c.tone} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: L.text }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: L.text }}>
               {c.name}
             </span>
             <span style={{ fontSize: 11, color: toneColor(c.tone) }}>
@@ -895,7 +903,6 @@ function Connectors() {
                 fontSize: 12,
                 fontWeight: 700,
                 color: L.green,
-                fontFamily: L.mono,
               }}
             >
               {c.uptime} uptime
