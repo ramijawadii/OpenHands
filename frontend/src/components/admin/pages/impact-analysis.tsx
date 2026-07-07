@@ -371,122 +371,6 @@ const NODE_BY_ID: Record<string, IANode> = Object.fromEntries(
   MODEL.nodes.map((n) => [n.id, n]),
 );
 
-// ── Identity Graph 2 (P5): shortest exploitable path + exploitability score ────
-// Downstream adjacency over the E_iam estate (identity → role → policy → resource).
-const IAM_ADJ: Record<string, string[]> = (() => {
-  const a: Record<string, string[]> = {};
-  MODEL.edges.forEach((e) => {
-    (a[e.source] ||= []).push(e.target);
-  });
-  return a;
-})();
-// per-hop exploitability decay by the source tier of the hop (URG §09: iam 0.85,
-// data/grant 0.8). The path score is the product of hop probabilities.
-const IAM_HOP_DECAY: Record<string, number> = {
-  identity: 0.85,
-  role: 0.85,
-  policy: 0.8,
-  resource: 1,
-};
-function pathExploitScore(path: string[]): number {
-  let s = 1;
-  for (let i = 0; i < path.length - 1; i += 1) {
-    const t = NODE_BY_ID[path[i]]?.tier as string;
-    s *= IAM_HOP_DECAY[t] ?? 0.9;
-  }
-  return Math.round(s * 1000) / 1000;
-}
-// exploitability → severity hue (higher score = more exploitable = redder)
-function scoreHue(s: number): string {
-  if (s >= 0.6) return C_ERROR;
-  if (s >= 0.4) return C_WARN;
-  return "#39b84e";
-}
-
-// the IAM permission verb that enables a hop (spec Graph 2: label each hop with
-// the specific verb). Derived from the tier transition + the target resource kind.
-const RES_VERB: Record<string, string> = {
-  s3: "s3:GetObject",
-  rds: "rds-db:connect",
-  dynamodb: "dynamodb:GetItem",
-  kms: "kms:Decrypt",
-  secrets: "secretsmanager:GetSecretValue",
-  ec2: "ec2:StartInstances",
-  lambda: "lambda:InvokeFunction",
-};
-function hopVerb(fromId: string, toId: string): string {
-  const f = NODE_BY_ID[fromId];
-  const t = NODE_BY_ID[toId];
-  if (!f || !t) return "access";
-  if (f.tier === "identity") return "sts:AssumeRole";
-  if (f.tier === "role") return "iam:AttachRolePolicy";
-  if (f.tier === "policy") return RES_VERB[t.kind] ?? "resource:Access";
-  return "access";
-}
-
-// ALL minimum-hop paths a → b over E_iam (spec Graph 2: "all shortest paths
-// enumerated … multiple shortest paths shown as parallel chains"). Hop depth ≤10.
-function allShortestIamPaths(a: string, b: string, cap = 16): string[][] {
-  if (!a || !b) return [];
-  if (a === b) return [[a]];
-  const dist: Record<string, number> = { [a]: 0 };
-  const q: string[] = [a];
-  while (q.length) {
-    const u = q.shift() as string;
-    if (dist[u] >= 10) continue;
-    (IAM_ADJ[u] || []).forEach((v) => {
-      if (!(v in dist)) {
-        dist[v] = dist[u] + 1;
-        q.push(v);
-      }
-    });
-  }
-  if (!(b in dist)) return [];
-  // predecessor map on the shortest-path DAG (u→node with dist[u]=dist[node]-1)
-  const preds: Record<string, string[]> = {};
-  Object.keys(dist).forEach((node) => {
-    (IAM_ADJ[node] || []).forEach((v) => {
-      if (dist[v] === dist[node] + 1) (preds[v] ||= []).push(node);
-    });
-  });
-  const out: string[][] = [];
-  const walk = (node: string, acc: string[]) => {
-    if (out.length >= cap) return;
-    if (node === a) {
-      out.push([a, ...acc]);
-      return;
-    }
-    (preds[node] || []).forEach((p) => walk(p, [node, ...acc]));
-  };
-  walk(b, []);
-  return out;
-}
-
-// remediation (spec Graph 2): the single edge whose removal breaks the most paths.
-function pathRemediation(
-  paths: string[][],
-): { from: string; to: string; breaks: number; total: number } | null {
-  if (!paths.length) return null;
-  const cnt: Record<string, { n: number; from: string; to: string }> = {};
-  paths.forEach((p) => {
-    for (let i = 0; i < p.length - 1; i += 1) {
-      const k = `${p[i]}|${p[i + 1]}`;
-      (cnt[k] ||= { n: 0, from: p[i], to: p[i + 1] }).n += 1;
-    }
-  });
-  let bestKey = "";
-  let bestN = -1;
-  Object.keys(cnt).forEach((k) => {
-    if (cnt[k].n > bestN) {
-      bestN = cnt[k].n;
-      bestKey = k;
-    }
-  });
-  if (!bestKey) return null;
-  const b = cnt[bestKey];
-  return { from: b.from, to: b.to, breaks: b.n, total: paths.length };
-}
-
 // classify an edge by the tiers it connects, so the engine can reason about
 // privilege vs network relationships instead of an untyped source→target pair.
 function iaEdgeKind(source: string, target: string): EdgeKind {
@@ -1202,31 +1086,12 @@ function baseStyle(): any[] {
 
 const ALERTS_W = DRAWER_W; // right drawer width (graph area shrinks by this)
 
-export function ImpactAnalysis({
-  variant = "security",
-}: {
-  // "identity" = the P5 URG dashboard Identity tab (Tab 2): the IAM property graph
-  // with Blast-Radius / Attack-Paths / Org-Tree modes over the E_iam edge subset.
-  variant?: "security" | "identity";
-} = {}) {
+export function ImpactAnalysis() {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const cyRef = React.useRef<any>(null);
   const [view, setView] = React.useState<"graph" | "findings" | "issues">(
     "graph",
   );
-  // Identity-tab mode (P5): Blast Radius (Graph 1) · Attack Paths / shortest paths
-  // (Graph 2) · Org Tree / C2 hierarchy (Graph 3). Only used when variant==="identity".
-  const [idMode, setIdMode] = React.useState<"blast" | "paths" | "tree">(
-    "blast",
-  );
-  // Identity Graph 2 — interactive shortest-path finder (source → target)
-  const [pathSrc, setPathSrc] = React.useState<string>("");
-  const [pathTgt, setPathTgt] = React.useState<string>("");
-  const [pathResult, setPathResult] = React.useState<{
-    paths: string[][];
-    score: number;
-    rem: { from: string; to: string; breaks: number; total: number } | null;
-  } | null>(null);
   const [stack, setStack] = React.useState<string[]>([]);
   // breakdown direction: downstream (data flows out) or upstream (data in),
   // bounded to a degree (1 / 2 / 0 = full)
@@ -1894,67 +1759,6 @@ export function ImpactAnalysis({
     setFocusDir("down");
     setFocusDeg(0);
     setStack((s) => s.slice(0, -1));
-  };
-  // Org Tree (P5 Identity Graph 3) — the C2 authority hierarchy rendered top-down:
-  // identities/roots at the top flowing to the resources they can reach. A directed
-  // breadthfirst layout over the SAME graph (a layout change, not a data change).
-  const orgTree = () => {
-    const cy = cyRef.current;
-    if (!cy) return;
-    const roots = cy.nodes().roots();
-    cy.layout({
-      name: "breadthfirst",
-      directed: true,
-      grid: false,
-      spacingFactor: 1.15,
-      padding: 40,
-      roots: roots.length ? roots : undefined,
-      animate: true,
-      animationDuration: 420,
-      fit: true,
-    }).run();
-  };
-  // Identity Graph 2 — compute + lock the shortest exploitable path src → target.
-  // Locking with a `path` dims everything unrelated and highlights only the hop
-  // chain (the spec's Path Mode). The exploitability score = ∏ hop decay.
-  const findPath = () => {
-    if (!pathSrc || !pathTgt) return;
-    const paths = allShortestIamPaths(pathSrc, pathTgt);
-    if (!paths.length) {
-      setPathResult({ paths: [], score: 0, rem: null });
-      setLocked(null);
-      applyEmphasis();
-      return;
-    }
-    setPathResult({
-      paths,
-      score: pathExploitScore(paths[0]),
-      rem: pathRemediation(paths),
-    });
-    // lock on the UNION of all shortest paths → parallel chains all highlighted,
-    // everything else dimmed (spec Graph 2).
-    const union = Array.from(new Set(paths.flat()));
-    setLocked({
-      id: "identity-shortest-path",
-      path: union,
-      label:
-        paths.length > 1
-          ? `Shortest exploitable paths (${paths.length})`
-          : "Shortest exploitable path",
-    });
-    window.setTimeout(() => {
-      const cy = cyRef.current;
-      if (cy)
-        cy.animate(
-          {
-            fit: {
-              eles: cy.$(union.map((p) => `#${p}`).join(",")),
-              padding: 80,
-            },
-          },
-          { duration: 300 },
-        );
-    }, 40);
   };
   // jump the breakdown breadcrumb to a given depth (0 = root / whole graph)
   const breadcrumbTo = (depth: number) => {
@@ -2822,8 +2626,7 @@ export function ImpactAnalysis({
           })}
         </div>
 
-        {/* mode toggle. security: Security graph · Findings · Issues.
-            identity (P5 Tab 2): Blast Radius · Attack Paths · Org Tree. */}
+        {/* mode toggle: Security graph · Findings · Issues */}
         <div
           style={{
             position: "absolute",
@@ -2838,370 +2641,64 @@ export function ImpactAnalysis({
             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
           }}
         >
-          {variant === "identity"
-            ? (
-                [
-                  { id: "blast", label: "Blast Radius", icon: null, n: 0 },
-                  {
-                    id: "paths",
-                    label: "Shortest Paths",
-                    icon: <GitBranch size={12} />,
-                    n: 0,
-                  },
-                  { id: "tree", label: "Org Tree", icon: null, n: 0 },
-                ] as const
-              ).map((m) => {
-                const active = idMode === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => {
-                      setIdMode(m.id);
-                      setView("graph");
-                      reset();
-                      setPathResult(null);
-                      // Org Tree relayouts on the next tick (after reset's fit)
-                      if (m.id === "tree")
-                        window.setTimeout(() => orgTree(), 60);
-                    }}
-                    style={{
-                      height: 28,
-                      padding: "0 12px",
-                      borderRadius: 6,
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: 12,
-                      fontWeight: active ? 700 : 500,
-                      background: active ? CHROME.accentBg : "transparent",
-                      color: active ? CHROME.accent : C.muted,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                    }}
-                  >
-                    {m.icon}
-                    {m.label}
-                    {m.n > 0 && (
-                      <span
-                        style={{
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          padding: "0 5px",
-                          borderRadius: 8,
-                          background: active ? CHROME.accent : CHROME.hover,
-                          color: active ? "#fff" : C.muted,
-                        }}
-                      >
-                        {m.n}
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            : (
-                [
-                  { id: "graph", label: "Security Graph", icon: null, n: 0 },
-                  {
-                    id: "findings",
-                    label: "Findings",
-                    icon: <AlertTriangle size={12} />,
-                    n: FINDINGS.length,
-                  },
-                  {
-                    id: "issues",
-                    label: "Issues",
-                    icon: <GitBranch size={12} />,
-                    n: ISSUES.length,
-                  },
-                ] as const
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => {
-                    setView(m.id);
-                    if (m.id === "graph") reset();
-                  }}
+          {(
+            [
+              { id: "graph", label: "Security Graph", icon: null, n: 0 },
+              {
+                id: "findings",
+                label: "Findings",
+                icon: <AlertTriangle size={12} />,
+                n: FINDINGS.length,
+              },
+              {
+                id: "issues",
+                label: "Issues",
+                icon: <GitBranch size={12} />,
+                n: ISSUES.length,
+              },
+            ] as const
+          ).map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => {
+                setView(m.id);
+                if (m.id === "graph") reset();
+              }}
+              style={{
+                height: 28,
+                padding: "0 12px",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: view === m.id ? 700 : 500,
+                background: view === m.id ? CHROME.accentBg : "transparent",
+                color: view === m.id ? CHROME.accent : C.muted,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {m.icon}
+              {m.label}
+              {m.n > 0 && (
+                <span
                   style={{
-                    height: 28,
-                    padding: "0 12px",
-                    borderRadius: 6,
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: 12,
-                    fontWeight: view === m.id ? 700 : 500,
-                    background: view === m.id ? CHROME.accentBg : "transparent",
-                    color: view === m.id ? CHROME.accent : C.muted,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  {m.icon}
-                  {m.label}
-                  {m.n > 0 && (
-                    <span
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        padding: "0 5px",
-                        borderRadius: 8,
-                        background:
-                          view === m.id ? CHROME.accent : CHROME.hover,
-                        color: view === m.id ? "#fff" : C.muted,
-                      }}
-                    >
-                      {m.n}
-                    </span>
-                  )}
-                </button>
-              ))}
-        </div>
-
-        {/* Identity tab (P5) — per-mode control panel: blast hint · shortest-path
-            finder · org-tree caption. Top-left, below the toolbar. */}
-        {variant === "identity" && (
-          <div
-            style={{
-              position: "absolute",
-              top: 56,
-              left: 14,
-              zIndex: 12,
-              width: 292,
-              background: C.card,
-              border: `1px solid ${C.border}`,
-              borderRadius: 10,
-              padding: 12,
-              boxShadow: "0 4px 14px rgba(0,0,0,0.10)",
-            }}
-          >
-            {idMode === "blast" && (
-              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-                <b style={{ color: C.text }}>Blast radius.</b> Click an identity
-                to centre it and expand its full permission matrix — everything
-                it can reach via assume-role → policy → resource.
-              </div>
-            )}
-            {idMode === "tree" && (
-              <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5 }}>
-                <b style={{ color: C.text }}>Org tree.</b> Authority hierarchy
-                rendered top-down — principals flow to the roles, policies and
-                resources they govern (C2 inheritance direction).
-              </div>
-            )}
-            {idMode === "paths" && (
-              <>
-                <div
-                  style={{
-                    fontSize: 12.5,
+                    fontSize: 10.5,
                     fontWeight: 700,
-                    color: C.text,
-                    marginBottom: 8,
+                    padding: "0 5px",
+                    borderRadius: 8,
+                    background: view === m.id ? CHROME.accent : CHROME.hover,
+                    color: view === m.id ? "#fff" : C.muted,
                   }}
                 >
-                  Shortest exploitable path
-                </div>
-                {(
-                  [
-                    [
-                      "Source",
-                      pathSrc,
-                      setPathSrc,
-                      "identity",
-                      "Select identity…",
-                    ],
-                    [
-                      "Target",
-                      pathTgt,
-                      setPathTgt,
-                      "resource",
-                      "Select resource…",
-                    ],
-                  ] as const
-                ).map(([lbl, val, setter, tier, ph]) => (
-                  <div key={lbl} style={{ marginBottom: 7 }}>
-                    <div
-                      style={{
-                        fontSize: 10.5,
-                        fontWeight: 700,
-                        letterSpacing: "0.04em",
-                        textTransform: "uppercase",
-                        color: C.muted,
-                        marginBottom: 3,
-                      }}
-                    >
-                      {lbl}
-                    </div>
-                    <select
-                      value={val}
-                      onChange={(e) => setter(e.target.value)}
-                      style={{
-                        width: "100%",
-                        height: 30,
-                        borderRadius: 7,
-                        border: `1px solid ${C.border}`,
-                        background: C.card,
-                        color: C.text,
-                        fontSize: 12,
-                        padding: "0 8px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <option value="">{ph}</option>
-                      {MODEL.nodes
-                        .filter((n) => n.tier === tier)
-                        .sort((a, b) => (a.label < b.label ? -1 : 1))
-                        .map((n) => (
-                          <option key={n.id} value={n.id}>
-                            {n.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                ))}
-                <button
-                  type="button"
-                  disabled={!pathSrc || !pathTgt}
-                  onClick={findPath}
-                  style={{
-                    width: "100%",
-                    height: 30,
-                    marginTop: 3,
-                    borderRadius: 7,
-                    border: "none",
-                    background:
-                      pathSrc && pathTgt ? CHROME.accent : CHROME.hover,
-                    color: pathSrc && pathTgt ? "#fff" : C.muted,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    cursor: pathSrc && pathTgt ? "pointer" : "default",
-                  }}
-                >
-                  Find shortest path
-                </button>
-                {pathResult && pathResult.paths.length === 0 && (
-                  <div
-                    style={{
-                      marginTop: 9,
-                      fontSize: 12,
-                      color: C.muted,
-                      fontStyle: "italic",
-                    }}
-                  >
-                    No path — the source cannot reach the target over IAM.
-                  </div>
-                )}
-                {pathResult && pathResult.paths.length > 0 && (
-                  <div style={{ marginTop: 10 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginBottom: 7,
-                      }}
-                    >
-                      <span style={{ fontSize: 11.5, color: C.muted }}>
-                        {pathResult.paths[0].length - 1} hops
-                        {pathResult.paths.length > 1
-                          ? ` · ${pathResult.paths.length} paths`
-                          : ""}
-                      </span>
-                      <span
-                        title="Exploitability = product of per-hop probabilities"
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          padding: "1px 7px",
-                          borderRadius: 6,
-                          color: scoreHue(pathResult.score),
-                          background: `${scoreHue(pathResult.score)}1f`,
-                        }}
-                      >
-                        exploitability {pathResult.score}
-                      </span>
-                    </div>
-                    {/* primary path with the permission verb on each hop */}
-                    <div
-                      style={{
-                        fontSize: 11.5,
-                        color: C.text,
-                        lineHeight: 1.7,
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {pathResult.paths[0].map((id, i) => (
-                        <React.Fragment key={id}>
-                          {i > 0 && (
-                            <span
-                              style={{
-                                color: C.muted,
-                                fontFamily:
-                                  "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
-                                fontSize: 10,
-                              }}
-                            >
-                              {" "}
-                              —{hopVerb(pathResult.paths[0][i - 1], id)}→{" "}
-                            </span>
-                          )}
-                          <span
-                            style={{
-                              color:
-                                TIER_COLOUR[NODE_BY_ID[id]?.tier] ?? C.text,
-                              fontWeight: 600,
-                            }}
-                          >
-                            {NODE_BY_ID[id]?.label ?? id}
-                          </span>
-                        </React.Fragment>
-                      ))}
-                    </div>
-                    {pathResult.paths.length > 1 && (
-                      <div
-                        style={{
-                          marginTop: 4,
-                          fontSize: 11,
-                          color: C.muted,
-                          fontStyle: "italic",
-                        }}
-                      >
-                        + {pathResult.paths.length - 1} more parallel shortest
-                        path{pathResult.paths.length > 2 ? "s" : ""} (all
-                        highlighted)
-                      </div>
-                    )}
-                    {/* remediation — the single edge that breaks the most paths */}
-                    {pathResult.rem && (
-                      <div
-                        style={{
-                          marginTop: 9,
-                          padding: "7px 8px",
-                          borderRadius: 7,
-                          background: "rgba(57,184,78,0.10)",
-                          border: "1px solid rgba(57,184,78,0.35)",
-                          fontSize: 11,
-                          color: C.text,
-                          lineHeight: 1.5,
-                        }}
-                      >
-                        <b style={{ color: "#2a9d45" }}>Remediation.</b> Remove{" "}
-                        <span style={{ fontWeight: 600 }}>
-                          {NODE_BY_ID[pathResult.rem.from]?.label} →{" "}
-                          {NODE_BY_ID[pathResult.rem.to]?.label}
-                        </span>{" "}
-                        → breaks {pathResult.rem.breaks} of{" "}
-                        {pathResult.rem.total} path
-                        {pathResult.rem.total > 1 ? "s" : ""}.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                  {m.n}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
 
         {/* navigator controller */}
         <GraphNavigator

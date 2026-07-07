@@ -194,7 +194,6 @@ const NAV_GROUPS = [
     tabs: [
       { id: "graph-explorer", label: "Explorer" },
       { id: "graph-impact", label: "Security Graph" },
-      { id: "graph-identity", label: "Identity Security Graph" },
     ],
   },
 ];
@@ -267,7 +266,6 @@ export function IdentityPage({ scope }: { scope: "workspace" | "enterprise" }) {
       {tab === "alerts-history" && <AlertHistory />}
       {tab === "graph-explorer" && <GraphExplorer />}
       {tab === "graph-impact" && <ImpactAnalysis />}
-      {tab === "graph-identity" && <ImpactAnalysis variant="identity" />}
     </Page>
   );
 }
