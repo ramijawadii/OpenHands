@@ -388,30 +388,6 @@ const IAM_HOP_DECAY: Record<string, number> = {
   policy: 0.8,
   resource: 1,
 };
-function shortestIamPath(a: string, b: string): string[] | null {
-  if (!a || !b) return null;
-  if (a === b) return [a];
-  const prev: Record<string, string | null> = { [a]: null };
-  const q: string[] = [a];
-  while (q.length) {
-    const u = q.shift() as string;
-    if (u === b) break;
-    (IAM_ADJ[u] || []).forEach((v) => {
-      if (!(v in prev)) {
-        prev[v] = u;
-        q.push(v);
-      }
-    });
-  }
-  if (!(b in prev)) return null;
-  const path: string[] = [];
-  let cur: string | null = b;
-  while (cur != null) {
-    path.push(cur);
-    cur = prev[cur];
-  }
-  return path.reverse();
-}
 function pathExploitScore(path: string[]): number {
   let s = 1;
   for (let i = 0; i < path.length - 1; i += 1) {
@@ -425,6 +401,90 @@ function scoreHue(s: number): string {
   if (s >= 0.6) return C_ERROR;
   if (s >= 0.4) return C_WARN;
   return "#39b84e";
+}
+
+// the IAM permission verb that enables a hop (spec Graph 2: label each hop with
+// the specific verb). Derived from the tier transition + the target resource kind.
+const RES_VERB: Record<string, string> = {
+  s3: "s3:GetObject",
+  rds: "rds-db:connect",
+  dynamodb: "dynamodb:GetItem",
+  kms: "kms:Decrypt",
+  secrets: "secretsmanager:GetSecretValue",
+  ec2: "ec2:StartInstances",
+  lambda: "lambda:InvokeFunction",
+};
+function hopVerb(fromId: string, toId: string): string {
+  const f = NODE_BY_ID[fromId];
+  const t = NODE_BY_ID[toId];
+  if (!f || !t) return "access";
+  if (f.tier === "identity") return "sts:AssumeRole";
+  if (f.tier === "role") return "iam:AttachRolePolicy";
+  if (f.tier === "policy") return RES_VERB[t.kind] ?? "resource:Access";
+  return "access";
+}
+
+// ALL minimum-hop paths a → b over E_iam (spec Graph 2: "all shortest paths
+// enumerated … multiple shortest paths shown as parallel chains"). Hop depth ≤10.
+function allShortestIamPaths(a: string, b: string, cap = 16): string[][] {
+  if (!a || !b) return [];
+  if (a === b) return [[a]];
+  const dist: Record<string, number> = { [a]: 0 };
+  const q: string[] = [a];
+  while (q.length) {
+    const u = q.shift() as string;
+    if (dist[u] >= 10) continue;
+    (IAM_ADJ[u] || []).forEach((v) => {
+      if (!(v in dist)) {
+        dist[v] = dist[u] + 1;
+        q.push(v);
+      }
+    });
+  }
+  if (!(b in dist)) return [];
+  // predecessor map on the shortest-path DAG (u→node with dist[u]=dist[node]-1)
+  const preds: Record<string, string[]> = {};
+  Object.keys(dist).forEach((node) => {
+    (IAM_ADJ[node] || []).forEach((v) => {
+      if (dist[v] === dist[node] + 1) (preds[v] ||= []).push(node);
+    });
+  });
+  const out: string[][] = [];
+  const walk = (node: string, acc: string[]) => {
+    if (out.length >= cap) return;
+    if (node === a) {
+      out.push([a, ...acc]);
+      return;
+    }
+    (preds[node] || []).forEach((p) => walk(p, [node, ...acc]));
+  };
+  walk(b, []);
+  return out;
+}
+
+// remediation (spec Graph 2): the single edge whose removal breaks the most paths.
+function pathRemediation(
+  paths: string[][],
+): { from: string; to: string; breaks: number; total: number } | null {
+  if (!paths.length) return null;
+  const cnt: Record<string, { n: number; from: string; to: string }> = {};
+  paths.forEach((p) => {
+    for (let i = 0; i < p.length - 1; i += 1) {
+      const k = `${p[i]}|${p[i + 1]}`;
+      (cnt[k] ||= { n: 0, from: p[i], to: p[i + 1] }).n += 1;
+    }
+  });
+  let bestKey = "";
+  let bestN = -1;
+  Object.keys(cnt).forEach((k) => {
+    if (cnt[k].n > bestN) {
+      bestN = cnt[k].n;
+      bestKey = k;
+    }
+  });
+  if (!bestKey) return null;
+  const b = cnt[bestKey];
+  return { from: b.from, to: b.to, breaks: b.n, total: paths.length };
 }
 
 // classify an edge by the tiers it connects, so the engine can reason about
@@ -1163,8 +1223,9 @@ export function ImpactAnalysis({
   const [pathSrc, setPathSrc] = React.useState<string>("");
   const [pathTgt, setPathTgt] = React.useState<string>("");
   const [pathResult, setPathResult] = React.useState<{
-    path: string[];
+    paths: string[][];
     score: number;
+    rem: { from: string; to: string; breaks: number; total: number } | null;
   } | null>(null);
   const [stack, setStack] = React.useState<string[]>([]);
   // breakdown direction: downstream (data flows out) or upstream (data in),
@@ -1858,18 +1919,28 @@ export function ImpactAnalysis({
   // chain (the spec's Path Mode). The exploitability score = ∏ hop decay.
   const findPath = () => {
     if (!pathSrc || !pathTgt) return;
-    const path = shortestIamPath(pathSrc, pathTgt);
-    if (!path) {
-      setPathResult({ path: [], score: 0 });
+    const paths = allShortestIamPaths(pathSrc, pathTgt);
+    if (!paths.length) {
+      setPathResult({ paths: [], score: 0, rem: null });
       setLocked(null);
       applyEmphasis();
       return;
     }
-    setPathResult({ path, score: pathExploitScore(path) });
+    setPathResult({
+      paths,
+      score: pathExploitScore(paths[0]),
+      rem: pathRemediation(paths),
+    });
+    // lock on the UNION of all shortest paths → parallel chains all highlighted,
+    // everything else dimmed (spec Graph 2).
+    const union = Array.from(new Set(paths.flat()));
     setLocked({
       id: "identity-shortest-path",
-      path,
-      label: "Shortest exploitable path",
+      path: union,
+      label:
+        paths.length > 1
+          ? `Shortest exploitable paths (${paths.length})`
+          : "Shortest exploitable path",
     });
     window.setTimeout(() => {
       const cy = cyRef.current;
@@ -1877,7 +1948,7 @@ export function ImpactAnalysis({
         cy.animate(
           {
             fit: {
-              eles: cy.$(path.map((p) => `#${p}`).join(",")),
+              eles: cy.$(union.map((p) => `#${p}`).join(",")),
               padding: 80,
             },
           },
@@ -3009,7 +3080,7 @@ export function ImpactAnalysis({
                 >
                   Find shortest path
                 </button>
-                {pathResult && pathResult.path.length === 0 && (
+                {pathResult && pathResult.paths.length === 0 && (
                   <div
                     style={{
                       marginTop: 9,
@@ -3021,18 +3092,21 @@ export function ImpactAnalysis({
                     No path — the source cannot reach the target over IAM.
                   </div>
                 )}
-                {pathResult && pathResult.path.length > 0 && (
+                {pathResult && pathResult.paths.length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <div
                       style={{
                         display: "flex",
                         alignItems: "center",
                         gap: 8,
-                        marginBottom: 6,
+                        marginBottom: 7,
                       }}
                     >
                       <span style={{ fontSize: 11.5, color: C.muted }}>
-                        {pathResult.path.length - 1} hops
+                        {pathResult.paths[0].length - 1} hops
+                        {pathResult.paths.length > 1
+                          ? ` · ${pathResult.paths.length} paths`
+                          : ""}
                       </span>
                       <span
                         title="Exploitability = product of per-hop probabilities"
@@ -3048,17 +3122,30 @@ export function ImpactAnalysis({
                         exploitability {pathResult.score}
                       </span>
                     </div>
+                    {/* primary path with the permission verb on each hop */}
                     <div
                       style={{
                         fontSize: 11.5,
                         color: C.text,
-                        lineHeight: 1.6,
+                        lineHeight: 1.7,
                         wordBreak: "break-word",
                       }}
                     >
-                      {pathResult.path.map((id, i) => (
+                      {pathResult.paths[0].map((id, i) => (
                         <React.Fragment key={id}>
-                          {i > 0 && <span style={{ color: C.muted }}> → </span>}
+                          {i > 0 && (
+                            <span
+                              style={{
+                                color: C.muted,
+                                fontFamily:
+                                  "'IBM Plex Mono', source-code-pro, Menlo, Consolas, monospace",
+                                fontSize: 10,
+                              }}
+                            >
+                              {" "}
+                              —{hopVerb(pathResult.paths[0][i - 1], id)}→{" "}
+                            </span>
+                          )}
                           <span
                             style={{
                               color:
@@ -3071,6 +3158,44 @@ export function ImpactAnalysis({
                         </React.Fragment>
                       ))}
                     </div>
+                    {pathResult.paths.length > 1 && (
+                      <div
+                        style={{
+                          marginTop: 4,
+                          fontSize: 11,
+                          color: C.muted,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        + {pathResult.paths.length - 1} more parallel shortest
+                        path{pathResult.paths.length > 2 ? "s" : ""} (all
+                        highlighted)
+                      </div>
+                    )}
+                    {/* remediation — the single edge that breaks the most paths */}
+                    {pathResult.rem && (
+                      <div
+                        style={{
+                          marginTop: 9,
+                          padding: "7px 8px",
+                          borderRadius: 7,
+                          background: "rgba(57,184,78,0.10)",
+                          border: "1px solid rgba(57,184,78,0.35)",
+                          fontSize: 11,
+                          color: C.text,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        <b style={{ color: "#2a9d45" }}>Remediation.</b> Remove{" "}
+                        <span style={{ fontWeight: 600 }}>
+                          {NODE_BY_ID[pathResult.rem.from]?.label} →{" "}
+                          {NODE_BY_ID[pathResult.rem.to]?.label}
+                        </span>{" "}
+                        → breaks {pathResult.rem.breaks} of{" "}
+                        {pathResult.rem.total} path
+                        {pathResult.rem.total > 1 ? "s" : ""}.
+                      </div>
+                    )}
                   </div>
                 )}
               </>
