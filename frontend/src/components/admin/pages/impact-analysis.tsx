@@ -1086,11 +1086,22 @@ function baseStyle(): any[] {
 
 const ALERTS_W = DRAWER_W; // right drawer width (graph area shrinks by this)
 
-export function ImpactAnalysis() {
+export function ImpactAnalysis({
+  variant = "security",
+}: {
+  // "identity" = the P5 URG dashboard Identity tab (Tab 2): the IAM property graph
+  // with Blast-Radius / Attack-Paths / Org-Tree modes over the E_iam edge subset.
+  variant?: "security" | "identity";
+} = {}) {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const cyRef = React.useRef<any>(null);
   const [view, setView] = React.useState<"graph" | "findings" | "issues">(
     "graph",
+  );
+  // Identity-tab mode (P5): Blast Radius (Graph 1) · Attack Paths / shortest paths
+  // (Graph 2) · Org Tree / C2 hierarchy (Graph 3). Only used when variant==="identity".
+  const [idMode, setIdMode] = React.useState<"blast" | "paths" | "tree">(
+    "blast",
   );
   const [stack, setStack] = React.useState<string[]>([]);
   // breakdown direction: downstream (data flows out) or upstream (data in),
@@ -1759,6 +1770,25 @@ export function ImpactAnalysis() {
     setFocusDir("down");
     setFocusDeg(0);
     setStack((s) => s.slice(0, -1));
+  };
+  // Org Tree (P5 Identity Graph 3) — the C2 authority hierarchy rendered top-down:
+  // identities/roots at the top flowing to the resources they can reach. A directed
+  // breadthfirst layout over the SAME graph (a layout change, not a data change).
+  const orgTree = () => {
+    const cy = cyRef.current;
+    if (!cy) return;
+    const roots = cy.nodes().roots();
+    cy.layout({
+      name: "breadthfirst",
+      directed: true,
+      grid: false,
+      spacingFactor: 1.15,
+      padding: 40,
+      roots: roots.length ? roots : undefined,
+      animate: true,
+      animationDuration: 420,
+      fit: true,
+    }).run();
   };
   // jump the breakdown breadcrumb to a given depth (0 = root / whole graph)
   const breadcrumbTo = (depth: number) => {
@@ -2626,7 +2656,8 @@ export function ImpactAnalysis() {
           })}
         </div>
 
-        {/* mode toggle: Security graph · Findings · Issues */}
+        {/* mode toggle. security: Security graph · Findings · Issues.
+            identity (P5 Tab 2): Blast Radius · Attack Paths · Org Tree. */}
         <div
           style={{
             position: "absolute",
@@ -2641,63 +2672,128 @@ export function ImpactAnalysis() {
             boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
           }}
         >
-          {(
-            [
-              { id: "graph", label: "Security Graph", icon: null, n: 0 },
-              {
-                id: "findings",
-                label: "Findings",
-                icon: <AlertTriangle size={12} />,
-                n: FINDINGS.length,
-              },
-              {
-                id: "issues",
-                label: "Issues",
-                icon: <GitBranch size={12} />,
-                n: ISSUES.length,
-              },
-            ] as const
-          ).map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              onClick={() => {
-                setView(m.id);
-                if (m.id === "graph") reset();
-              }}
-              style={{
-                height: 28,
-                padding: "0 12px",
-                borderRadius: 6,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 12,
-                fontWeight: view === m.id ? 700 : 500,
-                background: view === m.id ? CHROME.accentBg : "transparent",
-                color: view === m.id ? CHROME.accent : C.muted,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              {m.icon}
-              {m.label}
-              {m.n > 0 && (
-                <span
+          {variant === "identity"
+            ? (
+                [
+                  { id: "blast", label: "Blast Radius", icon: null, n: 0 },
+                  {
+                    id: "paths",
+                    label: "Attack Paths",
+                    icon: <GitBranch size={12} />,
+                    n: ISSUES.length,
+                  },
+                  { id: "tree", label: "Org Tree", icon: null, n: 0 },
+                ] as const
+              ).map((m) => {
+                const active = idMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setIdMode(m.id);
+                      if (m.id === "paths") {
+                        setView("issues");
+                      } else {
+                        setView("graph");
+                        reset();
+                        // Org Tree relayouts on the next tick (after reset's fit)
+                        if (m.id === "tree")
+                          window.setTimeout(() => orgTree(), 60);
+                      }
+                    }}
+                    style={{
+                      height: 28,
+                      padding: "0 12px",
+                      borderRadius: 6,
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 500,
+                      background: active ? CHROME.accentBg : "transparent",
+                      color: active ? CHROME.accent : C.muted,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    {m.icon}
+                    {m.label}
+                    {m.n > 0 && (
+                      <span
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          padding: "0 5px",
+                          borderRadius: 8,
+                          background: active ? CHROME.accent : CHROME.hover,
+                          color: active ? "#fff" : C.muted,
+                        }}
+                      >
+                        {m.n}
+                      </span>
+                    )}
+                  </button>
+                );
+              })
+            : (
+                [
+                  { id: "graph", label: "Security Graph", icon: null, n: 0 },
+                  {
+                    id: "findings",
+                    label: "Findings",
+                    icon: <AlertTriangle size={12} />,
+                    n: FINDINGS.length,
+                  },
+                  {
+                    id: "issues",
+                    label: "Issues",
+                    icon: <GitBranch size={12} />,
+                    n: ISSUES.length,
+                  },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setView(m.id);
+                    if (m.id === "graph") reset();
+                  }}
                   style={{
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    padding: "0 5px",
-                    borderRadius: 8,
-                    background: view === m.id ? CHROME.accent : CHROME.hover,
-                    color: view === m.id ? "#fff" : C.muted,
+                    height: 28,
+                    padding: "0 12px",
+                    borderRadius: 6,
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontWeight: view === m.id ? 700 : 500,
+                    background: view === m.id ? CHROME.accentBg : "transparent",
+                    color: view === m.id ? CHROME.accent : C.muted,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
                   }}
                 >
-                  {m.n}
-                </span>
-              )}
-            </button>
-          ))}
+                  {m.icon}
+                  {m.label}
+                  {m.n > 0 && (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        padding: "0 5px",
+                        borderRadius: 8,
+                        background:
+                          view === m.id ? CHROME.accent : CHROME.hover,
+                        color: view === m.id ? "#fff" : C.muted,
+                      }}
+                    >
+                      {m.n}
+                    </span>
+                  )}
+                </button>
+              ))}
         </div>
 
         {/* navigator controller */}
