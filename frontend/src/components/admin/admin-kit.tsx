@@ -995,6 +995,81 @@ export function Tabs({
   );
 }
 
+// ── SubTabStrip — the second-level pill+icon sub-navigation (Microsoft 365 / Users-module parity) ──
+// Used under a page's primary Tabs to switch a section's sub-views. Mirrors the Identity console
+// SubTabStrip so every admin surface shares one look: rounded pills, accent border/fill when active,
+// a lucide icon that recolors on selection.
+export type StripIcon = React.ComponentType<{ size?: number; color?: string }>;
+export function SubTabStrip({
+  tabs,
+  active,
+  onChange,
+}: {
+  tabs: { id: string; label: string; Icon?: StripIcon; badge?: string }[];
+  active: string;
+  onChange: (id: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        flexWrap: "wrap",
+        marginBottom: 18,
+      }}
+    >
+      {tabs.map((t) => {
+        const on = t.id === active;
+        const { Icon } = t;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onChange(t.id)}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              height: 30,
+              padding: "0 11px",
+              borderRadius: 6,
+              border: `1px solid ${on ? "var(--cg-accent)" : "var(--cg-border-card)"}`,
+              background: on ? "var(--cg-accent-bg)" : "transparent",
+              color: on ? T.textPrimary : T.textNav,
+              fontSize: 12.5,
+              fontWeight: on ? 600 : 400,
+              whiteSpace: "nowrap",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            {Icon && <Icon size={13} color={on ? T.accent : T.textMuted} />}
+            {t.label}
+            {t.badge && (
+              <span
+                style={{
+                  height: 16,
+                  padding: "0 6px",
+                  borderRadius: 99,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: T.textNav,
+                  background: T.badgeBg,
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                {t.badge}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── SampleTag — honest marker that a value is representative sample data, not a live reading ───────
 export function SampleTag() {
   return (

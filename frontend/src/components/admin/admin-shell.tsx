@@ -31,7 +31,12 @@ type LucideIcon = React.ComponentType<{
   strokeWidth?: number;
   color?: string;
 }>;
-type NavChild = { label: string; group: string };
+type NavChild = {
+  label: string;
+  group?: string; // ?group= sub-view (Identity console)
+  to?: string; // absolute route link (Workspace Administration leaves)
+  header?: boolean; // non-clickable section label
+};
 type NavItem = {
   to: string;
   text: string;
@@ -54,7 +59,20 @@ const NAV: NavItem[] = [
       { label: "IAM Graph", group: "iam-graph" },
     ],
   },
-  { to: "/admin/workspaces", text: "Workspace Management", Icon: LayoutGrid },
+  {
+    to: "/admin/workspaces",
+    text: "Workspace Management",
+    Icon: LayoutGrid,
+    // Sidebar carries only the principal structure — Workspace Management → its
+    // consoles. The leaf pages (Active Workspaces, Requests, …) are first-level
+    // VIEW tabs inside the console, and their pill strips are the second-level
+    // views; neither belongs in the sidebar.
+    children: [
+      { label: "Administration", to: "/admin/workspaces" },
+      { label: "Governance", to: "/admin/workspaces/governance" },
+      { label: "Operations", to: "/admin/workspaces/operations" },
+    ],
+  },
   { to: "/admin/runtime-governance", text: "Runtime Governance", Icon: Scale },
   { to: "/admin/security", text: "Security & Data", Icon: ShieldCheck },
   { to: "/admin/compliance", text: "Compliance Center", Icon: BadgeCheck },
@@ -147,9 +165,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: 10,
+                    gap: 8,
                     height: 36,
-                    padding: "0 10px",
+                    padding: "0 8px",
                     borderRadius: 8,
                     textDecoration: "none",
                     fontSize: 13,
@@ -167,7 +185,17 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     strokeWidth={1.6}
                     color={lit ? T.textPrimary : T.textMuted}
                   />
-                  <span style={{ flex: 1 }}>{item.text}</span>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {item.text}
+                  </span>
                   {item.children &&
                     (() => {
                       const open = isActive && !collapsed[item.to];
@@ -212,18 +240,56 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     {item.children.map((c) => {
-                      const on = activeGroup === c.group;
+                      // Non-clickable section header (e.g. "Workspace Administration").
+                      if (c.header) {
+                        return (
+                          <div
+                            key={c.label}
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              height: 26,
+                              marginLeft: 22,
+                              paddingLeft: 13,
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              letterSpacing: "0.04em",
+                              textTransform: "uppercase",
+                              color: T.textMuted,
+                            }}
+                          >
+                            {c.label}
+                          </div>
+                        );
+                      }
+                      // Either a ?group= sub-view (Identity) or an absolute route link
+                      // (Workspace sub-sections). For route links use most-specific-wins so a
+                      // parent path (/admin/workspaces) doesn't also light up on a deeper
+                      // sibling (/admin/workspaces/templates).
+                      const matches = (t: string) =>
+                        pathname === t || pathname.startsWith(`${t}/`);
+                      const on = c.to
+                        ? matches(c.to) &&
+                          !item.children!.some(
+                            (o) =>
+                              o.to &&
+                              o.to !== c.to &&
+                              o.to.length > c.to!.length &&
+                              matches(o.to),
+                          )
+                        : activeGroup === c.group;
+                      const to = c.to ?? `${item.to}?group=${c.group}`;
                       return (
                         <NavLink
-                          key={c.group}
-                          to={`${item.to}?group=${c.group}`}
+                          key={c.label}
+                          to={to}
                           style={{
                             display: "flex",
                             alignItems: "center",
                             height: 32,
                             marginLeft: 22,
                             paddingLeft: 13,
-                            paddingRight: 10,
+                            paddingRight: 8,
                             textDecoration: "none",
                             fontSize: 13,
                             fontWeight: on ? 600 : 400,
@@ -231,6 +297,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
                             background: "transparent",
                             borderLeft: `2px solid ${on ? "var(--cg-accent)" : "transparent"}`,
                             boxSizing: "border-box",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
                           }}
                         >
                           {c.label}

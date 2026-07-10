@@ -60,6 +60,18 @@ export default [
       route("organization", "routes/admin-organization.tsx"),
       route("identity", "routes/admin-identity.tsx"),
       route("workspaces", "routes/admin-workspaces.tsx"),
+      route("workspaces/active", "routes/admin-workspaces-active.tsx"),
+      route("workspaces/requests", "routes/admin-workspaces-requests.tsx"),
+      route(
+        "workspaces/provisioning",
+        "routes/admin-workspaces-provisioning.tsx",
+      ),
+      route("workspaces/shared", "routes/admin-workspaces-shared.tsx"),
+      route("workspaces/sandboxes", "routes/admin-workspaces-sandboxes.tsx"),
+      route("workspaces/archived", "routes/admin-workspaces-archived.tsx"),
+      route("workspaces/deleted", "routes/admin-workspaces-deleted.tsx"),
+      route("workspaces/governance", "routes/admin-workspace-governance.tsx"),
+      route("workspaces/operations", "routes/admin-workspace-operations.tsx"),
       route("runtime-governance", "routes/admin-runtime-governance.tsx"),
       route("security", "routes/admin-security.tsx"),
       route("compliance", "routes/admin-placeholder.tsx", {

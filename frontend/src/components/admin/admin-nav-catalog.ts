@@ -192,12 +192,23 @@ const SECTIONS: Section[] = [
   {
     name: "Workspace Management",
     to: "/admin/workspaces",
-    blurb: "Workspaces, templates, lifecycle",
+    blurb: "Administration, governance, operations",
     tabs: [
-      { label: "Directory", id: "directory" },
-      { label: "Templates", id: "templates" },
-      { label: "Lifecycle", id: "lifecycle" },
-      { label: "Deletion", id: "deletion" },
+      // Administration console → first-level sub-sections
+      { label: "Workspaces", to: "/admin/workspaces?tab=workspaces" },
+      { label: "Workspace Templates", to: "/admin/workspaces?tab=templates" },
+      {
+        label: "Ownership & Administration",
+        to: "/admin/workspaces?tab=ownership",
+      },
+      {
+        label: "Hierarchy & Relationships",
+        to: "/admin/workspaces?tab=hierarchy",
+      },
+      { label: "Lifecycle", to: "/admin/workspaces?tab=lifecycle" },
+      // Sibling consoles
+      { label: "Workspace Governance", to: "/admin/workspaces/governance" },
+      { label: "Workspace Operations", to: "/admin/workspaces/operations" },
     ],
   },
   {
