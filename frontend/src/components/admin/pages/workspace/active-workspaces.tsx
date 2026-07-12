@@ -39,7 +39,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   T,
@@ -662,10 +662,12 @@ function WorkspaceDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
       title={rec.name}
       subtitle={`${rec.id} · ${rec.status} · ${rec.environment} · ${rec.owner} · ${rec.businessUnit}`}
-      width={720}
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       onClose={onClose}
       footer={
         <div
@@ -694,7 +696,6 @@ function WorkspaceDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "members" && <MembersTab rec={rec} />}
       {tab === "resources" && <ResourcesTab rec={rec} />}
@@ -704,7 +705,7 @@ function WorkspaceDetailDrawer({
       {tab === "ai" && <AiAgentsTab rec={rec} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 
@@ -741,107 +742,127 @@ function Section({
 }
 
 // ── Overview (General · Ownership · Statistics · Operational Health) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "ownership", label: "Ownership" },
+  { id: "statistics", label: "Statistics" },
+  { id: "health", label: "Operational Health" },
+];
 function OverviewTab({ rec }: { rec: WsRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.name },
-            { k: "Workspace ID", v: rec.id },
-            { k: "Environment", v: rec.environment },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created },
-            { k: "Modified", v: rec.modified },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.name },
+              { k: "Workspace ID", v: rec.id },
+              { k: "Environment", v: rec.environment },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created },
+              { k: "Modified", v: rec.modified },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Ownership" sample>
-        <KVGrid
-          items={[
-            { k: "Primary Owner", v: rec.owner },
-            {
-              k: "Delegated Administrators",
-              v: rec.delegatedAdmins.join(", "),
-              sample: true,
-            },
-            { k: "Business Owner", v: rec.businessOwner, sample: true },
-            { k: "Technical Owner", v: rec.technicalOwner, sample: true },
-            { k: "Support Contact", v: rec.supportContact, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "ownership" && (
+        <Section title="Ownership" sample>
+          <KVGrid
+            items={[
+              { k: "Primary Owner", v: rec.owner },
+              {
+                k: "Delegated Administrators",
+                v: rec.delegatedAdmins.join(", "),
+                sample: true,
+              },
+              { k: "Business Owner", v: rec.businessOwner, sample: true },
+              { k: "Technical Owner", v: rec.technicalOwner, sample: true },
+              { k: "Support Contact", v: rec.supportContact, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={4}
-          items={[
-            { k: "Members", v: rec.members, sample: true },
-            { k: "Cloud Accounts", v: rec.cloudAccounts, sample: true },
-            { k: "Resources", v: rec.resources.toLocaleString(), sample: true },
-            { k: "AI Agents", v: rec.aiAgents, sample: true },
-            { k: "Policies", v: rec.policies, sample: true },
-            {
-              k: "Compliance Standards",
-              v: rec.complianceStandards,
-              sample: true,
-            },
-            { k: "Integrations", v: rec.integrations, sample: true },
-            { k: "Alerts", v: rec.alerts, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={4}
+            items={[
+              { k: "Members", v: rec.members, sample: true },
+              { k: "Cloud Accounts", v: rec.cloudAccounts, sample: true },
+              {
+                k: "Resources",
+                v: rec.resources.toLocaleString(),
+                sample: true,
+              },
+              { k: "AI Agents", v: rec.aiAgents, sample: true },
+              { k: "Policies", v: rec.policies, sample: true },
+              {
+                k: "Compliance Standards",
+                v: rec.complianceStandards,
+                sample: true,
+              },
+              { k: "Integrations", v: rec.integrations, sample: true },
+              { k: "Alerts", v: rec.alerts, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Operational Health" sample>
-        <StatRow
-          label="Overall Health"
-          value={<HealthBadge health={rec.health} />}
-          tone={
-            rec.health === "Healthy"
-              ? "ok"
-              : rec.health === "Degraded"
-                ? "warn"
-                : "danger"
-          }
-          sample
-        />
-        <StatRow
-          label="Compliance Score"
-          value={`${rec.complianceScore}%`}
-          tone={rec.complianceScore >= 85 ? "ok" : "warn"}
-          sample
-        />
-        <StatRow
-          label="Security Score"
-          value={`${rec.securityScore}%`}
-          tone={rec.securityScore >= 85 ? "ok" : "warn"}
-          sample
-        />
-        <StatRow
-          label="Configuration Drift"
-          value={`${rec.configDrift} findings`}
-          tone={rec.configDrift === 0 ? "ok" : "warn"}
-          sample
-        />
-        <StatRow
-          label="Synchronization Status"
-          value={rec.syncStatus}
-          tone={rec.syncStatus === "Synchronized" ? "ok" : "warn"}
-          sample
-        />
-        <StatRow
-          label="Resource Coverage"
-          value={`${rec.resourceCoverage}%`}
-          tone={rec.resourceCoverage >= 90 ? "ok" : "warn"}
-          sample
-        />
-      </Section>
+      {sub === "health" && (
+        <Section title="Operational Health" sample>
+          <StatRow
+            label="Overall Health"
+            value={<HealthBadge health={rec.health} />}
+            tone={
+              rec.health === "Healthy"
+                ? "ok"
+                : rec.health === "Degraded"
+                  ? "warn"
+                  : "danger"
+            }
+            sample
+          />
+          <StatRow
+            label="Compliance Score"
+            value={`${rec.complianceScore}%`}
+            tone={rec.complianceScore >= 85 ? "ok" : "warn"}
+            sample
+          />
+          <StatRow
+            label="Security Score"
+            value={`${rec.securityScore}%`}
+            tone={rec.securityScore >= 85 ? "ok" : "warn"}
+            sample
+          />
+          <StatRow
+            label="Configuration Drift"
+            value={`${rec.configDrift} findings`}
+            tone={rec.configDrift === 0 ? "ok" : "warn"}
+            sample
+          />
+          <StatRow
+            label="Synchronization Status"
+            value={rec.syncStatus}
+            tone={rec.syncStatus === "Synchronized" ? "ok" : "warn"}
+            sample
+          />
+          <StatRow
+            label="Resource Coverage"
+            value={`${rec.resourceCoverage}%`}
+            tone={rec.resourceCoverage >= 90 ? "ok" : "warn"}
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }

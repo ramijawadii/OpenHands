@@ -222,3 +222,14 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* SideRailDrawer active section — theme-aware (set inline-free by admin-kit so the
+   class wins). Dark (default): white text on near-black. Light: keep accent-on-tint. */
+.cg-rail-item-active {
+  color: #ffffff;
+  background: rgb(11, 11, 11);
+}
+[data-theme="light"] .cg-rail-item-active {
+  color: var(--cg-accent);
+  background: var(--cg-bg-active);
+}

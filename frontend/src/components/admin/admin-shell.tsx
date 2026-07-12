@@ -23,8 +23,6 @@ import {
 } from "#/components/features/settings/settings-kit";
 import "#/components/features/settings/settings-polish.css";
 import { T } from "./admin-kit";
-import { ConsoleSwitcher } from "./workspace-context";
-import { EmergencyButton } from "./emergency-button";
 
 type LucideIcon = React.ComponentType<{
   size?: number;
@@ -113,27 +111,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       >
         <div
           style={{
-            padding: "16px 16px 12px",
+            padding: "12px 16px 10px",
             borderBottom: `1px solid ${T.border}`,
           }}
         >
-          <NavLink
-            to="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 12,
-              color: T.textMuted,
-              textDecoration: "none",
-              marginBottom: 12,
-            }}
-          >
-            <span style={{ fontSize: 13 }}>←</span> Back to dashboard
-          </NavLink>
           <div
             style={{
-              fontSize: 16,
+              fontSize: 15,
               color: T.textPrimary,
               fontWeight: 600,
               letterSpacing: "-0.01em",
@@ -141,12 +125,6 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             }}
           >
             Enterprise Administration
-          </div>
-          <div style={{ marginTop: 8 }}>
-            <ConsoleSwitcher current="enterprise" />
-          </div>
-          <div style={{ marginTop: 10 }}>
-            <EmergencyButton scope="enterprise" />
           </div>
         </div>
 

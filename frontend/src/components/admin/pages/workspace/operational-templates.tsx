@@ -37,7 +37,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -48,7 +47,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   PostureGrid,
@@ -929,7 +928,10 @@ function OperationalTemplateDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       title={rec.name}
       // Drawer Header displays: Template Name · Version · Operational Tier · Status · Default
       subtitle={`${rec.version} · ${rec.tier} · ${rec.status} · ${rec.isDefault ? "Default" : "Non-default"}`}
@@ -955,7 +957,6 @@ function OperationalTemplateDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "automation" && <AutomationTab rec={rec} />}
       {tab === "monitoring" && <MonitoringTab rec={rec} />}
@@ -968,7 +969,7 @@ function OperationalTemplateDrawer({
       {tab === "versions" && <VersionHistoryTab rec={rec} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

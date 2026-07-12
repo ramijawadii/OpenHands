@@ -29,7 +29,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -40,7 +39,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   T,
@@ -634,7 +633,10 @@ function RequestDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       title={`${rec.id} · ${rec.workspace}`}
       subtitle={`${rec.status} · ${rec.requester} · ${rec.priority} priority · Stage: ${rec.currentStage}`}
       width={760}
@@ -664,7 +666,6 @@ function RequestDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "config" && <ConfigTab rec={rec} />}
       {tab === "approval" && <ApprovalTab rec={rec} />}
@@ -673,7 +674,7 @@ function RequestDetailDrawer({
       {tab === "activity" && <ActivityTab />}
       {tab === "attachments" && <AttachmentsTab rec={rec} />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

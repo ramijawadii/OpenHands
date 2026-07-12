@@ -32,7 +32,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -44,6 +43,7 @@ import {
   EmptyState,
   SampleTag,
   Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   PostureGrid,
@@ -991,11 +991,13 @@ function TemplateDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
       title={rec.name}
       // Drawer header displays: Template Name · Version · Status · Owner · Visibility
       subtitle={`${rec.version} · ${rec.status} · ${rec.owner} · ${rec.visibility}`}
-      width={760}
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       onClose={onClose}
       footer={
         // Drawer header quick actions: Edit · Clone · Publish · Share · Export
@@ -1023,7 +1025,6 @@ function TemplateDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "composition" && <CompositionTab rec={rec} />}
       {tab === "configuration" && <ConfigurationTab rec={rec} />}
@@ -1033,7 +1034,7 @@ function TemplateDetailDrawer({
       {tab === "versions" && <VersionHistoryTab rec={rec} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

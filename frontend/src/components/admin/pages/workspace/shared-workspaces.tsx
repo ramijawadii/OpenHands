@@ -25,7 +25,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -36,7 +35,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   PostureCard,
@@ -837,7 +836,10 @@ function SharedWorkspaceDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       title={rec.name}
       subtitle={`${rec.shareType} · ${rec.status} · ${rec.owner} · ${rec.connectedWorkspaces} connected · ${rec.sharedResources.toLocaleString()} shared resources`}
       width={760}
@@ -865,7 +867,6 @@ function SharedWorkspaceDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "resources" && <SharedResourcesTab rec={rec} />}
       {tab === "connected" && <ConnectedWorkspacesTab rec={rec} />}
@@ -875,7 +876,7 @@ function SharedWorkspaceDetailDrawer({
       {tab === "compliance" && <ComplianceTab rec={rec} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

@@ -33,7 +33,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -44,7 +43,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   PostureGrid,
@@ -1021,7 +1020,10 @@ function JobDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       // Drawer Header — Job ID · Workspace · Operation · Status · Priority · Progress (spec §Drawer Header)
       title={`${rec.id} · ${rec.workspace}`}
       subtitle={`${rec.operation} · ${rec.status} · ${rec.priority} priority · ${rec.progress}% complete`}
@@ -1060,7 +1062,6 @@ function JobDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "plan" && <ExecutionPlanTab rec={rec} />}
       {tab === "progress" && <ProgressTab rec={rec} />}
@@ -1070,7 +1071,7 @@ function JobDetailDrawer({
       {tab === "logs" && <LogsTab rec={rec} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

@@ -141,6 +141,7 @@ import {
   SampleBanner,
   EmptyState,
   LiveCardSkeleton,
+  StatTile,
   T,
   type Column,
   type CommandItem,
@@ -1910,8 +1911,9 @@ function ActiveSessions() {
         kpi={
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(6,1fr)",
+              display: "flex",
+              flexWrap: "nowrap",
+              overflowX: "auto",
               gap: 10,
               marginBottom: 16,
             }}
@@ -17833,8 +17835,9 @@ function ReviewMetricsBar() {
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4,1fr)",
+        display: "flex",
+        flexWrap: "nowrap",
+        overflowX: "auto",
         gap: 10,
         marginBottom: 16,
       }}
@@ -21049,6 +21052,7 @@ function ActRow({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+// Thin wrapper over the canonical StatTile so every identity KPI matches the shared stat-card look.
 function MetricTile({
   label,
   value,
@@ -21058,29 +21062,9 @@ function MetricTile({
   value: string;
   tone?: StatusTone;
 }) {
-  const c =
-    tone === "ok"
-      ? T.success
-      : tone === "warn"
-        ? T.warning
-        : tone === "danger"
-          ? T.danger
-          : T.textPrimary;
-  return (
-    <div
-      style={{
-        border: `1px solid ${T.border}`,
-        borderRadius: 8,
-        padding: "14px 16px",
-        background: "var(--cg-bg-badge)",
-      }}
-    >
-      <div style={{ fontSize: 22, fontWeight: 700, color: c }}>{value}</div>
-      <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>
-        {label}
-      </div>
-    </div>
-  );
+  const t =
+    tone === "ok" || tone === "warn" || tone === "danger" ? tone : "none";
+  return <StatTile label={label} value={value} tone={t} />;
 }
 
 // Config-driven entity drawer on the shared DetailDrawer shell.
@@ -23429,8 +23413,9 @@ function PasskeyCollection() {
         kpi={
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3,1fr)",
+              display: "flex",
+              flexWrap: "nowrap",
+              overflowX: "auto",
               gap: 12,
               marginBottom: 14,
             }}

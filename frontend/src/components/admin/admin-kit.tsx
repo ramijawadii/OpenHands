@@ -273,7 +273,67 @@ export function InheritedField({
   );
 }
 
-// ── PostureCard — overview/posture grids (§5, §20) ────────────────────────────────────────────────
+// ── StatTile — THE canonical stat card (compact value-first, matches Settings → Models & Inference) ──
+// One look for every KPI/stat tile across the admin console: big value on top, small muted caption
+// below, optional sub line, tone colours the value + border. Compact padding, flex so a row of them
+// fills the width. PostureCard (posture grids) and identity's MetricTile both render through this.
+export type StatTone = "ok" | "warn" | "danger" | "none";
+export function StatTile({
+  label,
+  value,
+  tone = "none",
+  sub,
+  footer,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  tone?: StatTone;
+  sub?: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  const color =
+    tone === "ok"
+      ? T.success
+      : tone === "warn"
+        ? T.warning
+        : tone === "danger"
+          ? T.danger
+          : T.textPrimary;
+  return (
+    <div
+      style={{
+        background: T.cardBg,
+        border: `1px solid ${tone === "none" ? T.border : color}`,
+        borderRadius: 10,
+        padding: "14px 16px",
+        minWidth: 140,
+        flex: 1,
+        boxSizing: "border-box",
+      }}
+    >
+      <div style={{ fontSize: 20, fontWeight: 600, color }}>{value}</div>
+      <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+        {label}
+      </div>
+      {sub != null && (
+        <div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>
+          {sub}
+        </div>
+      )}
+      {footer}
+    </div>
+  );
+}
+
+// A flex-wrap row for a set of StatTiles (the Settings → Models & Inference layout).
+export function StatRowTiles({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>{children}</div>
+  );
+}
+
+// ── PostureCard — overview/posture grids (§5, §20). Renders through StatTile so it shares the one
+//    canonical stat-card look; adds the optional "cta" deep-link footer PostureCards use. ──────────
 export function PostureCard({
   title,
   value,
@@ -289,88 +349,47 @@ export function PostureCard({
   to?: string;
   cta?: string;
 }) {
-  const dot =
-    tone === "ok"
-      ? T.success
-      : tone === "warn"
-        ? T.warning
-        : tone === "danger"
-          ? T.danger
-          : T.textMuted;
   return (
-    <div
-      style={{
-        background: T.cardBg,
-        border: `1px solid ${T.border}`,
-        borderRadius: 10,
-        padding: 16,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        minWidth: 0,
-      }}
-    >
-      <div style={{ fontSize: 12, color: T.textMuted }}>{title}</div>
-      <div
-        style={{
-          fontSize: 22,
-          color: T.textPrimary,
-          fontWeight: 600,
-          letterSpacing: "-0.01em",
-          lineHeight: 1.1,
-        }}
-      >
-        {value}
-      </div>
-      {sub != null && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 12,
-            color: T.textNav,
-          }}
-        >
-          <span
+    <StatTile
+      label={title}
+      value={value}
+      sub={sub}
+      tone={tone === "muted" ? "none" : tone}
+      footer={
+        to && cta ? (
+          <Link
+            to={to}
             style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: dot,
-              flexShrink: 0,
+              marginTop: 6,
+              fontSize: 12,
+              color: T.accent,
+              textDecoration: "none",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 3,
             }}
-          />
-          {sub}
-        </div>
-      )}
-      {to && cta && (
-        <Link
-          to={to}
-          style={{
-            marginTop: 2,
-            fontSize: 12,
-            color: T.accent,
-            textDecoration: "none",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 3,
-          }}
-        >
-          {cta} <ArrowUpRight size={12} />
-        </Link>
-      )}
-    </div>
+          >
+            {cta} <ArrowUpRight size={12} />
+          </Link>
+        ) : undefined
+      }
+    />
   );
 }
 
+// Single-row stat strip: every StatTile/PostureCard sits on ONE line (equal widths via each
+// tile's flex:1, with a 140px readable floor). If the row genuinely can't fit (very many cards /
+// narrow viewport) it scrolls horizontally inside itself rather than wrapping to a second row.
 export function PostureGrid({ children }: { children: React.ReactNode }) {
   return (
     <div
+      className="custom-scrollbar"
       style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-        gap: 14,
+        display: "flex",
+        flexWrap: "nowrap",
+        gap: 12,
+        overflowX: "auto",
+        paddingBottom: 2,
       }}
     >
       {children}
@@ -1972,6 +1991,188 @@ export function Drawer({
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
           {children}
+        </div>
+        {footer && (
+          <div
+            style={{
+              padding: "14px 20px",
+              borderTop: `1px solid ${T.border}`,
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: 10,
+            }}
+          >
+            {footer}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── SideRailDrawer — the canonical detail drawer with a LEFT navigation rail (Users-module parity) ──
+// Replaces the wrapping top-tab strip: sections live in a vertical left rail (icon + label, active =
+// filled + accent bar), and the selected section's content scrolls on the right. Header + footer are
+// identical to Drawer. Use this for every rich detail drawer so 8–11 sections never wrap to a 2nd row.
+export interface RailSection {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+}
+export function SideRailDrawer({
+  title,
+  subtitle,
+  sections,
+  active,
+  onSelect,
+  children,
+  footer,
+  onClose,
+  width = 900,
+}: {
+  title: string;
+  subtitle?: string;
+  sections: RailSection[];
+  active: string;
+  onSelect: (id: string) => void;
+  children: React.ReactNode; // the active section's content
+  footer?: React.ReactNode;
+  onClose: () => void;
+  width?: number;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      className="cg-overlay-anim"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "var(--cg-overlay)",
+        zIndex: 1200,
+        display: "flex",
+        justifyContent: "flex-end",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="cg-drawer-anim"
+        style={{
+          width,
+          maxWidth: "96vw",
+          height: "100%",
+          background: T.cardBg,
+          borderLeft: `1px solid ${T.borderStrong}`,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "18px 20px",
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}
+            >
+              {title}
+            </div>
+            {subtitle && (
+              <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 3 }}>
+                {subtitle}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: T.textMuted,
+              cursor: "pointer",
+              fontSize: 18,
+              lineHeight: 1,
+            }}
+          >
+            ✕
+          </button>
+        </div>
+        {/* Body = left rail + scrollable content */}
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          <div
+            className="custom-scrollbar"
+            style={{
+              width: 208,
+              flexShrink: 0,
+              borderRight: `1px solid ${T.border}`,
+              overflowY: "auto",
+              padding: "12px 10px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {sections.map((s) => {
+              const on = s.id === active;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onSelect(s.id)}
+                  // Active bg/text come from the theme-aware `.cg-rail-item-active`
+                  // CSS rule (dark = white on rgb(11,11,11); light = accent on tint),
+                  // so they must NOT be set inline (inline would override the class).
+                  className={on ? "cg-rail-item-active" : undefined}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    textAlign: "left",
+                    height: 34,
+                    padding: "0 10px",
+                    borderRadius: 7,
+                    border: "none",
+                    background: on ? undefined : "transparent",
+                    color: on ? undefined : T.textNav,
+                    fontSize: 12.5,
+                    fontWeight: on ? 600 : 400,
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  {s.icon && (
+                    <span
+                      style={{ display: "inline-flex", flexShrink: 0 }}
+                      aria-hidden
+                    >
+                      {s.icon}
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {s.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}>
+            {children}
+          </div>
         </div>
         {footer && (
           <div

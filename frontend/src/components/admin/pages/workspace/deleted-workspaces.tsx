@@ -27,7 +27,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -38,7 +37,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   T,
@@ -869,7 +868,10 @@ function DeletedDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       title={`${rec.workspace}`}
       subtitle={`${rec.workspaceId} · ${rec.status} · Deleted ${rec.deletedDate} · Retention: ${rec.retentionStatus}`}
       width={760}
@@ -919,7 +921,6 @@ function DeletedDetailDrawer({
         supported.
       </div>
 
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "summary" && <SummaryTab rec={rec} />}
       {tab === "evidence" && <EvidenceTab rec={rec} />}
@@ -928,7 +929,7 @@ function DeletedDetailDrawer({
       {tab === "activity" && <ActivityTab />}
       {tab === "retention" && <RetentionTab rec={rec} />}
       {tab === "purge" && <PurgeTab rec={rec} />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

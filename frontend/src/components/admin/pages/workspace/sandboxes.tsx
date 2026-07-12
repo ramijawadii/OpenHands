@@ -34,7 +34,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -45,7 +44,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   ConfirmButton,
@@ -1046,7 +1045,10 @@ function SandboxDetailDrawer({
   const [tab, setTab] = React.useState("overview");
   const exp = expirationLabel(rec);
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       title={`${rec.name}`}
       subtitle={`${rec.status} · ${rec.purpose} · ${rec.owner} · ${exp.text} · ${rec.health}`}
       width={760}
@@ -1079,7 +1081,6 @@ function SandboxDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "resources" && <ResourcesTab rec={rec} />}
       {tab === "ai" && <AITab rec={rec} />}
@@ -1088,7 +1089,7 @@ function SandboxDetailDrawer({
       {tab === "lifecycle" && <LifecycleTab rec={rec} />}
       {tab === "activity" && <ActivityTab />}
       {tab === "audit" && <AuditTab />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 

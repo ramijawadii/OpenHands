@@ -16,6 +16,24 @@ import {
   Wrench,
   PencilRuler,
   Library,
+  UserCog,
+  UserCheck,
+  Briefcase,
+  GitBranch,
+  Siren,
+  ShieldCheck,
+  Network,
+  FolderTree,
+  Server,
+  Link2,
+  Waypoints,
+  Map,
+  ClipboardList,
+  Cog,
+  PlayCircle,
+  PauseCircle,
+  Hammer,
+  PowerOff,
 } from "lucide-react";
 import { ActiveWorkspacesView } from "#/components/admin/pages/workspace/active-workspaces";
 import { WorkspaceRequestsView } from "#/components/admin/pages/workspace/workspace-requests";
@@ -30,12 +48,30 @@ import { ComplianceTemplatesView } from "#/components/admin/pages/workspace/comp
 import { OperationalTemplatesView } from "#/components/admin/pages/workspace/operational-templates";
 import { CustomTemplatesView } from "#/components/admin/pages/workspace/custom-templates";
 import { TemplateLibraryView } from "#/components/admin/pages/workspace/template-library";
+import { WorkspaceOwnersView } from "#/components/admin/pages/workspace/workspace-owners";
+import { DelegatedAdministratorsView } from "#/components/admin/pages/workspace/delegated-administrators";
+import { BusinessOwnershipView } from "#/components/admin/pages/workspace/business-ownership";
+import { ApprovalChainsView } from "#/components/admin/pages/workspace/approval-chains";
+import { EscalationContactsView } from "#/components/admin/pages/workspace/escalation-contacts";
+import { AdministrativeDelegationView } from "#/components/admin/pages/workspace/administrative-delegation";
+import { OrganizationHierarchyView } from "#/components/admin/pages/workspace/organization-hierarchy";
+import { ParentChildWorkspacesView } from "#/components/admin/pages/workspace/parent-child-workspaces";
+import { SharedServiceWorkspacesView } from "#/components/admin/pages/workspace/shared-service-workspaces";
+import { WorkspaceDependenciesView } from "#/components/admin/pages/workspace/workspace-dependencies";
+import { WorkspaceRelationshipsView } from "#/components/admin/pages/workspace/workspace-relationships";
+import { WorkspaceTopologyView } from "#/components/admin/pages/workspace/workspace-topology";
+import { LifecycleRequestedView } from "#/components/admin/pages/workspace/lifecycle-requested";
+import { LifecycleProvisioningView } from "#/components/admin/pages/workspace/lifecycle-provisioning";
+import { LifecycleActiveView } from "#/components/admin/pages/workspace/lifecycle-active";
+import { LifecycleSuspendedView } from "#/components/admin/pages/workspace/lifecycle-suspended";
+import { LifecycleMaintenanceView } from "#/components/admin/pages/workspace/lifecycle-maintenance";
+import { LifecycleArchivedView } from "#/components/admin/pages/workspace/lifecycle-archived";
+import { LifecycleDecommissionedView } from "#/components/admin/pages/workspace/lifecycle-decommissioned";
 import {
   Page,
   PageHeader,
   Tabs,
   SubTabStrip,
-  EmptyState,
   HeaderButton,
   ScopeBadge,
   type StripIcon,
@@ -146,6 +182,129 @@ const TEMPLATE_LEAVES: Leaf[] = [
   },
 ];
 
+const OWNERSHIP_LEAVES: Leaf[] = [
+  {
+    id: "owners",
+    label: "Workspace Owners",
+    Icon: UserCog,
+    render: () => <WorkspaceOwnersView />,
+  },
+  {
+    id: "delegated",
+    label: "Delegated Administrators",
+    Icon: UserCheck,
+    render: () => <DelegatedAdministratorsView />,
+  },
+  {
+    id: "business",
+    label: "Business Ownership",
+    Icon: Briefcase,
+    render: () => <BusinessOwnershipView />,
+  },
+  {
+    id: "approvals",
+    label: "Approval Chains",
+    Icon: GitBranch,
+    render: () => <ApprovalChainsView />,
+  },
+  {
+    id: "escalation",
+    label: "Escalation Contacts",
+    Icon: Siren,
+    render: () => <EscalationContactsView />,
+  },
+  {
+    id: "admin-delegation",
+    label: "Administrative Delegation",
+    Icon: ShieldCheck,
+    render: () => <AdministrativeDelegationView />,
+  },
+];
+
+const HIERARCHY_LEAVES: Leaf[] = [
+  {
+    id: "org-hierarchy",
+    label: "Organization Hierarchy",
+    Icon: Network,
+    render: () => <OrganizationHierarchyView />,
+  },
+  {
+    id: "parent-child",
+    label: "Parent / Child Workspaces",
+    Icon: FolderTree,
+    render: () => <ParentChildWorkspacesView />,
+  },
+  {
+    id: "shared-service",
+    label: "Shared Service Workspaces",
+    Icon: Server,
+    render: () => <SharedServiceWorkspacesView />,
+  },
+  {
+    id: "dependencies",
+    label: "Dependencies",
+    Icon: Link2,
+    render: () => <WorkspaceDependenciesView />,
+  },
+  {
+    id: "relationships",
+    label: "Workspace Relationships",
+    Icon: Waypoints,
+    render: () => <WorkspaceRelationshipsView />,
+  },
+  {
+    id: "topology",
+    label: "Workspace Topology",
+    Icon: Map,
+    render: () => <WorkspaceTopologyView />,
+  },
+];
+
+const LIFECYCLE_LEAVES: Leaf[] = [
+  {
+    id: "requested",
+    label: "Requested",
+    Icon: ClipboardList,
+    render: () => <LifecycleRequestedView />,
+  },
+  {
+    id: "provisioning",
+    label: "Provisioning",
+    Icon: Cog,
+    render: () => <LifecycleProvisioningView />,
+  },
+  {
+    id: "active",
+    label: "Active",
+    Icon: PlayCircle,
+    render: () => <LifecycleActiveView />,
+  },
+  {
+    id: "suspended",
+    label: "Suspended",
+    Icon: PauseCircle,
+    render: () => <LifecycleSuspendedView />,
+  },
+  {
+    id: "maintenance",
+    label: "Maintenance",
+    Icon: Hammer,
+    render: () => <LifecycleMaintenanceView />,
+  },
+  {
+    id: "archived",
+    label: "Archived",
+    Icon: Archive,
+    render: () => <LifecycleArchivedView />,
+  },
+  {
+    id: "decommissioned",
+    label: "Decommissioned",
+    Icon: PowerOff,
+    render: () => <LifecycleDecommissionedView />,
+  },
+];
+
 // A sub-section renders its leaves as the second-level pill strip and shows the selected leaf below.
 function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
   const [leaf, setLeaf] = React.useState(leaves[0].id);
@@ -159,16 +318,6 @@ function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
       />
       {cur.render()}
     </>
-  );
-}
-
-function ComingSoon({ name }: { name: string }) {
-  return (
-    <EmptyState
-      icon={<LayoutGrid size={20} />}
-      title={`${name} — coming soon`}
-      hint="This Workspace Administration sub-section is on the build roadmap. Its leaf views and their sub-navigation will appear here."
-    />
   );
 }
 
@@ -206,9 +355,9 @@ export function WorkspaceManagementPage() {
       <Tabs tabs={SUBSECTIONS} active={tab} onChange={setTab} />
       {tab === "workspaces" && <LeafSubsection leaves={WORKSPACE_LEAVES} />}
       {tab === "templates" && <LeafSubsection leaves={TEMPLATE_LEAVES} />}
-      {tab === "ownership" && <ComingSoon name="Ownership & Administration" />}
-      {tab === "hierarchy" && <ComingSoon name="Hierarchy & Relationships" />}
-      {tab === "lifecycle" && <ComingSoon name="Lifecycle" />}
+      {tab === "ownership" && <LeafSubsection leaves={OWNERSHIP_LEAVES} />}
+      {tab === "hierarchy" && <LeafSubsection leaves={HIERARCHY_LEAVES} />}
+      {tab === "lifecycle" && <LeafSubsection leaves={LIFECYCLE_LEAVES} />}
     </Page>
   );
 }

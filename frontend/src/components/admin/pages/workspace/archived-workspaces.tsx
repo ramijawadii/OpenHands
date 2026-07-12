@@ -26,7 +26,6 @@ import {
 import {
   Page,
   PageHeader,
-  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -37,7 +36,7 @@ import {
   Select,
   EmptyState,
   SampleTag,
-  Drawer,
+  SideRailDrawer,
   RowMenu,
   ScopeBadge,
   T,
@@ -902,7 +901,10 @@ function ArchivedWorkspaceDetailDrawer({
 }) {
   const [tab, setTab] = React.useState("overview");
   return (
-    <Drawer
+    <SideRailDrawer
+      sections={DRAWER_TABS}
+      active={tab}
+      onSelect={setTab}
       title={rec.name}
       // Drawer header (spec §Drawer Header): Workspace Name · ID · Archive Status · Retention · Archive Date · Owner
       subtitle={`${rec.id} · ${rec.status} · ${rec.retentionPolicy} · Archived ${rec.archived} · ${rec.owner}`}
@@ -929,7 +931,6 @@ function ArchivedWorkspaceDetailDrawer({
         </div>
       }
     >
-      <Tabs tabs={DRAWER_TABS} active={tab} onChange={setTab} />
       {tab === "overview" && <OverviewTab rec={rec} />}
       {tab === "archive" && <ArchiveInfoTab rec={rec} />}
       {tab === "config" && <HistoricalConfigTab rec={rec} />}
@@ -938,7 +939,7 @@ function ArchivedWorkspaceDetailDrawer({
       {tab === "activity" && <ActivityTab />}
       {tab === "retention" && <RetentionTab rec={rec} />}
       {tab === "restoration" && <RestorationTab rec={rec} />}
-    </Drawer>
+    </SideRailDrawer>
   );
 }
 
