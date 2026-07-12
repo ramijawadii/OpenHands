@@ -25,6 +25,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -939,63 +940,76 @@ function ToolbarRow({
 }
 
 // ── Overview (General · Ownership · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "ownership", label: "Ownership" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: SharedWsRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.name },
-            { k: "Workspace Type", v: rec.shareType },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Sharing Scope", v: rec.sharingScope },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Created", v: rec.created },
-            { k: "Modified", v: rec.modified },
-            { k: "Trust Status", v: <TrustBadge status={rec.trustStatus} /> },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.name },
+              { k: "Workspace Type", v: rec.shareType },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Sharing Scope", v: rec.sharingScope },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Created", v: rec.created },
+              { k: "Modified", v: rec.modified },
+              { k: "Trust Status", v: <TrustBadge status={rec.trustStatus} /> },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Ownership" sample>
-        <KVGrid
-          items={[
-            { k: "Business Owner", v: rec.businessOwner, sample: true },
-            { k: "Technical Owner", v: rec.technicalOwner, sample: true },
-            {
-              k: "Delegated Administrators",
-              v: rec.delegatedAdmins.join(", "),
-              sample: true,
-            },
-            { k: "Support Team", v: rec.supportTeam, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "ownership" && (
+        <Section title="Ownership" sample>
+          <KVGrid
+            items={[
+              { k: "Business Owner", v: rec.businessOwner, sample: true },
+              { k: "Technical Owner", v: rec.technicalOwner, sample: true },
+              {
+                k: "Delegated Administrators",
+                v: rec.delegatedAdmins.join(", "),
+                sample: true,
+              },
+              { k: "Support Team", v: rec.supportTeam, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Connected Workspaces",
-              v: rec.connectedWorkspaces,
-              sample: true,
-            },
-            { k: "Shared Resources", v: rec.sharedResources, sample: true },
-            { k: "Members", v: rec.members, sample: true },
-            { k: "Policies", v: rec.policies, sample: true },
-            { k: "Integrations", v: rec.integrations, sample: true },
-            {
-              k: "Compliance Standards",
-              v: rec.complianceStandards,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Connected Workspaces",
+                v: rec.connectedWorkspaces,
+                sample: true,
+              },
+              { k: "Shared Resources", v: rec.sharedResources, sample: true },
+              { k: "Members", v: rec.members, sample: true },
+              { k: "Policies", v: rec.policies, sample: true },
+              { k: "Integrations", v: rec.integrations, sample: true },
+              {
+                k: "Compliance Standards",
+                v: rec.complianceStandards,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1221,7 +1235,15 @@ function TrustRelationshipsTab({ rec }: { rec: SharedWsRecord }) {
 }
 
 // ── Access Policies (spec §Access Policies) ──
+const ACCESS_SUBS = [
+  { id: "permission-profiles", label: "Permission Profiles" },
+  { id: "resource-permissions", label: "Resource Permissions" },
+  { id: "approval-policies", label: "Approval Policies" },
+  { id: "conditional-access", label: "Conditional Access" },
+  { id: "expiration-policies", label: "Expiration Policies" },
+];
 function AccessPoliciesTab({ rec }: { rec: SharedWsRecord }) {
+  const [sub, setSub] = React.useState("permission-profiles");
   return (
     <>
       <div
@@ -1236,52 +1258,68 @@ function AccessPoliciesTab({ rec }: { rec: SharedWsRecord }) {
       >
         How consumers access shared assets <SampleTag />
       </div>
-      <Section title="Permission Profiles" sample>
-        <StatRow
-          label="Default Permission Profile"
-          value="Consumer (read-only)"
-          sample
-        />
-        <StatRow label="Elevated Profile" value="Contributor" sample />
-        <StatRow
-          label="Administrative Profile"
-          value="Delegated Admin"
-          sample
-        />
-      </Section>
-      <Section title="Resource Permissions" sample>
-        <StatRow
-          label="Cloud Resources"
-          value={`${rec.sharedResources.toLocaleString()} scoped`}
-          sample
-        />
-        <StatRow label="Knowledge Bases" value="Read" sample />
-        <StatRow label="AI Agents" value="Consume" sample />
-        <StatRow label="Integrations" value="Read/Write" sample />
-      </Section>
-      <Section title="Approval Policies" sample>
-        <StatRow label="Access Requests" value="2-of-3 approvers" sample />
-        <StatRow
-          label="Resource Sharing"
-          value="Owner approval required"
-          sample
-        />
-      </Section>
-      <Section title="Conditional Access" sample>
-        <StatRow
-          label="Trusted Networks Only"
-          value="Enabled"
-          tone="ok"
-          sample
-        />
-        <StatRow label="MFA Required" value="Enabled" tone="ok" sample />
-        <StatRow label="Device Compliance" value="Required" tone="ok" sample />
-      </Section>
-      <Section title="Expiration Policies" sample>
-        <StatRow label="Access Expiration" value="90 days" sample />
-        <StatRow label="Trust Expiration" value="365 days" sample />
-        <StatRow label="Auto-revoke on Inactivity" value="30 days" sample />
-      </Section>
+      <Tabs tabs={ACCESS_SUBS} active={sub} onChange={setSub} />
+      {sub === "permission-profiles" && (
+        <Section title="Permission Profiles" sample>
+          <StatRow
+            label="Default Permission Profile"
+            value="Consumer (read-only)"
+            sample
+          />
+          <StatRow label="Elevated Profile" value="Contributor" sample />
+          <StatRow
+            label="Administrative Profile"
+            value="Delegated Admin"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "resource-permissions" && (
+        <Section title="Resource Permissions" sample>
+          <StatRow
+            label="Cloud Resources"
+            value={`${rec.sharedResources.toLocaleString()} scoped`}
+            sample
+          />
+          <StatRow label="Knowledge Bases" value="Read" sample />
+          <StatRow label="AI Agents" value="Consume" sample />
+          <StatRow label="Integrations" value="Read/Write" sample />
+        </Section>
+      )}
+      {sub === "approval-policies" && (
+        <Section title="Approval Policies" sample>
+          <StatRow label="Access Requests" value="2-of-3 approvers" sample />
+          <StatRow
+            label="Resource Sharing"
+            value="Owner approval required"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "conditional-access" && (
+        <Section title="Conditional Access" sample>
+          <StatRow
+            label="Trusted Networks Only"
+            value="Enabled"
+            tone="ok"
+            sample
+          />
+          <StatRow label="MFA Required" value="Enabled" tone="ok" sample />
+          <StatRow
+            label="Device Compliance"
+            value="Required"
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "expiration-policies" && (
+        <Section title="Expiration Policies" sample>
+          <StatRow label="Access Expiration" value="90 days" sample />
+          <StatRow label="Trust Expiration" value="365 days" sample />
+          <StatRow label="Auto-revoke on Inactivity" value="30 days" sample />
+        </Section>
+      )}
       <ToolbarRow
         buttons={["Assign Policy", "Remove Policy", "Validate Policy"]}
       />
@@ -1290,40 +1328,50 @@ function AccessPoliciesTab({ rec }: { rec: SharedWsRecord }) {
 }
 
 // ── Governance (spec §Governance) ──
+const GOVERNANCE_SUBS = [
+  { id: "governance", label: "Governance" },
+  { id: "inheritance", label: "Policy Inheritance" },
+];
 function GovernanceTab({ rec }: { rec: SharedWsRecord }) {
+  const [sub, setSub] = React.useState("governance");
   return (
     <>
-      <Section title="Governance" sample>
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow
-          label="Inherited Policies"
-          value={`${rec.policies} inherited`}
-          sample
-        />
-        <StatRow label="Workspace Overrides" value="3 overrides" sample />
-        <StatRow
-          label="Sharing Policies"
-          value="Resource-scoped sharing enforced"
-          sample
-        />
-        <StatRow label="Capacity Limits" value="Standard tier" sample />
-        <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
-      </Section>
-      <Section title="Policy inheritance">
-        <Viz
-          lines={[
-            "Organization Policy",
-            "        │",
-            "Shared Workspace Policy",
-            "        │",
-            "Effective Configuration",
-          ]}
-        />
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "governance" && (
+        <Section title="Governance" sample>
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Inherited Policies"
+            value={`${rec.policies} inherited`}
+            sample
+          />
+          <StatRow label="Workspace Overrides" value="3 overrides" sample />
+          <StatRow
+            label="Sharing Policies"
+            value="Resource-scoped sharing enforced"
+            sample
+          />
+          <StatRow label="Capacity Limits" value="Standard tier" sample />
+          <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
+        </Section>
+      )}
+      {sub === "inheritance" && (
+        <Section title="Policy inheritance">
+          <Viz
+            lines={[
+              "Organization Policy",
+              "        │",
+              "Shared Workspace Policy",
+              "        │",
+              "Effective Configuration",
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

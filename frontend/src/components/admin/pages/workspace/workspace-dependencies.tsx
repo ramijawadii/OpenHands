@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1162,101 +1163,132 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: DependencyRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Dependency Name", v: rec.name },
-            { k: "Provider Workspace", v: rec.provider },
-            { k: "Consumer Workspace", v: rec.consumer },
-            { k: "Dependency Type", v: rec.type },
-            { k: "Owner", v: rec.owner, sample: true },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Criticality", v: rec.criticality },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Dependency Name", v: rec.name },
+              { k: "Provider Workspace", v: rec.provider },
+              { k: "Consumer Workspace", v: rec.consumer },
+              { k: "Dependency Type", v: rec.type },
+              { k: "Owner", v: rec.owner, sample: true },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Criticality", v: rec.criticality },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Dependent Workspaces",
-              v: rec.dependentWorkspaces,
-              sample: true,
-            },
-            { k: "Upstream Services", v: rec.upstreamServices, sample: true },
-            {
-              k: "Downstream Services",
-              v: rec.downstreamServices,
-              sample: true,
-            },
-            {
-              k: "Availability",
-              v: `${rec.availability.toFixed(2)}%`,
-              sample: true,
-            },
-            { k: "Incident Count", v: rec.incidentCount, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Dependent Workspaces",
+                v: rec.dependentWorkspaces,
+                sample: true,
+              },
+              { k: "Upstream Services", v: rec.upstreamServices, sample: true },
+              {
+                k: "Downstream Services",
+                v: rec.downstreamServices,
+                sample: true,
+              },
+              {
+                k: "Availability",
+                v: `${rec.availability.toFixed(2)}%`,
+                sample: true,
+              },
+              { k: "Incident Count", v: rec.incidentCount, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Relationship (spec §Relationship) ──
+const RELATIONSHIP_SUBS = [
+  {
+    id: "how-the-dependency-is-established",
+    label: "How the dependency is established",
+  },
+  { id: "relationship-details", label: "Relationship details" },
+  { id: "supported-relationship-types", label: "Supported relationship types" },
+];
 function RelationshipTab({ rec }: { rec: DependencyRecord }) {
+  const [sub, setSub] = React.useState("how-the-dependency-is-established");
   return (
     <>
-      <Section title="How the dependency is established" sample>
-        <FlowChain nodes={[rec.provider, rec.service, rec.consumer]} />
-      </Section>
+      <Tabs tabs={RELATIONSHIP_SUBS} active={sub} onChange={setSub} />
+      {sub === "how-the-dependency-is-established" && (
+        <Section title="How the dependency is established" sample>
+          <FlowChain nodes={[rec.provider, rec.service, rec.consumer]} />
+        </Section>
+      )}
 
-      <Section title="Relationship details" sample>
-        <StatRow label="Provider" value={rec.provider} sample />
-        <StatRow label="Consumer" value={rec.consumer} sample />
-        <StatRow
-          label="Relationship Type"
-          value={rec.relationshipType}
-          sample
-        />
-        <StatRow label="Service Level" value={rec.serviceLevel} sample />
-      </Section>
+      {sub === "relationship-details" && (
+        <Section title="Relationship details" sample>
+          <StatRow label="Provider" value={rec.provider} sample />
+          <StatRow label="Consumer" value={rec.consumer} sample />
+          <StatRow
+            label="Relationship Type"
+            value={rec.relationshipType}
+            sample
+          />
+          <StatRow label="Service Level" value={rec.serviceLevel} sample />
+        </Section>
+      )}
 
-      <Section title="Supported relationship types">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {RELATIONSHIP_TYPES.map((rt) => (
-            <span
-              key={rt}
-              style={{
-                fontSize: 11.5,
-                padding: "4px 10px",
-                borderRadius: 99,
-                border: `1px solid ${T.border}`,
-                color: rt === rec.relationshipType ? T.accent : T.textMuted,
-                background:
-                  rt === rec.relationshipType
-                    ? "var(--cg-accent-bg-strong)"
-                    : "transparent",
-              }}
-            >
-              {rt}
-            </span>
-          ))}
-        </div>
-      </Section>
+      {sub === "supported-relationship-types" && (
+        <Section title="Supported relationship types">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {RELATIONSHIP_TYPES.map((rt) => (
+              <span
+                key={rt}
+                style={{
+                  fontSize: 11.5,
+                  padding: "4px 10px",
+                  borderRadius: 99,
+                  border: `1px solid ${T.border}`,
+                  color: rt === rec.relationshipType ? T.accent : T.textMuted,
+                  background:
+                    rt === rec.relationshipType
+                      ? "var(--cg-accent-bg-strong)"
+                      : "transparent",
+                }}
+              >
+                {rt}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Impact Analysis (spec §Impact Analysis) ──
+const IMPACT_SUBS = [
+  { id: "predicted-operational-impact", label: "Predicted operational impact" },
+  { id: "impact-propagation", label: "Impact propagation" },
+];
 function ImpactTab({ rec }: { rec: DependencyRecord }) {
+  const [sub, setSub] = React.useState("predicted-operational-impact");
   const impactTone = (v: string) =>
     v === "High" || v === "Severe" || v === "Major"
       ? "danger"
@@ -1265,63 +1297,68 @@ function ImpactTab({ rec }: { rec: DependencyRecord }) {
         : "ok";
   return (
     <>
-      <Section title="Predicted operational impact" sample>
-        <StatRow
-          label="Affected Workspaces"
-          value={rec.affectedWorkspaces}
-          sample
-        />
-        <StatRow
-          label="Affected Users"
-          value={rec.affectedUsers.toLocaleString()}
-          sample
-        />
-        <StatRow
-          label="Affected Services"
-          value={rec.affectedServices}
-          sample
-        />
-        <StatRow
-          label="Compliance Impact"
-          value={rec.complianceImpact}
-          tone={impactTone(rec.complianceImpact)}
-          sample
-        />
-        <StatRow
-          label="Security Impact"
-          value={rec.securityImpact}
-          tone={impactTone(rec.securityImpact)}
-          sample
-        />
-        <StatRow
-          label="Business Impact"
-          value={rec.businessImpact}
-          tone={impactTone(rec.businessImpact)}
-          sample
-        />
-        <StatRow
-          label="Estimated Downtime"
-          value={`${rec.estDowntimeMin} min`}
-          sample
-        />
-        <StatRow
-          label="Recovery Priority"
-          value={rec.recoveryPriority}
-          tone={rec.recoveryPriority === "P1" ? "danger" : "warn"}
-          sample
-        />
-      </Section>
+      <Tabs tabs={IMPACT_SUBS} active={sub} onChange={setSub} />
+      {sub === "predicted-operational-impact" && (
+        <Section title="Predicted operational impact" sample>
+          <StatRow
+            label="Affected Workspaces"
+            value={rec.affectedWorkspaces}
+            sample
+          />
+          <StatRow
+            label="Affected Users"
+            value={rec.affectedUsers.toLocaleString()}
+            sample
+          />
+          <StatRow
+            label="Affected Services"
+            value={rec.affectedServices}
+            sample
+          />
+          <StatRow
+            label="Compliance Impact"
+            value={rec.complianceImpact}
+            tone={impactTone(rec.complianceImpact)}
+            sample
+          />
+          <StatRow
+            label="Security Impact"
+            value={rec.securityImpact}
+            tone={impactTone(rec.securityImpact)}
+            sample
+          />
+          <StatRow
+            label="Business Impact"
+            value={rec.businessImpact}
+            tone={impactTone(rec.businessImpact)}
+            sample
+          />
+          <StatRow
+            label="Estimated Downtime"
+            value={`${rec.estDowntimeMin} min`}
+            sample
+          />
+          <StatRow
+            label="Recovery Priority"
+            value={rec.recoveryPriority}
+            tone={rec.recoveryPriority === "P1" ? "danger" : "warn"}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Impact propagation" sample>
-        <FlowChain
-          nodes={[
-            "Dependency Failure",
-            `Affected Workspace (${rec.consumer})`,
-            "Affected Services",
-            `Business Impact (${rec.businessImpact})`,
-          ]}
-        />
-      </Section>
+      {sub === "impact-propagation" && (
+        <Section title="Impact propagation" sample>
+          <FlowChain
+            nodes={[
+              "Dependency Failure",
+              `Affected Workspace (${rec.consumer})`,
+              "Affected Services",
+              `Business Impact (${rec.businessImpact})`,
+            ]}
+          />
+        </Section>
+      )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <HeaderButton variant="primary" icon={<Waypoints size={13} />}>
@@ -1334,56 +1371,68 @@ function ImpactTab({ rec }: { rec: DependencyRecord }) {
 }
 
 // ── Health (spec §Health) ──
+const HEALTH_SUBS = [
+  { id: "operational-health", label: "Operational health" },
+  { id: "health-states", label: "Health states" },
+];
 function HealthTab({ rec }: { rec: DependencyRecord }) {
+  const [sub, setSub] = React.useState("operational-health");
   return (
     <>
-      <Section title="Operational health" sample>
-        <StatRow
-          label="Availability"
-          value={`${rec.availability.toFixed(2)}%`}
-          tone={rec.availability >= 99.9 ? "ok" : "warn"}
-          sample
-        />
-        <StatRow label="Latency" value={`${rec.latencyMs} ms`} sample />
-        <StatRow
-          label="Response Time"
-          value={`${rec.responseTimeMs} ms`}
-          sample
-        />
-        <StatRow
-          label="Failures"
-          value={rec.failures}
-          tone={rec.failures > 6 ? "danger" : rec.failures > 0 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow label="Retries" value={rec.retries} sample />
-        <StatRow label="SLA" value={rec.sla} sample />
-        <StatRow
-          label="Current Status"
-          value={<HealthBadge health={rec.health} />}
-          sample
-        />
-      </Section>
+      <Tabs tabs={HEALTH_SUBS} active={sub} onChange={setSub} />
+      {sub === "operational-health" && (
+        <Section title="Operational health" sample>
+          <StatRow
+            label="Availability"
+            value={`${rec.availability.toFixed(2)}%`}
+            tone={rec.availability >= 99.9 ? "ok" : "warn"}
+            sample
+          />
+          <StatRow label="Latency" value={`${rec.latencyMs} ms`} sample />
+          <StatRow
+            label="Response Time"
+            value={`${rec.responseTimeMs} ms`}
+            sample
+          />
+          <StatRow
+            label="Failures"
+            value={rec.failures}
+            tone={
+              rec.failures > 6 ? "danger" : rec.failures > 0 ? "warn" : "ok"
+            }
+            sample
+          />
+          <StatRow label="Retries" value={rec.retries} sample />
+          <StatRow label="SLA" value={rec.sla} sample />
+          <StatRow
+            label="Current Status"
+            value={<HealthBadge health={rec.health} />}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Health states">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {HEALTH_STATES.map((h) => (
-            <span
-              key={h}
-              style={{
-                fontSize: 11.5,
-                padding: "4px 10px",
-                borderRadius: 99,
-                border: `1px solid ${h === rec.health ? HEALTH_TONE[h] : T.border}`,
-                color: HEALTH_TONE[h],
-                fontWeight: h === rec.health ? 600 : 400,
-              }}
-            >
-              {h}
-            </span>
-          ))}
-        </div>
-      </Section>
+      {sub === "health-states" && (
+        <Section title="Health states">
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {HEALTH_STATES.map((h) => (
+              <span
+                key={h}
+                style={{
+                  fontSize: 11.5,
+                  padding: "4px 10px",
+                  borderRadius: 99,
+                  border: `1px solid ${h === rec.health ? HEALTH_TONE[h] : T.border}`,
+                  color: HEALTH_TONE[h],
+                  fontWeight: h === rec.health ? 600 : 400,
+                }}
+              >
+                {h}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

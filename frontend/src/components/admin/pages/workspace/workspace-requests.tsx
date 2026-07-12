@@ -29,6 +29,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -711,136 +712,170 @@ function Section({
 }
 
 // ── Overview (General · Ownership · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "ownership", label: "Ownership" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Request ID", v: rec.id },
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Request Type", v: rec.requestType },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Environment", v: rec.environment },
-            { k: "Priority", v: rec.priority },
-            { k: "Status", v: rec.status },
-            { k: "Submitted Date", v: rec.submitted },
-            { k: "Required Date", v: rec.requiredDate },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Request ID", v: rec.id },
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Request Type", v: rec.requestType },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Environment", v: rec.environment },
+              { k: "Priority", v: rec.priority },
+              { k: "Status", v: rec.status },
+              { k: "Submitted Date", v: rec.submitted },
+              { k: "Required Date", v: rec.requiredDate },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Ownership" sample>
-        <KVGrid
-          items={[
-            { k: "Requester", v: rec.requester },
-            { k: "Workspace Owner", v: rec.owner, sample: true },
-            {
-              k: "Delegated Administrators",
-              v: rec.delegatedAdmins.join(", "),
-              sample: true,
-            },
-            { k: "Business Owner", v: rec.businessOwner, sample: true },
-            { k: "Technical Owner", v: rec.technicalOwner, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "ownership" && (
+        <Section title="Ownership" sample>
+          <KVGrid
+            items={[
+              { k: "Requester", v: rec.requester },
+              { k: "Workspace Owner", v: rec.owner, sample: true },
+              {
+                k: "Delegated Administrators",
+                v: rec.delegatedAdmins.join(", "),
+                sample: true,
+              },
+              { k: "Business Owner", v: rec.businessOwner, sample: true },
+              { k: "Technical Owner", v: rec.technicalOwner, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Approvals Completed",
-              v: rec.approvalsCompleted,
-              sample: true,
-            },
-            {
-              k: "Approvals Remaining",
-              v: rec.approvalsRemaining,
-              sample: true,
-            },
-            { k: "Validation Checks", v: "8 total", sample: true },
-            {
-              k: "Est. Provisioning Time",
-              v: `${rec.estProvisioningMin} min`,
-              sample: true,
-            },
-            { k: "Affected Resources", v: rec.affectedResources, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Approvals Completed",
+                v: rec.approvalsCompleted,
+                sample: true,
+              },
+              {
+                k: "Approvals Remaining",
+                v: rec.approvalsRemaining,
+                sample: true,
+              },
+              { k: "Validation Checks", v: "8 total", sample: true },
+              {
+                k: "Est. Provisioning Time",
+                v: `${rec.estProvisioningMin} min`,
+                sample: true,
+              },
+              {
+                k: "Affected Resources",
+                v: rec.affectedResources,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Requested Configuration + comparison view ──
+const CONFIG_SUBS = [
+  {
+    id: "requested-workspace-configuration",
+    label: "Requested workspace configuration",
+  },
+  { id: "comparison", label: "Comparison" },
+];
 function ConfigTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("requested-workspace-configuration");
   return (
     <>
-      <Section title="Requested workspace configuration" sample>
-        <StatRow
-          label="Workspace Template"
-          value={`${rec.workspaceType} baseline`}
-          sample
-        />
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow
-          label="Compliance Profile"
-          value={rec.complianceProfile}
-          sample
-        />
-        <StatRow
-          label="Cloud Resources"
-          value={`${rec.affectedResources} resources`}
-          sample
-        />
-        <StatRow label="Tags" value="env, business-unit, cost-centre" sample />
-        <StatRow
-          label="Metadata"
-          value="Legal entity, residency, support tier"
-          sample
-        />
-      </Section>
+      <Tabs tabs={CONFIG_SUBS} active={sub} onChange={setSub} />
+      {sub === "requested-workspace-configuration" && (
+        <Section title="Requested workspace configuration" sample>
+          <StatRow
+            label="Workspace Template"
+            value={`${rec.workspaceType} baseline`}
+            sample
+          />
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Compliance Profile"
+            value={rec.complianceProfile}
+            sample
+          />
+          <StatRow
+            label="Cloud Resources"
+            value={`${rec.affectedResources} resources`}
+            sample
+          />
+          <StatRow
+            label="Tags"
+            value="env, business-unit, cost-centre"
+            sample
+          />
+          <StatRow
+            label="Metadata"
+            value="Legal entity, residency, support tier"
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Comparison" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <ConfigBlock title="Current Configuration" muted>
-            <StatRow label="Governance Profile" value="—" />
-            <StatRow label="Compliance Profile" value="—" />
-            <StatRow label="Environment" value="—" />
-          </ConfigBlock>
-          <span
-            style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
-          >
-            ↓
-          </span>
-          <ConfigBlock title="Requested Configuration">
-            <StatRow
-              label="Governance Profile"
-              value={rec.governanceProfile}
-              tone="ok"
-            />
-            <StatRow
-              label="Compliance Profile"
-              value={rec.complianceProfile}
-              tone="ok"
-            />
-            <StatRow label="Environment" value={rec.environment} tone="ok" />
-          </ConfigBlock>
-        </div>
-        <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>
-          Differences are highlighted; a new workspace has no current
-          configuration to compare against.
-        </div>
-      </Section>
+      {sub === "comparison" && (
+        <Section title="Comparison" sample>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <ConfigBlock title="Current Configuration" muted>
+              <StatRow label="Governance Profile" value="—" />
+              <StatRow label="Compliance Profile" value="—" />
+              <StatRow label="Environment" value="—" />
+            </ConfigBlock>
+            <span
+              style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
+            >
+              ↓
+            </span>
+            <ConfigBlock title="Requested Configuration">
+              <StatRow
+                label="Governance Profile"
+                value={rec.governanceProfile}
+                tone="ok"
+              />
+              <StatRow
+                label="Compliance Profile"
+                value={rec.complianceProfile}
+                tone="ok"
+              />
+              <StatRow label="Environment" value={rec.environment} tone="ok" />
+            </ConfigBlock>
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>
+            Differences are highlighted; a new workspace has no current
+            configuration to compare against.
+          </div>
+        </Section>
+      )}
     </>
   );
 }

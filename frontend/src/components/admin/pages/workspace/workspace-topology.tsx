@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1538,79 +1539,120 @@ function OverviewTab({ rec }: { rec: TopologyNode }) {
 }
 
 // ── Connections (spec §Connections) ──
+const CONNECTIONS_SUBS = [
+  { id: "relationship-map", label: "Relationship map" },
+  { id: "parent", label: "Parent" },
+  { id: "children", label: "Children" },
+  { id: "business-relationships", label: "Business Relationships" },
+  { id: "dependencies", label: "Dependencies" },
+  { id: "shared-services", label: "Shared Services" },
+  { id: "cross-workspace-links", label: "Cross Workspace Links" },
+  { id: "external-connections", label: "External Connections" },
+];
 function ConnectionsTab({ rec }: { rec: TopologyNode }) {
+  const [sub, setSub] = React.useState("relationship-map");
   const kids = rec.children.length
     ? rec.children.map((c) => `     ├── ${c}`).join("\n")
     : "     └── (none)";
   return (
     <>
-      <Section title="Relationship map" sample>
-        <TreeBlock text={`${rec.workspace}\n     │\n     ▼\n${rec.parent}`} />
-      </Section>
-      <Section title="Parent" sample>
-        <StatRow label="Parent" value={rec.parent} sample />
-      </Section>
-      <Section title="Children" sample>
-        <TreeBlock text={`${rec.workspace}\n${kids}`} />
-      </Section>
-      <Section title="Business Relationships" sample>
-        <ChipRow items={rec.businessLinks} />
-      </Section>
-      <Section title="Dependencies" sample>
-        <StatRow
-          label="Total dependencies"
-          value={rec.depsIncoming + rec.depsOutgoing}
-          sample
-        />
-      </Section>
-      <Section title="Shared Services" sample>
-        <ChipRow items={rec.sharedServices} />
-      </Section>
-      <Section title="Cross Workspace Links" sample>
-        <ChipRow items={rec.crossLinks} />
-      </Section>
-      <Section title="External Connections" sample>
-        <ChipRow items={rec.externalConnections} />
-      </Section>
+      <Tabs tabs={CONNECTIONS_SUBS} active={sub} onChange={setSub} />
+      {sub === "relationship-map" && (
+        <Section title="Relationship map" sample>
+          <TreeBlock text={`${rec.workspace}\n     │\n     ▼\n${rec.parent}`} />
+        </Section>
+      )}
+      {sub === "parent" && (
+        <Section title="Parent" sample>
+          <StatRow label="Parent" value={rec.parent} sample />
+        </Section>
+      )}
+      {sub === "children" && (
+        <Section title="Children" sample>
+          <TreeBlock text={`${rec.workspace}\n${kids}`} />
+        </Section>
+      )}
+      {sub === "business-relationships" && (
+        <Section title="Business Relationships" sample>
+          <ChipRow items={rec.businessLinks} />
+        </Section>
+      )}
+      {sub === "dependencies" && (
+        <Section title="Dependencies" sample>
+          <StatRow
+            label="Total dependencies"
+            value={rec.depsIncoming + rec.depsOutgoing}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "shared-services" && (
+        <Section title="Shared Services" sample>
+          <ChipRow items={rec.sharedServices} />
+        </Section>
+      )}
+      {sub === "cross-workspace-links" && (
+        <Section title="Cross Workspace Links" sample>
+          <ChipRow items={rec.crossLinks} />
+        </Section>
+      )}
+      {sub === "external-connections" && (
+        <Section title="External Connections" sample>
+          <ChipRow items={rec.externalConnections} />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Dependencies (spec §Dependencies) ──
+const DEPENDENCIES_SUBS = [
+  { id: "dependency-inventory", label: "Dependency inventory" },
+  { id: "critical-path", label: "Critical path" },
+  { id: "supports", label: "Supports" },
+];
 function DependenciesTab({ rec }: { rec: TopologyNode }) {
+  const [sub, setSub] = React.useState("dependency-inventory");
   return (
     <>
-      <Section title="Dependency inventory" sample>
-        <StatRow label="Incoming" value={rec.depsIncoming} sample />
-        <StatRow label="Outgoing" value={rec.depsOutgoing} sample />
-        <StatRow
-          label="Critical"
-          value={rec.depsCritical}
-          tone={rec.depsCritical ? "warn" : "ok"}
-          sample
-        />
-        <StatRow label="External" value={rec.depsExternal} sample />
-        <StatRow
-          label="Runtime"
-          value={Math.max(0, rec.depsOutgoing - rec.depsExternal)}
-          sample
-        />
-        <StatRow
-          label="Infrastructure"
-          value={rec.clusters + rec.awsAccounts}
-          sample
-        />
-      </Section>
-      <Section title="Critical path" sample>
-        <TreeBlock
-          text={`${rec.workspace}\n     │  (critical)\n     ▼\n${rec.crossLinks[0]}\n     │\n     ▼\n${rec.sharedServices[0] ?? "Shared Service"}`}
-        />
-      </Section>
-      <Section title="Supports" sample>
-        <ChipRow
-          items={["Failure Simulation", "Dependency Path", "Critical Path"]}
-        />
-      </Section>
+      <Tabs tabs={DEPENDENCIES_SUBS} active={sub} onChange={setSub} />
+      {sub === "dependency-inventory" && (
+        <Section title="Dependency inventory" sample>
+          <StatRow label="Incoming" value={rec.depsIncoming} sample />
+          <StatRow label="Outgoing" value={rec.depsOutgoing} sample />
+          <StatRow
+            label="Critical"
+            value={rec.depsCritical}
+            tone={rec.depsCritical ? "warn" : "ok"}
+            sample
+          />
+          <StatRow label="External" value={rec.depsExternal} sample />
+          <StatRow
+            label="Runtime"
+            value={Math.max(0, rec.depsOutgoing - rec.depsExternal)}
+            sample
+          />
+          <StatRow
+            label="Infrastructure"
+            value={rec.clusters + rec.awsAccounts}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "critical-path" && (
+        <Section title="Critical path" sample>
+          <TreeBlock
+            text={`${rec.workspace}\n     │  (critical)\n     ▼\n${rec.crossLinks[0]}\n     │\n     ▼\n${rec.sharedServices[0] ?? "Shared Service"}`}
+          />
+        </Section>
+      )}
+      {sub === "supports" && (
+        <Section title="Supports" sample>
+          <ChipRow
+            items={["Failure Simulation", "Dependency Path", "Critical Path"]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1690,43 +1732,53 @@ function ResourcesTab({ rec }: { rec: TopologyNode }) {
 }
 
 // ── Health (spec §Health) ──
+const HEALTH_SUBS = [
+  { id: "health", label: "Health" },
+  { id: "health-states", label: "Health states" },
+];
 function HealthTab({ rec }: { rec: TopologyNode }) {
+  const [sub, setSub] = React.useState("health");
   return (
     <>
-      <Section title="Health" sample>
-        <StatRow
-          label="Overall Health"
-          value={<StatusBadge status={rec.healthStatus} />}
-          sample
-        />
-        <StatRow
-          label="Connected Services"
-          value={`${rec.sharedServices.length} services`}
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Dependency Health"
-          value={rec.depsCritical ? "At risk" : "Nominal"}
-          tone={rec.depsCritical ? "warn" : "ok"}
-          sample
-        />
-        <StatRow label="Operational Status" value={rec.lifecycle} sample />
-        <StatRow
-          label="Incidents"
-          value={rec.incidents}
-          tone={rec.incidents ? "danger" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Maintenance"
-          value={rec.maintenance ? "Scheduled" : "None"}
-          sample
-        />
-      </Section>
-      <Section title="Health states" sample>
-        <ChipRow items={HEALTH_STATES} />
-      </Section>
+      <Tabs tabs={HEALTH_SUBS} active={sub} onChange={setSub} />
+      {sub === "health" && (
+        <Section title="Health" sample>
+          <StatRow
+            label="Overall Health"
+            value={<StatusBadge status={rec.healthStatus} />}
+            sample
+          />
+          <StatRow
+            label="Connected Services"
+            value={`${rec.sharedServices.length} services`}
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Dependency Health"
+            value={rec.depsCritical ? "At risk" : "Nominal"}
+            tone={rec.depsCritical ? "warn" : "ok"}
+            sample
+          />
+          <StatRow label="Operational Status" value={rec.lifecycle} sample />
+          <StatRow
+            label="Incidents"
+            value={rec.incidents}
+            tone={rec.incidents ? "danger" : "ok"}
+            sample
+          />
+          <StatRow
+            label="Maintenance"
+            value={rec.maintenance ? "Scheduled" : "None"}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "health-states" && (
+        <Section title="Health states" sample>
+          <ChipRow items={HEALTH_STATES} />
+        </Section>
+      )}
     </>
   );
 }

@@ -31,6 +31,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -951,194 +952,233 @@ function ChipList({ items, active }: { items: string[]; active?: string[] }) {
 }
 
 // ── Overview (General · Statistics · Escalation · Expiration · Notifications · Tags) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+  {
+    id: "escalation-expiration-policy",
+    label: "Escalation & expiration policy",
+  },
+  { id: "notifications", label: "Notifications" },
+  { id: "tags", label: "Tags" },
+];
 function OverviewTab({ rec }: { rec: ChainRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Name", v: rec.name },
-            { k: "Category", v: rec.category },
-            { k: "Owner", v: rec.owner, sample: true },
-            { k: "Version", v: rec.version },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-            { k: "Approval Type", v: rec.approvalType, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Name", v: rec.name },
+              { k: "Category", v: rec.category },
+              { k: "Owner", v: rec.owner, sample: true },
+              { k: "Version", v: rec.version },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+              { k: "Approval Type", v: rec.approvalType, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Approval Requests",
-              v: rec.approvalRequests,
-              sample: true,
-            },
-            {
-              k: "Average Approval Time",
-              v: `${rec.avgApprovalTimeH}h`,
-              sample: true,
-            },
-            { k: "Pending Requests", v: rec.pendingRequests, sample: true },
-            { k: "Rejected Requests", v: rec.rejectedRequests, sample: true },
-            {
-              k: "Assigned Workspaces",
-              v: rec.assignedWorkspaces,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Approval Requests",
+                v: rec.approvalRequests,
+                sample: true,
+              },
+              {
+                k: "Average Approval Time",
+                v: `${rec.avgApprovalTimeH}h`,
+                sample: true,
+              },
+              { k: "Pending Requests", v: rec.pendingRequests, sample: true },
+              { k: "Rejected Requests", v: rec.rejectedRequests, sample: true },
+              {
+                k: "Assigned Workspaces",
+                v: rec.assignedWorkspaces,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Escalation & expiration policy" sample>
-        <StatRow
-          label="Escalation Policy"
-          value={rec.escalationPolicy}
-          sample
-        />
-        <StatRow
-          label="Expiration Policy"
-          value={rec.expirationPolicy}
-          sample
-        />
-      </Section>
+      {sub === "escalation-expiration-policy" && (
+        <Section title="Escalation & expiration policy" sample>
+          <StatRow
+            label="Escalation Policy"
+            value={rec.escalationPolicy}
+            sample
+          />
+          <StatRow
+            label="Expiration Policy"
+            value={rec.expirationPolicy}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Notifications" sample>
-        <ChipList items={NOTIFICATIONS} active={rec.notifications} />
-      </Section>
+      {sub === "notifications" && (
+        <Section title="Notifications" sample>
+          <ChipList items={NOTIFICATIONS} active={rec.notifications} />
+        </Section>
+      )}
 
-      <Section title="Tags" sample>
-        <ChipList items={rec.tags} />
-      </Section>
+      {sub === "tags" && (
+        <Section title="Tags" sample>
+          <ChipList items={rec.tags} />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Workflow (staged approval pipeline) — spec §Workflow / §Workflow Stages / §Workflow Builder ──
+const WORKFLOW_SUBS = [
+  { id: "approval-workflow", label: "Approval workflow" },
+  { id: "supported-approval-rules", label: "Supported approval rules" },
+  {
+    id: "workflow-builder-supported-components",
+    label: "Workflow builder — supported components",
+  },
+];
 function WorkflowTab({ rec }: { rec: ChainRecord }) {
+  const [sub, setSub] = React.useState("approval-workflow");
   return (
     <>
-      <Section title="Approval workflow" sample>
-        <div
-          style={{
-            fontSize: 12.5,
-            color: T.textMuted,
-            marginBottom: 10,
-          }}
-        >
-          Defines the approval process. Each stage carries its approver type,
-          required approvers, approval rule, timeout and escalation.
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {/* Request entry node */}
-          <PipelineNode
-            index={0}
-            label="Request"
-            tone={T.textPrimary}
-            state="Submitted"
-            done
-          />
-          {rec.stages.map((stage, i) => {
-            const done = i < rec.currentStageIdx || rec.status === "Archived";
-            const active = i === rec.currentStageIdx && rec.status === "Active";
-            const tone = done ? T.success : active ? T.accent : T.textMuted;
-            return (
-              <div
-                key={stage.name + i}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "12px 0",
-                  borderBottom:
-                    i < rec.stages.length - 1
-                      ? `1px solid ${T.border}`
-                      : "none",
-                }}
-              >
-                <span
+      <Tabs tabs={WORKFLOW_SUBS} active={sub} onChange={setSub} />
+      {sub === "approval-workflow" && (
+        <Section title="Approval workflow" sample>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: T.textMuted,
+              marginBottom: 10,
+            }}
+          >
+            Defines the approval process. Each stage carries its approver type,
+            required approvers, approval rule, timeout and escalation.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {/* Request entry node */}
+            <PipelineNode
+              index={0}
+              label="Request"
+              tone={T.textPrimary}
+              state="Submitted"
+              done
+            />
+            {rec.stages.map((stage, i) => {
+              const done = i < rec.currentStageIdx || rec.status === "Archived";
+              const active =
+                i === rec.currentStageIdx && rec.status === "Active";
+              const tone = done ? T.success : active ? T.accent : T.textMuted;
+              return (
+                <div
+                  key={stage.name + i}
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background:
-                      done || active
-                        ? "var(--cg-accent-bg-strong)"
-                        : "transparent",
-                    border: `1px solid ${done || active ? "transparent" : T.border}`,
-                    color: tone,
-                    fontSize: 11,
+                    display: "flex",
+                    gap: 12,
+                    padding: "12px 0",
+                    borderBottom:
+                      i < rec.stages.length - 1
+                        ? `1px solid ${T.border}`
+                        : "none",
                   }}
                 >
-                  {done ? <Check size={12} /> : i + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                  <span
                     style={{
-                      fontSize: 13,
-                      color: T.textPrimary,
-                      fontWeight: active ? 600 : 400,
-                      display: "flex",
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "inline-flex",
                       alignItems: "center",
-                      gap: 8,
+                      justifyContent: "center",
+                      background:
+                        done || active
+                          ? "var(--cg-accent-bg-strong)"
+                          : "transparent",
+                      border: `1px solid ${done || active ? "transparent" : T.border}`,
+                      color: tone,
+                      fontSize: 11,
                     }}
                   >
-                    {stage.name}
-                    <span style={{ color: tone, fontSize: 11.5 }}>
-                      {done ? "Approved" : active ? "In review" : "Pending"}
-                    </span>
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: T.textMuted,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 10,
-                      marginTop: 3,
-                    }}
-                  >
-                    <span>Approver Type: {stage.approverType}</span>
-                    <span>·</span>
-                    <span>Required Approvers: {stage.requiredApprovers}</span>
-                    <span>·</span>
-                    <span>Rule: {stage.approvalRule}</span>
-                    <span>·</span>
-                    <span>Timeout: {stage.timeout}</span>
-                    <span>·</span>
-                    <span>Escalation: {stage.escalation}</span>
+                    {done ? <Check size={12} /> : i + 1}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: T.textPrimary,
+                        fontWeight: active ? 600 : 400,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      {stage.name}
+                      <span style={{ color: tone, fontSize: 11.5 }}>
+                        {done ? "Approved" : active ? "In review" : "Pending"}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: T.textMuted,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        marginTop: 3,
+                      }}
+                    >
+                      <span>Approver Type: {stage.approverType}</span>
+                      <span>·</span>
+                      <span>Required Approvers: {stage.requiredApprovers}</span>
+                      <span>·</span>
+                      <span>Rule: {stage.approvalRule}</span>
+                      <span>·</span>
+                      <span>Timeout: {stage.timeout}</span>
+                      <span>·</span>
+                      <span>Escalation: {stage.escalation}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Supported approval rules">
-        <ChipList
-          items={APPROVAL_RULES}
-          active={rec.stages.map((s) => s.approvalRule)}
-        />
-      </Section>
+      {sub === "supported-approval-rules" && (
+        <Section title="Supported approval rules">
+          <ChipList
+            items={APPROVAL_RULES}
+            active={rec.stages.map((s) => s.approvalRule)}
+          />
+        </Section>
+      )}
 
-      <Section title="Workflow builder — supported components" sample>
-        <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 4 }}>
-          Visual designer: Trigger → Conditions → Approval Stage → Conditional
-          Branch → Approval Stage → Completion.
-        </div>
-        <ChipList items={BUILDER_COMPONENTS} />
-      </Section>
+      {sub === "workflow-builder-supported-components" && (
+        <Section title="Workflow builder — supported components" sample>
+          <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 4 }}>
+            Visual designer: Trigger → Conditions → Approval Stage → Conditional
+            Branch → Approval Stage → Completion.
+          </div>
+          <ChipList items={BUILDER_COMPONENTS} />
+        </Section>
+      )}
 
       <div
         style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}
@@ -1464,61 +1504,71 @@ function ActivityTab() {
 }
 
 // ── Metrics (KPIs + charts) — spec §Metrics ──
+const METRICS_SUBS = [
+  { id: "approval-metrics", label: "Approval metrics" },
+  { id: "charts", label: "Charts" },
+];
 function MetricsTab({ rec }: { rec: ChainRecord }) {
+  const [sub, setSub] = React.useState("approval-metrics");
   return (
     <>
-      <Section title="Approval metrics" sample>
-        <StatRow
-          label="Approval Success Rate"
-          value={`${rec.successRate}%`}
-          tone={rec.successRate >= 90 ? "ok" : "warn"}
-          sample
-        />
-        <StatRow
-          label="Average Approval Time"
-          value={`${rec.avgApprovalTimeH}h`}
-          sample
-        />
-        <StatRow
-          label="Escalations"
-          value={rec.escalations}
-          tone={rec.escalations > 0 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Rejected Requests"
-          value={rec.rejectedRequests}
-          tone={rec.rejectedRequests > 0 ? "danger" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Timeouts"
-          value={rec.timeouts}
-          tone={rec.timeouts > 0 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="SLA Compliance"
-          value={`${rec.slaCompliance}%`}
-          tone={rec.slaCompliance >= 90 ? "ok" : "warn"}
-          sample
-        />
-      </Section>
+      <Tabs tabs={METRICS_SUBS} active={sub} onChange={setSub} />
+      {sub === "approval-metrics" && (
+        <Section title="Approval metrics" sample>
+          <StatRow
+            label="Approval Success Rate"
+            value={`${rec.successRate}%`}
+            tone={rec.successRate >= 90 ? "ok" : "warn"}
+            sample
+          />
+          <StatRow
+            label="Average Approval Time"
+            value={`${rec.avgApprovalTimeH}h`}
+            sample
+          />
+          <StatRow
+            label="Escalations"
+            value={rec.escalations}
+            tone={rec.escalations > 0 ? "warn" : "ok"}
+            sample
+          />
+          <StatRow
+            label="Rejected Requests"
+            value={rec.rejectedRequests}
+            tone={rec.rejectedRequests > 0 ? "danger" : "ok"}
+            sample
+          />
+          <StatRow
+            label="Timeouts"
+            value={rec.timeouts}
+            tone={rec.timeouts > 0 ? "warn" : "ok"}
+            sample
+          />
+          <StatRow
+            label="SLA Compliance"
+            value={`${rec.slaCompliance}%`}
+            tone={rec.slaCompliance >= 90 ? "ok" : "warn"}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Charts" sample>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
-            gap: 12,
-          }}
-        >
-          <MiniChart title="Approval Volume" rec={rec} kind="volume" />
-          <MiniChart title="Approval Duration" rec={rec} kind="duration" />
-          <MiniChart title="Approval Outcomes" rec={rec} kind="outcomes" />
-          <MiniChart title="Stage Bottlenecks" rec={rec} kind="bottleneck" />
-        </div>
-      </Section>
+      {sub === "charts" && (
+        <Section title="Charts" sample>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, 1fr)",
+              gap: 12,
+            }}
+          >
+            <MiniChart title="Approval Volume" rec={rec} kind="volume" />
+            <MiniChart title="Approval Duration" rec={rec} kind="duration" />
+            <MiniChart title="Approval Outcomes" rec={rec} kind="outcomes" />
+            <MiniChart title="Stage Bottlenecks" rec={rec} kind="bottleneck" />
+          </div>
+        </Section>
+      )}
     </>
   );
 }

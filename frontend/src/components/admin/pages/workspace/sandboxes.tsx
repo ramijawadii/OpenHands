@@ -34,6 +34,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -1143,62 +1144,73 @@ function QuickActions({ children }: { children: React.ReactNode }) {
 }
 
 // ── Overview (General · Lifecycle · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "lifecycle", label: "Lifecycle" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: SandboxRecord }) {
   const exp = expirationLabel(rec);
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Sandbox Name", v: rec.name },
-            { k: "Purpose", v: rec.purpose },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Owner", v: rec.owner },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created },
-            { k: "Last Modified", v: rec.lastModified, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
-
-      <Section title="Lifecycle" sample>
-        <KVGrid
-          items={[
-            { k: "Created", v: rec.created },
-            { k: "Expiration Date", v: rec.expirationDate, sample: true },
-            { k: "Remaining Lifetime", v: exp.text, sample: true },
-            {
-              k: "Auto Cleanup",
-              v: rec.autoCleanup ? "Enabled" : "Disabled",
-              sample: true,
-            },
-            { k: "Retention Policy", v: rec.retentionPolicy, sample: true },
-          ]}
-        />
-      </Section>
-
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Resources", v: rec.resources, sample: true },
-            { k: "AI Agents", v: rec.aiAgents, sample: true },
-            { k: "Integrations", v: rec.integrations, sample: true },
-            { k: "Policies", v: rec.policies, sample: true },
-            { k: "Cloud Accounts", v: rec.cloudAccounts, sample: true },
-            {
-              k: "Compliance Standards",
-              v: rec.complianceStandards,
-              sample: true,
-            },
-            { k: "Running Jobs", v: rec.runningJobs, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Sandbox Name", v: rec.name },
+              { k: "Purpose", v: rec.purpose },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Owner", v: rec.owner },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created },
+              { k: "Last Modified", v: rec.lastModified, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
+      {sub === "lifecycle" && (
+        <Section title="Lifecycle" sample>
+          <KVGrid
+            items={[
+              { k: "Created", v: rec.created },
+              { k: "Expiration Date", v: rec.expirationDate, sample: true },
+              { k: "Remaining Lifetime", v: exp.text, sample: true },
+              {
+                k: "Auto Cleanup",
+                v: rec.autoCleanup ? "Enabled" : "Disabled",
+                sample: true,
+              },
+              { k: "Retention Policy", v: rec.retentionPolicy, sample: true },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Resources", v: rec.resources, sample: true },
+              { k: "AI Agents", v: rec.aiAgents, sample: true },
+              { k: "Integrations", v: rec.integrations, sample: true },
+              { k: "Policies", v: rec.policies, sample: true },
+              { k: "Cloud Accounts", v: rec.cloudAccounts, sample: true },
+              {
+                k: "Compliance Standards",
+                v: rec.complianceStandards,
+                sample: true,
+              },
+              { k: "Running Jobs", v: rec.runningJobs, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1306,7 +1318,16 @@ function ResourcesTab({ rec }: { rec: SandboxRecord }) {
 }
 
 // ── AI Configuration ──
+const AI_SUBS = [
+  { id: "agents", label: "Assigned AI Agents" },
+  { id: "skills", label: "Skills" },
+  { id: "knowledge", label: "Knowledge Sources" },
+  { id: "prompts", label: "Prompt Libraries" },
+  { id: "execution", label: "Execution Policies" },
+  { id: "runtime", label: "AI Runtime" },
+];
 function AITab({ rec }: { rec: SandboxRecord }) {
+  const [sub, setSub] = React.useState("agents");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
@@ -1322,165 +1343,190 @@ function AITab({ rec }: { rec: SandboxRecord }) {
           Reset AI Configuration
         </HeaderButton>
       </QuickActions>
-
-      <Section title="Assigned AI Agents" sample>
-        <StatRow
-          label="Compliance Auditor Agent"
-          value="Active"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Security Reviewer Agent"
-          value="Active"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Cloud Architect Agent"
-          value="Idle"
-          tone="muted"
-          sample
-        />
-      </Section>
-
-      <Section title="Skills" sample>
-        <StatRow
-          label="Assigned Skills"
-          value={`${12 + rec.aiAgents} skills`}
-          sample
-        />
-        <StatRow
-          label="Provider Namespaces"
-          value="aws · azure · gcp · shared"
-          sample
-        />
-      </Section>
-
-      <Section title="Knowledge Sources" sample>
-        <StatRow
-          label="Compliance Knowledge Base"
-          value="Connected"
-          tone="ok"
-          sample
-        />
-        <StatRow label="Architecture Docs" value="Connected" tone="ok" sample />
-      </Section>
-
-      <Section title="Prompt Libraries" sample>
-        <StatRow
-          label="Assigned Libraries"
-          value="Compliance · Security"
-          sample
-        />
-      </Section>
-
-      <Section title="Execution Policies" sample>
-        <StatRow label="Autonomy Mode" value="Ask" sample />
-        <StatRow
-          label="Tool Restrictions"
-          value="Read-only cloud APIs"
-          tone="warn"
-          sample
-        />
-      </Section>
-
-      <Section title="AI Runtime" sample>
-        <StatRow label="Runtime" value={rec.aiRuntime} sample />
-        <StatRow
-          label="Isolation"
-          value="Per-sandbox sandboxed"
-          tone="ok"
-          sample
-        />
-      </Section>
+      <Tabs tabs={AI_SUBS} active={sub} onChange={setSub} />
+      {sub === "agents" && (
+        <Section title="Assigned AI Agents" sample>
+          <StatRow
+            label="Compliance Auditor Agent"
+            value="Active"
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Security Reviewer Agent"
+            value="Active"
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Cloud Architect Agent"
+            value="Idle"
+            tone="muted"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "skills" && (
+        <Section title="Skills" sample>
+          <StatRow
+            label="Assigned Skills"
+            value={`${12 + rec.aiAgents} skills`}
+            sample
+          />
+          <StatRow
+            label="Provider Namespaces"
+            value="aws · azure · gcp · shared"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "knowledge" && (
+        <Section title="Knowledge Sources" sample>
+          <StatRow
+            label="Compliance Knowledge Base"
+            value="Connected"
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Architecture Docs"
+            value="Connected"
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "prompts" && (
+        <Section title="Prompt Libraries" sample>
+          <StatRow
+            label="Assigned Libraries"
+            value="Compliance · Security"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "execution" && (
+        <Section title="Execution Policies" sample>
+          <StatRow label="Autonomy Mode" value="Ask" sample />
+          <StatRow
+            label="Tool Restrictions"
+            value="Read-only cloud APIs"
+            tone="warn"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "runtime" && (
+        <Section title="AI Runtime" sample>
+          <StatRow label="Runtime" value={rec.aiRuntime} sample />
+          <StatRow
+            label="Isolation"
+            value="Per-sandbox sandboxed"
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Governance (profile + inheritance visualization) ──
+const GOVERNANCE_SUBS = [
+  { id: "governance", label: "Governance" },
+  { id: "resolution", label: "Policy Resolution" },
+];
 function GovernanceTab({ rec }: { rec: SandboxRecord }) {
+  const [sub, setSub] = React.useState("governance");
   return (
     <>
-      <Section title="Governance" sample>
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow
-          label="Inherited Policies"
-          value="18 from Organization"
-          sample
-        />
-        <StatRow
-          label="Sandbox Overrides"
-          value="3 overrides"
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="Resource Limits"
-          value="Stricter than production"
-          tone="ok"
-          sample
-        />
-        <StatRow label="Execution Policies" value="Ask-mode enforced" sample />
-        <StatRow
-          label="Security Restrictions"
-          value="Egress blocked, secrets masked"
-          tone="ok"
-          sample
-        />
-      </Section>
-
-      <Section title="Policy resolution" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <PolicyBlock title="Organization Policy" muted>
-            <StatRow label="Governance Profile" value="Balanced" />
-            <StatRow label="Resource Limits" value="Standard" />
-          </PolicyBlock>
-          <span
-            style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
-          >
-            ↓
-          </span>
-          <PolicyBlock title="Sandbox Policy">
-            <StatRow
-              label="Governance Profile"
-              value={rec.governanceProfile}
-              tone="ok"
-            />
-            <StatRow
-              label="Resource Limits"
-              value="Stricter quotas"
-              tone="ok"
-            />
-          </PolicyBlock>
-          <span
-            style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
-          >
-            ↓
-          </span>
-          <PolicyBlock title="Effective Configuration">
-            <StatRow
-              label="Governance Profile"
-              value={rec.governanceProfile}
-              tone="ok"
-            />
-            <StatRow
-              label="Resource Limits"
-              value="Most-restrictive wins"
-              tone="ok"
-            />
-          </PolicyBlock>
-        </div>
-        <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>
-          Sandboxes inherit organizational governance while enforcing stricter
-          resource quotas and lifecycle controls; the effective configuration
-          resolves to the most-restrictive value.
-        </div>
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "governance" && (
+        <Section title="Governance" sample>
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Inherited Policies"
+            value="18 from Organization"
+            sample
+          />
+          <StatRow
+            label="Sandbox Overrides"
+            value="3 overrides"
+            tone="warn"
+            sample
+          />
+          <StatRow
+            label="Resource Limits"
+            value="Stricter than production"
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Execution Policies"
+            value="Ask-mode enforced"
+            sample
+          />
+          <StatRow
+            label="Security Restrictions"
+            value="Egress blocked, secrets masked"
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "resolution" && (
+        <Section title="Policy resolution" sample>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <PolicyBlock title="Organization Policy" muted>
+              <StatRow label="Governance Profile" value="Balanced" />
+              <StatRow label="Resource Limits" value="Standard" />
+            </PolicyBlock>
+            <span
+              style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
+            >
+              ↓
+            </span>
+            <PolicyBlock title="Sandbox Policy">
+              <StatRow
+                label="Governance Profile"
+                value={rec.governanceProfile}
+                tone="ok"
+              />
+              <StatRow
+                label="Resource Limits"
+                value="Stricter quotas"
+                tone="ok"
+              />
+            </PolicyBlock>
+            <span
+              style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
+            >
+              ↓
+            </span>
+            <PolicyBlock title="Effective Configuration">
+              <StatRow
+                label="Governance Profile"
+                value={rec.governanceProfile}
+                tone="ok"
+              />
+              <StatRow
+                label="Resource Limits"
+                value="Most-restrictive wins"
+                tone="ok"
+              />
+            </PolicyBlock>
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>
+            Sandboxes inherit organizational governance while enforcing stricter
+            resource quotas and lifecycle controls; the effective configuration
+            resolves to the most-restrictive value.
+          </div>
+        </Section>
+      )}
     </>
   );
 }
@@ -1519,7 +1565,15 @@ function PolicyBlock({
 }
 
 // ── Compliance ──
+const COMPLIANCE_SUBS = [
+  { id: "frameworks", label: "Compliance Frameworks" },
+  { id: "controls", label: "Assigned Controls" },
+  { id: "validation", label: "Validation Policies" },
+  { id: "schedule", label: "Assessment Schedule" },
+  { id: "status", label: "Compliance Status" },
+];
 function ComplianceTab({ rec }: { rec: SandboxRecord }) {
+  const [sub, setSub] = React.useState("frameworks");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
@@ -1536,48 +1590,54 @@ function ComplianceTab({ rec }: { rec: SandboxRecord }) {
           Compare with Production
         </HeaderButton>
       </QuickActions>
-
-      <Section title="Compliance Frameworks" sample>
-        <StatRow
-          label={rec.complianceProfile}
-          value="Assigned"
-          tone="ok"
-          sample
-        />
-        <StatRow label="ISO 27001" value="Assigned" tone="ok" sample />
-      </Section>
-
-      <Section title="Assigned Controls" sample>
-        <StatRow label="Total Controls" value="112" sample />
-        <StatRow label="Passing" value="96" tone="ok" sample />
-        <StatRow label="Failing" value="16" tone="danger" sample />
-      </Section>
-
-      <Section title="Validation Policies" sample>
-        <StatRow label="Naming Policy" value="Passed" tone="ok" sample />
-        <StatRow label="Encryption Policy" value="Passed" tone="ok" sample />
-        <StatRow
-          label="Public Access Policy"
-          value="Warning"
-          tone="warn"
-          sample
-        />
-      </Section>
-
-      <Section title="Assessment Schedule" sample>
-        <StatRow label="Frequency" value="Daily at 02:00 UTC" sample />
-        <StatRow label="Last Run" value={rec.lastModified} sample />
-        <StatRow label="Next Run" value="2026-07-11" sample />
-      </Section>
-
-      <Section title="Compliance Status" sample>
-        <StatRow
-          label="Overall Status"
-          value="86% passing"
-          tone="warn"
-          sample
-        />
-      </Section>
+      <Tabs tabs={COMPLIANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "frameworks" && (
+        <Section title="Compliance Frameworks" sample>
+          <StatRow
+            label={rec.complianceProfile}
+            value="Assigned"
+            tone="ok"
+            sample
+          />
+          <StatRow label="ISO 27001" value="Assigned" tone="ok" sample />
+        </Section>
+      )}
+      {sub === "controls" && (
+        <Section title="Assigned Controls" sample>
+          <StatRow label="Total Controls" value="112" sample />
+          <StatRow label="Passing" value="96" tone="ok" sample />
+          <StatRow label="Failing" value="16" tone="danger" sample />
+        </Section>
+      )}
+      {sub === "validation" && (
+        <Section title="Validation Policies" sample>
+          <StatRow label="Naming Policy" value="Passed" tone="ok" sample />
+          <StatRow label="Encryption Policy" value="Passed" tone="ok" sample />
+          <StatRow
+            label="Public Access Policy"
+            value="Warning"
+            tone="warn"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "schedule" && (
+        <Section title="Assessment Schedule" sample>
+          <StatRow label="Frequency" value="Daily at 02:00 UTC" sample />
+          <StatRow label="Last Run" value={rec.lastModified} sample />
+          <StatRow label="Next Run" value="2026-07-11" sample />
+        </Section>
+      )}
+      {sub === "status" && (
+        <Section title="Compliance Status" sample>
+          <StatRow
+            label="Overall Status"
+            value="86% passing"
+            tone="warn"
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1593,6 +1653,11 @@ const LIFECYCLE_STATES: string[] = [
   "Deleted",
 ];
 
+const LIFECYCLE_SUBS = [
+  { id: "state", label: "Lifecycle State" },
+  { id: "expiration", label: "Expiration Policies" },
+];
+
 function LifecycleTab({ rec }: { rec: SandboxRecord }) {
   const currentIdx = LIFECYCLE_STATES.indexOf(
     rec.status === "Template" || rec.status === "Scheduled"
@@ -1600,115 +1665,128 @@ function LifecycleTab({ rec }: { rec: SandboxRecord }) {
       : rec.status,
   );
   const exp = expirationLabel(rec);
+  const [sub, setSub] = React.useState("state");
   return (
     <>
-      <Section title="Lifecycle state" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {LIFECYCLE_STATES.map((state, i) => {
-            const done = currentIdx >= 0 && i < currentIdx;
-            const active = i === currentIdx;
-            const tone = active ? T.accent : done ? T.success : T.textMuted;
-            return (
-              <div
-                key={state}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "10px 0",
-                  borderBottom:
-                    i < LIFECYCLE_STATES.length - 1
-                      ? `1px solid ${T.border}`
-                      : "none",
-                }}
-              >
-                <span
-                  style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background:
-                      done || active
-                        ? "var(--cg-accent-bg-strong)"
-                        : "transparent",
-                    border: `1px solid ${done || active ? "transparent" : T.border}`,
-                    color: tone,
-                    fontSize: 11,
-                  }}
-                >
-                  {i + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
+      <Tabs tabs={LIFECYCLE_SUBS} active={sub} onChange={setSub} />
+      {sub === "state" && (
+        <>
+          <Section title="Lifecycle state" sample>
+            <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+              {LIFECYCLE_STATES.map((state, i) => {
+                const done = currentIdx >= 0 && i < currentIdx;
+                const active = i === currentIdx;
+                const tone = active ? T.accent : done ? T.success : T.textMuted;
+                return (
                   <div
+                    key={state}
                     style={{
-                      fontSize: 13,
-                      color: T.textPrimary,
-                      fontWeight: active ? 600 : 400,
+                      display: "flex",
+                      gap: 12,
+                      padding: "10px 0",
+                      borderBottom:
+                        i < LIFECYCLE_STATES.length - 1
+                          ? `1px solid ${T.border}`
+                          : "none",
                     }}
                   >
-                    {state}
+                    <span
+                      style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: "50%",
+                        flexShrink: 0,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background:
+                          done || active
+                            ? "var(--cg-accent-bg-strong)"
+                            : "transparent",
+                        border: `1px solid ${done || active ? "transparent" : T.border}`,
+                        color: tone,
+                        fontSize: 11,
+                      }}
+                    >
+                      {i + 1}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: T.textPrimary,
+                          fontWeight: active ? 600 : 400,
+                        }}
+                      >
+                        {state}
+                      </div>
+                      <div
+                        style={{ fontSize: 11.5, color: tone, marginTop: 2 }}
+                      >
+                        {active
+                          ? "Current state"
+                          : done
+                            ? "Completed"
+                            : "Not yet reached"}
+                      </div>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 11.5, color: tone, marginTop: 2 }}>
-                    {active
-                      ? "Current state"
-                      : done
-                        ? "Completed"
-                        : "Not yet reached"}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
+                );
+              })}
+            </div>
+          </Section>
 
-      <StatRow label="Remaining Lifetime" value={exp.text} sample />
+          <StatRow label="Remaining Lifetime" value={exp.text} sample />
 
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          flexWrap: "wrap",
-          margin: "8px 0 16px",
-        }}
-      >
-        <HeaderButton icon={<Clock size={13} />}>Extend Lifetime</HeaderButton>
-        <HeaderButton icon={<RotateCcw size={13} />}>
-          Reset Environment
-        </HeaderButton>
-        <HeaderButton icon={<PauseCircle size={13} />}>Suspend</HeaderButton>
-        <HeaderButton icon={<PlayCircle size={13} />}>Resume</HeaderButton>
-        <HeaderButton icon={<Archive size={13} />}>Archive</HeaderButton>
-        <HeaderButton variant="danger" icon={<Trash2 size={13} />}>
-          Delete
-        </HeaderButton>
-      </div>
-
-      <Section title="Expiration policies" sample>
-        <StatRow
-          label="Auto Suspend"
-          value={rec.autoCleanup ? "Enabled" : "Disabled"}
-          tone={rec.autoCleanup ? "ok" : "muted"}
-          sample
-        />
-        <StatRow label="Auto Archive" value="Enabled" tone="ok" sample />
-        <StatRow
-          label="Auto Delete"
-          value={rec.autoCleanup ? "After retention" : "Disabled"}
-          tone={rec.autoCleanup ? "warn" : "muted"}
-          sample
-        />
-        <StatRow label="Notify Owner" value="Enabled" tone="ok" sample />
-        <StatRow
-          label="Notify Administrator"
-          value="Enabled"
-          tone="ok"
-          sample
-        />
-      </Section>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              margin: "8px 0 16px",
+            }}
+          >
+            <HeaderButton icon={<Clock size={13} />}>
+              Extend Lifetime
+            </HeaderButton>
+            <HeaderButton icon={<RotateCcw size={13} />}>
+              Reset Environment
+            </HeaderButton>
+            <HeaderButton icon={<PauseCircle size={13} />}>
+              Suspend
+            </HeaderButton>
+            <HeaderButton icon={<PlayCircle size={13} />}>Resume</HeaderButton>
+            <HeaderButton icon={<Archive size={13} />}>Archive</HeaderButton>
+            <HeaderButton variant="danger" icon={<Trash2 size={13} />}>
+              Delete
+            </HeaderButton>
+          </div>
+        </>
+      )}
+      {sub === "expiration" && (
+        <Section title="Expiration policies" sample>
+          <StatRow
+            label="Auto Suspend"
+            value={rec.autoCleanup ? "Enabled" : "Disabled"}
+            tone={rec.autoCleanup ? "ok" : "muted"}
+            sample
+          />
+          <StatRow label="Auto Archive" value="Enabled" tone="ok" sample />
+          <StatRow
+            label="Auto Delete"
+            value={rec.autoCleanup ? "After retention" : "Disabled"}
+            tone={rec.autoCleanup ? "warn" : "muted"}
+            sample
+          />
+          <StatRow label="Notify Owner" value="Enabled" tone="ok" sample />
+          <StatRow
+            label="Notify Administrator"
+            value="Enabled"
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }

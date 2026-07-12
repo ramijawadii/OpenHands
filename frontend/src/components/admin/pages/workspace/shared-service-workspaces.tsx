@@ -33,6 +33,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -1076,41 +1077,51 @@ function ServiceDetailDrawer({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: ServiceRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace", v: rec.workspace },
-            { k: "Service Name", v: rec.service },
-            { k: "Category", v: rec.category },
-            { k: "Business Unit", v: rec.businessUnit, sample: true },
-            { k: "Owner", v: rec.owner, sample: true },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Service Tier", v: rec.serviceTier, sample: true },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace", v: rec.workspace },
+              { k: "Service Name", v: rec.service },
+              { k: "Category", v: rec.category },
+              { k: "Business Unit", v: rec.businessUnit, sample: true },
+              { k: "Owner", v: rec.owner, sample: true },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Service Tier", v: rec.serviceTier, sample: true },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Consumer Workspaces", v: rec.consumers, sample: true },
-            { k: "Shared Resources", v: rec.sharedResources, sample: true },
-            { k: "Availability", v: rec.availability, sample: true },
-            { k: "Monthly Requests", v: rec.monthlyRequests, sample: true },
-            {
-              k: "Capacity Utilization",
-              v: `${rec.capacityUtil}%`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Consumer Workspaces", v: rec.consumers, sample: true },
+              { k: "Shared Resources", v: rec.sharedResources, sample: true },
+              { k: "Availability", v: rec.availability, sample: true },
+              { k: "Monthly Requests", v: rec.monthlyRequests, sample: true },
+              {
+                k: "Capacity Utilization",
+                v: `${rec.capacityUtil}%`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1306,167 +1317,210 @@ function PoliciesTab({ rec }: { rec: ServiceRecord }) {
 }
 
 // ── Dependencies (spec §Dependencies) ──
+const DEPENDENCIES_SUBS = [
+  {
+    id: "upstream-downstream-relationships",
+    label: "Upstream ↓ downstream relationships",
+  },
+  { id: "relationship-summary", label: "Relationship summary" },
+];
 function DependenciesTab({ rec }: { rec: ServiceRecord }) {
+  const [sub, setSub] = React.useState("upstream-downstream-relationships");
   return (
     <>
-      <Section title="Upstream ↓ downstream relationships" sample>
-        <AsciiFlow
-          nodes={[
-            "Identity Service",
-            "Logging Service",
-            "Platform Service",
-            "Business Workspace",
-          ]}
-        />
-      </Section>
-      <Section title="Relationship summary" sample>
-        <StatRow
-          label="Provides"
-          value={`${rec.service} capabilities`}
-          sample
-        />
-        <StatRow label="Consumes" value="Identity, Logging, Platform" sample />
-        <StatRow
-          label="Critical Dependencies"
-          value={rec.criticalDeps}
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="External Dependencies"
-          value={rec.externalDeps}
-          tone={rec.externalDeps > 0 ? "warn" : "ok"}
-          sample
-        />
-      </Section>
+      <Tabs tabs={DEPENDENCIES_SUBS} active={sub} onChange={setSub} />
+      {sub === "upstream-downstream-relationships" && (
+        <Section title="Upstream ↓ downstream relationships" sample>
+          <AsciiFlow
+            nodes={[
+              "Identity Service",
+              "Logging Service",
+              "Platform Service",
+              "Business Workspace",
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "relationship-summary" && (
+        <Section title="Relationship summary" sample>
+          <StatRow
+            label="Provides"
+            value={`${rec.service} capabilities`}
+            sample
+          />
+          <StatRow
+            label="Consumes"
+            value="Identity, Logging, Platform"
+            sample
+          />
+          <StatRow
+            label="Critical Dependencies"
+            value={rec.criticalDeps}
+            tone="warn"
+            sample
+          />
+          <StatRow
+            label="External Dependencies"
+            value={rec.externalDeps}
+            tone={rec.externalDeps > 0 ? "warn" : "ok"}
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Capacity (spec §Capacity) ──
+const CAPACITY_SUBS = [
+  { id: "shared-resource-utilization", label: "Shared resource utilization" },
+  { id: "charts", label: "Charts" },
+];
 function CapacityTab({ rec }: { rec: ServiceRecord }) {
+  const [sub, setSub] = React.useState("shared-resource-utilization");
   const n = hashId(rec.id);
   return (
     <>
-      <Section title="Shared resource utilization" sample>
-        <KVGrid
-          cols={2}
-          items={[
-            { k: "Consumer Count", v: rec.consumers, sample: true },
-            {
-              k: "API Requests",
-              v: `${rec.monthlyRequests} / mo`,
-              sample: true,
-            },
-            { k: "Storage", v: `${2 + (n % 40)} TB`, sample: true },
-            { k: "Compute", v: `${8 + (n % 120)} vCPU`, sample: true },
-            { k: "Bandwidth", v: `${1 + (n % 12)} Gbps`, sample: true },
-            {
-              k: "AI Tokens",
-              v: `${1 + (n % 9)}.${n % 9}B / mo`,
-              sample: true,
-            },
-            { k: "Quota Usage", v: `${rec.capacityUtil}%`, sample: true },
-          ]}
-        />
-      </Section>
-      <Section title="Charts" sample>
-        {[
-          { label: "Usage", pct: rec.capacityUtil },
-          { label: "Growth", pct: 20 + (n % 60) },
-          { label: "Capacity Trend", pct: 40 + (n % 55) },
-          { label: "Peak Consumption", pct: 60 + (n % 40) },
-        ].map((c) => (
-          <StatRow
-            key={c.label}
-            label={c.label}
-            value={
-              <span
-                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-              >
-                <Bar pct={c.pct} tone={c.pct > 80 ? T.warning : T.accent} />
-                {c.pct}%
-              </span>
-            }
-            sample
+      <Tabs tabs={CAPACITY_SUBS} active={sub} onChange={setSub} />
+      {sub === "shared-resource-utilization" && (
+        <Section title="Shared resource utilization" sample>
+          <KVGrid
+            cols={2}
+            items={[
+              { k: "Consumer Count", v: rec.consumers, sample: true },
+              {
+                k: "API Requests",
+                v: `${rec.monthlyRequests} / mo`,
+                sample: true,
+              },
+              { k: "Storage", v: `${2 + (n % 40)} TB`, sample: true },
+              { k: "Compute", v: `${8 + (n % 120)} vCPU`, sample: true },
+              { k: "Bandwidth", v: `${1 + (n % 12)} Gbps`, sample: true },
+              {
+                k: "AI Tokens",
+                v: `${1 + (n % 9)}.${n % 9}B / mo`,
+                sample: true,
+              },
+              { k: "Quota Usage", v: `${rec.capacityUtil}%`, sample: true },
+            ]}
           />
-        ))}
-      </Section>
+        </Section>
+      )}
+      {sub === "charts" && (
+        <Section title="Charts" sample>
+          {[
+            { label: "Usage", pct: rec.capacityUtil },
+            { label: "Growth", pct: 20 + (n % 60) },
+            { label: "Capacity Trend", pct: 40 + (n % 55) },
+            { label: "Peak Consumption", pct: 60 + (n % 40) },
+          ].map((c) => (
+            <StatRow
+              key={c.label}
+              label={c.label}
+              value={
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Bar pct={c.pct} tone={c.pct > 80 ? T.warning : T.accent} />
+                  {c.pct}%
+                </span>
+              }
+              sample
+            />
+          ))}
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Health (spec §Health) ──
+const HEALTH_SUBS = [
+  { id: "health-widgets", label: "Health widgets" },
+  { id: "operational-detail", label: "Operational detail" },
+];
 function HealthTab({ rec }: { rec: ServiceRecord }) {
+  const [sub, setSub] = React.useState("health-widgets");
   const n = hashId(rec.id);
   const incidents = 1 + (n % 3);
   return (
     <>
-      <Section title="Health widgets" sample>
-        <PostureGrid>
-          <PostureCard
-            title="Availability"
-            value={rec.availability}
-            tone="ok"
-            sub={<SampleTag />}
+      <Tabs tabs={HEALTH_SUBS} active={sub} onChange={setSub} />
+      {sub === "health-widgets" && (
+        <Section title="Health widgets" sample>
+          <PostureGrid>
+            <PostureCard
+              title="Availability"
+              value={rec.availability}
+              tone="ok"
+              sub={<SampleTag />}
+            />
+            <PostureCard
+              title="Latency"
+              value={`${rec.latencyMs} ms`}
+              tone={rec.latencyMs > 120 ? "warn" : "ok"}
+              sub={<SampleTag />}
+            />
+            <PostureCard
+              title="Errors"
+              value={rec.errorRate}
+              tone="ok"
+              sub={<SampleTag />}
+            />
+            <PostureCard
+              title="Active Incidents"
+              value={rec.status === "Suspended" ? incidents : 0}
+              tone={rec.status === "Suspended" ? "danger" : "ok"}
+              sub={<SampleTag />}
+            />
+            <PostureCard
+              title="Maintenance"
+              value={n % 2 === 0 ? "Scheduled" : "None"}
+              sub={<SampleTag />}
+            />
+            <PostureCard
+              title="Service Level"
+              value={rec.serviceTier}
+              sub={<SampleTag />}
+            />
+          </PostureGrid>
+        </Section>
+      )}
+      {sub === "operational-detail" && (
+        <Section title="Operational detail" sample>
+          <StatRow
+            label="Current Status"
+            value={
+              <span
+                style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+              >
+                <CheckCircle2 size={14} color={T.success} />
+                {rec.status === "Suspended" ? "Degraded" : "Operational"}
+              </span>
+            }
+            tone={rec.status === "Suspended" ? "warn" : "ok"}
+            sample
           />
-          <PostureCard
-            title="Latency"
-            value={`${rec.latencyMs} ms`}
-            tone={rec.latencyMs > 120 ? "warn" : "ok"}
-            sub={<SampleTag />}
+          <StatRow
+            label="Recent Incidents"
+            value={`${incidents} in last 30 days`}
+            tone={incidents > 1 ? "warn" : "ok"}
+            sample
           />
-          <PostureCard
-            title="Errors"
-            value={rec.errorRate}
-            tone="ok"
-            sub={<SampleTag />}
+          <StatRow label="SLA" value={rec.sla} tone="ok" sample />
+          <StatRow
+            label="Upcoming Maintenance"
+            value={
+              n % 2 === 0 ? `${rec.modified} · 02:00 UTC` : "None scheduled"
+            }
+            sample
           />
-          <PostureCard
-            title="Active Incidents"
-            value={rec.status === "Suspended" ? incidents : 0}
-            tone={rec.status === "Suspended" ? "danger" : "ok"}
-            sub={<SampleTag />}
-          />
-          <PostureCard
-            title="Maintenance"
-            value={n % 2 === 0 ? "Scheduled" : "None"}
-            sub={<SampleTag />}
-          />
-          <PostureCard
-            title="Service Level"
-            value={rec.serviceTier}
-            sub={<SampleTag />}
-          />
-        </PostureGrid>
-      </Section>
-      <Section title="Operational detail" sample>
-        <StatRow
-          label="Current Status"
-          value={
-            <span
-              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
-            >
-              <CheckCircle2 size={14} color={T.success} />
-              {rec.status === "Suspended" ? "Degraded" : "Operational"}
-            </span>
-          }
-          tone={rec.status === "Suspended" ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Recent Incidents"
-          value={`${incidents} in last 30 days`}
-          tone={incidents > 1 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow label="SLA" value={rec.sla} tone="ok" sample />
-        <StatRow
-          label="Upcoming Maintenance"
-          value={n % 2 === 0 ? `${rec.modified} · 02:00 UTC` : "None scheduled"}
-          sample
-        />
-      </Section>
+        </Section>
+      )}
     </>
   );
 }

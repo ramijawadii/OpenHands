@@ -26,6 +26,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -976,63 +977,74 @@ function Section({
 }
 
 // ── Overview (General · Ownership · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "ownership", label: "Ownership" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: ArchiveRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.name },
-            { k: "Description", v: rec.description },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Environment", v: rec.environment },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Created", v: rec.created },
-            { k: "Archived", v: rec.archived },
-          ]}
-        />
-      </Section>
-
-      <Section title="Ownership" sample>
-        <KVGrid
-          items={[
-            { k: "Business Owner", v: rec.businessOwner, sample: true },
-            { k: "Workspace Owner", v: rec.owner, sample: true },
-            {
-              k: "Delegated Administrators",
-              v: rec.delegatedAdmins.join(", "),
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
-
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Members", v: rec.members, sample: true },
-            {
-              k: "Cloud Resources",
-              v: rec.cloudResources.toLocaleString(),
-              sample: true,
-            },
-            { k: "Policies", v: rec.policies, sample: true },
-            {
-              k: "Compliance Frameworks",
-              v: rec.complianceFrameworks,
-              sample: true,
-            },
-            {
-              k: "Audit Events",
-              v: rec.auditEvents.toLocaleString(),
-              sample: true,
-            },
-            { k: "Evidence Files", v: rec.evidenceFiles, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.name },
+              { k: "Description", v: rec.description },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Environment", v: rec.environment },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Created", v: rec.created },
+              { k: "Archived", v: rec.archived },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "ownership" && (
+        <Section title="Ownership" sample>
+          <KVGrid
+            items={[
+              { k: "Business Owner", v: rec.businessOwner, sample: true },
+              { k: "Workspace Owner", v: rec.owner, sample: true },
+              {
+                k: "Delegated Administrators",
+                v: rec.delegatedAdmins.join(", "),
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Members", v: rec.members, sample: true },
+              {
+                k: "Cloud Resources",
+                v: rec.cloudResources.toLocaleString(),
+                sample: true,
+              },
+              { k: "Policies", v: rec.policies, sample: true },
+              {
+                k: "Compliance Frameworks",
+                v: rec.complianceFrameworks,
+                sample: true,
+              },
+              {
+                k: "Audit Events",
+                v: rec.auditEvents.toLocaleString(),
+                sample: true,
+              },
+              { k: "Evidence Files", v: rec.evidenceFiles, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1055,7 +1067,18 @@ function ArchiveInfoTab({ rec }: { rec: ArchiveRecord }) {
 }
 
 // ── Historical Configuration (final config at time of archival — read-only) ──
+const HISTORICAL_SUBS = [
+  { id: "config", label: "Workspace Configuration" },
+  { id: "governance", label: "Governance Profile" },
+  { id: "compliance", label: "Compliance Profile" },
+  { id: "inventory", label: "Resource Inventory" },
+  { id: "ai", label: "AI Configuration" },
+  { id: "integrations", label: "Integrations" },
+  { id: "policies", label: "Policies" },
+  { id: "tags", label: "Tags" },
+];
 function HistoricalConfigTab({ rec }: { rec: ArchiveRecord }) {
+  const [sub, setSub] = React.useState("config");
   const n = hashId(rec.id);
   const inventory = [
     { id: `${rec.id}-inv-0`, resource: "AWS Accounts", count: 1 + (n % 12) },
@@ -1091,85 +1114,106 @@ function HistoricalConfigTab({ rec }: { rec: ArchiveRecord }) {
         Final configuration at the time of archival — everything is read-only.
         <SampleTag />
       </div>
-
-      <Section title="Workspace Configuration" sample>
-        <StatRow label="Environment" value={rec.environment} sample />
-        <StatRow label="Workspace Type" value={rec.workspaceType} sample />
-        <StatRow label="Business Unit" value={rec.businessUnit} sample />
-        <StatRow label="Support Tier" value="Standard" sample />
-      </Section>
-
-      <Section title="Governance Profile" sample>
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow label="Inherited Policies" value={`${rec.policies}`} sample />
-        <StatRow label="Approval Policy" value="2-of-3 approvers" sample />
-      </Section>
-
-      <Section title="Compliance Profile" sample>
-        <StatRow
-          label="Compliance Profile"
-          value={rec.complianceProfile}
-          sample
-        />
-        <StatRow
-          label="Frameworks"
-          value={`${rec.complianceFrameworks} assigned`}
-          sample
-        />
-      </Section>
-
-      <Section title="Resource Inventory" sample>
-        <DirectoryTable columns={invCols} rows={inventory} />
-      </Section>
-
-      <Section title="AI Configuration" sample>
-        <StatRow label="AI Runtime" value="cloudguard-runtime:latest" sample />
-        <StatRow label="Assigned Agents" value={`${n % 8}`} sample />
-        <StatRow label="Execution Policies" value="Frozen at archival" sample />
-      </Section>
-
-      <Section title="Integrations" sample>
-        <StatRow
-          label="Connected Integrations"
-          value={`${2 + (n % 6)}`}
-          sample
-        />
-        <StatRow label="State" value="Disconnected on archival" sample />
-      </Section>
-
-      <Section title="Policies" sample>
-        <StatRow label="Assigned Policies" value={`${rec.policies}`} sample />
-        <StatRow label="Workspace Overrides" value={`${n % 4}`} sample />
-      </Section>
-
-      <Section title="Tags" sample>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {rec.tags.map((t) => (
-            <span
-              key={t}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                height: 24,
-                padding: "0 10px",
-                borderRadius: 99,
-                border: `1px solid ${T.border}`,
-                background: "var(--cg-bg-badge)",
-                color: T.textNav,
-                fontSize: 12,
-              }}
-            >
-              <Tag size={11} />
-              {t}
-            </span>
-          ))}
-        </div>
-      </Section>
+      <Tabs tabs={HISTORICAL_SUBS} active={sub} onChange={setSub} />
+      {sub === "config" && (
+        <Section title="Workspace Configuration" sample>
+          <StatRow label="Environment" value={rec.environment} sample />
+          <StatRow label="Workspace Type" value={rec.workspaceType} sample />
+          <StatRow label="Business Unit" value={rec.businessUnit} sample />
+          <StatRow label="Support Tier" value="Standard" sample />
+        </Section>
+      )}
+      {sub === "governance" && (
+        <Section title="Governance Profile" sample>
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Inherited Policies"
+            value={`${rec.policies}`}
+            sample
+          />
+          <StatRow label="Approval Policy" value="2-of-3 approvers" sample />
+        </Section>
+      )}
+      {sub === "compliance" && (
+        <Section title="Compliance Profile" sample>
+          <StatRow
+            label="Compliance Profile"
+            value={rec.complianceProfile}
+            sample
+          />
+          <StatRow
+            label="Frameworks"
+            value={`${rec.complianceFrameworks} assigned`}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "inventory" && (
+        <Section title="Resource Inventory" sample>
+          <DirectoryTable columns={invCols} rows={inventory} />
+        </Section>
+      )}
+      {sub === "ai" && (
+        <Section title="AI Configuration" sample>
+          <StatRow
+            label="AI Runtime"
+            value="cloudguard-runtime:latest"
+            sample
+          />
+          <StatRow label="Assigned Agents" value={`${n % 8}`} sample />
+          <StatRow
+            label="Execution Policies"
+            value="Frozen at archival"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "integrations" && (
+        <Section title="Integrations" sample>
+          <StatRow
+            label="Connected Integrations"
+            value={`${2 + (n % 6)}`}
+            sample
+          />
+          <StatRow label="State" value="Disconnected on archival" sample />
+        </Section>
+      )}
+      {sub === "policies" && (
+        <Section title="Policies" sample>
+          <StatRow label="Assigned Policies" value={`${rec.policies}`} sample />
+          <StatRow label="Workspace Overrides" value={`${n % 4}`} sample />
+        </Section>
+      )}
+      {sub === "tags" && (
+        <Section title="Tags" sample>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {rec.tags.map((t) => (
+              <span
+                key={t}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  height: 24,
+                  padding: "0 10px",
+                  borderRadius: 99,
+                  border: `1px solid ${T.border}`,
+                  background: "var(--cg-bg-badge)",
+                  color: T.textNav,
+                  fontSize: 12,
+                }}
+              >
+                <Tag size={11} />
+                {t}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

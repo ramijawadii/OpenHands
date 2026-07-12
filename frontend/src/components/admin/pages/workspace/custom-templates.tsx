@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1071,132 +1072,160 @@ function Section({
 }
 
 // ── Overview (General · Statistics · Sharing) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+  { id: "sharing", label: "Sharing" },
+];
 function OverviewTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Template Name", v: rec.name },
-            { k: "Description", v: rec.description, sample: true },
-            { k: "Category", v: rec.category },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Owner", v: rec.owner },
-            { k: "Visibility", v: rec.visibility },
-            { k: "Version", v: rec.version },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Created", v: rec.created },
-            { k: "Modified", v: rec.modified },
-          ]}
-        />
-      </Section>
-
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Assigned Workspaces",
-              v: rec.assignedWorkspaces,
-              sample: true,
-            },
-            {
-              k: "Inherited Templates",
-              v: rec.inheritedTemplates,
-              sample: true,
-            },
-            { k: "Overrides", v: rec.overrides, sample: true },
-            { k: "Policies", v: rec.policies, sample: true },
-            {
-              k: "Compliance Frameworks",
-              v: rec.complianceFrameworks,
-              sample: true,
-            },
-            { k: "Automation Rules", v: rec.automationRules, sample: true },
-          ]}
-        />
-      </Section>
-
-      {/* Sharing (spec § Sharing) — visibility levels + controls */}
-      <Section title="Sharing" sample>
-        <StatRow
-          label="Current Visibility"
-          value={rec.visibility}
-          tone={rec.visibility === "Private" ? "muted" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Visibility Levels"
-          value="Private · Business Unit · Organization · Shared Library"
-          sample
-        />
-        <ToolbarRow buttons={["Share", "Unshare", "Transfer Ownership"]} />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Template Name", v: rec.name },
+              { k: "Description", v: rec.description, sample: true },
+              { k: "Category", v: rec.category },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Owner", v: rec.owner },
+              { k: "Visibility", v: rec.visibility },
+              { k: "Version", v: rec.version },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Created", v: rec.created },
+              { k: "Modified", v: rec.modified },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Assigned Workspaces",
+                v: rec.assignedWorkspaces,
+                sample: true,
+              },
+              {
+                k: "Inherited Templates",
+                v: rec.inheritedTemplates,
+                sample: true,
+              },
+              { k: "Overrides", v: rec.overrides, sample: true },
+              { k: "Policies", v: rec.policies, sample: true },
+              {
+                k: "Compliance Frameworks",
+                v: rec.complianceFrameworks,
+                sample: true,
+              },
+              { k: "Automation Rules", v: rec.automationRules, sample: true },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "sharing" && (
+        <Section title="Sharing" sample>
+          <StatRow
+            label="Current Visibility"
+            value={rec.visibility}
+            tone={rec.visibility === "Private" ? "muted" : "ok"}
+            sample
+          />
+          <StatRow
+            label="Visibility Levels"
+            value="Private · Business Unit · Organization · Shared Library"
+            sample
+          />
+          <ToolbarRow buttons={["Share", "Unshare", "Transfer Ownership"]} />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Composition (spec § Composition + Dependency Viewer) ──
+const COMPOSITION_SUBS = [
+  { id: "composed", label: "Composed Platform Templates" },
+  { id: "chain", label: "Composition Chain" },
+  { id: "dependency-viewer", label: "Dependency Viewer" },
+];
 function CompositionTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("composed");
   return (
     <>
-      <Section title="Composed platform templates" sample>
-        <StatRow label="Enterprise Template" value={rec.baseTemplate} sample />
-        <StatRow
-          label="Environment Template"
-          value={rec.environmentTemplate}
-          sample
-        />
-        <StatRow
-          label="Compliance Template"
-          value={rec.complianceTemplate}
-          sample
-        />
-        <StatRow
-          label="Operational Template"
-          value={rec.operationalTemplate}
-          sample
-        />
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow label="Security Profile" value={rec.securityProfile} sample />
-        <StatRow label="AI Profile" value={rec.aiProfile} sample />
-      </Section>
-
-      <Section title="Composition chain">
-        <FlowChain
-          nodes={[
-            "Enterprise Template",
-            "Environment Template",
-            "Compliance Template",
-            "Operational Template",
-            "Custom Overrides",
-            "Final Workspace Template",
-          ]}
-        />
-      </Section>
-
-      {/* Dependency Viewer (spec § Dependency Viewer) */}
-      <Section title="Dependency viewer" sample>
-        <FlowChain
-          nodes={[
-            "Enterprise Template",
-            "Environment Template",
-            "Compliance Template",
-            "Operational Template",
-            "Custom Template",
-            "Workspace",
-          ]}
-        />
-        <div style={{ fontSize: 12, color: T.textMuted, paddingTop: 6 }}>
-          Selecting any component displays inherited configuration and
-          dependencies.
-        </div>
-      </Section>
+      <Tabs tabs={COMPOSITION_SUBS} active={sub} onChange={setSub} />
+      {sub === "composed" && (
+        <Section title="Composed platform templates" sample>
+          <StatRow
+            label="Enterprise Template"
+            value={rec.baseTemplate}
+            sample
+          />
+          <StatRow
+            label="Environment Template"
+            value={rec.environmentTemplate}
+            sample
+          />
+          <StatRow
+            label="Compliance Template"
+            value={rec.complianceTemplate}
+            sample
+          />
+          <StatRow
+            label="Operational Template"
+            value={rec.operationalTemplate}
+            sample
+          />
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Security Profile"
+            value={rec.securityProfile}
+            sample
+          />
+          <StatRow label="AI Profile" value={rec.aiProfile} sample />
+        </Section>
+      )}
+      {sub === "chain" && (
+        <Section title="Composition chain">
+          <FlowChain
+            nodes={[
+              "Enterprise Template",
+              "Environment Template",
+              "Compliance Template",
+              "Operational Template",
+              "Custom Overrides",
+              "Final Workspace Template",
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "dependency-viewer" && (
+        <Section title="Dependency viewer" sample>
+          <FlowChain
+            nodes={[
+              "Enterprise Template",
+              "Environment Template",
+              "Compliance Template",
+              "Operational Template",
+              "Custom Template",
+              "Workspace",
+            ]}
+          />
+          <div style={{ fontSize: 12, color: T.textMuted, paddingTop: 6 }}>
+            Selecting any component displays inherited configuration and
+            dependencies.
+          </div>
+        </Section>
+      )}
     </>
   );
 }

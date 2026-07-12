@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1179,44 +1180,54 @@ function DecomDetailDrawer({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: DecomRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Workspace ID", v: rec.id },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Business Owner", v: rec.owner, sample: true },
-            { k: "Decommission Date", v: rec.decommissionDate, sample: true },
-            { k: "Status", v: rec.status },
-            { k: "Retention Policy", v: rec.retentionPolicy, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Workspace ID", v: rec.id },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Business Owner", v: rec.owner, sample: true },
+              { k: "Decommission Date", v: rec.decommissionDate, sample: true },
+              { k: "Status", v: rec.status },
+              { k: "Retention Policy", v: rec.retentionPolicy, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Resources Removed", v: rec.resourcesRemoved, sample: true },
-            {
-              k: "Resources Transferred",
-              v: rec.resourcesTransferred,
-              sample: true,
-            },
-            { k: "Evidence Packages", v: rec.evidencePackages, sample: true },
-            { k: "Audit Records", v: rec.auditRecords, sample: true },
-            {
-              k: "Retention Remaining",
-              v: rec.retentionRemaining,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Resources Removed", v: rec.resourcesRemoved, sample: true },
+              {
+                k: "Resources Transferred",
+                v: rec.resourcesTransferred,
+                sample: true,
+              },
+              { k: "Evidence Packages", v: rec.evidencePackages, sample: true },
+              { k: "Audit Records", v: rec.auditRecords, sample: true },
+              {
+                k: "Retention Remaining",
+                v: rec.retentionRemaining,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

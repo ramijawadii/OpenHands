@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1006,178 +1007,210 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: MaintenanceRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace", v: rec.workspace },
-            { k: "Maintenance ID", v: rec.maintenanceId },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Maintenance Type", v: rec.maintenanceType },
-            { k: "Owner", v: rec.owner, sample: true },
-            { k: "Status", v: rec.status },
-            { k: "Scheduled Window", v: rec.window, sample: true },
-            { k: "Started", v: rec.actualStart, sample: true },
-            { k: "Completed", v: rec.actualEnd, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace", v: rec.workspace },
+              { k: "Maintenance ID", v: rec.maintenanceId },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Maintenance Type", v: rec.maintenanceType },
+              { k: "Owner", v: rec.owner, sample: true },
+              { k: "Status", v: rec.status },
+              { k: "Scheduled Window", v: rec.window, sample: true },
+              { k: "Started", v: rec.actualStart, sample: true },
+              { k: "Completed", v: rec.actualEnd, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Completed Tasks", v: rec.completedTasks, sample: true },
-            { k: "Remaining Tasks", v: rec.remainingTasks, sample: true },
-            { k: "Automation Jobs", v: rec.automationJobs, sample: true },
-            { k: "Affected Users", v: rec.affectedUsers, sample: true },
-            { k: "Estimated Downtime", v: rec.estimatedDowntime, sample: true },
-            { k: "Overall Progress", v: `${rec.progress}%`, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Completed Tasks", v: rec.completedTasks, sample: true },
+              { k: "Remaining Tasks", v: rec.remainingTasks, sample: true },
+              { k: "Automation Jobs", v: rec.automationJobs, sample: true },
+              { k: "Affected Users", v: rec.affectedUsers, sample: true },
+              {
+                k: "Estimated Downtime",
+                v: rec.estimatedDowntime,
+                sample: true,
+              },
+              { k: "Overall Progress", v: `${rec.progress}%`, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Maintenance Plan (approved plan · windows · rollback) ──
+const PLAN_SUBS = [
+  { id: "plan", label: "Approved Maintenance Plan" },
+  { id: "window", label: "Maintenance Window" },
+  { id: "rollback", label: "Rollback" },
+];
 function PlanTab({ rec }: { rec: MaintenanceRecord }) {
   const n = hashId(rec.id);
+  const [sub, setSub] = React.useState("plan");
   return (
     <>
-      <Section
-        title="Approved maintenance plan"
-        sample
-        right={
-          <div style={{ display: "flex", gap: 6 }}>
-            <HeaderButton icon={<FileText size={12} />}>Edit Plan</HeaderButton>
-            <HeaderButton icon={<CheckCheck size={12} />}>
-              View Approvals
-            </HeaderButton>
-            <HeaderButton icon={<Download size={12} />}>Export</HeaderButton>
-          </div>
-        }
-      >
-        <StatRow
-          label="Business Justification"
-          value={`${rec.maintenanceType} to remediate risk and maintain compliance`}
+      <Tabs tabs={PLAN_SUBS} active={sub} onChange={setSub} />
+      {sub === "plan" && (
+        <Section
+          title="Approved maintenance plan"
           sample
-        />
-        <StatRow label="Maintenance Window" value={rec.window} sample />
-        <StatRow
-          label="Change Plan"
-          value={`${8 + (n % 6)} change steps`}
-          sample
-        />
-        <StatRow
-          label="Rollback Plan"
-          value="Automatic + manual rollback defined"
-          sample
-        />
-        <StatRow
-          label="Risk Assessment"
-          value={rec.riskLevel}
-          tone={
-            rec.riskLevel === "Critical" || rec.riskLevel === "High"
-              ? "warn"
-              : "ok"
+          right={
+            <div style={{ display: "flex", gap: 6 }}>
+              <HeaderButton icon={<FileText size={12} />}>
+                Edit Plan
+              </HeaderButton>
+              <HeaderButton icon={<CheckCheck size={12} />}>
+                View Approvals
+              </HeaderButton>
+              <HeaderButton icon={<Download size={12} />}>Export</HeaderButton>
+            </div>
           }
-          sample
-        />
-        <StatRow
-          label="Approval Chain"
-          value="Change Management → Platform → Security"
-          sample
-        />
-        <StatRow
-          label="Affected Systems"
-          value={`${3 + (n % 8)} systems`}
-          sample
-        />
-        <StatRow
-          label="Stakeholders"
-          value={[pick(STAKEHOLDERS, n), pick(STAKEHOLDERS, n + 1)].join(", ")}
-          sample
-        />
-        <StatRow
-          label="Communication Plan"
-          value="Email + status page + in-app notice"
-          sample
-        />
-      </Section>
-
-      {/* spec § Maintenance Windows */}
-      <Section title="Maintenance window" sample>
-        <KVGrid
-          items={[
-            { k: "Scheduled Start", v: rec.scheduledStart, sample: true },
-            { k: "Scheduled End", v: rec.scheduledEnd, sample: true },
-            { k: "Actual Start", v: rec.actualStart, sample: true },
-            { k: "Actual End", v: rec.actualEnd, sample: true },
-            { k: "Duration", v: rec.duration, sample: true },
-            { k: "Timezone", v: rec.timezone, sample: true },
-            { k: "Maintenance Owner", v: rec.owner, sample: true },
-          ]}
-        />
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            paddingTop: 8,
-            fontSize: 11.5,
-            color: T.textMuted,
-          }}
         >
-          <span>Supports:</span>
-          <span>Recurring Windows</span>
-          <span>·</span>
-          <span>Blackout Periods</span>
-          <span>·</span>
-          <span>Business Calendar Integration</span>
-        </div>
-      </Section>
-
-      {/* spec § Rollback */}
-      <Section title="Rollback" sample>
-        <div style={{ fontSize: 12.5, color: T.textNav, marginBottom: 8 }}>
-          Restores the workspace if maintenance cannot be completed
-          successfully.
-        </div>
-        <StatRow label="Automatic Rollback" value="Enabled" tone="ok" sample />
-        <StatRow label="Manual Rollback" value="Available" sample />
-        <StatRow label="Partial Rollback" value="Supported" sample />
-        <StatRow label="Full Rollback" value="Supported" sample />
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            paddingTop: 8,
-            fontSize: 11.5,
-            color: T.textMuted,
-          }}
-        >
-          <span>Rollback restores:</span>
-          <span>Configuration</span>
-          <span>·</span>
-          <span>Infrastructure</span>
-          <span>·</span>
-          <span>Policies</span>
-          <span>·</span>
-          <span>AI Configuration</span>
-          <span>·</span>
-          <span>Integrations</span>
-          <span>·</span>
-          <span>Automation</span>
-        </div>
-      </Section>
+          <StatRow
+            label="Business Justification"
+            value={`${rec.maintenanceType} to remediate risk and maintain compliance`}
+            sample
+          />
+          <StatRow label="Maintenance Window" value={rec.window} sample />
+          <StatRow
+            label="Change Plan"
+            value={`${8 + (n % 6)} change steps`}
+            sample
+          />
+          <StatRow
+            label="Rollback Plan"
+            value="Automatic + manual rollback defined"
+            sample
+          />
+          <StatRow
+            label="Risk Assessment"
+            value={rec.riskLevel}
+            tone={
+              rec.riskLevel === "Critical" || rec.riskLevel === "High"
+                ? "warn"
+                : "ok"
+            }
+            sample
+          />
+          <StatRow
+            label="Approval Chain"
+            value="Change Management → Platform → Security"
+            sample
+          />
+          <StatRow
+            label="Affected Systems"
+            value={`${3 + (n % 8)} systems`}
+            sample
+          />
+          <StatRow
+            label="Stakeholders"
+            value={[pick(STAKEHOLDERS, n), pick(STAKEHOLDERS, n + 1)].join(
+              ", ",
+            )}
+            sample
+          />
+          <StatRow
+            label="Communication Plan"
+            value="Email + status page + in-app notice"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "window" && (
+        <Section title="Maintenance window" sample>
+          <KVGrid
+            items={[
+              { k: "Scheduled Start", v: rec.scheduledStart, sample: true },
+              { k: "Scheduled End", v: rec.scheduledEnd, sample: true },
+              { k: "Actual Start", v: rec.actualStart, sample: true },
+              { k: "Actual End", v: rec.actualEnd, sample: true },
+              { k: "Duration", v: rec.duration, sample: true },
+              { k: "Timezone", v: rec.timezone, sample: true },
+              { k: "Maintenance Owner", v: rec.owner, sample: true },
+            ]}
+          />
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              paddingTop: 8,
+              fontSize: 11.5,
+              color: T.textMuted,
+            }}
+          >
+            <span>Supports:</span>
+            <span>Recurring Windows</span>
+            <span>·</span>
+            <span>Blackout Periods</span>
+            <span>·</span>
+            <span>Business Calendar Integration</span>
+          </div>
+        </Section>
+      )}
+      {sub === "rollback" && (
+        <Section title="Rollback" sample>
+          <div style={{ fontSize: 12.5, color: T.textNav, marginBottom: 8 }}>
+            Restores the workspace if maintenance cannot be completed
+            successfully.
+          </div>
+          <StatRow
+            label="Automatic Rollback"
+            value="Enabled"
+            tone="ok"
+            sample
+          />
+          <StatRow label="Manual Rollback" value="Available" sample />
+          <StatRow label="Partial Rollback" value="Supported" sample />
+          <StatRow label="Full Rollback" value="Supported" sample />
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              paddingTop: 8,
+              fontSize: 11.5,
+              color: T.textMuted,
+            }}
+          >
+            <span>Rollback restores:</span>
+            <span>Configuration</span>
+            <span>·</span>
+            <span>Infrastructure</span>
+            <span>·</span>
+            <span>Policies</span>
+            <span>·</span>
+            <span>AI Configuration</span>
+            <span>·</span>
+            <span>Integrations</span>
+            <span>·</span>
+            <span>Automation</span>
+          </div>
+        </Section>
+      )}
     </>
   );
 }
@@ -1296,90 +1329,98 @@ const MODE_TONE: Record<string, "ok" | "warn" | "danger" | "muted"> = {
   Offline: "danger",
 };
 
+const IMPACT_SUBS = [
+  { id: "impact", label: "Operational Impact" },
+  { id: "behavior", label: "Maintenance Behavior" },
+];
 function ImpactTab({ rec }: { rec: MaintenanceRecord }) {
   const n = hashId(rec.id);
+  const [sub, setSub] = React.useState("impact");
   return (
     <>
-      <Section title="Operational impact during maintenance" sample>
-        {IMPACT_DIMENSIONS.map((dim, i) => {
-          const mode = pick(OPERATIONAL_MODES, n + i);
-          return (
-            <StatRow
-              key={dim}
-              label={dim}
-              value={mode}
-              tone={MODE_TONE[mode]}
-              sample
-            />
-          );
-        })}
-      </Section>
-
-      {/* spec § Maintenance Behavior */}
-      <Section title="Maintenance behavior">
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {[
-            "Configuration changes are permitted",
-            "Infrastructure updates are permitted",
-            "Security and compliance updates can be applied",
-            "Audit logging remains active",
-            "Monitoring continues",
-            "Backup and recovery remain available",
-            "Administrators retain full access",
-            "Maintenance events are fully audited",
-          ].map((b) => (
-            <div
-              key={b}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 12.5,
-                color: T.textNav,
-              }}
-            >
-              <CheckCircle size={14} color={T.success} />
-              {b}
-            </div>
-          ))}
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            fontWeight: 600,
-            color: T.textMuted,
-            textTransform: "uppercase",
-            letterSpacing: "0.03em",
-            margin: "14px 0 6px",
-          }}
-        >
-          Optional (configurable)
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {[
-            "Users switched to Read-Only mode",
-            "API access restricted",
-            "Automation paused",
-            "AI execution paused",
-            "Scheduled jobs deferred",
-            "Integrations temporarily disabled",
-          ].map((b) => (
-            <div
-              key={b}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                fontSize: 12.5,
-                color: T.textMuted,
-              }}
-            >
-              <Server size={13} color={T.textMuted} />
-              {b}
-            </div>
-          ))}
-        </div>
-      </Section>
+      <Tabs tabs={IMPACT_SUBS} active={sub} onChange={setSub} />
+      {sub === "impact" && (
+        <Section title="Operational impact during maintenance" sample>
+          {IMPACT_DIMENSIONS.map((dim, i) => {
+            const mode = pick(OPERATIONAL_MODES, n + i);
+            return (
+              <StatRow
+                key={dim}
+                label={dim}
+                value={mode}
+                tone={MODE_TONE[mode]}
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
+      {sub === "behavior" && (
+        <Section title="Maintenance behavior">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[
+              "Configuration changes are permitted",
+              "Infrastructure updates are permitted",
+              "Security and compliance updates can be applied",
+              "Audit logging remains active",
+              "Monitoring continues",
+              "Backup and recovery remain available",
+              "Administrators retain full access",
+              "Maintenance events are fully audited",
+            ].map((b) => (
+              <div
+                key={b}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12.5,
+                  color: T.textNav,
+                }}
+              >
+                <CheckCircle size={14} color={T.success} />
+                {b}
+              </div>
+            ))}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: T.textMuted,
+              textTransform: "uppercase",
+              letterSpacing: "0.03em",
+              margin: "14px 0 6px",
+            }}
+          >
+            Optional (configurable)
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {[
+              "Users switched to Read-Only mode",
+              "API access restricted",
+              "Automation paused",
+              "AI execution paused",
+              "Scheduled jobs deferred",
+              "Integrations temporarily disabled",
+            ].map((b) => (
+              <div
+                key={b}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  fontSize: 12.5,
+                  color: T.textMuted,
+                }}
+              >
+                <Server size={13} color={T.textMuted} />
+                {b}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

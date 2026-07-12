@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1043,72 +1044,96 @@ function ChainViz({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Template Name", v: rec.name },
-            { k: "Template Type", v: rec.templateType },
-            { k: "Category", v: rec.category },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Owner", v: rec.owner },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Version", v: rec.version },
-            { k: "Visibility", v: rec.visibility },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-        <div
-          style={{ display: "flex", gap: 6, flexWrap: "wrap", paddingTop: 10 }}
-        >
-          {rec.tags.map((t) => (
-            <span
-              key={t}
-              style={{
-                fontSize: 11,
-                color: T.textNav,
-                background: T.badgeBg,
-                border: `1px solid ${T.border}`,
-                borderRadius: 99,
-                padding: "2px 9px",
-              }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Template Name", v: rec.name },
+              { k: "Template Type", v: rec.templateType },
+              { k: "Category", v: rec.category },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Owner", v: rec.owner },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Version", v: rec.version },
+              { k: "Visibility", v: rec.visibility },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              flexWrap: "wrap",
+              paddingTop: 10,
+            }}
+          >
+            {rec.tags.map((t) => (
+              <span
+                key={t}
+                style={{
+                  fontSize: 11,
+                  color: T.textNav,
+                  background: T.badgeBg,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: 99,
+                  padding: "2px 9px",
+                }}
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Provisioned Workspaces",
-              v: rec.provisionedWorkspaces.toLocaleString(),
-              sample: true,
-            },
-            { k: "Versions", v: rec.versions, sample: true },
-            { k: "Dependencies", v: rec.dependencies, sample: true },
-            { k: "Collections", v: rec.collections, sample: true },
-            { k: "Favorites", v: rec.favorites, sample: true },
-            { k: "Downloads", v: rec.downloads.toLocaleString(), sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Provisioned Workspaces",
+                v: rec.provisionedWorkspaces.toLocaleString(),
+                sample: true,
+              },
+              { k: "Versions", v: rec.versions, sample: true },
+              { k: "Dependencies", v: rec.dependencies, sample: true },
+              { k: "Collections", v: rec.collections, sample: true },
+              { k: "Favorites", v: rec.favorites, sample: true },
+              {
+                k: "Downloads",
+                v: rec.downloads.toLocaleString(),
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Composition (what the template contains + layered visualization) ──
+const COMPOSITION_SUBS = [
+  { id: "template-composition", label: "Template composition" },
+  { id: "layered-visualization", label: "Layered visualization" },
+];
 function CompositionTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("template-composition");
   const n = hashId(rec.id);
   const parts = [
     "Enterprise Template",
@@ -1123,38 +1148,43 @@ function CompositionTab({ rec }: { rec: TemplateRecord }) {
   ];
   return (
     <>
-      <Section title="Template composition" sample>
-        <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 4 }}>
-          What this template contains.
-        </div>
-        {parts.map((p, i) => {
-          const included = (n + i) % 5 !== 0;
-          return (
-            <StatRow
-              key={p}
-              label={p}
-              value={
-                included ? `${1 + ((n + i) % 6)} included` : "Not included"
-              }
-              tone={included ? "ok" : "muted"}
-              sample
-            />
-          );
-        })}
-      </Section>
-      <Section title="Layered visualization" sample>
-        <ChainViz
-          nodes={[
-            "Enterprise",
-            "Environment",
-            "Compliance",
-            "Operational",
-            "Custom",
-            "Workspace",
-          ]}
-          highlightLast
-        />
-      </Section>
+      <Tabs tabs={COMPOSITION_SUBS} active={sub} onChange={setSub} />
+      {sub === "template-composition" && (
+        <Section title="Template composition" sample>
+          <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 4 }}>
+            What this template contains.
+          </div>
+          {parts.map((p, i) => {
+            const included = (n + i) % 5 !== 0;
+            return (
+              <StatRow
+                key={p}
+                label={p}
+                value={
+                  included ? `${1 + ((n + i) % 6)} included` : "Not included"
+                }
+                tone={included ? "ok" : "muted"}
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
+      {sub === "layered-visualization" && (
+        <Section title="Layered visualization" sample>
+          <ChainViz
+            nodes={[
+              "Enterprise",
+              "Environment",
+              "Compliance",
+              "Operational",
+              "Custom",
+              "Workspace",
+            ]}
+            highlightLast
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1207,6 +1237,10 @@ function ConfigurationTab() {
 }
 
 // ── Dependencies (template relationships + visualization) ──
+const DEPENDENCIES_SUBS = [
+  { id: "template-relationships", label: "Template relationships" },
+  { id: "dependency-chain", label: "Dependency chain" },
+];
 function DependenciesTab({
   rec,
   allTemplates,
@@ -1214,6 +1248,7 @@ function DependenciesTab({
   rec: TemplateRecord;
   allTemplates: TemplateRecord[];
 }) {
+  const [sub, setSub] = React.useState("template-relationships");
   const n = hashId(rec.id);
   const other = allTemplates.filter((t) => t.id !== rec.id);
   const names = (offset: number, count: number) =>
@@ -1223,35 +1258,40 @@ function DependenciesTab({
     ).join(", ") || "None";
   return (
     <>
-      <Section title="Template relationships" sample>
-        <StatRow
-          label="Parent Templates"
-          value={names(1, rec.dependencies % 3)}
-          sample
-        />
-        <StatRow
-          label="Child Templates"
-          value={names(4, rec.dependencies % 2)}
-          sample
-        />
-        <StatRow label="Inherited Templates" value={names(7, 1)} sample />
-        <StatRow
-          label="Dependent Templates"
-          value={`${rec.provisionedWorkspaces % 5} templates`}
-          sample
-        />
-        <StatRow
-          label="Referenced Profiles"
-          value={`${rec.complianceFramework} · Governance profile`}
-          sample
-        />
-      </Section>
-      <Section title="Dependency chain" sample>
-        <ChainViz
-          nodes={[pick(other, n).name, rec.name, pick(other, n + 5).name]}
-          highlightLast
-        />
-      </Section>
+      <Tabs tabs={DEPENDENCIES_SUBS} active={sub} onChange={setSub} />
+      {sub === "template-relationships" && (
+        <Section title="Template relationships" sample>
+          <StatRow
+            label="Parent Templates"
+            value={names(1, rec.dependencies % 3)}
+            sample
+          />
+          <StatRow
+            label="Child Templates"
+            value={names(4, rec.dependencies % 2)}
+            sample
+          />
+          <StatRow label="Inherited Templates" value={names(7, 1)} sample />
+          <StatRow
+            label="Dependent Templates"
+            value={`${rec.provisionedWorkspaces % 5} templates`}
+            sample
+          />
+          <StatRow
+            label="Referenced Profiles"
+            value={`${rec.complianceFramework} · Governance profile`}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "dependency-chain" && (
+        <Section title="Dependency chain" sample>
+          <ChainViz
+            nodes={[pick(other, n).name, rec.name, pick(other, n + 5).name]}
+            highlightLast
+          />
+        </Section>
+      )}
     </>
   );
 }

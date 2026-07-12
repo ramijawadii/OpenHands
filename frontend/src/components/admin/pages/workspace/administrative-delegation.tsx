@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1235,126 +1236,157 @@ function DelegationDetailDrawer({
 }
 
 // ── Overview (General · Statistics) — spec §Overview ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Delegation ID", v: rec.id },
-            { k: "Workspace", v: rec.workspace },
-            { k: "Delegate", v: rec.delegate },
-            { k: "Administrative Profile", v: rec.adminProfile },
-            { k: "Delegation Type", v: rec.delegationType },
-            { k: "Status", v: rec.status },
-            { k: "Effective Date", v: rec.effectiveDate },
-            { k: "Expiration Date", v: rec.expirationDate },
-            { k: "Created By", v: rec.createdBy, sample: true },
-            { k: "Approved By", v: rec.approvedBy, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {`Governed by the "${rec.delegationPolicy}" policy via the "${rec.delegationTemplate}" template. Re-delegation ${rec.reDelegatable ? "permitted" : "not permitted"}.`}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Delegation ID", v: rec.id },
+              { k: "Workspace", v: rec.workspace },
+              { k: "Delegate", v: rec.delegate },
+              { k: "Administrative Profile", v: rec.adminProfile },
+              { k: "Delegation Type", v: rec.delegationType },
+              { k: "Status", v: rec.status },
+              { k: "Effective Date", v: rec.effectiveDate },
+              { k: "Expiration Date", v: rec.expirationDate },
+              { k: "Created By", v: rec.createdBy, sample: true },
+              { k: "Approved By", v: rec.approvedBy, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {`Governed by the "${rec.delegationPolicy}" policy via the "${rec.delegationTemplate}" template. Re-delegation ${rec.reDelegatable ? "permitted" : "not permitted"}.`}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Managed Workspaces",
-              v: rec.managedWorkspaces,
-              sample: true,
-            },
-            {
-              k: "Effective Permissions",
-              v: rec.effectivePermissions,
-              sample: true,
-            },
-            {
-              k: "Policy Restrictions",
-              v: rec.policyRestrictions,
-              sample: true,
-            },
-            { k: "Approval Count", v: rec.approvalCount, sample: true },
-            {
-              k: "Recent Activity",
-              v: `${rec.recentActivity} events`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Managed Workspaces",
+                v: rec.managedWorkspaces,
+                sample: true,
+              },
+              {
+                k: "Effective Permissions",
+                v: rec.effectivePermissions,
+                sample: true,
+              },
+              {
+                k: "Policy Restrictions",
+                v: rec.policyRestrictions,
+                sample: true,
+              },
+              { k: "Approval Count", v: rec.approvalCount, sample: true },
+              {
+                k: "Recent Activity",
+                v: `${rec.recentActivity} events`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Delegation Scope (Supported Scopes · Scope Boundaries · visualization) — spec §Delegation Scope ──
+const SCOPE_SUBS = [
+  { id: "supported-scopes", label: "Supported scopes" },
+  { id: "scope-boundaries", label: "Scope boundaries" },
+  { id: "scope-inheritance", label: "Scope inheritance" },
+];
 function ScopeTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("supported-scopes");
   return (
     <>
-      <Section title="Supported scopes" sample>
-        <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
-          Defines exactly what authority is delegated.
-        </div>
-        {SUPPORTED_SCOPES.map((s) => {
-          const granted = rec.scopes.includes(s);
-          return (
-            <StatRow
-              key={s}
-              label={s}
-              value={granted ? "Delegated" : "Not delegated"}
-              tone={granted ? "ok" : "muted"}
-              sample
-            />
-          );
-        })}
-      </Section>
+      <Tabs tabs={SCOPE_SUBS} active={sub} onChange={setSub} />
+      {sub === "supported-scopes" && (
+        <Section title="Supported scopes" sample>
+          <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
+            Defines exactly what authority is delegated.
+          </div>
+          {SUPPORTED_SCOPES.map((s) => {
+            const granted = rec.scopes.includes(s);
+            return (
+              <StatRow
+                key={s}
+                label={s}
+                value={granted ? "Delegated" : "Not delegated"}
+                tone={granted ? "ok" : "muted"}
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
 
-      <Section title="Scope boundaries" sample>
-        <KVGrid
-          items={[
-            {
-              k: "Allowed Actions",
-              v: `${rec.scopes.length} scope groups`,
-              sample: true,
-            },
-            {
-              k: "Restricted Actions",
-              v: `${rec.restrictions.length} restrictions`,
-              sample: true,
-            },
-            {
-              k: "Inherited Permissions",
-              v: "From Administrative Profile",
-              sample: true,
-            },
-            {
-              k: "Workspace Restrictions",
-              v: rec.workspace,
-              sample: true,
-            },
-            {
-              k: "Cross-Workspace Access",
-              v: rec.reDelegatable ? "Allowed" : "Denied",
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "scope-boundaries" && (
+        <Section title="Scope boundaries" sample>
+          <KVGrid
+            items={[
+              {
+                k: "Allowed Actions",
+                v: `${rec.scopes.length} scope groups`,
+                sample: true,
+              },
+              {
+                k: "Restricted Actions",
+                v: `${rec.restrictions.length} restrictions`,
+                sample: true,
+              },
+              {
+                k: "Inherited Permissions",
+                v: "From Administrative Profile",
+                sample: true,
+              },
+              {
+                k: "Workspace Restrictions",
+                v: rec.workspace,
+                sample: true,
+              },
+              {
+                k: "Cross-Workspace Access",
+                v: rec.reDelegatable ? "Allowed" : "Denied",
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Scope inheritance" sample>
-        <div style={{ maxWidth: 380, margin: "4px auto" }}>
-          <Chain steps={SCOPE_CHAIN} highlightLast />
-        </div>
-      </Section>
+      {sub === "scope-inheritance" && (
+        <Section title="Scope inheritance" sample>
+          <div style={{ maxWidth: 380, margin: "4px auto" }}>
+            <Chain steps={SCOPE_CHAIN} highlightLast />
+          </div>
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Effective Permissions (visualization · categories · toolbar) — spec §Effective Permissions ──
+const PERMISSIONS_SUBS = [
+  { id: "permission-resolution", label: "Permission resolution" },
+  {
+    id: "effective-permissions-by-category",
+    label: "Effective permissions by category",
+  },
+];
 function PermissionsTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("permission-resolution");
   const n = hashId(rec.id);
   const levels = ["Full", "Manage", "Read/Write", "Read Only", "None"];
   return (
@@ -1374,32 +1406,37 @@ function PermissionsTab({ rec }: { rec: DelegationRecord }) {
         <SampleTag />
       </div>
 
-      <Section title="Permission resolution" sample>
-        <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
-          The administrator&apos;s real permissions after evaluating every
-          policy.
-        </div>
-        <div style={{ maxWidth: 380, margin: "4px auto" }}>
-          <Chain steps={EFFECTIVE_CHAIN} highlightLast />
-        </div>
-      </Section>
+      <Tabs tabs={PERMISSIONS_SUBS} active={sub} onChange={setSub} />
+      {sub === "permission-resolution" && (
+        <Section title="Permission resolution" sample>
+          <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
+            The administrator&apos;s real permissions after evaluating every
+            policy.
+          </div>
+          <div style={{ maxWidth: 380, margin: "4px auto" }}>
+            <Chain steps={EFFECTIVE_CHAIN} highlightLast />
+          </div>
+        </Section>
+      )}
 
-      <Section title="Effective permissions by category" sample>
-        {PERM_CATEGORIES.map((c, i) => {
-          const lvl = pick(levels, n + i);
-          return (
-            <StatRow
-              key={c}
-              label={c}
-              value={lvl}
-              tone={
-                lvl === "None" ? "muted" : lvl === "Read Only" ? "warn" : "ok"
-              }
-              sample
-            />
-          );
-        })}
-      </Section>
+      {sub === "effective-permissions-by-category" && (
+        <Section title="Effective permissions by category" sample>
+          {PERM_CATEGORIES.map((c, i) => {
+            const lvl = pick(levels, n + i);
+            return (
+              <StatRow
+                key={c}
+                label={c}
+                value={lvl}
+                tone={
+                  lvl === "None" ? "muted" : lvl === "Read Only" ? "warn" : "ok"
+                }
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
     </>
   );
 }
@@ -1446,7 +1483,12 @@ function RestrictionsTab({ rec }: { rec: DelegationRecord }) {
 }
 
 // ── Approval Workflow (visualization · workflow / approvers / dates / status) — spec §Approval Workflow ──
+const APPROVAL_SUBS = [
+  { id: "approval-workflow", label: "Approval workflow" },
+  { id: "approval-summary", label: "Approval summary" },
+];
 function ApprovalTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("approval-workflow");
   const n = hashId(rec.id);
   const currentIdx =
     rec.status === "Pending"
@@ -1456,123 +1498,128 @@ function ApprovalTab({ rec }: { rec: DelegationRecord }) {
         : APPROVAL_CHAIN.length - 1;
   return (
     <>
-      <Section title="Approval workflow" sample>
-        <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
-          Workflow: {rec.approvalWorkflow}
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {APPROVAL_CHAIN.map((stage, i) => {
-            const done = i < currentIdx || rec.status === "Active";
-            const active = i === currentIdx && rec.status === "Pending";
-            const rejected = rec.status === "Revoked" && i === currentIdx;
-            const tone = rejected
-              ? T.danger
-              : done
-                ? T.success
-                : active
-                  ? T.accent
-                  : T.textMuted;
-            return (
-              <div
-                key={stage}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "12px 0",
-                  borderBottom:
-                    i < APPROVAL_CHAIN.length - 1
-                      ? `1px solid ${T.border}`
-                      : "none",
-                }}
-              >
-                <span
+      <Tabs tabs={APPROVAL_SUBS} active={sub} onChange={setSub} />
+      {sub === "approval-workflow" && (
+        <Section title="Approval workflow" sample>
+          <div style={{ fontSize: 12, color: T.textMuted, marginBottom: 8 }}>
+            Workflow: {rec.approvalWorkflow}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {APPROVAL_CHAIN.map((stage, i) => {
+              const done = i < currentIdx || rec.status === "Active";
+              const active = i === currentIdx && rec.status === "Pending";
+              const rejected = rec.status === "Revoked" && i === currentIdx;
+              const tone = rejected
+                ? T.danger
+                : done
+                  ? T.success
+                  : active
+                    ? T.accent
+                    : T.textMuted;
+              return (
+                <div
+                  key={stage}
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background:
-                      done || active
-                        ? "var(--cg-accent-bg-strong)"
-                        : "transparent",
-                    border: `1px solid ${done || active ? "transparent" : T.border}`,
-                    color: tone,
-                    fontSize: 11,
+                    display: "flex",
+                    gap: 12,
+                    padding: "12px 0",
+                    borderBottom:
+                      i < APPROVAL_CHAIN.length - 1
+                        ? `1px solid ${T.border}`
+                        : "none",
                   }}
                 >
-                  {rejected ? (
-                    <X size={12} />
-                  ) : done ? (
-                    <Check size={12} />
-                  ) : (
-                    i + 1
-                  )}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                  <span
                     style={{
-                      fontSize: 13,
-                      color: T.textPrimary,
-                      fontWeight: active ? 600 : 400,
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background:
+                        done || active
+                          ? "var(--cg-accent-bg-strong)"
+                          : "transparent",
+                      border: `1px solid ${done || active ? "transparent" : T.border}`,
+                      color: tone,
+                      fontSize: 11,
                     }}
                   >
-                    {stage}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: T.textMuted,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 10,
-                      marginTop: 2,
-                    }}
-                  >
-                    <span>
-                      Approver:{" "}
-                      {i === 0 ? rec.delegate : pick(APPROVERS, n + i)}
-                    </span>
-                    <span>·</span>
-                    <span style={{ color: tone }}>
-                      {rejected
-                        ? "Rejected"
-                        : done
-                          ? "Approved"
-                          : active
-                            ? "In review"
-                            : "Pending"}
-                    </span>
-                    {done && (
-                      <>
-                        <span>·</span>
-                        <span>{rec.effectiveDate}</span>
-                      </>
+                    {rejected ? (
+                      <X size={12} />
+                    ) : done ? (
+                      <Check size={12} />
+                    ) : (
+                      i + 1
                     )}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: T.textPrimary,
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {stage}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: T.textMuted,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        marginTop: 2,
+                      }}
+                    >
+                      <span>
+                        Approver:{" "}
+                        {i === 0 ? rec.delegate : pick(APPROVERS, n + i)}
+                      </span>
+                      <span>·</span>
+                      <span style={{ color: tone }}>
+                        {rejected
+                          ? "Rejected"
+                          : done
+                            ? "Approved"
+                            : active
+                              ? "In review"
+                              : "Pending"}
+                      </span>
+                      {done && (
+                        <>
+                          <span>·</span>
+                          <span>{rec.effectiveDate}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Approval summary" sample>
-        <KVGrid
-          items={[
-            { k: "Workflow", v: rec.approvalWorkflow, sample: true },
-            { k: "Approvers", v: rec.approvalCount, sample: true },
-            {
-              k: "Approval Dates",
-              v: rec.status === "Pending" ? "—" : rec.effectiveDate,
-              sample: true,
-            },
-            { k: "Current Status", v: rec.approvalStatus, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "approval-summary" && (
+        <Section title="Approval summary" sample>
+          <KVGrid
+            items={[
+              { k: "Workflow", v: rec.approvalWorkflow, sample: true },
+              { k: "Approvers", v: rec.approvalCount, sample: true },
+              {
+                k: "Approval Dates",
+                v: rec.status === "Pending" ? "—" : rec.effectiveDate,
+                sample: true,
+              },
+              { k: "Current Status", v: rec.approvalStatus, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

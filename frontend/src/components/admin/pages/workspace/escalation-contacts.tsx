@@ -29,6 +29,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -965,68 +966,78 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: ContactRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Contact", v: rec.contact },
-            { k: "Role", v: rec.role },
-            { k: "Team", v: rec.team, sample: true },
-            { k: "Department", v: rec.department, sample: true },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Workspace", v: rec.workspace },
-            { k: "Priority", v: rec.priority },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 16,
-            fontSize: 12,
-            color: T.textMuted,
-            paddingTop: 6,
-          }}
-        >
-          <span>Email: {rec.email}</span>
-          <span>Phone: {rec.phone}</span>
-          <span>Type: {rec.contactType}</span>
-          <span>Category: {rec.category}</span>
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Contact", v: rec.contact },
+              { k: "Role", v: rec.role },
+              { k: "Team", v: rec.team, sample: true },
+              { k: "Department", v: rec.department, sample: true },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Workspace", v: rec.workspace },
+              { k: "Priority", v: rec.priority },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 16,
+              fontSize: 12,
+              color: T.textMuted,
+              paddingTop: 6,
+            }}
+          >
+            <span>Email: {rec.email}</span>
+            <span>Phone: {rec.phone}</span>
+            <span>Type: {rec.contactType}</span>
+            <span>Category: {rec.category}</span>
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={2}
-          items={[
-            {
-              k: "Active Escalations",
-              v: rec.activeEscalations,
-              sample: true,
-            },
-            {
-              k: "Average Response Time",
-              v: `${rec.avgResponseMin} min`,
-              sample: true,
-            },
-            {
-              k: "Acknowledgements",
-              v: rec.acknowledgements,
-              sample: true,
-            },
-            {
-              k: "Resolved Incidents",
-              v: rec.resolvedIncidents,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={2}
+            items={[
+              {
+                k: "Active Escalations",
+                v: rec.activeEscalations,
+                sample: true,
+              },
+              {
+                k: "Average Response Time",
+                v: `${rec.avgResponseMin} min`,
+                sample: true,
+              },
+              {
+                k: "Acknowledgements",
+                v: rec.acknowledgements,
+                sample: true,
+              },
+              {
+                k: "Resolved Incidents",
+                v: rec.resolvedIncidents,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1061,7 +1072,12 @@ function ResponsibilitiesTab({ rec }: { rec: ContactRecord }) {
 }
 
 // ── Notification Routing (methods + priority routing + toolbar) ──
+const ROUTING_SUBS = [
+  { id: "methods", label: "Methods" },
+  { id: "priority-routing", label: "Priority routing" },
+];
 function RoutingTab({ rec }: { rec: ContactRecord }) {
+  const [sub, setSub] = React.useState("methods");
   const n = hashId(rec.id);
   return (
     <>
@@ -1073,32 +1089,37 @@ function RoutingTab({ rec }: { rec: ContactRecord }) {
         <SampleTag />
       </div>
 
-      <Section title="Methods" sample>
-        {NOTIFICATION_METHODS.map((m, i) => {
-          const enabled = (n + i) % 3 !== 1;
-          return (
+      <Tabs tabs={ROUTING_SUBS} active={sub} onChange={setSub} />
+      {sub === "methods" && (
+        <Section title="Methods" sample>
+          {NOTIFICATION_METHODS.map((m, i) => {
+            const enabled = (n + i) % 3 !== 1;
+            return (
+              <StatRow
+                key={m}
+                label={m}
+                value={enabled ? "Enabled" : "Disabled"}
+                tone={enabled ? "ok" : "muted"}
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
+
+      {sub === "priority-routing" && (
+        <Section title="Priority routing" sample>
+          {PRIORITY_ROUTING.map((p) => (
             <StatRow
-              key={m}
-              label={m}
-              value={enabled ? "Enabled" : "Disabled"}
-              tone={enabled ? "ok" : "muted"}
+              key={p.priority}
+              label={p.priority}
+              value={p.sla}
+              tone={p.priority === "P1" ? "danger" : "muted"}
               sample
             />
-          );
-        })}
-      </Section>
-
-      <Section title="Priority routing" sample>
-        {PRIORITY_ROUTING.map((p) => (
-          <StatRow
-            key={p.priority}
-            label={p.priority}
-            value={p.sla}
-            tone={p.priority === "P1" ? "danger" : "muted"}
-            sample
-          />
-        ))}
-      </Section>
+          ))}
+        </Section>
+      )}
     </>
   );
 }

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1268,53 +1269,63 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: ArchiveRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Workspace ID", v: rec.id },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Owner", v: rec.owner, sample: true },
-            { k: "Archive Type", v: rec.archiveType },
-            { k: "Archive Reason", v: rec.archiveReason, sample: true },
-            { k: "Archived Date", v: rec.archivedDate },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Workspace ID", v: rec.id },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Owner", v: rec.owner, sample: true },
+              { k: "Archive Type", v: rec.archiveType },
+              { k: "Archive Reason", v: rec.archiveReason, sample: true },
+              { k: "Archived Date", v: rec.archivedDate },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Retention Remaining",
-              v: rec.retentionRemaining,
-              sample: true,
-            },
-            {
-              k: "Preserved Resources",
-              v: rec.preservedResources,
-              sample: true,
-            },
-            {
-              k: "Compliance Programs",
-              v: rec.compliancePrograms,
-              sample: true,
-            },
-            { k: "Evidence Packages", v: rec.evidencePackages, sample: true },
-            {
-              k: "Audit Records",
-              v: rec.auditRecords.toLocaleString(),
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Retention Remaining",
+                v: rec.retentionRemaining,
+                sample: true,
+              },
+              {
+                k: "Preserved Resources",
+                v: rec.preservedResources,
+                sample: true,
+              },
+              {
+                k: "Compliance Programs",
+                v: rec.compliancePrograms,
+                sample: true,
+              },
+              { k: "Evidence Packages", v: rec.evidencePackages, sample: true },
+              {
+                k: "Audit Records",
+                v: rec.auditRecords.toLocaleString(),
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1505,7 +1516,13 @@ const RESTORE_OPTIONS = [
   "Restore from Snapshot",
 ];
 
+const RESTORATION_SUBS = [
+  { id: "validation-checks", label: "Validation checks" },
+  { id: "restoration-options", label: "Restoration options" },
+  { id: "restoration-workflow", label: "Restoration workflow" },
+];
 function RestorationTab({ rec }: { rec: ArchiveRecord }) {
+  const [sub, setSub] = React.useState("validation-checks");
   const n = hashId(rec.id);
   return (
     <>
@@ -1523,50 +1540,57 @@ function RestorationTab({ rec }: { rec: ArchiveRecord }) {
         </HeaderButton>
       </div>
 
-      <Section title="Validation checks" sample>
-        {RESTORE_VALIDATION.map((label, i) => {
-          const state =
-            (n + i) % 6 === 0
-              ? "Failed"
-              : (n + i) % 4 === 0
-                ? "Warning"
-                : "Passed";
-          return (
-            <StatRow
-              key={label}
-              label={label}
-              value={state}
-              tone={
-                state === "Passed"
-                  ? "ok"
-                  : state === "Warning"
-                    ? "warn"
-                    : "danger"
-              }
-              sample
-            />
-          );
-        })}
-      </Section>
+      <Tabs tabs={RESTORATION_SUBS} active={sub} onChange={setSub} />
+      {sub === "validation-checks" && (
+        <Section title="Validation checks" sample>
+          {RESTORE_VALIDATION.map((label, i) => {
+            const state =
+              (n + i) % 6 === 0
+                ? "Failed"
+                : (n + i) % 4 === 0
+                  ? "Warning"
+                  : "Passed";
+            return (
+              <StatRow
+                key={label}
+                label={label}
+                value={state}
+                tone={
+                  state === "Passed"
+                    ? "ok"
+                    : state === "Warning"
+                      ? "warn"
+                      : "danger"
+                }
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
 
-      <Section title="Restoration options" sample>
-        {RESTORE_OPTIONS.map((o) => (
-          <StatRow key={o} label={o} value="Available" tone="ok" sample />
-        ))}
-      </Section>
+      {sub === "restoration-options" && (
+        <Section title="Restoration options" sample>
+          {RESTORE_OPTIONS.map((o) => (
+            <StatRow key={o} label={o} value="Available" tone="ok" sample />
+          ))}
+        </Section>
+      )}
 
-      <Section title="Restoration workflow">
-        <FlowChain
-          steps={[
-            "Archived",
-            "Restore Request",
-            "Validation",
-            "Approval",
-            "Provisioning",
-            "Active",
-          ]}
-        />
-      </Section>
+      {sub === "restoration-workflow" && (
+        <Section title="Restoration workflow">
+          <FlowChain
+            steps={[
+              "Archived",
+              "Restore Request",
+              "Validation",
+              "Approval",
+              "Provisioning",
+              "Active",
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

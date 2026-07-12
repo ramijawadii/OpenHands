@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1043,91 +1044,114 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: OrgNode }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Name", v: rec.name },
-            { k: "Organization Type", v: rec.type },
-            { k: "Parent", v: rec.parent },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Name", v: rec.name },
+              { k: "Organization Type", v: rec.type },
+              { k: "Parent", v: rec.parent },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Child Organizations", v: rec.childOrgs, sample: true },
-            { k: "Workspaces", v: rec.workspaces, sample: true },
-            { k: "Policies", v: rec.policies, sample: true },
-            {
-              k: "Compliance Programs",
-              v: rec.compliancePrograms,
-              sample: true,
-            },
-            { k: "Administrators", v: rec.administrators, sample: true },
-            { k: "Business Owners", v: rec.businessOwners, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Child Organizations", v: rec.childOrgs, sample: true },
+              { k: "Workspaces", v: rec.workspaces, sample: true },
+              { k: "Policies", v: rec.policies, sample: true },
+              {
+                k: "Compliance Programs",
+                v: rec.compliancePrograms,
+                sample: true,
+              },
+              { k: "Administrators", v: rec.administrators, sample: true },
+              { k: "Business Owners", v: rec.businessOwners, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Hierarchy (relationships) ──
+const HIERARCHY_SUBS = [
+  { id: "organizational-relationships", label: "Organizational relationships" },
+  { id: "relationship-detail", label: "Relationship detail" },
+  { id: "child-organizations", label: "Child organizations" },
+];
 function HierarchyTab({ rec }: { rec: OrgNode }) {
+  const [sub, setSub] = React.useState("organizational-relationships");
   const children = ["Payments", "Treasury", "Audit", "Platform", "Cloud"].slice(
     0,
     2 + (hashId(rec.id) % 3),
   );
   return (
     <>
-      <Section title="Organizational relationships" sample>
-        <FlowChain
-          steps={[
-            "Enterprise",
-            "Division",
-            "Business Unit",
-            "Department",
-            "Workspace",
-          ]}
-        />
-      </Section>
-      <Section title="Relationship detail" sample>
-        <StatRow label="Parent" value={rec.parent} sample />
-        <StatRow
-          label="Children"
-          value={`${children.length} child organizations`}
-          sample
-        />
-        <StatRow label="Depth" value={`Level ${rec.depth}`} sample />
-        <StatRow
-          label="Inherited Policies"
-          value={`${rec.policies} policies from ancestors`}
-          tone="ok"
-          sample
-        />
-      </Section>
-      <Section title="Child organizations" sample>
-        <AsciiTree
-          lines={[
-            rec.name,
-            "│",
-            ...children.map(
-              (c, i) => `${i === children.length - 1 ? "└──" : "├──"} ${c}`,
-            ),
-          ]}
-        />
-      </Section>
+      <Tabs tabs={HIERARCHY_SUBS} active={sub} onChange={setSub} />
+      {sub === "organizational-relationships" && (
+        <Section title="Organizational relationships" sample>
+          <FlowChain
+            steps={[
+              "Enterprise",
+              "Division",
+              "Business Unit",
+              "Department",
+              "Workspace",
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "relationship-detail" && (
+        <Section title="Relationship detail" sample>
+          <StatRow label="Parent" value={rec.parent} sample />
+          <StatRow
+            label="Children"
+            value={`${children.length} child organizations`}
+            sample
+          />
+          <StatRow label="Depth" value={`Level ${rec.depth}`} sample />
+          <StatRow
+            label="Inherited Policies"
+            value={`${rec.policies} policies from ancestors`}
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "child-organizations" && (
+        <Section title="Child organizations" sample>
+          <AsciiTree
+            lines={[
+              rec.name,
+              "│",
+              ...children.map(
+                (c, i) => `${i === children.length - 1 ? "└──" : "├──"} ${c}`,
+              ),
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1274,7 +1298,12 @@ function OwnershipTab({ rec }: { rec: OrgNode }) {
 }
 
 // ── Analytics ──
+const ANALYTICS_SUBS = [
+  { id: "metrics", label: "Metrics" },
+  { id: "charts", label: "Charts" },
+];
 function AnalyticsTab({ rec }: { rec: OrgNode }) {
+  const [sub, setSub] = React.useState("metrics");
   const charts: { label: string; value: number }[] = [
     { label: "Workspace Growth", value: rec.growth * 3 },
     { label: "Compliance Coverage", value: rec.complianceCoverage },
@@ -1286,64 +1315,69 @@ function AnalyticsTab({ rec }: { rec: OrgNode }) {
   ];
   return (
     <>
-      <Section title="Metrics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Workspace Count", v: rec.workspaces, sample: true },
-            { k: "Monthly Cost", v: `$${rec.monthlyCost}k`, sample: true },
-            {
-              k: "Compliance Coverage",
-              v: `${rec.complianceCoverage}%`,
-              sample: true,
-            },
-            {
-              k: "Resource Consumption",
-              v: `${rec.resourceConsumption}%`,
-              sample: true,
-            },
-            { k: "Risk Score", v: `${rec.riskScore}/100`, sample: true },
-            { k: "Growth", v: `+${rec.growth}% MoM`, sample: true },
-          ]}
-        />
-      </Section>
-      <Section title="Charts" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {charts.map((c) => (
-            <div key={c.label}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 12,
-                  color: T.textNav,
-                  marginBottom: 4,
-                }}
-              >
-                <span>{c.label}</span>
-                <span style={{ color: T.textMuted }}>{c.value}%</span>
-              </div>
-              <div
-                style={{
-                  height: 8,
-                  borderRadius: 99,
-                  background: "var(--cg-bg-badge)",
-                  overflow: "hidden",
-                }}
-              >
+      <Tabs tabs={ANALYTICS_SUBS} active={sub} onChange={setSub} />
+      {sub === "metrics" && (
+        <Section title="Metrics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Workspace Count", v: rec.workspaces, sample: true },
+              { k: "Monthly Cost", v: `$${rec.monthlyCost}k`, sample: true },
+              {
+                k: "Compliance Coverage",
+                v: `${rec.complianceCoverage}%`,
+                sample: true,
+              },
+              {
+                k: "Resource Consumption",
+                v: `${rec.resourceConsumption}%`,
+                sample: true,
+              },
+              { k: "Risk Score", v: `${rec.riskScore}/100`, sample: true },
+              { k: "Growth", v: `+${rec.growth}% MoM`, sample: true },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "charts" && (
+        <Section title="Charts" sample>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {charts.map((c) => (
+              <div key={c.label}>
                 <div
                   style={{
-                    height: "100%",
-                    width: `${Math.min(100, c.value)}%`,
-                    background: T.accent,
-                    borderRadius: 99,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    fontSize: 12,
+                    color: T.textNav,
+                    marginBottom: 4,
                   }}
-                />
+                >
+                  <span>{c.label}</span>
+                  <span style={{ color: T.textMuted }}>{c.value}%</span>
+                </div>
+                <div
+                  style={{
+                    height: 8,
+                    borderRadius: 99,
+                    background: "var(--cg-bg-badge)",
+                    overflow: "hidden",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${Math.min(100, c.value)}%`,
+                      background: T.accent,
+                      borderRadius: 99,
+                    }}
+                  />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </Section>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

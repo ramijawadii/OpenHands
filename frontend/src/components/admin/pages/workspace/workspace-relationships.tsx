@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1315,105 +1316,135 @@ function RelationshipDetailDrawer({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Relationship Name", v: rec.name },
-            { k: "Relationship Type", v: rec.relationshipType },
-            { k: "Category", v: rec.category },
-            { k: "Source Workspace", v: rec.source },
-            { k: "Target Workspace", v: rec.target },
-            { k: "Direction", v: rec.direction },
-            { k: "Business Owner", v: rec.owner, sample: true },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-      </Section>
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Connected Resources",
-              v: rec.connectedResources,
-              sample: true,
-            },
-            { k: "Shared Policies", v: rec.sharedPolicies, sample: true },
-            { k: "Shared Users", v: rec.sharedUsers, sample: true },
-            { k: "Shared Services", v: rec.sharedServices, sample: true },
-            {
-              k: "Relationship Age",
-              v: `${Math.round(rec.relationshipAgeDays / 30)} months`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Relationship Name", v: rec.name },
+              { k: "Relationship Type", v: rec.relationshipType },
+              { k: "Category", v: rec.category },
+              { k: "Source Workspace", v: rec.source },
+              { k: "Target Workspace", v: rec.target },
+              { k: "Direction", v: rec.direction },
+              { k: "Business Owner", v: rec.owner, sample: true },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Connected Resources",
+                v: rec.connectedResources,
+                sample: true,
+              },
+              { k: "Shared Policies", v: rec.sharedPolicies, sample: true },
+              { k: "Shared Users", v: rec.sharedUsers, sample: true },
+              { k: "Shared Services", v: rec.sharedServices, sample: true },
+              {
+                k: "Relationship Age",
+                v: `${Math.round(rec.relationshipAgeDays / 30)} months`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Relationship Details (characteristics + directions) ──
+const DETAILS_SUBS = [
+  { id: "relationship-characteristics", label: "Relationship characteristics" },
+  { id: "relationship-directions", label: "Relationship Directions" },
+];
 function DetailsTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("relationship-characteristics");
   return (
     <>
-      <Section title="Relationship characteristics" sample>
-        <StatRow
-          label="Relationship Type"
-          value={rec.relationshipType}
-          sample
-        />
-        <StatRow label="Direction" value={rec.direction} sample />
-        <StatRow label="Business Purpose" value={rec.businessPurpose} sample />
-        <StatRow
-          label="Operational Purpose"
-          value={rec.operationalPurpose}
-          sample
-        />
-        <StatRow label="Review Frequency" value={rec.reviewFrequency} sample />
-        <StatRow label="Expiration" value={rec.expiration} sample />
-        <StatRow
-          label="Risk Level"
-          value={
-            <span style={{ color: RISK_TONE[rec.riskLevel] }}>
-              {rec.riskLevel}
-            </span>
-          }
-          sample
-        />
-      </Section>
-      <Section title="Relationship Directions">
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {DIRECTIONS.map((d) => {
-            const on = d === rec.direction;
-            return (
-              <div
-                key={d}
-                style={{
-                  border: `1px solid ${on ? "transparent" : T.border}`,
-                  borderRadius: 8,
-                  padding: "10px 14px",
-                  fontSize: 12.5,
-                  color: on ? T.accent : T.textNav,
-                  fontWeight: on ? 600 : 400,
-                  background: on ? "var(--cg-accent-bg-strong)" : "transparent",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
-              >
-                <Share2 size={13} />
-                {d}
-              </div>
-            );
-          })}
-        </div>
-      </Section>
+      <Tabs tabs={DETAILS_SUBS} active={sub} onChange={setSub} />
+      {sub === "relationship-characteristics" && (
+        <Section title="Relationship characteristics" sample>
+          <StatRow
+            label="Relationship Type"
+            value={rec.relationshipType}
+            sample
+          />
+          <StatRow label="Direction" value={rec.direction} sample />
+          <StatRow
+            label="Business Purpose"
+            value={rec.businessPurpose}
+            sample
+          />
+          <StatRow
+            label="Operational Purpose"
+            value={rec.operationalPurpose}
+            sample
+          />
+          <StatRow
+            label="Review Frequency"
+            value={rec.reviewFrequency}
+            sample
+          />
+          <StatRow label="Expiration" value={rec.expiration} sample />
+          <StatRow
+            label="Risk Level"
+            value={
+              <span style={{ color: RISK_TONE[rec.riskLevel] }}>
+                {rec.riskLevel}
+              </span>
+            }
+            sample
+          />
+        </Section>
+      )}
+      {sub === "relationship-directions" && (
+        <Section title="Relationship Directions">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {DIRECTIONS.map((d) => {
+              const on = d === rec.direction;
+              return (
+                <div
+                  key={d}
+                  style={{
+                    border: `1px solid ${on ? "transparent" : T.border}`,
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    fontSize: 12.5,
+                    color: on ? T.accent : T.textNav,
+                    fontWeight: on ? 600 : 400,
+                    background: on
+                      ? "var(--cg-accent-bg-strong)"
+                      : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                  }}
+                >
+                  <Share2 size={13} />
+                  {d}
+                </div>
+              );
+            })}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -846,100 +847,120 @@ function Section({
 }
 
 // ── Overview (General · Statistics) — spec §Overview ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General" sample>
-        <KVGrid
-          items={[
-            { k: "Administrator", v: rec.administrator },
-            { k: "Department", v: rec.department, sample: true },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Email", v: rec.email, sample: true },
-            { k: "Administrative Profile", v: rec.adminProfile },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Assigned By", v: rec.assignedBy, sample: true },
-            { k: "Created", v: rec.created, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General" sample>
+          <KVGrid
+            items={[
+              { k: "Administrator", v: rec.administrator },
+              { k: "Department", v: rec.department, sample: true },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Email", v: rec.email, sample: true },
+              { k: "Administrative Profile", v: rec.adminProfile },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Assigned By", v: rec.assignedBy, sample: true },
+              { k: "Created", v: rec.created, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Assigned Workspaces",
-              v: rec.assignedWorkspaces,
-              sample: true,
-            },
-            { k: "Administrative Roles", v: rec.adminRoles, sample: true },
-            { k: "Approvals", v: rec.approvals, sample: true },
-            { k: "Policy Exceptions", v: rec.policyExceptions, sample: true },
-            {
-              k: "Recent Activity",
-              v: `${rec.recentActivity} actions`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Assigned Workspaces",
+                v: rec.assignedWorkspaces,
+                sample: true,
+              },
+              { k: "Administrative Roles", v: rec.adminRoles, sample: true },
+              { k: "Approvals", v: rec.approvals, sample: true },
+              { k: "Policy Exceptions", v: rec.policyExceptions, sample: true },
+              {
+                k: "Recent Activity",
+                v: `${rec.recentActivity} actions`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Administrative Scope — defines what this administrator can manage. spec §Administrative Scope ──
+const SCOPE_SUBS = [
+  { id: "delegated-scope", label: "Delegated scope" },
+  { id: "administration-examples", label: "Administration examples" },
+];
 function ScopeTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("delegated-scope");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines what this administrator can manage.
       </div>
-      <Section title="Delegated scope" sample>
-        <StatRow label="Workspace Scope" value={rec.workspace} sample />
-        <StatRow
-          label="Administrative Profile"
-          value={rec.adminProfile}
-          sample
-        />
-        <StatRow label="Resource Scope" value={rec.resourceScope} sample />
-        <StatRow label="Delegation Type" value={rec.delegationType} sample />
-        <StatRow
-          label="Approval Requirements"
-          value={rec.approvalRequirements}
-          sample
-        />
-        <StatRow
-          label="Expiration"
-          value={rec.expiration}
-          tone={rec.status === "Expiring Soon" ? "warn" : "muted"}
-          sample
-        />
-      </Section>
-      <Section title="Administration examples">
-        <div
-          style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 4 }}
-        >
-          {DELEGATION_SCOPES.map((s) => (
-            <span
-              key={s}
-              style={{
-                fontSize: 12,
-                padding: "4px 10px",
-                borderRadius: 999,
-                border: `1px solid ${T.border}`,
-                color: s === rec.delegationScope ? T.accent : T.textNav,
-                background:
-                  s === rec.delegationScope
-                    ? "var(--cg-accent-bg-strong)"
-                    : "transparent",
-              }}
-            >
-              {s}
-            </span>
-          ))}
-        </div>
-      </Section>
+      <Tabs tabs={SCOPE_SUBS} active={sub} onChange={setSub} />
+      {sub === "delegated-scope" && (
+        <Section title="Delegated scope" sample>
+          <StatRow label="Workspace Scope" value={rec.workspace} sample />
+          <StatRow
+            label="Administrative Profile"
+            value={rec.adminProfile}
+            sample
+          />
+          <StatRow label="Resource Scope" value={rec.resourceScope} sample />
+          <StatRow label="Delegation Type" value={rec.delegationType} sample />
+          <StatRow
+            label="Approval Requirements"
+            value={rec.approvalRequirements}
+            sample
+          />
+          <StatRow
+            label="Expiration"
+            value={rec.expiration}
+            tone={rec.status === "Expiring Soon" ? "warn" : "muted"}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "administration-examples" && (
+        <Section title="Administration examples">
+          <div
+            style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingTop: 4 }}
+          >
+            {DELEGATION_SCOPES.map((s) => (
+              <span
+                key={s}
+                style={{
+                  fontSize: 12,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  border: `1px solid ${T.border}`,
+                  color: s === rec.delegationScope ? T.accent : T.textNav,
+                  background:
+                    s === rec.delegationScope
+                      ? "var(--cg-accent-bg-strong)"
+                      : "transparent",
+                }}
+              >
+                {s}
+              </span>
+            ))}
+          </div>
+        </Section>
+      )}
     </>
   );
 }
@@ -1047,7 +1068,12 @@ const PERM_INHERITANCE = [
   "Effective Permissions",
 ];
 
+const PERMISSIONS_SUBS = [
+  { id: "resolution", label: "Resolution" },
+  { id: "permission-categories", label: "Permission categories" },
+];
 function PermissionsTab({ rec }: { rec: DelegationRecord }) {
+  const [sub, setSub] = React.useState("resolution");
   const n = hashId(rec.id);
   const levelFor = (i: number) =>
     pick(["Full", "Manage", "Read", "None"], n + i);
@@ -1066,56 +1092,61 @@ function PermissionsTab({ rec }: { rec: DelegationRecord }) {
       </div>
 
       {/* spec §Effective Permissions — inheritance visualization */}
-      <Section title="Resolution">
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {PERM_INHERITANCE.map((step, i) => (
-            <React.Fragment key={step}>
-              <div
-                style={{
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "9px 12px",
-                  fontSize: 12.5,
-                  color:
-                    i === PERM_INHERITANCE.length - 1 ? T.accent : T.textNav,
-                  background:
-                    i === PERM_INHERITANCE.length - 1
-                      ? "var(--cg-accent-bg-strong)"
-                      : "transparent",
-                }}
-              >
-                {step}
-              </div>
-              {i < PERM_INHERITANCE.length - 1 && (
-                <span
+      <Tabs tabs={PERMISSIONS_SUBS} active={sub} onChange={setSub} />
+      {sub === "resolution" && (
+        <Section title="Resolution">
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {PERM_INHERITANCE.map((step, i) => (
+              <React.Fragment key={step}>
+                <div
                   style={{
-                    color: T.textMuted,
-                    textAlign: "center",
-                    fontSize: 12,
+                    border: `1px solid ${T.border}`,
+                    borderRadius: 8,
+                    padding: "9px 12px",
+                    fontSize: 12.5,
+                    color:
+                      i === PERM_INHERITANCE.length - 1 ? T.accent : T.textNav,
+                    background:
+                      i === PERM_INHERITANCE.length - 1
+                        ? "var(--cg-accent-bg-strong)"
+                        : "transparent",
                   }}
                 >
-                  ↓
-                </span>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
-      </Section>
+                  {step}
+                </div>
+                {i < PERM_INHERITANCE.length - 1 && (
+                  <span
+                    style={{
+                      color: T.textMuted,
+                      textAlign: "center",
+                      fontSize: 12,
+                    }}
+                  >
+                    ↓
+                  </span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Permission categories" sample>
-        {PERM_CATEGORIES.map((cat, i) => {
-          const lvl = levelFor(i);
-          return (
-            <StatRow
-              key={cat}
-              label={cat}
-              value={lvl}
-              tone={toneFor(lvl)}
-              sample
-            />
-          );
-        })}
-      </Section>
+      {sub === "permission-categories" && (
+        <Section title="Permission categories" sample>
+          {PERM_CATEGORIES.map((cat, i) => {
+            const lvl = levelFor(i);
+            return (
+              <StatRow
+                key={cat}
+                label={cat}
+                value={lvl}
+                tone={toneFor(lvl)}
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <HeaderButton icon={<Eye size={13} />}>

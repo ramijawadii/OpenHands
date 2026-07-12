@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1102,44 +1103,54 @@ function ToolbarRow({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Template Name", v: rec.name },
-            { k: "Industry", v: rec.industry },
-            { k: "Category", v: rec.category },
-            { k: "Compliance Tier", v: rec.complianceTier },
-            { k: "Version", v: rec.version },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created, sample: true },
-            { k: "Modified", v: rec.modified, sample: true },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Template Name", v: rec.name },
+              { k: "Industry", v: rec.industry },
+              { k: "Category", v: rec.category },
+              { k: "Compliance Tier", v: rec.complianceTier },
+              { k: "Version", v: rec.version },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created, sample: true },
+              { k: "Modified", v: rec.modified, sample: true },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Frameworks", v: rec.frameworkCount, sample: true },
-            { k: "Controls", v: rec.controls, sample: true },
-            { k: "Policies", v: rec.policies, sample: true },
-            { k: "Evidence Sources", v: rec.evidenceSources, sample: true },
-            { k: "Automation Rules", v: rec.automationRules, sample: true },
-            {
-              k: "Assigned Workspaces",
-              v: rec.assignedWorkspaces,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Frameworks", v: rec.frameworkCount, sample: true },
+              { k: "Controls", v: rec.controls, sample: true },
+              { k: "Policies", v: rec.policies, sample: true },
+              { k: "Evidence Sources", v: rec.evidenceSources, sample: true },
+              { k: "Automation Rules", v: rec.automationRules, sample: true },
+              {
+                k: "Assigned Workspaces",
+                v: rec.assignedWorkspaces,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1322,46 +1333,56 @@ function BaselineTab({ rec }: { rec: TemplateRecord }) {
 }
 
 // ── Assessment Configuration — compliance assessment behavior ──
+const ASSESSMENT_SUBS = [
+  { id: "assessment-configuration", label: "Assessment configuration" },
+  { id: "assessment-cadence", label: "Assessment cadence" },
+];
 function AssessmentTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("assessment-configuration");
   const n = hashId(rec.id);
   return (
     <>
-      <Section title="Assessment configuration" sample>
-        <StatRow
-          label="Assessment Schedule"
-          value="Quarterly Audit · Annual Certification"
-          sample
-        />
-        <StatRow
-          label="Continuous Monitoring"
-          value={n % 3 === 0 ? "Disabled" : "Enabled"}
-          tone={n % 3 === 0 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow label="Manual Reviews" value="Monthly review board" sample />
-        <StatRow
-          label="Evidence Validation"
-          value="Weekly Validation"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Risk Thresholds"
-          value="High ≥ 7.0 · Critical ≥ 9.0"
-          sample
-        />
-        <StatRow label="Exceptions" value={`${n % 5} active`} sample />
-      </Section>
-      <Section title="Assessment cadence" sample>
-        <FlowChain
-          nodes={[
-            "Continuous Assessment",
-            "Weekly Validation",
-            "Quarterly Audit",
-            "Annual Certification",
-          ]}
-        />
-      </Section>
+      <Tabs tabs={ASSESSMENT_SUBS} active={sub} onChange={setSub} />
+      {sub === "assessment-configuration" && (
+        <Section title="Assessment configuration" sample>
+          <StatRow
+            label="Assessment Schedule"
+            value="Quarterly Audit · Annual Certification"
+            sample
+          />
+          <StatRow
+            label="Continuous Monitoring"
+            value={n % 3 === 0 ? "Disabled" : "Enabled"}
+            tone={n % 3 === 0 ? "warn" : "ok"}
+            sample
+          />
+          <StatRow label="Manual Reviews" value="Monthly review board" sample />
+          <StatRow
+            label="Evidence Validation"
+            value="Weekly Validation"
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Risk Thresholds"
+            value="High ≥ 7.0 · Critical ≥ 9.0"
+            sample
+          />
+          <StatRow label="Exceptions" value={`${n % 5} active`} sample />
+        </Section>
+      )}
+      {sub === "assessment-cadence" && (
+        <Section title="Assessment cadence" sample>
+          <FlowChain
+            nodes={[
+              "Continuous Assessment",
+              "Weekly Validation",
+              "Quarterly Audit",
+              "Annual Certification",
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1416,105 +1437,125 @@ function EvidenceTab({ rec }: { rec: TemplateRecord }) {
 }
 
 // ── Reporting — reporting standards ──
+const REPORTING_SUBS = [
+  { id: "reporting-standards", label: "Reporting standards" },
+  { id: "supported-formats", label: "Supported formats" },
+];
 function ReportingTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("reporting-standards");
   const n = hashId(rec.id);
   return (
     <>
-      <Section title="Reporting standards" sample>
-        <StatRow
-          label="Executive Reports"
-          value={n % 2 === 0 ? "Monthly" : "Quarterly"}
-          sample
-        />
-        <StatRow
-          label="Audit Reports"
-          value="On assessment completion"
-          sample
-        />
-        <StatRow
-          label="Regulatory Reports"
-          value="Per obligation schedule"
-          sample
-        />
-        <StatRow label="Board Reports" value="Quarterly" sample />
-        <StatRow
-          label="Evidence Packages"
-          value={`${rec.evidenceSources} bundled sources`}
-          sample
-        />
-        <StatRow
-          label="Export Formats"
-          value="PDF · Excel · JSON · CSV · API"
-          sample
-        />
-      </Section>
-      <Section title="Supported formats" sample>
-        <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
-          {["PDF", "Excel", "JSON", "CSV", "API"].map((f) => (
-            <span
-              key={f}
-              style={{
-                fontSize: 11,
-                padding: "2px 8px",
-                borderRadius: 6,
-                border: `1px solid ${T.border}`,
-                color: T.textNav,
-              }}
-            >
-              {f}
-            </span>
-          ))}
-        </span>
-      </Section>
+      <Tabs tabs={REPORTING_SUBS} active={sub} onChange={setSub} />
+      {sub === "reporting-standards" && (
+        <Section title="Reporting standards" sample>
+          <StatRow
+            label="Executive Reports"
+            value={n % 2 === 0 ? "Monthly" : "Quarterly"}
+            sample
+          />
+          <StatRow
+            label="Audit Reports"
+            value="On assessment completion"
+            sample
+          />
+          <StatRow
+            label="Regulatory Reports"
+            value="Per obligation schedule"
+            sample
+          />
+          <StatRow label="Board Reports" value="Quarterly" sample />
+          <StatRow
+            label="Evidence Packages"
+            value={`${rec.evidenceSources} bundled sources`}
+            sample
+          />
+          <StatRow
+            label="Export Formats"
+            value="PDF · Excel · JSON · CSV · API"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "supported-formats" && (
+        <Section title="Supported formats" sample>
+          <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6 }}>
+            {["PDF", "Excel", "JSON", "CSV", "API"].map((f) => (
+              <span
+                key={f}
+                style={{
+                  fontSize: 11,
+                  padding: "2px 8px",
+                  borderRadius: 6,
+                  border: `1px solid ${T.border}`,
+                  color: T.textNav,
+                }}
+              >
+                {f}
+              </span>
+            ))}
+          </span>
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Automation — automated compliance operations ──
+const AUTOMATION_SUBS = [
+  { id: "automated-operations", label: "Automated operations" },
+  { id: "active-automations", label: "Active automations" },
+];
 function AutomationTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("automated-operations");
   const n = hashId(rec.id);
   return (
     <>
-      <Section title="Automated operations" sample>
-        <StatRow
-          label="Continuous Assessment"
-          value={n % 3 === 0 ? "Disabled" : "Enabled"}
-          tone={n % 3 === 0 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Automatic Evidence Collection"
-          value="Enabled"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Remediation Policies"
-          value={`${rec.automationRules} rules`}
-          sample
-        />
-        <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
-        <StatRow
-          label="Notification Policies"
-          value="Email · Slack · Ticketing"
-          sample
-        />
-        <StatRow
-          label="Compliance Workflows"
-          value={`${3 + (n % 5)} workflows`}
-          sample
-        />
-      </Section>
-      <Section title="Active automations" sample>
-        <FlowChain
-          nodes={[
-            "Daily Compliance Scan",
-            "Automatic Ticket Creation",
-            "Weekly Executive Report",
-            "Continuous Evidence Collection",
-          ]}
-        />
-      </Section>
+      <Tabs tabs={AUTOMATION_SUBS} active={sub} onChange={setSub} />
+      {sub === "automated-operations" && (
+        <Section title="Automated operations" sample>
+          <StatRow
+            label="Continuous Assessment"
+            value={n % 3 === 0 ? "Disabled" : "Enabled"}
+            tone={n % 3 === 0 ? "warn" : "ok"}
+            sample
+          />
+          <StatRow
+            label="Automatic Evidence Collection"
+            value="Enabled"
+            tone="ok"
+            sample
+          />
+          <StatRow
+            label="Remediation Policies"
+            value={`${rec.automationRules} rules`}
+            sample
+          />
+          <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
+          <StatRow
+            label="Notification Policies"
+            value="Email · Slack · Ticketing"
+            sample
+          />
+          <StatRow
+            label="Compliance Workflows"
+            value={`${3 + (n % 5)} workflows`}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "active-automations" && (
+        <Section title="Active automations" sample>
+          <FlowChain
+            nodes={[
+              "Daily Compliance Scan",
+              "Automatic Ticket Creation",
+              "Weekly Executive Report",
+              "Continuous Evidence Collection",
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

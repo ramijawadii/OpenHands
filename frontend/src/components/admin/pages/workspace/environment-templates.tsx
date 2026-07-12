@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1118,74 +1119,95 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "default-enterprise-template", label: "Default Enterprise Template" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Template Name", v: rec.name },
-            { k: "Environment Type", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Version", v: rec.version },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Default", v: rec.isDefault ? "Yes" : "No" },
-            { k: "Created", v: rec.created },
-            { k: "Modified", v: rec.modified },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Template Name", v: rec.name },
+              { k: "Environment Type", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Version", v: rec.version },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Default", v: rec.isDefault ? "Yes" : "No" },
+              { k: "Created", v: rec.created },
+              { k: "Modified", v: rec.modified },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Default Enterprise Template" sample>
-        <KVGrid
-          items={[
-            {
-              k: "Default Enterprise Template",
-              v: rec.defaultEnterpriseTemplate,
-              sample: true,
-            },
-            { k: "Governance Profile", v: rec.governanceProfile, sample: true },
-            { k: "Security Profile", v: rec.securityProfile, sample: true },
-            { k: "Compliance Profile", v: rec.complianceProfile, sample: true },
-            {
-              k: "Operational Profile",
-              v: rec.operationalProfile,
-              sample: true,
-            },
-            { k: "AI Configuration", v: rec.aiConfiguration, sample: true },
-            { k: "Tags", v: rec.tags.join(", "), sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "default-enterprise-template" && (
+        <Section title="Default Enterprise Template" sample>
+          <KVGrid
+            items={[
+              {
+                k: "Default Enterprise Template",
+                v: rec.defaultEnterpriseTemplate,
+                sample: true,
+              },
+              {
+                k: "Governance Profile",
+                v: rec.governanceProfile,
+                sample: true,
+              },
+              { k: "Security Profile", v: rec.securityProfile, sample: true },
+              {
+                k: "Compliance Profile",
+                v: rec.complianceProfile,
+                sample: true,
+              },
+              {
+                k: "Operational Profile",
+                v: rec.operationalProfile,
+                sample: true,
+              },
+              { k: "AI Configuration", v: rec.aiConfiguration, sample: true },
+              { k: "Tags", v: rec.tags.join(", "), sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Workspaces", v: rec.workspaces, sample: true },
-            {
-              k: "Enterprise Templates",
-              v: rec.enterpriseTemplates,
-              sample: true,
-            },
-            { k: "Policies", v: rec.policies, sample: true },
-            {
-              k: "Cloud Resources",
-              v: rec.cloudResources.toLocaleString(),
-              sample: true,
-            },
-            {
-              k: "Compliance Frameworks",
-              v: rec.complianceFrameworks,
-              sample: true,
-            },
-            { k: "AI Policies", v: rec.aiPolicies, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Workspaces", v: rec.workspaces, sample: true },
+              {
+                k: "Enterprise Templates",
+                v: rec.enterpriseTemplates,
+                sample: true,
+              },
+              { k: "Policies", v: rec.policies, sample: true },
+              {
+                k: "Cloud Resources",
+                v: rec.cloudResources.toLocaleString(),
+                sample: true,
+              },
+              {
+                k: "Compliance Frameworks",
+                v: rec.complianceFrameworks,
+                sample: true,
+              },
+              { k: "AI Policies", v: rec.aiPolicies, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1247,7 +1269,12 @@ function EnvironmentConfigTab({ rec }: { rec: TemplateRecord }) {
 }
 
 // ── Governance (spec §Governance) ──
+const GOVERNANCE_SUBS = [
+  { id: "governance", label: "Governance" },
+  { id: "governance-profile", label: "Governance profile" },
+];
 function GovernanceTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("governance");
   const prod = rec.environment === "Production";
   return (
     <>
@@ -1264,41 +1291,46 @@ function GovernanceTab({ rec }: { rec: TemplateRecord }) {
         Governance differences for the {rec.environment} environment{" "}
         <SampleTag />
       </div>
-      <Section title="Governance" sample>
-        <StatRow
-          label="Approval Policies"
-          value={prod ? "Dual Approval Required" : "Self-Service Allowed"}
-          tone={prod ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Change Control"
-          value={prod ? "CAB-approved change windows" : "No change control"}
-          sample
-        />
-        <StatRow
-          label="Workspace Restrictions"
-          value={prod ? "Locked baseline, no drift" : "Overrides permitted"}
-          sample
-        />
-        <StatRow
-          label="Operational Policies"
-          value={rec.operationalProfile}
-          sample
-        />
-        <StatRow
-          label="Inheritance Rules"
-          value="Most-restrictive-wins from Enterprise Template"
-          sample
-        />
-      </Section>
-      <Section title="Governance profile">
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "governance" && (
+        <Section title="Governance" sample>
+          <StatRow
+            label="Approval Policies"
+            value={prod ? "Dual Approval Required" : "Self-Service Allowed"}
+            tone={prod ? "warn" : "ok"}
+            sample
+          />
+          <StatRow
+            label="Change Control"
+            value={prod ? "CAB-approved change windows" : "No change control"}
+            sample
+          />
+          <StatRow
+            label="Workspace Restrictions"
+            value={prod ? "Locked baseline, no drift" : "Overrides permitted"}
+            sample
+          />
+          <StatRow
+            label="Operational Policies"
+            value={rec.operationalProfile}
+            sample
+          />
+          <StatRow
+            label="Inheritance Rules"
+            value="Most-restrictive-wins from Enterprise Template"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "governance-profile" && (
+        <Section title="Governance profile">
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }

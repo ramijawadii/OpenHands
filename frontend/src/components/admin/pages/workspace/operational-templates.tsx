@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1110,94 +1111,115 @@ function FlowChain({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "applied-profiles", label: "Applied profiles" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Template Name", v: rec.name },
-            { k: "Template ID", v: rec.id },
-            { k: "Category", v: rec.category },
-            { k: "Operational Tier", v: rec.tier },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Version", v: rec.version },
-            { k: "Status", v: rec.status },
-            { k: "Default", v: rec.isDefault ? "Yes" : "No" },
-            { k: "Created", v: rec.created },
-            { k: "Modified", v: rec.modified },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-        <div style={{ paddingTop: 10 }}>
-          <span style={{ fontSize: 11, color: T.textMuted, marginRight: 8 }}>
-            Tags
-          </span>
-          {rec.tags.map((t) => (
-            <span
-              key={t}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: 20,
-                padding: "0 8px",
-                marginRight: 6,
-                borderRadius: 99,
-                fontSize: 11,
-                color: T.textNav,
-                background: T.badgeBg,
-              }}
-            >
-              {t}
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Template Name", v: rec.name },
+              { k: "Template ID", v: rec.id },
+              { k: "Category", v: rec.category },
+              { k: "Operational Tier", v: rec.tier },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Version", v: rec.version },
+              { k: "Status", v: rec.status },
+              { k: "Default", v: rec.isDefault ? "Yes" : "No" },
+              { k: "Created", v: rec.created },
+              { k: "Modified", v: rec.modified },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+          <div style={{ paddingTop: 10 }}>
+            <span style={{ fontSize: 11, color: T.textMuted, marginRight: 8 }}>
+              Tags
             </span>
-          ))}
-          <SampleTag />
-        </div>
-      </Section>
+            {rec.tags.map((t) => (
+              <span
+                key={t}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  height: 20,
+                  padding: "0 8px",
+                  marginRight: 6,
+                  borderRadius: 99,
+                  fontSize: 11,
+                  color: T.textNav,
+                  background: T.badgeBg,
+                }}
+              >
+                {t}
+              </span>
+            ))}
+            <SampleTag />
+          </div>
+        </Section>
+      )}
 
-      <Section title="Applied profiles" sample>
-        <KVGrid
-          items={[
-            { k: "Automation Profile", v: rec.automationProfile, sample: true },
-            { k: "Monitoring Profile", v: rec.monitoringProfile, sample: true },
-            { k: "Lifecycle Profile", v: rec.lifecycleProfile, sample: true },
-            {
-              k: "Maintenance Profile",
-              v: rec.maintenanceProfile,
-              sample: true,
-            },
-            { k: "AI Operations Profile", v: rec.aiOpsProfile, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "applied-profiles" && (
+        <Section title="Applied profiles" sample>
+          <KVGrid
+            items={[
+              {
+                k: "Automation Profile",
+                v: rec.automationProfile,
+                sample: true,
+              },
+              {
+                k: "Monitoring Profile",
+                v: rec.monitoringProfile,
+                sample: true,
+              },
+              { k: "Lifecycle Profile", v: rec.lifecycleProfile, sample: true },
+              {
+                k: "Maintenance Profile",
+                v: rec.maintenanceProfile,
+                sample: true,
+              },
+              { k: "AI Operations Profile", v: rec.aiOpsProfile, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Assigned Workspaces",
-              v: rec.assignedWorkspaces,
-              sample: true,
-            },
-            { k: "Automation Rules", v: rec.automationRules, sample: true },
-            { k: "Scheduled Jobs", v: rec.scheduledJobs, sample: true },
-            {
-              k: "Monitoring Policies",
-              v: rec.monitoringPolicies,
-              sample: true,
-            },
-            { k: "Alert Rules", v: rec.alertRules, sample: true },
-            {
-              k: "Maintenance Policies",
-              v: rec.maintenancePolicies,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Assigned Workspaces",
+                v: rec.assignedWorkspaces,
+                sample: true,
+              },
+              { k: "Automation Rules", v: rec.automationRules, sample: true },
+              { k: "Scheduled Jobs", v: rec.scheduledJobs, sample: true },
+              {
+                k: "Monitoring Policies",
+                v: rec.monitoringPolicies,
+                sample: true,
+              },
+              { k: "Alert Rules", v: rec.alertRules, sample: true },
+              {
+                k: "Maintenance Policies",
+                v: rec.maintenancePolicies,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1243,41 +1265,55 @@ function AutomationTab({ rec }: { rec: TemplateRecord }) {
 }
 
 // ── Monitoring (spec §Monitoring) ──
+const MONITORING_SUBS = [
+  { id: "monitoring-configuration", label: "Monitoring configuration" },
+  { id: "monitoring-sections", label: "Monitoring sections" },
+];
 function MonitoringTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("monitoring-configuration");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines operational monitoring behavior.
       </div>
-      <Section title="Monitoring configuration" sample>
-        <StatRow
-          label="Monitoring Profile"
-          value={rec.monitoringProfile}
-          sample
-        />
-        <StatRow
-          label="Collection Frequency"
-          value={rec.collectionFrequency}
-          sample
-        />
-        <StatRow label="Retention" value={rec.retention} sample />
-        <StatRow label="Alert Thresholds" value={rec.alertThresholds} sample />
-      </Section>
-      <Section title="Monitoring sections" sample>
-        <ConfigList
-          items={[
-            { label: "Health Monitoring", value: "Enabled · 30s" },
-            { label: "Performance Monitoring", value: "Enabled · 1m" },
-            { label: "Resource Monitoring", value: "Enabled · 5m" },
-            { label: "Compliance Monitoring", value: "Enabled · hourly" },
-            {
-              label: "AI Monitoring",
-              value: `Enabled · ${rec.aiMonitoringFrequency}`,
-            },
-            { label: "Integration Monitoring", value: "Enabled · 5m" },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={MONITORING_SUBS} active={sub} onChange={setSub} />
+      {sub === "monitoring-configuration" && (
+        <Section title="Monitoring configuration" sample>
+          <StatRow
+            label="Monitoring Profile"
+            value={rec.monitoringProfile}
+            sample
+          />
+          <StatRow
+            label="Collection Frequency"
+            value={rec.collectionFrequency}
+            sample
+          />
+          <StatRow label="Retention" value={rec.retention} sample />
+          <StatRow
+            label="Alert Thresholds"
+            value={rec.alertThresholds}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "monitoring-sections" && (
+        <Section title="Monitoring sections" sample>
+          <ConfigList
+            items={[
+              { label: "Health Monitoring", value: "Enabled · 30s" },
+              { label: "Performance Monitoring", value: "Enabled · 1m" },
+              { label: "Resource Monitoring", value: "Enabled · 5m" },
+              { label: "Compliance Monitoring", value: "Enabled · hourly" },
+              {
+                label: "AI Monitoring",
+                value: `Enabled · ${rec.aiMonitoringFrequency}`,
+              },
+              { label: "Integration Monitoring", value: "Enabled · 5m" },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1313,79 +1349,102 @@ function SchedulingTab({ rec }: { rec: TemplateRecord }) {
 }
 
 // ── Lifecycle (spec §Lifecycle) ──
+const LIFECYCLE_SUBS = [
+  { id: "lifecycle-sections", label: "Lifecycle sections" },
+  { id: "lifecycle-stages", label: "Lifecycle stages" },
+];
 function LifecycleTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("lifecycle-sections");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines operational lifecycle policies.
       </div>
-      <Section title="Lifecycle sections" sample>
-        <ConfigList
-          items={[
-            { label: "Workspace Lifecycle", value: rec.lifecycleProfile },
-            { label: "Resource Lifecycle", value: "Tag-driven expiry" },
-            { label: "Sandbox Lifecycle", value: "Auto-expire · 7 days" },
-            { label: "Archive Policies", value: "After 90 days idle" },
-            { label: "Retention Policies", value: rec.retention },
-            { label: "Cleanup Policies", value: "Orphaned resources · daily" },
-          ]}
-        />
-      </Section>
-      <Section title="Lifecycle stages">
-        <FlowChain
-          title="Workspace lifecycle"
-          nodes={["Provision", "Operate", "Maintenance", "Archive", "Delete"]}
-          highlightLast={false}
-        />
-      </Section>
+      <Tabs tabs={LIFECYCLE_SUBS} active={sub} onChange={setSub} />
+      {sub === "lifecycle-sections" && (
+        <Section title="Lifecycle sections" sample>
+          <ConfigList
+            items={[
+              { label: "Workspace Lifecycle", value: rec.lifecycleProfile },
+              { label: "Resource Lifecycle", value: "Tag-driven expiry" },
+              { label: "Sandbox Lifecycle", value: "Auto-expire · 7 days" },
+              { label: "Archive Policies", value: "After 90 days idle" },
+              { label: "Retention Policies", value: rec.retention },
+              {
+                label: "Cleanup Policies",
+                value: "Orphaned resources · daily",
+              },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "lifecycle-stages" && (
+        <Section title="Lifecycle stages">
+          <FlowChain
+            title="Workspace lifecycle"
+            nodes={["Provision", "Operate", "Maintenance", "Archive", "Delete"]}
+            highlightLast={false}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Capacity Management (spec §Capacity Management) ──
+const CAPACITY_SUBS = [
+  { id: "capacity-thresholds", label: "Capacity thresholds" },
+  { id: "capacity-sections", label: "Capacity sections" },
+];
 function CapacityTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("capacity-thresholds");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines operational capacity controls.
       </div>
-      <Section title="Capacity thresholds" sample>
-        <StatRow
-          label="Maximum Resources"
-          value={rec.maxResources.toLocaleString()}
-          sample
-        />
-        <StatRow
-          label="Warning Threshold"
-          value={rec.warningThreshold}
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="Critical Threshold"
-          value={rec.criticalThreshold}
-          tone="danger"
-          sample
-        />
-      </Section>
-      <Section title="Capacity sections" sample>
-        <ConfigList
-          items={[
-            {
-              label: "Workspace Quotas",
-              value: `${rec.maxResources.toLocaleString()} resources`,
-            },
-            { label: "Resource Limits", value: "Per-service caps enforced" },
-            { label: "Growth Policies", value: "Auto-expand · +20%" },
-            { label: "Reservations", value: "Reserved capacity pool" },
-            { label: "Scaling Policies", value: "Horizontal · target 70%" },
-            {
-              label: "Consumption Monitoring",
-              value: rec.collectionFrequency,
-            },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={CAPACITY_SUBS} active={sub} onChange={setSub} />
+      {sub === "capacity-thresholds" && (
+        <Section title="Capacity thresholds" sample>
+          <StatRow
+            label="Maximum Resources"
+            value={rec.maxResources.toLocaleString()}
+            sample
+          />
+          <StatRow
+            label="Warning Threshold"
+            value={rec.warningThreshold}
+            tone="warn"
+            sample
+          />
+          <StatRow
+            label="Critical Threshold"
+            value={rec.criticalThreshold}
+            tone="danger"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "capacity-sections" && (
+        <Section title="Capacity sections" sample>
+          <ConfigList
+            items={[
+              {
+                label: "Workspace Quotas",
+                value: `${rec.maxResources.toLocaleString()} resources`,
+              },
+              { label: "Resource Limits", value: "Per-service caps enforced" },
+              { label: "Growth Policies", value: "Auto-expand · +20%" },
+              { label: "Reservations", value: "Reserved capacity pool" },
+              { label: "Scaling Policies", value: "Horizontal · target 70%" },
+              {
+                label: "Consumption Monitoring",
+                value: rec.collectionFrequency,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1418,45 +1477,59 @@ function BackupTab({ rec }: { rec: TemplateRecord }) {
 }
 
 // ── AI Operations (spec §AI Operations) ──
+const AI_OPERATIONS_SUBS = [
+  { id: "ai-operations-displays", label: "AI operations displays" },
+  { id: "ai-operations-sections", label: "AI operations sections" },
+];
 function AiOperationsTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("ai-operations-displays");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines operational behavior of AI services.
       </div>
-      <Section title="AI operations displays" sample>
-        <StatRow
-          label="Approved Runtime"
-          value={
-            <span style={{ fontFamily: "monospace", fontSize: 11.5 }}>
-              {rec.approvedRuntime}
-            </span>
-          }
-          sample
-        />
-        <StatRow
-          label="Monitoring Frequency"
-          value={rec.aiMonitoringFrequency}
-          sample
-        />
-        <StatRow label="Usage Thresholds" value={rec.usageThresholds} sample />
-      </Section>
-      <Section title="AI operations sections" sample>
-        <ConfigList
-          items={[
-            { label: "Agent Scheduling", value: "Business hours · queued" },
-            {
-              label: "Runtime Monitoring",
-              value: `${rec.aiMonitoringFrequency} interval`,
-            },
-            { label: "Prompt Versioning", value: "Pinned · reviewed" },
-            { label: "Knowledge Synchronization", value: "Every 6 hours" },
-            { label: "Model Updates", value: "Staged · approval gated" },
-            { label: "Usage Policies", value: rec.aiOpsProfile },
-            { label: "Cost Controls", value: rec.usageThresholds },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={AI_OPERATIONS_SUBS} active={sub} onChange={setSub} />
+      {sub === "ai-operations-displays" && (
+        <Section title="AI operations displays" sample>
+          <StatRow
+            label="Approved Runtime"
+            value={
+              <span style={{ fontFamily: "monospace", fontSize: 11.5 }}>
+                {rec.approvedRuntime}
+              </span>
+            }
+            sample
+          />
+          <StatRow
+            label="Monitoring Frequency"
+            value={rec.aiMonitoringFrequency}
+            sample
+          />
+          <StatRow
+            label="Usage Thresholds"
+            value={rec.usageThresholds}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "ai-operations-sections" && (
+        <Section title="AI operations sections" sample>
+          <ConfigList
+            items={[
+              { label: "Agent Scheduling", value: "Business hours · queued" },
+              {
+                label: "Runtime Monitoring",
+                value: `${rec.aiMonitoringFrequency} interval`,
+              },
+              { label: "Prompt Versioning", value: "Pinned · reviewed" },
+              { label: "Knowledge Synchronization", value: "Every 6 hours" },
+              { label: "Model Updates", value: "Staged · approval gated" },
+              { label: "Usage Policies", value: rec.aiOpsProfile },
+              { label: "Cost Controls", value: rec.usageThresholds },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1481,60 +1554,70 @@ const DELIVERY_CHANNELS = [
   "PagerDuty",
 ];
 
+const NOTIFICATIONS_SUBS = [
+  { id: "categories", label: "Categories" },
+  { id: "delivery-channels", label: "Delivery channels" },
+];
 function NotificationsTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("categories");
   const n = hashId(rec.id);
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines operational notifications.
       </div>
-      <Section title="Categories" sample>
-        {NOTIFICATION_CATEGORIES.map((c, i) => (
-          <StatRow
-            key={c}
-            label={c}
-            value={(n + i) % 5 === 0 ? "Disabled" : "Enabled"}
-            tone={(n + i) % 5 === 0 ? "muted" : "ok"}
-            sample
-          />
-        ))}
-      </Section>
-      <Section title="Delivery channels" sample>
-        <div
-          style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 4 }}
-        >
-          {DELIVERY_CHANNELS.map((d, i) => {
-            const on = (n + i) % 3 !== 0;
-            return (
-              <span
-                key={d}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  height: 26,
-                  padding: "0 10px",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  color: on ? T.textPrimary : T.textMuted,
-                  border: `1px solid ${on ? "var(--cg-accent)" : T.border}`,
-                  background: on ? "var(--cg-accent-bg)" : "transparent",
-                }}
-              >
+      <Tabs tabs={NOTIFICATIONS_SUBS} active={sub} onChange={setSub} />
+      {sub === "categories" && (
+        <Section title="Categories" sample>
+          {NOTIFICATION_CATEGORIES.map((c, i) => (
+            <StatRow
+              key={c}
+              label={c}
+              value={(n + i) % 5 === 0 ? "Disabled" : "Enabled"}
+              tone={(n + i) % 5 === 0 ? "muted" : "ok"}
+              sample
+            />
+          ))}
+        </Section>
+      )}
+      {sub === "delivery-channels" && (
+        <Section title="Delivery channels" sample>
+          <div
+            style={{ display: "flex", gap: 8, flexWrap: "wrap", paddingTop: 4 }}
+          >
+            {DELIVERY_CHANNELS.map((d, i) => {
+              const on = (n + i) % 3 !== 0;
+              return (
                 <span
+                  key={d}
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: on ? T.success : T.textMuted,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    height: 26,
+                    padding: "0 10px",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    color: on ? T.textPrimary : T.textMuted,
+                    border: `1px solid ${on ? "var(--cg-accent)" : T.border}`,
+                    background: on ? "var(--cg-accent-bg)" : "transparent",
                   }}
-                />
-                {d}
-              </span>
-            );
-          })}
-        </div>
-      </Section>
+                >
+                  <span
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: on ? T.success : T.textMuted,
+                    }}
+                  />
+                  {d}
+                </span>
+              );
+            })}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

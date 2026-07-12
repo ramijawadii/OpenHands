@@ -27,6 +27,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -966,45 +967,55 @@ function Section({
 }
 
 // ── Overview (General · Statistics) — spec §Overview ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: DeletedRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Workspace ID", v: rec.workspaceId },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Environment", v: rec.environment },
-            { k: "Deleted Date", v: rec.deletedDate },
-            { k: "Deleted By", v: rec.deletedBy },
-            { k: "Status", v: rec.status },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Workspace ID", v: rec.workspaceId },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Environment", v: rec.environment },
+              { k: "Deleted Date", v: rec.deletedDate },
+              { k: "Deleted By", v: rec.deletedBy },
+              { k: "Status", v: rec.status },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Resources Destroyed",
-              v: rec.resourcesDestroyed,
-              sample: true,
-            },
-            {
-              k: "Integrations Removed",
-              v: rec.integrationsRemoved,
-              sample: true,
-            },
-            { k: "Members Removed", v: rec.membersRemoved, sample: true },
-            { k: "Policies Removed", v: rec.policiesRemoved, sample: true },
-            { k: "Evidence Files", v: rec.evidenceFiles, sample: true },
-            { k: "Audit Events", v: rec.auditEvents, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Resources Destroyed",
+                v: rec.resourcesDestroyed,
+                sample: true,
+              },
+              {
+                k: "Integrations Removed",
+                v: rec.integrationsRemoved,
+                sample: true,
+              },
+              { k: "Members Removed", v: rec.membersRemoved, sample: true },
+              { k: "Policies Removed", v: rec.policiesRemoved, sample: true },
+              { k: "Evidence Files", v: rec.evidenceFiles, sample: true },
+              { k: "Audit Events", v: rec.auditEvents, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1353,6 +1364,10 @@ function RetentionTab({ rec }: { rec: DeletedRecord }) {
 }
 
 // ── Purge Information — permanent destruction (spec §Purge Information) ──
+const PURGE_SUBS = [
+  { id: "destruction", label: "Permanent Destruction" },
+  { id: "lifecycle", label: "Destruction Lifecycle" },
+];
 function PurgeTab({ rec }: { rec: DeletedRecord }) {
   const stages = ["Deleted", "Retention", "Permanent Purge"];
   const activeIdx =
@@ -1361,86 +1376,92 @@ function PurgeTab({ rec }: { rec: DeletedRecord }) {
       : rec.purgeStatus === "Pending Purge" || rec.purgeStatus === "Scheduled"
         ? 1
         : 0;
+  const [sub, setSub] = React.useState("destruction");
   return (
     <>
-      <Section title="Permanent destruction information" sample>
-        <KVGrid
-          items={[
-            { k: "Purge Status", v: rec.purgeStatus, sample: true },
-            { k: "Purge Date", v: rec.purgeDate, sample: true },
-            { k: "Purge Method", v: rec.purgeMethod, sample: true },
-            { k: "Executed By", v: rec.purgeExecutedBy, sample: true },
-            {
-              k: "Verification Status",
-              v: rec.verificationStatus,
-              sample: true,
-            },
-            { k: "Certificate", v: rec.purgeCertificate, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={PURGE_SUBS} active={sub} onChange={setSub} />
+      {sub === "destruction" && (
+        <Section title="Permanent destruction information" sample>
+          <KVGrid
+            items={[
+              { k: "Purge Status", v: rec.purgeStatus, sample: true },
+              { k: "Purge Date", v: rec.purgeDate, sample: true },
+              { k: "Purge Method", v: rec.purgeMethod, sample: true },
+              { k: "Executed By", v: rec.purgeExecutedBy, sample: true },
+              {
+                k: "Verification Status",
+                v: rec.verificationStatus,
+                sample: true,
+              },
+              { k: "Certificate", v: rec.purgeCertificate, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
       {/* Deleted → Retention → Permanent Purge visualization (spec §Purge Information → Visualization) */}
-      <Section title="Destruction lifecycle" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {stages.map((s, i) => {
-            const done = i < activeIdx;
-            const active = i === activeIdx;
-            const tone = done ? T.success : active ? T.accent : T.textMuted;
-            return (
-              <React.Fragment key={s}>
-                <div
-                  style={{
-                    border: `1px solid ${active ? "transparent" : T.border}`,
-                    background:
-                      done || active
-                        ? "var(--cg-accent-bg-strong)"
-                        : "transparent",
-                    borderRadius: 8,
-                    padding: "9px 12px",
-                    fontSize: 12.5,
-                    color: T.textNav,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                  }}
-                >
-                  <span
+      {sub === "lifecycle" && (
+        <Section title="Destruction lifecycle" sample>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {stages.map((s, i) => {
+              const done = i < activeIdx;
+              const active = i === activeIdx;
+              const tone = done ? T.success : active ? T.accent : T.textMuted;
+              return (
+                <React.Fragment key={s}>
+                  <div
                     style={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      background: tone,
-                    }}
-                  />
-                  <span style={{ fontWeight: active ? 600 : 400 }}>{s}</span>
-                  {done && (
-                    <span style={{ color: T.success, fontSize: 11 }}>
-                      · done
-                    </span>
-                  )}
-                  {active && (
-                    <span style={{ color: T.accent, fontSize: 11 }}>
-                      · current
-                    </span>
-                  )}
-                </div>
-                {i < stages.length - 1 && (
-                  <span
-                    style={{
-                      color: T.textMuted,
-                      textAlign: "center",
-                      fontSize: 12,
+                      border: `1px solid ${active ? "transparent" : T.border}`,
+                      background:
+                        done || active
+                          ? "var(--cg-accent-bg-strong)"
+                          : "transparent",
+                      borderRadius: 8,
+                      padding: "9px 12px",
+                      fontSize: 12.5,
+                      color: T.textNav,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
                     }}
                   >
-                    ↓
-                  </span>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-      </Section>
+                    <span
+                      style={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        background: tone,
+                      }}
+                    />
+                    <span style={{ fontWeight: active ? 600 : 400 }}>{s}</span>
+                    {done && (
+                      <span style={{ color: T.success, fontSize: 11 }}>
+                        · done
+                      </span>
+                    )}
+                    {active && (
+                      <span style={{ color: T.accent, fontSize: 11 }}>
+                        · current
+                      </span>
+                    )}
+                  </div>
+                  {i < stages.length - 1 && (
+                    <span
+                      style={{
+                        color: T.textMuted,
+                        textAlign: "center",
+                        fontSize: 12,
+                      }}
+                    >
+                      ↓
+                    </span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       <div
         style={{

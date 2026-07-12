@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1044,47 +1045,66 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace", v: rec.workspace },
-            { k: "Relationship Type", v: rec.relationshipType },
-            { k: "Parent Workspace", v: rec.parent },
-            { k: "Hierarchy Level", v: `Level ${rec.hierarchyLevel}` },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Created", v: rec.created },
-            { k: "Modified", v: rec.modified },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace", v: rec.workspace },
+              { k: "Relationship Type", v: rec.relationshipType },
+              { k: "Parent Workspace", v: rec.parent },
+              { k: "Hierarchy Level", v: `Level ${rec.hierarchyLevel}` },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Created", v: rec.created },
+              { k: "Modified", v: rec.modified },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Children", v: rec.children, sample: true },
-            { k: "Inherited Policies", v: rec.inheritedPolicies, sample: true },
-            { k: "Shared Resources", v: rec.sharedResources, sample: true },
-            { k: "Dependencies", v: rec.dependencies, sample: true },
-            {
-              k: "Compliance Coverage",
-              v: `${rec.complianceCoverage}%`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Children", v: rec.children, sample: true },
+              {
+                k: "Inherited Policies",
+                v: rec.inheritedPolicies,
+                sample: true,
+              },
+              { k: "Shared Resources", v: rec.sharedResources, sample: true },
+              { k: "Dependencies", v: rec.dependencies, sample: true },
+              {
+                k: "Compliance Coverage",
+                v: `${rec.complianceCoverage}%`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Hierarchy (parent → child → grandchild) ──
+const HIERARCHY_SUBS = [
+  { id: "workspace-hierarchy", label: "Workspace hierarchy" },
+  { id: "positioning", label: "Positioning" },
+];
 function HierarchyTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("workspace-hierarchy");
   const parentNode = rec.parent === "—" ? rec.workspace : rec.parent;
   const nodes =
     rec.parent === "—"
@@ -1092,29 +1112,40 @@ function HierarchyTab({ rec }: { rec: RelationshipRecord }) {
       : [parentNode, rec.workspace, "Child Workspace"];
   return (
     <>
-      <Section title="Workspace hierarchy" sample>
-        <FlowChain nodes={nodes} />
-      </Section>
-      <Section title="Positioning">
-        <KVGrid
-          items={[
-            { k: "Parent", v: rec.parent },
-            { k: "Children", v: rec.children, sample: true },
-            { k: "Hierarchy Level", v: `Level ${rec.hierarchyLevel}` },
-            {
-              k: "Hierarchy Depth",
-              v: `${rec.hierarchyDepth} levels`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={HIERARCHY_SUBS} active={sub} onChange={setSub} />
+      {sub === "workspace-hierarchy" && (
+        <Section title="Workspace hierarchy" sample>
+          <FlowChain nodes={nodes} />
+        </Section>
+      )}
+      {sub === "positioning" && (
+        <Section title="Positioning">
+          <KVGrid
+            items={[
+              { k: "Parent", v: rec.parent },
+              { k: "Children", v: rec.children, sample: true },
+              { k: "Hierarchy Level", v: `Level ${rec.hierarchyLevel}` },
+              {
+                k: "Hierarchy Depth",
+                v: `${rec.hierarchyDepth} levels`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Inheritance (categories · resolution · overrides) ──
+const INHERITANCE_SUBS = [
+  { id: "inheritance-categories", label: "Inheritance categories" },
+  { id: "resolution", label: "Resolution" },
+  { id: "summary", label: "Summary" },
+];
 function InheritanceTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("inheritance-categories");
   const n = hashId(rec.id);
   return (
     <>
@@ -1130,57 +1161,64 @@ function InheritanceTab({ rec }: { rec: RelationshipRecord }) {
         <HeaderButton icon={<Sliders size={13} />}>Show Overrides</HeaderButton>
       </div>
 
-      <Section title="Inheritance categories" sample>
-        {INHERITANCE_CATEGORIES.map((cat, i) => {
-          const state =
-            (n + i) % 5 === 0
-              ? "Locked"
-              : (n + i) % 3 === 0
-                ? "Overridden"
-                : "Inherited";
-          return (
-            <StatRow
-              key={cat}
-              label={cat}
-              value={state}
-              tone={
-                state === "Inherited"
-                  ? "ok"
-                  : state === "Overridden"
-                    ? "warn"
-                    : "muted"
-              }
-              sample
-            />
-          );
-        })}
-      </Section>
+      <Tabs tabs={INHERITANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "inheritance-categories" && (
+        <Section title="Inheritance categories" sample>
+          {INHERITANCE_CATEGORIES.map((cat, i) => {
+            const state =
+              (n + i) % 5 === 0
+                ? "Locked"
+                : (n + i) % 3 === 0
+                  ? "Overridden"
+                  : "Inherited";
+            return (
+              <StatRow
+                key={cat}
+                label={cat}
+                value={state}
+                tone={
+                  state === "Inherited"
+                    ? "ok"
+                    : state === "Overridden"
+                      ? "warn"
+                      : "muted"
+                }
+                sample
+              />
+            );
+          })}
+        </Section>
+      )}
 
-      <Section title="Resolution" sample>
-        <FlowChain
-          nodes={[
-            "Parent Workspace",
-            "Inherited Configuration",
-            "Workspace Override",
-            "Effective Configuration",
-          ]}
-        />
-      </Section>
+      {sub === "resolution" && (
+        <Section title="Resolution" sample>
+          <FlowChain
+            nodes={[
+              "Parent Workspace",
+              "Inherited Configuration",
+              "Workspace Override",
+              "Effective Configuration",
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Summary" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Inherited",
-              v: INHERITANCE_CATEGORIES.length - rec.overrides,
-              sample: true,
-            },
-            { k: "Overridden", v: rec.overrides, sample: true },
-            { k: "Locked", v: n % 3, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "summary" && (
+        <Section title="Summary" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Inherited",
+                v: INHERITANCE_CATEGORIES.length - rec.overrides,
+                sample: true,
+              },
+              { k: "Overridden", v: rec.overrides, sample: true },
+              { k: "Locked", v: n % 3, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1226,92 +1264,112 @@ function SharedResourcesTab({ rec }: { rec: RelationshipRecord }) {
 }
 
 // ── Dependencies (consumes / provides / shared services) ──
+const DEPENDENCIES_SUBS = [
+  { id: "operational-dependencies", label: "Operational dependencies" },
+  { id: "dependency-chain", label: "Dependency chain" },
+];
 function DependenciesTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("operational-dependencies");
   return (
     <>
-      <Section title="Operational dependencies" sample>
-        <KVGrid
-          cols={1}
-          items={[
-            {
-              k: "Consumes",
-              v: "Identity Service · Secrets Vault",
-              sample: true,
-            },
-            {
-              k: "Provides",
-              v: "Shared Knowledge Base · Automation",
-              sample: true,
-            },
-            {
-              k: "Shared Services",
-              v: `${rec.sharedResources} services`,
-              sample: true,
-            },
-            {
-              k: "Required Services",
-              v: "Logging · Compliance Engine",
-              sample: true,
-            },
-            {
-              k: "Dependent Workspaces",
-              v: `${rec.children} workspaces`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
-      <Section title="Dependency chain" sample>
-        <FlowChain
-          nodes={["Parent Workspace", "Shared Service", "Child Workspace"]}
-        />
-      </Section>
+      <Tabs tabs={DEPENDENCIES_SUBS} active={sub} onChange={setSub} />
+      {sub === "operational-dependencies" && (
+        <Section title="Operational dependencies" sample>
+          <KVGrid
+            cols={1}
+            items={[
+              {
+                k: "Consumes",
+                v: "Identity Service · Secrets Vault",
+                sample: true,
+              },
+              {
+                k: "Provides",
+                v: "Shared Knowledge Base · Automation",
+                sample: true,
+              },
+              {
+                k: "Shared Services",
+                v: `${rec.sharedResources} services`,
+                sample: true,
+              },
+              {
+                k: "Required Services",
+                v: "Logging · Compliance Engine",
+                sample: true,
+              },
+              {
+                k: "Dependent Workspaces",
+                v: `${rec.children} workspaces`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "dependency-chain" && (
+        <Section title="Dependency chain" sample>
+          <FlowChain
+            nodes={["Parent Workspace", "Shared Service", "Child Workspace"]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Lifecycle (orders + states) ──
+const LIFECYCLE_SUBS = [
+  { id: "lifecycle-coordination", label: "Lifecycle coordination" },
+  { id: "lifecycle-states", label: "Lifecycle states" },
+];
 function LifecycleTab({ rec }: { rec: RelationshipRecord }) {
+  const [sub, setSub] = React.useState("lifecycle-coordination");
   return (
     <>
-      <Section title="Lifecycle coordination" sample>
-        <StatRow label="Provisioning Order" value="Parent → Child" sample />
-        <StatRow label="Maintenance Order" value="Child → Parent" sample />
-        <StatRow
-          label="Archive Dependencies"
-          value={`${rec.dependencies} blocking`}
-          sample
-        />
-        <StatRow
-          label="Deletion Dependencies"
-          value={rec.children > 0 ? "Detach children first" : "None"}
-          tone={rec.children > 0 ? "warn" : "ok"}
-          sample
-        />
-        <StatRow label="Recovery Order" value="Parent → Child" sample />
-      </Section>
-      <Section title="Lifecycle states">
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {LIFECYCLE_STATES.map((s) => {
-            const on = s === rec.status;
-            return (
-              <span
-                key={s}
-                style={{
-                  fontSize: 11.5,
-                  padding: "3px 9px",
-                  borderRadius: 99,
-                  border: `1px solid ${on ? STATUS_TONE[s] : T.border}`,
-                  color: on ? STATUS_TONE[s] : T.textMuted,
-                  fontWeight: on ? 600 : 400,
-                }}
-              >
-                {s}
-              </span>
-            );
-          })}
-        </div>
-      </Section>
+      <Tabs tabs={LIFECYCLE_SUBS} active={sub} onChange={setSub} />
+      {sub === "lifecycle-coordination" && (
+        <Section title="Lifecycle coordination" sample>
+          <StatRow label="Provisioning Order" value="Parent → Child" sample />
+          <StatRow label="Maintenance Order" value="Child → Parent" sample />
+          <StatRow
+            label="Archive Dependencies"
+            value={`${rec.dependencies} blocking`}
+            sample
+          />
+          <StatRow
+            label="Deletion Dependencies"
+            value={rec.children > 0 ? "Detach children first" : "None"}
+            tone={rec.children > 0 ? "warn" : "ok"}
+            sample
+          />
+          <StatRow label="Recovery Order" value="Parent → Child" sample />
+        </Section>
+      )}
+      {sub === "lifecycle-states" && (
+        <Section title="Lifecycle states">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {LIFECYCLE_STATES.map((s) => {
+              const on = s === rec.status;
+              return (
+                <span
+                  key={s}
+                  style={{
+                    fontSize: 11.5,
+                    padding: "3px 9px",
+                    borderRadius: 99,
+                    border: `1px solid ${on ? STATUS_TONE[s] : T.border}`,
+                    color: on ? STATUS_TONE[s] : T.textMuted,
+                    fontWeight: on ? 600 : 400,
+                  }}
+                >
+                  {s}
+                </span>
+              );
+            })}
+          </div>
+        </Section>
+      )}
     </>
   );
 }

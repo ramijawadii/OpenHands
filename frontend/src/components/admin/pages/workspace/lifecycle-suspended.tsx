@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1046,49 +1047,59 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: SuspendedRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Workspace ID", v: rec.workspaceId },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Owner", v: rec.owner },
-            { k: "Status", v: rec.status },
-            { k: "Suspension Type", v: rec.suspensionType },
-            { k: "Suspended Date", v: rec.suspendedDate },
-            {
-              k: "Expected Reactivation",
-              v: rec.expectedReactivation,
-              sample: true,
-            },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Workspace ID", v: rec.workspaceId },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Owner", v: rec.owner },
+              { k: "Status", v: rec.status },
+              { k: "Suspension Type", v: rec.suspensionType },
+              { k: "Suspended Date", v: rec.suspendedDate },
+              {
+                k: "Expected Reactivation",
+                v: rec.expectedReactivation,
+                sample: true,
+              },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Days Suspended", v: rec.daysSuspended, sample: true },
-            { k: "Blocked Users", v: rec.blockedUsers, sample: true },
-            { k: "Blocked Agents", v: rec.blockedAgents, sample: true },
-            {
-              k: "Affected Resources",
-              v: rec.affectedResources,
-              sample: true,
-            },
-            { k: "Open Incidents", v: rec.openIncidents, sample: true },
-            { k: "Pending Approvals", v: rec.pendingApprovals, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Days Suspended", v: rec.daysSuspended, sample: true },
+              { k: "Blocked Users", v: rec.blockedUsers, sample: true },
+              { k: "Blocked Agents", v: rec.blockedAgents, sample: true },
+              {
+                k: "Affected Resources",
+                v: rec.affectedResources,
+                sample: true,
+              },
+              { k: "Open Incidents", v: rec.openIncidents, sample: true },
+              { k: "Pending Approvals", v: rec.pendingApprovals, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1245,7 +1256,12 @@ const VALIDATION_CHECKS = [
   "AI Runtime Validation",
 ];
 type CheckState = "Ready" | "Pending" | "Blocked";
+const REACTIVATION_SUBS = [
+  { id: "reactivation-pipeline", label: "Reactivation pipeline" },
+  { id: "validation-checks", label: "Validation checks" },
+];
 function ReactivationTab({ rec }: { rec: SuspendedRecord }) {
+  const [sub, setSub] = React.useState("reactivation-pipeline");
   const n = hashId(rec.id);
   const checks = VALIDATION_CHECKS.map((label, i) => {
     const state: CheckState =
@@ -1276,88 +1292,93 @@ function ReactivationTab({ rec }: { rec: SuspendedRecord }) {
         </HeaderButton>
       </div>
 
-      <Section title="Reactivation pipeline" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {REACTIVATION_STAGES.map((stage, i) => {
-            const done = i < currentIdx;
-            const active = i === currentIdx;
-            const tone = done ? T.success : active ? T.accent : T.textMuted;
-            return (
-              <div
-                key={stage}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "12px 0",
-                  borderBottom:
-                    i < REACTIVATION_STAGES.length - 1
-                      ? `1px solid ${T.border}`
-                      : "none",
-                }}
-              >
-                <span
+      <Tabs tabs={REACTIVATION_SUBS} active={sub} onChange={setSub} />
+      {sub === "reactivation-pipeline" && (
+        <Section title="Reactivation pipeline" sample>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {REACTIVATION_STAGES.map((stage, i) => {
+              const done = i < currentIdx;
+              const active = i === currentIdx;
+              const tone = done ? T.success : active ? T.accent : T.textMuted;
+              return (
+                <div
+                  key={stage}
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background:
-                      done || active
-                        ? "var(--cg-accent-bg-strong)"
-                        : "transparent",
-                    border: `1px solid ${done || active ? "transparent" : T.border}`,
-                    color: tone,
-                    fontSize: 11,
+                    display: "flex",
+                    gap: 12,
+                    padding: "12px 0",
+                    borderBottom:
+                      i < REACTIVATION_STAGES.length - 1
+                        ? `1px solid ${T.border}`
+                        : "none",
                   }}
                 >
-                  {done ? <Check size={12} /> : i + 1}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                  <span
                     style={{
-                      fontSize: 13,
-                      color: T.textPrimary,
-                      fontWeight: active ? 600 : 400,
-                    }}
-                  >
-                    {stage}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background:
+                        done || active
+                          ? "var(--cg-accent-bg-strong)"
+                          : "transparent",
+                      border: `1px solid ${done || active ? "transparent" : T.border}`,
                       color: tone,
-                      marginTop: 2,
+                      fontSize: 11,
                     }}
                   >
-                    {done ? "Completed" : active ? "In progress" : "Pending"}
+                    {done ? <Check size={12} /> : i + 1}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: T.textPrimary,
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {stage}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: tone,
+                        marginTop: 2,
+                      }}
+                    >
+                      {done ? "Completed" : active ? "In progress" : "Pending"}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Validation checks" sample>
-        {checks.map((c) => (
-          <StatRow
-            key={c.label}
-            label={c.label}
-            value={c.state}
-            tone={
-              c.state === "Ready"
-                ? "ok"
-                : c.state === "Pending"
-                  ? "warn"
-                  : "danger"
-            }
-            sample
-          />
-        ))}
-      </Section>
+      {sub === "validation-checks" && (
+        <Section title="Validation checks" sample>
+          {checks.map((c) => (
+            <StatRow
+              key={c.label}
+              label={c.label}
+              value={c.state}
+              tone={
+                c.state === "Ready"
+                  ? "ok"
+                  : c.state === "Pending"
+                    ? "warn"
+                    : "danger"
+              }
+              sample
+            />
+          ))}
+        </Section>
+      )}
 
       {blocked && (
         <div

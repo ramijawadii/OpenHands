@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1008,68 +1009,92 @@ function ToolbarRow({
 }
 
 // ── Overview (General · Ownership · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "ownership", label: "Ownership" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Template Name", v: rec.name },
-            { k: "Description", v: rec.description },
-            { k: "Category", v: rec.category },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Version", v: rec.version },
-            { k: "Created", v: rec.created },
-            { k: "Last Modified", v: rec.modified },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Template Name", v: rec.name },
+              { k: "Description", v: rec.description },
+              { k: "Category", v: rec.category },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Version", v: rec.version },
+              { k: "Created", v: rec.created },
+              { k: "Last Modified", v: rec.modified },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Ownership" sample>
-        <KVGrid
-          items={[
-            { k: "Template Owner", v: rec.owner, sample: true },
-            { k: "Business Owner", v: rec.businessOwner, sample: true },
-            { k: "Maintainer", v: rec.maintainer, sample: true },
-            { k: "Approval Status", v: rec.approvalStatus, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "ownership" && (
+        <Section title="Ownership" sample>
+          <KVGrid
+            items={[
+              { k: "Template Owner", v: rec.owner, sample: true },
+              { k: "Business Owner", v: rec.businessOwner, sample: true },
+              { k: "Maintainer", v: rec.maintainer, sample: true },
+              { k: "Approval Status", v: rec.approvalStatus, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            {
-              k: "Workspaces Using Template",
-              v: rec.workspacesUsing,
-              sample: true,
-            },
-            { k: "Current Version", v: rec.version, sample: true },
-            { k: "Policies Included", v: rec.policiesIncluded, sample: true },
-            {
-              k: "Compliance Frameworks",
-              v: rec.complianceFrameworks,
-              sample: true,
-            },
-            { k: "AI Profiles", v: rec.aiProfiles, sample: true },
-            {
-              k: "Provisioning Time",
-              v: `${rec.provisioningMin} min`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              {
+                k: "Workspaces Using Template",
+                v: rec.workspacesUsing,
+                sample: true,
+              },
+              { k: "Current Version", v: rec.version, sample: true },
+              { k: "Policies Included", v: rec.policiesIncluded, sample: true },
+              {
+                k: "Compliance Frameworks",
+                v: rec.complianceFrameworks,
+                sample: true,
+              },
+              { k: "AI Profiles", v: rec.aiProfiles, sample: true },
+              {
+                k: "Provisioning Time",
+                v: `${rec.provisioningMin} min`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Configuration (default workspace configuration) ──
+const CONFIGURATION_SUBS = [
+  { id: "workspace-metadata", label: "Workspace Metadata" },
+  { id: "naming-convention", label: "Naming Convention" },
+  { id: "default-tags", label: "Default Tags" },
+  { id: "resource-configuration", label: "Resource Configuration" },
+  { id: "regions", label: "Regions" },
+  { id: "cloud-providers", label: "Cloud Providers" },
+  { id: "default-integrations", label: "Default Integrations" },
+  { id: "notifications", label: "Notifications" },
+];
 function ConfigurationTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("workspace-metadata");
   return (
     <>
       <div
@@ -1085,129 +1110,187 @@ function ConfigurationTab({ rec }: { rec: TemplateRecord }) {
         buttons={["Edit Configuration", "Validate", "Preview"]}
         sample
       />
-      <Section title="Workspace Metadata" sample>
-        <StatRow
-          label="Legal Entity"
-          value="ACME Global Holdings Ltd."
-          sample
-        />
-        <StatRow
-          label="Data Residency"
-          value={rec.environment === "Production" ? "EU" : "Multi-region"}
-          sample
-        />
-        <StatRow label="Support Tier" value="Enterprise (24/7)" sample />
-        <StatRow
-          label="Cost Centre"
-          value={`CC-${rec.businessUnit.slice(0, 3).toUpperCase()}-001`}
-          sample
-        />
-      </Section>
-      <Section title="Naming Convention" sample>
-        <StatRow label="Pattern" value="{bu}-{env}-{app}-{seq}" sample />
-        <StatRow label="Enforcement" value="Blocking on violation" sample />
-      </Section>
-      <Section title="Default Tags" sample>
-        <StatRow label="Tags" value={rec.tags.join(", ")} sample />
-        <StatRow
-          label="Mandatory Tags"
-          value="env, business-unit, cost-centre, data-classification"
-          sample
-        />
-      </Section>
-      <Section title="Resource Configuration" sample>
-        <StatRow label="Default Resource Group" value="Standard tier" sample />
-        <StatRow label="Baseline Resources" value="24 resources" sample />
-      </Section>
-      <Section title="Regions" sample>
-        <StatRow
-          label="Allowed Regions"
-          value="eu-west-1, eu-central-1"
-          sample
-        />
-        <StatRow label="Primary Region" value="eu-west-1" sample />
-      </Section>
-      <Section title="Cloud Providers" sample>
-        <StatRow
-          label="Approved Providers"
-          value="AWS, Azure, Google Cloud"
-          sample
-        />
-      </Section>
-      <Section title="Default Integrations" sample>
-        <StatRow label="Integrations" value="GitHub, Jira, ServiceNow" sample />
-      </Section>
-      <Section title="Notifications" sample>
-        <StatRow label="Channels" value="Email, Slack, PagerDuty" sample />
-        <StatRow label="Default Recipients" value="Workspace owners" sample />
-      </Section>
+      <Tabs tabs={CONFIGURATION_SUBS} active={sub} onChange={setSub} />
+      {sub === "workspace-metadata" && (
+        <Section title="Workspace Metadata" sample>
+          <StatRow
+            label="Legal Entity"
+            value="ACME Global Holdings Ltd."
+            sample
+          />
+          <StatRow
+            label="Data Residency"
+            value={rec.environment === "Production" ? "EU" : "Multi-region"}
+            sample
+          />
+          <StatRow label="Support Tier" value="Enterprise (24/7)" sample />
+          <StatRow
+            label="Cost Centre"
+            value={`CC-${rec.businessUnit.slice(0, 3).toUpperCase()}-001`}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "naming-convention" && (
+        <Section title="Naming Convention" sample>
+          <StatRow label="Pattern" value="{bu}-{env}-{app}-{seq}" sample />
+          <StatRow label="Enforcement" value="Blocking on violation" sample />
+        </Section>
+      )}
+      {sub === "default-tags" && (
+        <Section title="Default Tags" sample>
+          <StatRow label="Tags" value={rec.tags.join(", ")} sample />
+          <StatRow
+            label="Mandatory Tags"
+            value="env, business-unit, cost-centre, data-classification"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "resource-configuration" && (
+        <Section title="Resource Configuration" sample>
+          <StatRow
+            label="Default Resource Group"
+            value="Standard tier"
+            sample
+          />
+          <StatRow label="Baseline Resources" value="24 resources" sample />
+        </Section>
+      )}
+      {sub === "regions" && (
+        <Section title="Regions" sample>
+          <StatRow
+            label="Allowed Regions"
+            value="eu-west-1, eu-central-1"
+            sample
+          />
+          <StatRow label="Primary Region" value="eu-west-1" sample />
+        </Section>
+      )}
+      {sub === "cloud-providers" && (
+        <Section title="Cloud Providers" sample>
+          <StatRow
+            label="Approved Providers"
+            value="AWS, Azure, Google Cloud"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "default-integrations" && (
+        <Section title="Default Integrations" sample>
+          <StatRow
+            label="Integrations"
+            value="GitHub, Jira, ServiceNow"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "notifications" && (
+        <Section title="Notifications" sample>
+          <StatRow label="Channels" value="Email, Slack, PagerDuty" sample />
+          <StatRow label="Default Recipients" value="Workspace owners" sample />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Governance (organizational governance inherited by new workspaces) ──
+const GOVERNANCE_SUBS = [
+  { id: "governance-profile", label: "Governance Profile" },
+  { id: "organization-policies", label: "Organization Policies" },
+  { id: "workspace-policies", label: "Workspace Policies" },
+  { id: "inheritance-rules", label: "Inheritance Rules" },
+  { id: "approval-policies", label: "Approval Policies" },
+  { id: "operational-policies", label: "Operational Policies" },
+  { id: "inheritance", label: "Inheritance" },
+];
 function GovernanceTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("governance-profile");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines organizational governance inherited by newly provisioned
         workspaces.
       </div>
-      <Section title="Governance Profile" sample>
-        <StatRow label="Profile" value={rec.governanceProfile} sample />
-        <StatRow label="Security Profile" value={rec.securityProfile} sample />
-      </Section>
-      <Section title="Organization Policies" sample>
-        <StatRow
-          label="Inherited Policies"
-          value={`${rec.policiesIncluded} inherited`}
-          sample
-        />
-        <StatRow
-          label="Enforcement Mode"
-          value="Most-restrictive-wins"
-          sample
-        />
-      </Section>
-      <Section title="Workspace Policies" sample>
-        <StatRow
-          label="Workspace Overrides"
-          value="3 allowed overrides"
-          sample
-        />
-        <StatRow label="Mandatory Floor" value="Cannot be relaxed" sample />
-      </Section>
-      <Section title="Inheritance Rules" sample>
-        <StatRow label="Merge Strategy" value="Most-restrictive-wins" sample />
-        <StatRow
-          label="Override Scope"
-          value="Non-security controls only"
-          sample
-        />
-      </Section>
-      <Section title="Approval Policies" sample>
-        <StatRow
-          label="Provisioning Approval"
-          value="2-of-3 approvers"
-          sample
-        />
-        <StatRow
-          label="Publish Approval"
-          value="Platform Admin required"
-          sample
-        />
-      </Section>
-      <Section title="Operational Policies" sample>
-        <StatRow label="Change Windows" value="Business hours (UTC)" sample />
-        <StatRow
-          label="Backup Policy"
-          value="Daily · 30-day retention"
-          sample
-        />
-      </Section>
-      <Section title="Inheritance">
-        <GovernanceChain />
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "governance-profile" && (
+        <Section title="Governance Profile" sample>
+          <StatRow label="Profile" value={rec.governanceProfile} sample />
+          <StatRow
+            label="Security Profile"
+            value={rec.securityProfile}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "organization-policies" && (
+        <Section title="Organization Policies" sample>
+          <StatRow
+            label="Inherited Policies"
+            value={`${rec.policiesIncluded} inherited`}
+            sample
+          />
+          <StatRow
+            label="Enforcement Mode"
+            value="Most-restrictive-wins"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "workspace-policies" && (
+        <Section title="Workspace Policies" sample>
+          <StatRow
+            label="Workspace Overrides"
+            value="3 allowed overrides"
+            sample
+          />
+          <StatRow label="Mandatory Floor" value="Cannot be relaxed" sample />
+        </Section>
+      )}
+      {sub === "inheritance-rules" && (
+        <Section title="Inheritance Rules" sample>
+          <StatRow
+            label="Merge Strategy"
+            value="Most-restrictive-wins"
+            sample
+          />
+          <StatRow
+            label="Override Scope"
+            value="Non-security controls only"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "approval-policies" && (
+        <Section title="Approval Policies" sample>
+          <StatRow
+            label="Provisioning Approval"
+            value="2-of-3 approvers"
+            sample
+          />
+          <StatRow
+            label="Publish Approval"
+            value="Platform Admin required"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "operational-policies" && (
+        <Section title="Operational Policies" sample>
+          <StatRow label="Change Windows" value="Business hours (UTC)" sample />
+          <StatRow
+            label="Backup Policy"
+            value="Daily · 30-day retention"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "inheritance" && (
+        <Section title="Inheritance">
+          <GovernanceChain />
+        </Section>
+      )}
     </>
   );
 }
@@ -1248,7 +1331,15 @@ function GovernanceChain() {
 }
 
 // ── Compliance (compliance configuration assigned during provisioning) ──
+const COMPLIANCE_SUBS = [
+  { id: "compliance-frameworks", label: "Compliance Frameworks" },
+  { id: "control-baselines", label: "Control Baselines" },
+  { id: "evidence-policies", label: "Evidence Policies" },
+  { id: "assessment-schedule", label: "Assessment Schedule" },
+  { id: "reporting-configuration", label: "Reporting Configuration" },
+];
 function ComplianceTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("compliance-frameworks");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
@@ -1256,98 +1347,149 @@ function ComplianceTab({ rec }: { rec: TemplateRecord }) {
         provisioning.
       </div>
       <ToolbarRow buttons={["Assign Framework", "Preview Controls"]} sample />
-      <Section title="Compliance Frameworks" sample>
-        <StatRow
-          label="Primary Framework"
-          value={rec.complianceProfile}
-          sample
-        />
-        <StatRow
-          label="Assigned Frameworks"
-          value={`${rec.complianceFrameworks} frameworks`}
-          sample
-        />
-      </Section>
-      <Section title="Control Baselines" sample>
-        <StatRow label="Assigned Controls" value="128 controls" sample />
-        <StatRow label="Baseline Profile" value={rec.securityProfile} sample />
-      </Section>
-      <Section title="Evidence Policies" sample>
-        <StatRow label="Evidence Collection" value="Automated" sample />
-        <StatRow label="Retention" value="7 years" sample />
-      </Section>
-      <Section title="Assessment Schedule" sample>
-        <StatRow label="Cadence" value="Quarterly" sample />
-        <StatRow label="Next Assessment" value="2026-09-30" sample />
-      </Section>
-      <Section title="Reporting Configuration" sample>
-        <StatRow label="Report Format" value="PDF · CSV · JSON" sample />
-        <StatRow label="Distribution" value="Compliance Center" sample />
-      </Section>
+      <Tabs tabs={COMPLIANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "compliance-frameworks" && (
+        <Section title="Compliance Frameworks" sample>
+          <StatRow
+            label="Primary Framework"
+            value={rec.complianceProfile}
+            sample
+          />
+          <StatRow
+            label="Assigned Frameworks"
+            value={`${rec.complianceFrameworks} frameworks`}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "control-baselines" && (
+        <Section title="Control Baselines" sample>
+          <StatRow label="Assigned Controls" value="128 controls" sample />
+          <StatRow
+            label="Baseline Profile"
+            value={rec.securityProfile}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "evidence-policies" && (
+        <Section title="Evidence Policies" sample>
+          <StatRow label="Evidence Collection" value="Automated" sample />
+          <StatRow label="Retention" value="7 years" sample />
+        </Section>
+      )}
+      {sub === "assessment-schedule" && (
+        <Section title="Assessment Schedule" sample>
+          <StatRow label="Cadence" value="Quarterly" sample />
+          <StatRow label="Next Assessment" value="2026-09-30" sample />
+        </Section>
+      )}
+      {sub === "reporting-configuration" && (
+        <Section title="Reporting Configuration" sample>
+          <StatRow label="Report Format" value="PDF · CSV · JSON" sample />
+          <StatRow label="Distribution" value="Compliance Center" sample />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── AI Configuration (default AI platform configuration) ──
+const AI_CONFIG_SUBS = [
+  { id: "ai-runtime", label: "AI Runtime" },
+  { id: "approved-models", label: "Approved Models" },
+  { id: "agent-policies", label: "Agent Policies" },
+  { id: "knowledge-sources", label: "Knowledge Sources" },
+  { id: "prompt-libraries", label: "Prompt Libraries" },
+  { id: "execution-policies", label: "Execution Policies" },
+  { id: "safety-policies", label: "Safety Policies" },
+];
 function AiConfigTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("ai-runtime");
   return (
     <>
       <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 12 }}>
         Defines the default AI platform configuration inherited by new
         workspaces.
       </div>
-      <Section title="AI Runtime" sample>
-        <StatRow
-          label="Runtime Image"
-          value="cloudguard-runtime:latest"
-          sample
-        />
-        <StatRow label="Execution Sandbox" value="gVisor · Tier 3" sample />
-      </Section>
-      <Section title="Approved Models" sample>
-        <StatRow
-          label="Models"
-          value="claude-opus, claude-sonnet, gemini-pro"
-          sample
-        />
-        <StatRow label="Default Model" value="claude-sonnet" sample />
-      </Section>
-      <Section title="Agent Policies" sample>
-        <StatRow
-          label="Available Agents"
-          value={`${rec.aiProfiles + 3}`}
-          sample
-        />
-        <StatRow label="Autonomy Default" value="Ask (HITL gate)" sample />
-      </Section>
-      <Section title="Knowledge Sources" sample>
-        <StatRow label="Sources" value="5 knowledge bases" sample />
-      </Section>
-      <Section title="Prompt Libraries" sample>
-        <StatRow label="Libraries" value="3 curated libraries" sample />
-      </Section>
-      <Section title="Execution Policies" sample>
-        <StatRow label="Permission Tier" value="Operator" sample />
-        <StatRow
-          label="Approval Gate"
-          value="Destructive actions require approval"
-          sample
-        />
-      </Section>
-      <Section title="Safety Policies" sample>
-        <StatRow
-          label="Output Filter"
-          value="Prompt-echo block · secret redaction"
-          sample
-        />
-        <StatRow label="Input Screen" value="Enabled" sample />
-      </Section>
+      <Tabs tabs={AI_CONFIG_SUBS} active={sub} onChange={setSub} />
+      {sub === "ai-runtime" && (
+        <Section title="AI Runtime" sample>
+          <StatRow
+            label="Runtime Image"
+            value="cloudguard-runtime:latest"
+            sample
+          />
+          <StatRow label="Execution Sandbox" value="gVisor · Tier 3" sample />
+        </Section>
+      )}
+      {sub === "approved-models" && (
+        <Section title="Approved Models" sample>
+          <StatRow
+            label="Models"
+            value="claude-opus, claude-sonnet, gemini-pro"
+            sample
+          />
+          <StatRow label="Default Model" value="claude-sonnet" sample />
+        </Section>
+      )}
+      {sub === "agent-policies" && (
+        <Section title="Agent Policies" sample>
+          <StatRow
+            label="Available Agents"
+            value={`${rec.aiProfiles + 3}`}
+            sample
+          />
+          <StatRow label="Autonomy Default" value="Ask (HITL gate)" sample />
+        </Section>
+      )}
+      {sub === "knowledge-sources" && (
+        <Section title="Knowledge Sources" sample>
+          <StatRow label="Sources" value="5 knowledge bases" sample />
+        </Section>
+      )}
+      {sub === "prompt-libraries" && (
+        <Section title="Prompt Libraries" sample>
+          <StatRow label="Libraries" value="3 curated libraries" sample />
+        </Section>
+      )}
+      {sub === "execution-policies" && (
+        <Section title="Execution Policies" sample>
+          <StatRow label="Permission Tier" value="Operator" sample />
+          <StatRow
+            label="Approval Gate"
+            value="Destructive actions require approval"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "safety-policies" && (
+        <Section title="Safety Policies" sample>
+          <StatRow
+            label="Output Filter"
+            value="Prompt-echo block · secret redaction"
+            sample
+          />
+          <StatRow label="Input Screen" value="Enabled" sample />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Provisioning Defaults (defaults used during workspace provisioning) ──
+const PROVISIONING_SUBS = [
+  { id: "cloud-resources", label: "Cloud Resources" },
+  { id: "identity-configuration", label: "Identity Configuration" },
+  { id: "resource-quotas", label: "Resource Quotas" },
+  { id: "networking", label: "Networking" },
+  { id: "storage", label: "Storage" },
+  { id: "integrations", label: "Integrations" },
+  { id: "operational-settings", label: "Operational Settings" },
+  { id: "monitoring", label: "Monitoring" },
+];
 function ProvisioningTab({ rec }: { rec: TemplateRecord }) {
+  const [sub, setSub] = React.useState("cloud-resources");
   return (
     <>
       <div
@@ -1362,54 +1504,75 @@ function ProvisioningTab({ rec }: { rec: TemplateRecord }) {
       >
         Specifies defaults used during workspace provisioning <SampleTag />
       </div>
-      <Section title="Cloud Resources" sample>
-        <StatRow
-          label="Baseline Resources"
-          value="24 resources provisioned"
-          sample
-        />
-        <StatRow label="Cloud Providers" value="AWS, Azure" sample />
-      </Section>
-      <Section title="Identity Configuration" sample>
-        <StatRow label="Identity Provider" value="Federated (OIDC)" sample />
-        <StatRow label="Default Roles" value="Owner, Admin, Viewer" sample />
-      </Section>
-      <Section title="Resource Quotas" sample>
-        <StatRow label="Compute" value="Standard tier · 200 vCPU" sample />
-        <StatRow label="Cloud Accounts" value="Up to 5 accounts" sample />
-      </Section>
-      <Section title="Networking" sample>
-        <StatRow label="Network Baseline" value="Hub-and-spoke VPC" sample />
-        <StatRow label="Ingress" value="Deny-by-default" sample />
-      </Section>
-      <Section title="Storage" sample>
-        <StatRow
-          label="Encryption"
-          value="CMEK · at-rest + in-transit"
-          sample
-        />
-        <StatRow label="Default Class" value="Standard · versioned" sample />
-      </Section>
-      <Section title="Integrations" sample>
-        <StatRow label="Default Integrations" value="GitHub, Jira" sample />
-      </Section>
-      <Section title="Operational Settings" sample>
-        <StatRow
-          label="Estimated Provisioning Time"
-          value={`${rec.provisioningMin} minutes`}
-          tone="ok"
-          sample
-        />
-        <StatRow label="Change Windows" value="Business hours (UTC)" sample />
-      </Section>
-      <Section title="Monitoring" sample>
-        <StatRow label="Observability" value="Metrics + logs + traces" sample />
-        <StatRow
-          label="Default Alerts"
-          value="Health, drift, compliance"
-          sample
-        />
-      </Section>
+      <Tabs tabs={PROVISIONING_SUBS} active={sub} onChange={setSub} />
+      {sub === "cloud-resources" && (
+        <Section title="Cloud Resources" sample>
+          <StatRow
+            label="Baseline Resources"
+            value="24 resources provisioned"
+            sample
+          />
+          <StatRow label="Cloud Providers" value="AWS, Azure" sample />
+        </Section>
+      )}
+      {sub === "identity-configuration" && (
+        <Section title="Identity Configuration" sample>
+          <StatRow label="Identity Provider" value="Federated (OIDC)" sample />
+          <StatRow label="Default Roles" value="Owner, Admin, Viewer" sample />
+        </Section>
+      )}
+      {sub === "resource-quotas" && (
+        <Section title="Resource Quotas" sample>
+          <StatRow label="Compute" value="Standard tier · 200 vCPU" sample />
+          <StatRow label="Cloud Accounts" value="Up to 5 accounts" sample />
+        </Section>
+      )}
+      {sub === "networking" && (
+        <Section title="Networking" sample>
+          <StatRow label="Network Baseline" value="Hub-and-spoke VPC" sample />
+          <StatRow label="Ingress" value="Deny-by-default" sample />
+        </Section>
+      )}
+      {sub === "storage" && (
+        <Section title="Storage" sample>
+          <StatRow
+            label="Encryption"
+            value="CMEK · at-rest + in-transit"
+            sample
+          />
+          <StatRow label="Default Class" value="Standard · versioned" sample />
+        </Section>
+      )}
+      {sub === "integrations" && (
+        <Section title="Integrations" sample>
+          <StatRow label="Default Integrations" value="GitHub, Jira" sample />
+        </Section>
+      )}
+      {sub === "operational-settings" && (
+        <Section title="Operational Settings" sample>
+          <StatRow
+            label="Estimated Provisioning Time"
+            value={`${rec.provisioningMin} minutes`}
+            tone="ok"
+            sample
+          />
+          <StatRow label="Change Windows" value="Business hours (UTC)" sample />
+        </Section>
+      )}
+      {sub === "monitoring" && (
+        <Section title="Monitoring" sample>
+          <StatRow
+            label="Observability"
+            value="Metrics + logs + traces"
+            sample
+          />
+          <StatRow
+            label="Default Alerts"
+            value="Health, drift, compliance"
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }

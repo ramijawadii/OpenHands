@@ -980,32 +980,42 @@ function ResourcesTab({ rec }: { rec: WsRecord }) {
 }
 
 // ── Governance ──
+const GOVERNANCE_SUBS = [
+  { id: "assigned-governance", label: "Assigned governance" },
+  { id: "inheritance", label: "Inheritance" },
+];
 function GovernanceTab({ rec }: { rec: WsRecord }) {
+  const [sub, setSub] = React.useState("assigned-governance");
   return (
     <>
-      <Section title="Assigned governance" sample>
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow
-          label="Inherited Policies"
-          value={`${rec.policies} inherited`}
-          sample
-        />
-        <StatRow label="Workspace Overrides" value="3 overrides" sample />
-        <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
-        <StatRow
-          label="Resource Boundaries"
-          value={`${rec.cloudAccounts} accounts in scope`}
-          sample
-        />
-        <StatRow label="Capacity Limits" value="Standard tier" sample />
-      </Section>
-      <Section title="Inheritance">
-        <InheritanceChain />
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "assigned-governance" && (
+        <Section title="Assigned governance" sample>
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Inherited Policies"
+            value={`${rec.policies} inherited`}
+            sample
+          />
+          <StatRow label="Workspace Overrides" value="3 overrides" sample />
+          <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
+          <StatRow
+            label="Resource Boundaries"
+            value={`${rec.cloudAccounts} accounts in scope`}
+            sample
+          />
+          <StatRow label="Capacity Limits" value="Standard tier" sample />
+        </Section>
+      )}
+      {sub === "inheritance" && (
+        <Section title="Inheritance">
+          <InheritanceChain />
+        </Section>
+      )}
     </>
   );
 }

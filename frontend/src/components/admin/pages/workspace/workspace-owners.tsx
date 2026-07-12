@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -821,38 +822,48 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: OwnerRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Owner", v: rec.primaryOwner },
-            { k: "Employee ID", v: rec.employeeId, sample: true },
-            { k: "Department", v: rec.department },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Email", v: rec.ownerEmail, sample: true },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Owner", v: rec.primaryOwner },
+              { k: "Employee ID", v: rec.employeeId, sample: true },
+              { k: "Department", v: rec.department },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Email", v: rec.ownerEmail, sample: true },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Owned Workspaces", v: rec.ownedWorkspaces, sample: true },
-            { k: "Production", v: rec.productionCount, sample: true },
-            { k: "Development", v: rec.developmentCount, sample: true },
-            { k: "Archived", v: rec.archivedCount, sample: true },
-            {
-              k: "Compliance Score",
-              v: `${rec.complianceScore}%`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Owned Workspaces", v: rec.ownedWorkspaces, sample: true },
+              { k: "Production", v: rec.productionCount, sample: true },
+              { k: "Development", v: rec.developmentCount, sample: true },
+              { k: "Archived", v: rec.archivedCount, sample: true },
+              {
+                k: "Compliance Score",
+                v: `${rec.complianceScore}%`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

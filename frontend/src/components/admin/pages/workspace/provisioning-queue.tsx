@@ -33,6 +33,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -1108,58 +1109,71 @@ function Section({
 }
 
 // ── Overview (General · Request Information · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "request-information", label: "Request Information" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: JobRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Job ID", v: rec.id },
-            { k: "Workspace", v: rec.workspace },
-            { k: "Operation", v: rec.operation },
-            { k: "Environment", v: rec.environment },
-            { k: "Priority", v: rec.priority },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-            { k: "Execution Node", v: rec.executionNode, sample: true },
-            { k: "Queue Position", v: `#${rec.queuePosition}`, sample: true },
-            { k: "Submitted", v: rec.submitted, sample: true },
-            { k: "Started", v: rec.started, sample: true },
-            { k: "Completed", v: rec.completed, sample: true },
-            { k: "Duration", v: `${rec.durationMin} min`, sample: true },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Job ID", v: rec.id },
+              { k: "Workspace", v: rec.workspace },
+              { k: "Operation", v: rec.operation },
+              { k: "Environment", v: rec.environment },
+              { k: "Priority", v: rec.priority },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+              { k: "Execution Node", v: rec.executionNode, sample: true },
+              { k: "Queue Position", v: `#${rec.queuePosition}`, sample: true },
+              { k: "Submitted", v: rec.submitted, sample: true },
+              { k: "Started", v: rec.started, sample: true },
+              { k: "Completed", v: rec.completed, sample: true },
+              { k: "Duration", v: `${rec.durationMin} min`, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Request Information" sample>
-        <KVGrid
-          items={[
-            { k: "Request ID", v: rec.requestId, sample: true },
-            { k: "Requester", v: rec.requester, sample: true },
-            { k: "Business Owner", v: rec.businessOwner, sample: true },
-            { k: "Workspace Owner", v: rec.workspaceOwner, sample: true },
-            { k: "Approval Workflow", v: rec.approvalWorkflow, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "request-information" && (
+        <Section title="Request Information" sample>
+          <KVGrid
+            items={[
+              { k: "Request ID", v: rec.requestId, sample: true },
+              { k: "Requester", v: rec.requester, sample: true },
+              { k: "Business Owner", v: rec.businessOwner, sample: true },
+              { k: "Workspace Owner", v: rec.workspaceOwner, sample: true },
+              { k: "Approval Workflow", v: rec.approvalWorkflow, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Execution Steps", v: rec.executionSteps, sample: true },
-            { k: "Completed Steps", v: rec.completedSteps, sample: true },
-            { k: "Pending Steps", v: rec.pendingSteps, sample: true },
-            { k: "Warnings", v: rec.warnings, sample: true },
-            { k: "Errors", v: rec.errors, sample: true },
-            { k: "Retries", v: rec.retries, sample: true },
-            {
-              k: "Rollback Available",
-              v: rec.rollbackAvailable ? "Yes" : "No",
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Execution Steps", v: rec.executionSteps, sample: true },
+              { k: "Completed Steps", v: rec.completedSteps, sample: true },
+              { k: "Pending Steps", v: rec.pendingSteps, sample: true },
+              { k: "Warnings", v: rec.warnings, sample: true },
+              { k: "Errors", v: rec.errors, sample: true },
+              { k: "Retries", v: rec.retries, sample: true },
+              {
+                k: "Rollback Available",
+                v: rec.rollbackAvailable ? "Yes" : "No",
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1294,35 +1308,53 @@ function ExecutionPlanTab({ rec }: { rec: JobRecord }) {
 }
 
 // ── Progress — real-time execution visibility ──
+const PROGRESS_SUBS = [
+  {
+    id: "real-time-execution-visibility",
+    label: "Real-time execution visibility",
+  },
+  { id: "progress", label: "Progress" },
+];
 function ProgressTab({ rec }: { rec: JobRecord }) {
+  const [sub, setSub] = React.useState("real-time-execution-visibility");
   return (
     <>
-      <Section title="Real-time execution visibility" sample>
-        <StatRow label="Overall Progress" value={`${rec.progress}%`} sample />
-        <StatRow label="Current Step" value={rec.currentStep} sample />
-        <StatRow
-          label="Estimated Remaining Time"
-          value={rec.estRemaining}
-          sample
-        />
-        <StatRow label="Current Worker" value={rec.currentWorker} sample />
-        <StatRow label="Current Resource" value={rec.currentResource} sample />
-      </Section>
-      <Section title="Progress" sample>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: "12px 0",
-          }}
-        >
-          <ProgressBar value={rec.progress} status={rec.status} width={280} />
-        </div>
-        <div style={{ fontSize: 11.5, color: T.textMuted }}>
-          {rec.completedSteps} of {rec.executionSteps} execution steps complete.
-        </div>
-      </Section>
+      <Tabs tabs={PROGRESS_SUBS} active={sub} onChange={setSub} />
+      {sub === "real-time-execution-visibility" && (
+        <Section title="Real-time execution visibility" sample>
+          <StatRow label="Overall Progress" value={`${rec.progress}%`} sample />
+          <StatRow label="Current Step" value={rec.currentStep} sample />
+          <StatRow
+            label="Estimated Remaining Time"
+            value={rec.estRemaining}
+            sample
+          />
+          <StatRow label="Current Worker" value={rec.currentWorker} sample />
+          <StatRow
+            label="Current Resource"
+            value={rec.currentResource}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "progress" && (
+        <Section title="Progress" sample>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "12px 0",
+            }}
+          >
+            <ProgressBar value={rec.progress} status={rec.status} width={280} />
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textMuted }}>
+            {rec.completedSteps} of {rec.executionSteps} execution steps
+            complete.
+          </div>
+        </Section>
+      )}
     </>
   );
 }

@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -985,48 +986,58 @@ function DrawerToolbar({ children }: { children: React.ReactNode }) {
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: WorkspaceRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Workspace ID", v: rec.id },
-            { k: "Environment", v: rec.environment },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Owner", v: rec.owner },
-            { k: "Status", v: rec.status },
-            { k: "Created", v: rec.created },
-            { k: "Activated", v: rec.activated },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Workspace ID", v: rec.id },
+              { k: "Environment", v: rec.environment },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Owner", v: rec.owner },
+              { k: "Status", v: rec.status },
+              { k: "Created", v: rec.created },
+              { k: "Activated", v: rec.activated },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={4}
-          items={[
-            { k: "Users", v: rec.users, sample: true },
-            { k: "Agents", v: rec.agents, sample: true },
-            { k: "Cloud Resources", v: rec.cloudResources, sample: true },
-            { k: "Integrations", v: rec.integrations, sample: true },
-            { k: "AI Models", v: rec.aiModels, sample: true },
-            {
-              k: "Compliance Programs",
-              v: rec.compliancePrograms,
-              sample: true,
-            },
-            {
-              k: "Monthly Cost",
-              v: `$${rec.monthlyCost.toLocaleString()}`,
-              sample: true,
-            },
-            { k: "Risk Score", v: rec.riskScore, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={4}
+            items={[
+              { k: "Users", v: rec.users, sample: true },
+              { k: "Agents", v: rec.agents, sample: true },
+              { k: "Cloud Resources", v: rec.cloudResources, sample: true },
+              { k: "Integrations", v: rec.integrations, sample: true },
+              { k: "AI Models", v: rec.aiModels, sample: true },
+              {
+                k: "Compliance Programs",
+                v: rec.compliancePrograms,
+                sample: true,
+              },
+              {
+                k: "Monthly Cost",
+                v: `$${rec.monthlyCost.toLocaleString()}`,
+                sample: true,
+              },
+              { k: "Risk Score", v: rec.riskScore, sample: true },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
@@ -1154,57 +1165,82 @@ function ResourcesTab({ rec }: { rec: WorkspaceRecord }) {
 }
 
 // ── Governance (applied governance) ──
+const GOVERNANCE_SUBS = [
+  { id: "policies", label: "Policies" },
+  { id: "inheritance", label: "Inheritance" },
+  { id: "overrides", label: "Overrides" },
+  { id: "ownership", label: "Ownership" },
+  { id: "approval-chains", label: "Approval Chains" },
+  { id: "delegated-administration", label: "Delegated Administration" },
+  { id: "business-ownership", label: "Business Ownership" },
+];
 function GovernanceTab({ rec }: { rec: WorkspaceRecord }) {
+  const [sub, setSub] = React.useState("policies");
   return (
     <>
-      <Section title="Policies" sample>
-        <StatRow
-          label="Applied Policies"
-          value="18 policies"
-          tone="ok"
-          sample
-        />
-        <StatRow label="Governance Profile" value="Balanced" sample />
-      </Section>
-      <Section title="Inheritance" sample>
-        <StatRow
-          label="Inherited From"
-          value={`Enterprise → ${rec.businessUnit} BU`}
-          sample
-        />
-      </Section>
-      <Section title="Overrides" sample>
-        <StatRow
-          label="Workspace Overrides"
-          value="2 active"
-          tone="warn"
-          sample
-        />
-      </Section>
-      <Section title="Ownership" sample>
-        <StatRow label="Workspace Owner" value={rec.owner} sample />
-      </Section>
-      <Section title="Approval Chains" sample>
-        <StatRow
-          label="Change Approval"
-          value="Business → Security → Operations"
-          sample
-        />
-      </Section>
-      <Section title="Delegated Administration" sample>
-        <StatRow
-          label="Delegated Administrators"
-          value="Aisha Khan, Tomás Silva"
-          sample
-        />
-      </Section>
-      <Section title="Business Ownership" sample>
-        <StatRow
-          label="Business Owner"
-          value={`${rec.businessUnit} Lead`}
-          sample
-        />
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "policies" && (
+        <Section title="Policies" sample>
+          <StatRow
+            label="Applied Policies"
+            value="18 policies"
+            tone="ok"
+            sample
+          />
+          <StatRow label="Governance Profile" value="Balanced" sample />
+        </Section>
+      )}
+      {sub === "inheritance" && (
+        <Section title="Inheritance" sample>
+          <StatRow
+            label="Inherited From"
+            value={`Enterprise → ${rec.businessUnit} BU`}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "overrides" && (
+        <Section title="Overrides" sample>
+          <StatRow
+            label="Workspace Overrides"
+            value="2 active"
+            tone="warn"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "ownership" && (
+        <Section title="Ownership" sample>
+          <StatRow label="Workspace Owner" value={rec.owner} sample />
+        </Section>
+      )}
+      {sub === "approval-chains" && (
+        <Section title="Approval Chains" sample>
+          <StatRow
+            label="Change Approval"
+            value="Business → Security → Operations"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "delegated-administration" && (
+        <Section title="Delegated Administration" sample>
+          <StatRow
+            label="Delegated Administrators"
+            value="Aisha Khan, Tomás Silva"
+            sample
+          />
+        </Section>
+      )}
+      {sub === "business-ownership" && (
+        <Section title="Business Ownership" sample>
+          <StatRow
+            label="Business Owner"
+            value={`${rec.businessUnit} Lead`}
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -1066,38 +1067,48 @@ function Section({
 }
 
 // ── Overview (General · Statistics · Failure Analysis when failed) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: JobRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace", v: rec.workspace },
-            { k: "Provisioning ID", v: rec.id },
-            { k: "Template", v: rec.template, sample: true },
-            { k: "Environment", v: rec.environment },
-            { k: "Provisioning Engine", v: rec.engine, sample: true },
-            { k: "Started", v: `${rec.startedDate} ${rec.started}` },
-            { k: "Completed", v: rec.completed },
-            { k: "Duration", v: `${rec.durationMin} min` },
-            { k: "Status", v: rec.status },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace", v: rec.workspace },
+              { k: "Provisioning ID", v: rec.id },
+              { k: "Template", v: rec.template, sample: true },
+              { k: "Environment", v: rec.environment },
+              { k: "Provisioning Engine", v: rec.engine, sample: true },
+              { k: "Started", v: `${rec.startedDate} ${rec.started}` },
+              { k: "Completed", v: rec.completed },
+              { k: "Duration", v: `${rec.durationMin} min` },
+              { k: "Status", v: rec.status },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Completed Tasks", v: rec.completedTasks, sample: true },
-            { k: "Remaining Tasks", v: rec.remainingTasks, sample: true },
-            { k: "Resources Created", v: rec.resourcesCreated, sample: true },
-            { k: "Warnings", v: rec.warnings, sample: true },
-            { k: "Errors", v: rec.errors, sample: true },
-            { k: "Overall Progress", v: `${rec.progress}%`, sample: true },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Completed Tasks", v: rec.completedTasks, sample: true },
+              { k: "Remaining Tasks", v: rec.remainingTasks, sample: true },
+              { k: "Resources Created", v: rec.resourcesCreated, sample: true },
+              { k: "Warnings", v: rec.warnings, sample: true },
+              { k: "Errors", v: rec.errors, sample: true },
+              { k: "Overall Progress", v: `${rec.progress}%`, sample: true },
+            ]}
+          />
+        </Section>
+      )}
 
       {rec.status === "Failed" && <FailureAnalysis rec={rec} />}
     </>

@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   Page,
+  Tabs,
   PageHeader,
   Card,
   StatRow,
@@ -964,75 +965,98 @@ function Section({
 }
 
 // ── Overview (General · Statistics) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: OwnershipRecord }) {
+  const [sub, setSub] = React.useState("general");
   const ws = rec.ownedWorkspaces;
   const countEnv = (env: string) =>
     ws.filter((w) => w.environment === env).length;
   const archived = ws.filter((w) => w.status === "Inactive").length;
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Department", v: rec.department },
-            { k: "Division", v: rec.division },
-            { k: "Organization", v: rec.organization },
-            { k: "Cost Center", v: rec.costCenter },
-            { k: "Region", v: rec.region },
-            { k: "Executive Sponsor", v: rec.executiveSponsor, sample: true },
-            { k: "Status", v: <StatusBadge status={rec.status} /> },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.notes}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Department", v: rec.department },
+              { k: "Division", v: rec.division },
+              { k: "Organization", v: rec.organization },
+              { k: "Cost Center", v: rec.costCenter },
+              { k: "Region", v: rec.region },
+              { k: "Executive Sponsor", v: rec.executiveSponsor, sample: true },
+              { k: "Status", v: <StatusBadge status={rec.status} /> },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.notes}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Workspaces", v: ws.length, sample: true },
-            { k: "Production", v: countEnv("Production"), sample: true },
-            { k: "Development", v: countEnv("Development"), sample: true },
-            { k: "Sandbox", v: countEnv("Sandbox"), sample: true },
-            { k: "Archived", v: archived, sample: true },
-            { k: "Annual Cost", v: money(rec.annualSpend), sample: true },
-            {
-              k: "Compliance Score",
-              v: `${rec.complianceScore}%`,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Workspaces", v: ws.length, sample: true },
+              { k: "Production", v: countEnv("Production"), sample: true },
+              { k: "Development", v: countEnv("Development"), sample: true },
+              { k: "Sandbox", v: countEnv("Sandbox"), sample: true },
+              { k: "Archived", v: archived, sample: true },
+              { k: "Annual Cost", v: money(rec.annualSpend), sample: true },
+              {
+                k: "Compliance Score",
+                v: `${rec.complianceScore}%`,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Organization (hierarchy + org displays) ──
+const ORGANIZATION_SUBS = [
+  {
+    id: "organizational-ownership-hierarchy",
+    label: "Organizational ownership hierarchy",
+  },
+  { id: "organization-details", label: "Organization details" },
+];
 function OrganizationTab({ rec }: { rec: OwnershipRecord }) {
+  const [sub, setSub] = React.useState("organizational-ownership-hierarchy");
   return (
     <>
-      <Section title="Organizational ownership hierarchy" sample>
-        <HierarchyChain
-          nodes={[
-            { label: "Enterprise", Icon: Landmark },
-            { label: rec.division, Icon: Network },
-            { label: rec.businessUnit, Icon: Building2 },
-            { label: rec.department, Icon: Users },
-            { label: rec.workspace, Icon: LayoutGrid },
-          ]}
-        />
-      </Section>
-      <Section title="Organization details" sample>
-        <StatRow label="Division" value={rec.division} sample />
-        <StatRow label="Business Unit" value={rec.businessUnit} sample />
-        <StatRow label="Department" value={rec.department} sample />
-        <StatRow label="Program" value={rec.program} sample />
-        <StatRow label="Portfolio" value={rec.portfolio} sample />
-      </Section>
+      <Tabs tabs={ORGANIZATION_SUBS} active={sub} onChange={setSub} />
+      {sub === "organizational-ownership-hierarchy" && (
+        <Section title="Organizational ownership hierarchy" sample>
+          <HierarchyChain
+            nodes={[
+              { label: "Enterprise", Icon: Landmark },
+              { label: rec.division, Icon: Network },
+              { label: rec.businessUnit, Icon: Building2 },
+              { label: rec.department, Icon: Users },
+              { label: rec.workspace, Icon: LayoutGrid },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "organization-details" && (
+        <Section title="Organization details" sample>
+          <StatRow label="Division" value={rec.division} sample />
+          <StatRow label="Business Unit" value={rec.businessUnit} sample />
+          <StatRow label="Department" value={rec.department} sample />
+          <StatRow label="Program" value={rec.program} sample />
+          <StatRow label="Portfolio" value={rec.portfolio} sample />
+        </Section>
+      )}
     </>
   );
 }
@@ -1121,101 +1145,125 @@ function WorkspacesTab({ rec }: { rec: OwnershipRecord }) {
 }
 
 // ── Financial Ownership ──
+const FINANCIAL_SUBS = [
+  { id: "financial-accountability", label: "Financial accountability" },
+  { id: "financial-statistics", label: "Financial statistics" },
+];
 function FinancialTab({ rec }: { rec: OwnershipRecord }) {
+  const [sub, setSub] = React.useState("financial-accountability");
   return (
     <>
-      <Section title="Financial accountability" sample>
-        <KVGrid
-          items={[
-            { k: "Cost Center", v: rec.costCenter, sample: true },
-            { k: "Budget Owner", v: rec.budgetOwner, sample: true },
-            {
-              k: "Chargeback Profile",
-              v: rec.chargebackProfile,
-              sample: true,
-            },
-            { k: "Billing Account", v: rec.billingAccount, sample: true },
-            { k: "Business Code", v: rec.businessCode, sample: true },
-            { k: "Project Code", v: rec.projectCode, sample: true },
-            { k: "Funding Model", v: rec.fundingModel, sample: true },
-          ]}
-        />
-      </Section>
-      <Section title="Financial statistics" sample>
-        <StatRow label="Monthly Spend" value={money(rec.monthlySpend)} sample />
-        <StatRow label="Annual Spend" value={money(rec.annualSpend)} sample />
-        <StatRow label="Forecast" value={money(rec.forecast)} sample />
-        <StatRow
-          label="Allocated Budget"
-          value={money(rec.allocatedBudget)}
-          sample
-        />
-        <StatRow
-          label="Remaining Budget"
-          value={money(rec.remainingBudget)}
-          tone={rec.remainingBudget >= 0 ? "ok" : "danger"}
-          sample
-        />
-      </Section>
+      <Tabs tabs={FINANCIAL_SUBS} active={sub} onChange={setSub} />
+      {sub === "financial-accountability" && (
+        <Section title="Financial accountability" sample>
+          <KVGrid
+            items={[
+              { k: "Cost Center", v: rec.costCenter, sample: true },
+              { k: "Budget Owner", v: rec.budgetOwner, sample: true },
+              {
+                k: "Chargeback Profile",
+                v: rec.chargebackProfile,
+                sample: true,
+              },
+              { k: "Billing Account", v: rec.billingAccount, sample: true },
+              { k: "Business Code", v: rec.businessCode, sample: true },
+              { k: "Project Code", v: rec.projectCode, sample: true },
+              { k: "Funding Model", v: rec.fundingModel, sample: true },
+            ]}
+          />
+        </Section>
+      )}
+      {sub === "financial-statistics" && (
+        <Section title="Financial statistics" sample>
+          <StatRow
+            label="Monthly Spend"
+            value={money(rec.monthlySpend)}
+            sample
+          />
+          <StatRow label="Annual Spend" value={money(rec.annualSpend)} sample />
+          <StatRow label="Forecast" value={money(rec.forecast)} sample />
+          <StatRow
+            label="Allocated Budget"
+            value={money(rec.allocatedBudget)}
+            sample
+          />
+          <StatRow
+            label="Remaining Budget"
+            value={money(rec.remainingBudget)}
+            tone={rec.remainingBudget >= 0 ? "ok" : "danger"}
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Governance ──
+const GOVERNANCE_SUBS = [
+  { id: "governance-responsibilities", label: "Governance responsibilities" },
+  { id: "governance-scope", label: "Governance scope" },
+];
 function GovernanceTab({ rec }: { rec: OwnershipRecord }) {
+  const [sub, setSub] = React.useState("governance-responsibilities");
   return (
     <>
-      <Section title="Governance responsibilities" sample>
-        <StatRow
-          label="Compliance Accountability"
-          value={rec.complianceAccountability}
-          sample
-        />
-        <StatRow label="Risk Ownership" value={rec.riskOwner} sample />
-        <StatRow label="Policy Ownership" value={rec.policyOwner} sample />
-        <StatRow label="Data Ownership" value={rec.dataOwner} sample />
-        <StatRow label="AI Governance" value={rec.aiGovernanceOwner} sample />
-        <StatRow
-          label="Operational Governance"
-          value={rec.operationalGovernanceOwner}
-          sample
-        />
-        <StatRow
-          label="Executive Oversight"
-          value={rec.executiveOversight}
-          sample
-        />
-      </Section>
-      <Section title="Governance scope" sample>
-        <KVGrid
-          items={[
-            {
-              k: "Applicable Policies",
-              v: rec.applicablePolicies.join(", "),
-              sample: true,
-            },
-            {
-              k: "Compliance Programs",
-              v: rec.compliancePrograms.join(", "),
-              sample: true,
-            },
-            {
-              k: "Risk Level",
-              v: (
-                <span style={{ color: RISK_TONE[rec.riskLevel] }}>
-                  {rec.riskLevel}
-                </span>
-              ),
-              sample: true,
-            },
-            {
-              k: "Regulatory Scope",
-              v: rec.regulatoryScope.join(", "),
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "governance-responsibilities" && (
+        <Section title="Governance responsibilities" sample>
+          <StatRow
+            label="Compliance Accountability"
+            value={rec.complianceAccountability}
+            sample
+          />
+          <StatRow label="Risk Ownership" value={rec.riskOwner} sample />
+          <StatRow label="Policy Ownership" value={rec.policyOwner} sample />
+          <StatRow label="Data Ownership" value={rec.dataOwner} sample />
+          <StatRow label="AI Governance" value={rec.aiGovernanceOwner} sample />
+          <StatRow
+            label="Operational Governance"
+            value={rec.operationalGovernanceOwner}
+            sample
+          />
+          <StatRow
+            label="Executive Oversight"
+            value={rec.executiveOversight}
+            sample
+          />
+        </Section>
+      )}
+      {sub === "governance-scope" && (
+        <Section title="Governance scope" sample>
+          <KVGrid
+            items={[
+              {
+                k: "Applicable Policies",
+                v: rec.applicablePolicies.join(", "),
+                sample: true,
+              },
+              {
+                k: "Compliance Programs",
+                v: rec.compliancePrograms.join(", "),
+                sample: true,
+              },
+              {
+                k: "Risk Level",
+                v: (
+                  <span style={{ color: RISK_TONE[rec.riskLevel] }}>
+                    {rec.riskLevel}
+                  </span>
+                ),
+                sample: true,
+              },
+              {
+                k: "Regulatory Scope",
+                v: rec.regulatoryScope.join(", "),
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }

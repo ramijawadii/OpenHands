@@ -26,6 +26,7 @@ import {
 import {
   Page,
   PageHeader,
+  Tabs,
   Card,
   StatRow,
   KVGrid,
@@ -813,57 +814,81 @@ function Section({
 }
 
 // ── Overview (General · Statistics; spec §Overview) ──
+const OVERVIEW_SUBS = [
+  { id: "general", label: "General" },
+  { id: "statistics", label: "Statistics" },
+];
 function OverviewTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("general");
   return (
     <>
-      <Section title="General">
-        <KVGrid
-          items={[
-            { k: "Workspace Name", v: rec.workspace },
-            { k: "Request ID", v: rec.id },
-            { k: "Requester", v: rec.requester },
-            { k: "Business Unit", v: rec.businessUnit },
-            { k: "Workspace Type", v: rec.workspaceType },
-            { k: "Environment", v: rec.environment },
-            { k: "Priority", v: rec.priority },
-            { k: "Status", v: rec.status },
-            { k: "Submitted Date", v: rec.submittedDate },
-          ]}
-        />
-        <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
-          {rec.description}
-        </div>
-      </Section>
+      <Tabs tabs={OVERVIEW_SUBS} active={sub} onChange={setSub} />
+      {sub === "general" && (
+        <Section title="General">
+          <KVGrid
+            items={[
+              { k: "Workspace Name", v: rec.workspace },
+              { k: "Request ID", v: rec.id },
+              { k: "Requester", v: rec.requester },
+              { k: "Business Unit", v: rec.businessUnit },
+              { k: "Workspace Type", v: rec.workspaceType },
+              { k: "Environment", v: rec.environment },
+              { k: "Priority", v: rec.priority },
+              { k: "Status", v: rec.status },
+              { k: "Submitted Date", v: rec.submittedDate },
+            ]}
+          />
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
+        </Section>
+      )}
 
-      <Section title="Statistics" sample>
-        <KVGrid
-          cols={2}
-          items={[
-            { k: "Days Waiting", v: `${rec.daysWaiting} days`, sample: true },
-            {
-              k: "Pending Approvals",
-              v: rec.pendingApprovals,
-              sample: true,
-            },
-            {
-              k: "Validation Results",
-              v: "8 passed · 1 warning · 1 error",
-              sample: true,
-            },
-            {
-              k: "Estimated Monthly Cost",
-              v: money(rec.estMonthlyCost),
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      {sub === "statistics" && (
+        <Section title="Statistics" sample>
+          <KVGrid
+            cols={2}
+            items={[
+              { k: "Days Waiting", v: `${rec.daysWaiting} days`, sample: true },
+              {
+                k: "Pending Approvals",
+                v: rec.pendingApprovals,
+                sample: true,
+              },
+              {
+                k: "Validation Results",
+                v: "8 passed · 1 warning · 1 error",
+                sample: true,
+              },
+              {
+                k: "Estimated Monthly Cost",
+                v: money(rec.estMonthlyCost),
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Requested Configuration (spec §Requested Configuration — 11 sections + compare toolbar) ──
+const CONFIG_SUBS = [
+  { id: "workspace-metadata", label: "Workspace Metadata" },
+  { id: "workspace-template", label: "Workspace Template" },
+  { id: "cloud-resources", label: "Cloud Resources" },
+  { id: "compliance-programs", label: "Compliance Programs" },
+  { id: "security-policies", label: "Security Policies" },
+  { id: "workspace-owners", label: "Workspace Owners" },
+  { id: "delegated-administrators", label: "Delegated Administrators" },
+  { id: "integrations", label: "Integrations" },
+  { id: "ai-configuration", label: "AI Configuration" },
+  { id: "resource-quotas", label: "Resource Quotas" },
+  { id: "tags", label: "Tags" },
+];
 function ConfigTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("workspace-metadata");
   return (
     <>
       <div
@@ -878,105 +903,145 @@ function ConfigTab({ rec }: { rec: RequestRecord }) {
         <SampleTag />
       </div>
 
-      <Section title="Workspace Metadata" sample>
-        <StatRow
-          label="Legal Entity"
-          value="Acme Financial Services Ltd."
-          sample
-        />
-        <StatRow label="Data Residency" value={rec.environment} sample />
-        <StatRow
-          label="Cost Centre"
-          value={`CC-${rec.businessUnit.toUpperCase()}`}
-          sample
-        />
-        <StatRow label="Support Tier" value="Enterprise 24×7" sample />
-      </Section>
+      <Tabs tabs={CONFIG_SUBS} active={sub} onChange={setSub} />
+      {sub === "workspace-metadata" && (
+        <Section title="Workspace Metadata" sample>
+          <StatRow
+            label="Legal Entity"
+            value="Acme Financial Services Ltd."
+            sample
+          />
+          <StatRow label="Data Residency" value={rec.environment} sample />
+          <StatRow
+            label="Cost Centre"
+            value={`CC-${rec.businessUnit.toUpperCase()}`}
+            sample
+          />
+          <StatRow label="Support Tier" value="Enterprise 24×7" sample />
+        </Section>
+      )}
 
-      <Section title="Workspace Template" sample>
-        <StatRow label="Template" value={rec.template} sample />
-        <StatRow
-          label="Governance Profile"
-          value={rec.governanceProfile}
-          sample
-        />
-        <StatRow
-          label="Baseline"
-          value={`${rec.workspaceType} baseline`}
-          sample
-        />
-      </Section>
+      {sub === "workspace-template" && (
+        <Section title="Workspace Template" sample>
+          <StatRow label="Template" value={rec.template} sample />
+          <StatRow
+            label="Governance Profile"
+            value={rec.governanceProfile}
+            sample
+          />
+          <StatRow
+            label="Baseline"
+            value={`${rec.workspaceType} baseline`}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Cloud Resources" sample>
-        <StatRow label="Primary Provider" value="AWS (us-east-1)" sample />
-        <StatRow label="Secondary Provider" value="Azure (eastus)" sample />
-        <StatRow label="Estimated Resources" value="24 resources" sample />
-      </Section>
+      {sub === "cloud-resources" && (
+        <Section title="Cloud Resources" sample>
+          <StatRow label="Primary Provider" value="AWS (us-east-1)" sample />
+          <StatRow label="Secondary Provider" value="Azure (eastus)" sample />
+          <StatRow label="Estimated Resources" value="24 resources" sample />
+        </Section>
+      )}
 
-      <Section title="Compliance Programs" sample>
-        <StatRow label="Primary Profile" value={rec.complianceProfile} sample />
-        <StatRow label="Additional" value="SOC 2, ISO 27001" sample />
-      </Section>
+      {sub === "compliance-programs" && (
+        <Section title="Compliance Programs" sample>
+          <StatRow
+            label="Primary Profile"
+            value={rec.complianceProfile}
+            sample
+          />
+          <StatRow label="Additional" value="SOC 2, ISO 27001" sample />
+        </Section>
+      )}
 
-      <Section title="Security Policies" sample>
-        <StatRow label="Encryption" value="CMEK / HYOK required" sample />
-        <StatRow label="Network Isolation" value="Private-only egress" sample />
-        <StatRow label="MFA Enforcement" value="Mandatory" sample />
-      </Section>
+      {sub === "security-policies" && (
+        <Section title="Security Policies" sample>
+          <StatRow label="Encryption" value="CMEK / HYOK required" sample />
+          <StatRow
+            label="Network Isolation"
+            value="Private-only egress"
+            sample
+          />
+          <StatRow label="MFA Enforcement" value="Mandatory" sample />
+        </Section>
+      )}
 
-      <Section title="Workspace Owners" sample>
-        <StatRow label="Workspace Owner" value={rec.owner} sample />
-        <StatRow
-          label="Business Owner"
-          value={pick(REQUESTERS.slice(1), hashId(rec.id) + 2)}
-          sample
-        />
-        <StatRow
-          label="Technical Owner"
-          value={pick(REVIEWERS, hashId(rec.id) + 3)}
-          sample
-        />
-      </Section>
+      {sub === "workspace-owners" && (
+        <Section title="Workspace Owners" sample>
+          <StatRow label="Workspace Owner" value={rec.owner} sample />
+          <StatRow
+            label="Business Owner"
+            value={pick(REQUESTERS.slice(1), hashId(rec.id) + 2)}
+            sample
+          />
+          <StatRow
+            label="Technical Owner"
+            value={pick(REVIEWERS, hashId(rec.id) + 3)}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Delegated Administrators" sample>
-        <StatRow
-          label="Delegated Admins"
-          value={rec.delegatedAdmins.join(", ")}
-          sample
-        />
-      </Section>
+      {sub === "delegated-administrators" && (
+        <Section title="Delegated Administrators" sample>
+          <StatRow
+            label="Delegated Admins"
+            value={rec.delegatedAdmins.join(", ")}
+            sample
+          />
+        </Section>
+      )}
 
-      <Section title="Integrations" sample>
-        <StatRow label="Identity Provider" value="Okta (SAML)" sample />
-        <StatRow label="Ticketing" value="ServiceNow" sample />
-        <StatRow label="Observability" value="Datadog" sample />
-      </Section>
+      {sub === "integrations" && (
+        <Section title="Integrations" sample>
+          <StatRow label="Identity Provider" value="Okta (SAML)" sample />
+          <StatRow label="Ticketing" value="ServiceNow" sample />
+          <StatRow label="Observability" value="Datadog" sample />
+        </Section>
+      )}
 
-      <Section title="AI Configuration" sample>
-        <StatRow label="AI Providers" value="Anthropic, Azure OpenAI" sample />
-        <StatRow label="Default Model" value="claude-opus-4-8" sample />
-        <StatRow label="Guardrails" value="Enterprise policy pack" sample />
-      </Section>
+      {sub === "ai-configuration" && (
+        <Section title="AI Configuration" sample>
+          <StatRow
+            label="AI Providers"
+            value="Anthropic, Azure OpenAI"
+            sample
+          />
+          <StatRow label="Default Model" value="claude-opus-4-8" sample />
+          <StatRow label="Guardrails" value="Enterprise policy pack" sample />
+        </Section>
+      )}
 
-      <Section title="Resource Quotas" sample>
-        <StatRow label="Compute" value="128 vCPU / 512 GB" sample />
-        <StatRow label="Storage" value="10 TB" sample />
-        <StatRow label="Concurrent Agents" value="50" sample />
-      </Section>
+      {sub === "resource-quotas" && (
+        <Section title="Resource Quotas" sample>
+          <StatRow label="Compute" value="128 vCPU / 512 GB" sample />
+          <StatRow label="Storage" value="10 TB" sample />
+          <StatRow label="Concurrent Agents" value="50" sample />
+        </Section>
+      )}
 
-      <Section title="Tags" sample>
-        <StatRow
-          label="Applied Tags"
-          value="env, business-unit, cost-centre, data-classification"
-          sample
-        />
-      </Section>
+      {sub === "tags" && (
+        <Section title="Tags" sample>
+          <StatRow
+            label="Applied Tags"
+            value="env, business-unit, cost-centre, data-classification"
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }
 
 // ── Governance Validation (spec §Governance Validation — 10 checks + Passed/Warnings/Errors) ──
+const GOVERNANCE_SUBS = [
+  { id: "validation-summary", label: "Validation summary" },
+  { id: "governance-validation-checks", label: "Governance validation checks" },
+];
 function GovernanceTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("validation-summary");
   const n = hashId(rec.id);
   const checks = [
     "Naming Standards",
@@ -999,34 +1064,39 @@ function GovernanceTab({ rec }: { rec: RequestRecord }) {
   const errors = checks.filter((c) => c.state === "Failed").length;
   return (
     <>
-      <Section title="Validation summary" sample>
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Passed", v: passed, sample: true },
-            { k: "Warnings", v: warnings, sample: true },
-            { k: "Errors", v: errors, sample: true },
-          ]}
-        />
-      </Section>
-
-      <Section title="Governance validation checks" sample>
-        {checks.map((c) => (
-          <StatRow
-            key={c.label}
-            label={c.label}
-            value={c.state}
-            tone={
-              c.state === "Passed"
-                ? "ok"
-                : c.state === "Warning"
-                  ? "warn"
-                  : "danger"
-            }
-            sample
+      <Tabs tabs={GOVERNANCE_SUBS} active={sub} onChange={setSub} />
+      {sub === "validation-summary" && (
+        <Section title="Validation summary" sample>
+          <KVGrid
+            cols={3}
+            items={[
+              { k: "Passed", v: passed, sample: true },
+              { k: "Warnings", v: warnings, sample: true },
+              { k: "Errors", v: errors, sample: true },
+            ]}
           />
-        ))}
-      </Section>
+        </Section>
+      )}
+
+      {sub === "governance-validation-checks" && (
+        <Section title="Governance validation checks" sample>
+          {checks.map((c) => (
+            <StatRow
+              key={c.label}
+              label={c.label}
+              value={c.state}
+              tone={
+                c.state === "Passed"
+                  ? "ok"
+                  : c.state === "Warning"
+                    ? "warn"
+                    : "danger"
+              }
+              sample
+            />
+          ))}
+        </Section>
+      )}
 
       {errors > 0 && (
         <div
@@ -1051,130 +1121,140 @@ function GovernanceTab({ rec }: { rec: RequestRecord }) {
 }
 
 // ── Approval Workflow (spec §Approval Workflow — displays + staged pipeline visualization) ──
+const APPROVAL_SUBS = [
+  { id: "approval-status", label: "Approval status" },
+  { id: "approval-timeline", label: "Approval timeline" },
+];
 function ApprovalTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("approval-status");
   const currentIdx = STAGES.indexOf(rec.currentStage);
   return (
     <>
-      <Section title="Approval status" sample>
-        <KVGrid
-          cols={2}
-          items={[
-            { k: "Current Stage", v: rec.currentStage, sample: true },
-            {
-              k: "Pending Approvers",
-              v: rec.pendingApprovers.join(", "),
-              sample: true,
-            },
-            {
-              k: "Completed Approvals",
-              v: `${rec.completedApprovals} of ${STAGES.length - 1}`,
-              sample: true,
-            },
-            {
-              k: "Expected Completion",
-              v: rec.expectedCompletion,
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
+      <Tabs tabs={APPROVAL_SUBS} active={sub} onChange={setSub} />
+      {sub === "approval-status" && (
+        <Section title="Approval status" sample>
+          <KVGrid
+            cols={2}
+            items={[
+              { k: "Current Stage", v: rec.currentStage, sample: true },
+              {
+                k: "Pending Approvers",
+                v: rec.pendingApprovers.join(", "),
+                sample: true,
+              },
+              {
+                k: "Completed Approvals",
+                v: `${rec.completedApprovals} of ${STAGES.length - 1}`,
+                sample: true,
+              },
+              {
+                k: "Expected Completion",
+                v: rec.expectedCompletion,
+                sample: true,
+              },
+            ]}
+          />
+        </Section>
+      )}
 
-      <Section title="Approval timeline" sample>
-        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-          {STAGES.map((stage, i) => {
-            const done = i < currentIdx || rec.status === "Approved";
-            const active = i === currentIdx && rec.status !== "Approved";
-            const rejected = rec.status === "Rejected" && i === currentIdx;
-            const tone = rejected
-              ? T.danger
-              : done
-                ? T.success
-                : active
-                  ? T.accent
-                  : T.textMuted;
-            return (
-              <div
-                key={stage}
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  padding: "12px 0",
-                  borderBottom:
-                    i < STAGES.length - 1 ? `1px solid ${T.border}` : "none",
-                }}
-              >
-                <span
+      {sub === "approval-timeline" && (
+        <Section title="Approval timeline" sample>
+          <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+            {STAGES.map((stage, i) => {
+              const done = i < currentIdx || rec.status === "Approved";
+              const active = i === currentIdx && rec.status !== "Approved";
+              const rejected = rec.status === "Rejected" && i === currentIdx;
+              const tone = rejected
+                ? T.danger
+                : done
+                  ? T.success
+                  : active
+                    ? T.accent
+                    : T.textMuted;
+              return (
+                <div
+                  key={stage}
                   style={{
-                    width: 22,
-                    height: 22,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background:
-                      done || active
-                        ? "var(--cg-accent-bg-strong)"
-                        : "transparent",
-                    border: `1px solid ${done || active ? "transparent" : T.border}`,
-                    color: tone,
-                    fontSize: 11,
+                    display: "flex",
+                    gap: 12,
+                    padding: "12px 0",
+                    borderBottom:
+                      i < STAGES.length - 1 ? `1px solid ${T.border}` : "none",
                   }}
                 >
-                  {rejected ? (
-                    <X size={12} />
-                  ) : done ? (
-                    <Check size={12} />
-                  ) : (
-                    i + 1
-                  )}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                  <span
                     style={{
-                      fontSize: 13,
-                      color: T.textPrimary,
-                      fontWeight: active ? 600 : 400,
+                      width: 22,
+                      height: 22,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      background:
+                        done || active
+                          ? "var(--cg-accent-bg-strong)"
+                          : "transparent",
+                      border: `1px solid ${done || active ? "transparent" : T.border}`,
+                      color: tone,
+                      fontSize: 11,
                     }}
                   >
-                    {stage}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11.5,
-                      color: T.textMuted,
-                      display: "flex",
-                      flexWrap: "wrap",
-                      gap: 10,
-                      marginTop: 2,
-                    }}
-                  >
-                    <span>
-                      Approver: {i === 0 ? rec.requester : rec.reviewer}
-                    </span>
-                    <span>·</span>
-                    <span style={{ color: tone }}>
-                      {rejected
-                        ? "Rejected"
-                        : done
-                          ? "Approved"
-                          : active
-                            ? "In review"
-                            : "Pending"}
-                    </span>
-                    {done && (
-                      <>
-                        <span>·</span>
-                        <span>Completed {rec.submittedDate}</span>
-                      </>
+                    {rejected ? (
+                      <X size={12} />
+                    ) : done ? (
+                      <Check size={12} />
+                    ) : (
+                      i + 1
                     )}
+                  </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: T.textPrimary,
+                        fontWeight: active ? 600 : 400,
+                      }}
+                    >
+                      {stage}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11.5,
+                        color: T.textMuted,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 10,
+                        marginTop: 2,
+                      }}
+                    >
+                      <span>
+                        Approver: {i === 0 ? rec.requester : rec.reviewer}
+                      </span>
+                      <span>·</span>
+                      <span style={{ color: tone }}>
+                        {rejected
+                          ? "Rejected"
+                          : done
+                            ? "Approved"
+                            : active
+                              ? "In review"
+                              : "Pending"}
+                      </span>
+                      {done && (
+                        <>
+                          <span>·</span>
+                          <span>Completed {rec.submittedDate}</span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
+              );
+            })}
+          </div>
+        </Section>
+      )}
 
       <div
         style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}
@@ -1196,30 +1276,43 @@ function ApprovalTab({ rec }: { rec: RequestRecord }) {
 }
 
 // ── Estimated Resources (spec §Estimated Resources — projected allocation categories) ──
+const RESOURCES_SUBS = [
+  {
+    id: "projected-resource-allocation",
+    label: "Projected resource allocation",
+  },
+  { id: "cost-projection", label: "Cost projection" },
+];
 function ResourcesTab({ rec }: { rec: RequestRecord }) {
+  const [sub, setSub] = React.useState("projected-resource-allocation");
   const n = hashId(rec.id);
   return (
     <>
-      <Section title="Projected resource allocation" sample>
-        <StatRow label="AWS Accounts" value={1 + (n % 3)} sample />
-        <StatRow label="Azure Subscriptions" value={n % 2} sample />
-        <StatRow label="GCP Projects" value={n % 2} sample />
-        <StatRow label="Kubernetes Clusters" value={1 + (n % 2)} sample />
-        <StatRow label="Storage" value={`${2 + (n % 8)} TB`} sample />
-        <StatRow label="Compute" value={`${32 + (n % 4) * 32} vCPU`} sample />
-        <StatRow label="Integrations" value={2 + (n % 4)} sample />
-        <StatRow label="AI Providers" value={1 + (n % 3)} sample />
-        <StatRow label="Licenses" value={10 + (n % 40)} sample />
-      </Section>
+      <Tabs tabs={RESOURCES_SUBS} active={sub} onChange={setSub} />
+      {sub === "projected-resource-allocation" && (
+        <Section title="Projected resource allocation" sample>
+          <StatRow label="AWS Accounts" value={1 + (n % 3)} sample />
+          <StatRow label="Azure Subscriptions" value={n % 2} sample />
+          <StatRow label="GCP Projects" value={n % 2} sample />
+          <StatRow label="Kubernetes Clusters" value={1 + (n % 2)} sample />
+          <StatRow label="Storage" value={`${2 + (n % 8)} TB`} sample />
+          <StatRow label="Compute" value={`${32 + (n % 4) * 32} vCPU`} sample />
+          <StatRow label="Integrations" value={2 + (n % 4)} sample />
+          <StatRow label="AI Providers" value={1 + (n % 3)} sample />
+          <StatRow label="Licenses" value={10 + (n % 40)} sample />
+        </Section>
+      )}
 
-      <Section title="Cost projection" sample>
-        <StatRow
-          label="Estimated Monthly Cost"
-          value={money(rec.estMonthlyCost)}
-          tone="ok"
-          sample
-        />
-      </Section>
+      {sub === "cost-projection" && (
+        <Section title="Cost projection" sample>
+          <StatRow
+            label="Estimated Monthly Cost"
+            value={money(rec.estMonthlyCost)}
+            tone="ok"
+            sample
+          />
+        </Section>
+      )}
     </>
   );
 }
