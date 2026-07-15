@@ -87,6 +87,12 @@ import dbIcon from "thesvg/aws-amazon-dynamodb";
 import { GraphEngine } from "./graph-core";
 import { ImpactAnalysis } from "./impact-analysis";
 import {
+  GraphDataAggregate,
+  GraphMultipleTrees,
+  GraphHeatmapCartesian,
+  GraphSankeyNodeAlignRight,
+} from "./iam-echarts";
+import {
   GraphNavigator as SharedGraphNavigator,
   GraphMinimap,
   graphToolBtn,
@@ -195,6 +201,10 @@ const NAV_GROUPS = [
     tabs: [
       { id: "graph-explorer", label: "Explorer" },
       { id: "graph-impact", label: "Security Graph" },
+      { id: "graph-aggregate", label: "Data Aggregate" },
+      { id: "graph-trees", label: "Multiple Trees" },
+      { id: "graph-heatmap", label: "Heatmap" },
+      { id: "graph-sankey", label: "Sankey" },
     ],
   },
 ];
@@ -267,6 +277,10 @@ export function IdentityPage({ scope }: { scope: "workspace" | "enterprise" }) {
       {tab === "alerts-history" && <AlertHistory />}
       {tab === "graph-explorer" && <GraphExplorer />}
       {tab === "graph-impact" && <ImpactAnalysis />}
+      {tab === "graph-aggregate" && <GraphDataAggregate />}
+      {tab === "graph-trees" && <GraphMultipleTrees />}
+      {tab === "graph-heatmap" && <GraphHeatmapCartesian />}
+      {tab === "graph-sankey" && <GraphSankeyNodeAlignRight />}
     </Page>
   );
 }
