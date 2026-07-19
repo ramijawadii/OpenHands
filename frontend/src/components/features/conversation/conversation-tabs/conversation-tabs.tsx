@@ -3,12 +3,10 @@ import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import { StickyNote, FileTerminal, GitMerge, History } from "lucide-react";
 import TerminalIcon from "#/icons/terminal.svg?react";
-import VSCodeIcon from "#/icons/vscode.svg?react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
 import { I18nKey } from "#/i18n/declaration";
-import { VSCodeTooltipContent } from "./vscode-tooltip-content";
 import {
   useConversationStore,
   type ConversationTab,
@@ -40,14 +38,23 @@ export function ConversationTabs() {
 
   // Initialize Zustand state from localStorage on component mount
   useEffect(() => {
-    // Initialize selectedTab from localStorage if available
-    setSelectedTab(persistedSelectedTab);
+    // Coerce a stale persisted "vscode" selection (the tab was removed) to the
+    // editor so returning users don't land on an empty panel.
+    const initialTab =
+      (persistedSelectedTab as string) === "vscode"
+        ? "editor"
+        : persistedSelectedTab;
+    if (initialTab !== persistedSelectedTab) {
+      setPersistedSelectedTab(initialTab);
+    }
+    setSelectedTab(initialTab);
     setHasRightPanelToggled(persistedIsRightPanelShown);
   }, [
     setSelectedTab,
     setHasRightPanelToggled,
     persistedSelectedTab,
     persistedIsRightPanelShown,
+    setPersistedSelectedTab,
   ]);
 
   useEffect(() => {
@@ -109,14 +116,6 @@ export function ConversationTabs() {
       onClick: () => onTabSelected("jupyter"),
       tooltipContent: t(I18nKey.COMMON$JUPYTER),
       tooltipAriaLabel: t(I18nKey.COMMON$JUPYTER),
-    },
-    {
-      isActive: isTabActive("vscode"),
-      icon: VSCodeIcon,
-      label: t(I18nKey.COMMON$CODE),
-      onClick: () => onTabSelected("vscode"),
-      tooltipContent: <VSCodeTooltipContent />,
-      tooltipAriaLabel: t(I18nKey.COMMON$CODE),
     },
     {
       isActive: isTabActive("editor"),

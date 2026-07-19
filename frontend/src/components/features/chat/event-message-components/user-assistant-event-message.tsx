@@ -5,7 +5,6 @@ import {
   FileTerminal,
   GitMerge,
   TerminalSquare,
-  Code2,
   History,
 } from "lucide-react";
 import { OpenHandsAction } from "#/types/core/actions";
@@ -49,7 +48,6 @@ const TAB_META: Record<
     label: "Artifact",
     subtitle: "Document · Pages",
   },
-  vscode: { icon: Code2, label: "VSCode", subtitle: "Code · Editor" },
   states: {
     icon: History,
     label: "States",
