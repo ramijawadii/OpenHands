@@ -54,7 +54,7 @@ export function DesktopLayout({ isRightPanelShown }: DesktopLayoutProps) {
             transitionProperty: isDragging ? "opacity, transform" : "all",
           }}
         >
-          <div className="flex flex-col flex-1 gap-3 min-w-max h-full">
+          <div className="flex flex-col flex-1 h-full w-full">
             <ConversationTabContent />
           </div>
         </div>

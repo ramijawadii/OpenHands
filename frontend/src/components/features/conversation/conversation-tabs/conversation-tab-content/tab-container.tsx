@@ -6,7 +6,7 @@ interface TabContainerProps {
 
 export function TabContainer({ children }: TabContainerProps) {
   return (
-    <div className="bg-[var(--cg-bg-page)] border border-[var(--cg-border-strong)] rounded-xl flex flex-col h-full w-full">
+    <div className="bg-[var(--cg-bg-page)] border-l border-[var(--cg-border-strong)] flex flex-col h-full w-full">
       {children}
     </div>
   );
