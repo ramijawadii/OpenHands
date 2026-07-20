@@ -8,7 +8,7 @@ import Terminal from "#/components/features/terminal/terminal";
 import { useConversationStore } from "#/state/conversation-store";
 
 // Lazy load all tab components
-const EditorTab = lazy(() => import("#/routes/changes-tab"));
+const EditorTab = lazy(() => import("#/routes/commands-tab"));
 const JupyterTab = lazy(() => import("#/routes/jupyter-tab"));
 const DiagramsTab = lazy(() => import("#/routes/diagrams-tab"));
 const StatesTab = lazy(() => import("#/routes/states-tab"));

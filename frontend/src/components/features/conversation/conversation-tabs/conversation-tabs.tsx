@@ -1,7 +1,13 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { StickyNote, FileTerminal, GitMerge, History, X } from "lucide-react";
+import {
+  StickyNote,
+  FileTerminal,
+  SquareTerminal,
+  History,
+  X,
+} from "lucide-react";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
@@ -119,11 +125,11 @@ export function ConversationTabs() {
     },
     {
       isActive: isTabActive("editor"),
-      icon: GitMerge,
-      label: t(I18nKey.COMMON$CHANGES),
+      icon: SquareTerminal,
+      label: "Commands",
       onClick: () => onTabSelected("editor"),
-      tooltipContent: t(I18nKey.COMMON$CHANGES),
-      tooltipAriaLabel: t(I18nKey.COMMON$CHANGES),
+      tooltipContent: "Commands — executed shell cells (In/Out)",
+      tooltipAriaLabel: "Commands",
     },
     {
       isActive: isTabActive("states"),
