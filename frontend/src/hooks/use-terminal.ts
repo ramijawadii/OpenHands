@@ -13,6 +13,40 @@ import { useAgentStore } from "#/stores/agent-store";
   The reason for this is that the hook exposes a ref that requires a DOM element to be rendered.
 */
 
+/** Resolve the panel background token so the terminal blends with its panel.
+ *  xterm needs a concrete colour, so read the computed CSS variable. */
+const panelBackground = (): string => {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return "#1a1a19";
+  }
+  const v = getComputedStyle(document.documentElement)
+    .getPropertyValue("--cg-code-bg")
+    .trim();
+  return v || "#1a1a19";
+};
+
+// xterm renders ANSI natively (parseTerminalOutput passes escapes through), so
+// colour is just a matter of emitting codes. Tool output keeps whatever colour
+// the process emits; these codes syntax-highlight the ECHOED command line, which
+// we write ourselves and would otherwise be flat white.
+const ANSI = {
+  reset: "\x1b[0m",
+  cyan: "\x1b[36m", // command / binary
+  yellow: "\x1b[33m", // flags
+  green: "\x1b[32m", // quoted strings
+  blue: "\x1b[34m", // prompt
+};
+
+export const PROMPT = `${ANSI.blue}$${ANSI.reset} `;
+
+/** Colourise a shell command line: binary, flags, quoted strings. */
+export const highlightCommand = (line: string): string =>
+  line
+    // quoted strings first so later passes don't recolour inside them
+    .replace(/('[^']*'|"[^"]*")/g, (m) => `${ANSI.green}${m}${ANSI.reset}`)
+    .replace(/(^|\s)(--?[A-Za-z][\w-]*)/g, (_m, s, flag) => `${s}${ANSI.yellow}${flag}${ANSI.reset}`)
+    .replace(/^(\s*)([\w./-]+)/, (_m, ws, cmd) => `${ws}${ANSI.cyan}${cmd}${ANSI.reset}`);
+
 const renderCommand = (
   command: Command,
   terminal: Terminal,
@@ -26,9 +60,8 @@ const renderCommand = (
     return;
   }
 
-  terminal.writeln(
-    parseTerminalOutput(content.replaceAll("\n", "\r\n").trim()),
-  );
+  const parsed = parseTerminalOutput(content.replaceAll("\n", "\r\n").trim());
+  terminal.writeln(type === "input" ? highlightCommand(parsed) : parsed);
 };
 
 // Create a persistent reference that survives component unmounts
@@ -56,12 +89,14 @@ export const useTerminal = () => {
       fastScrollModifier: "alt",
       fastScrollSensitivity: 5,
       allowTransparency: false,
-      // vscodeDark palette — matches @uiw/codemirror-theme-vscode used in Jupyter cells
+      // vscodeDark palette — matches @uiw/codemirror-theme-vscode used in Jupyter cells.
+      // Background follows the panel token (--cg-code-bg) so the terminal blends
+      // with the surrounding panel instead of sitting on a darker block.
       theme: {
-        background: "#181818",
+        background: panelBackground(),
         foreground: "#d4d4d4",
         cursor: "#aeafad",
-        cursorAccent: "#181818",
+        cursorAccent: panelBackground(),
         selectionBackground: "#264f78",
         selectionForeground: "#ffffff",
         black: "#1e1e1e",
@@ -124,6 +159,10 @@ export const useTerminal = () => {
   };
 
   const handleEnter = (command: string) => {
+    // The line was echoed raw as the user typed, and the matching `input` event
+    // is skipped below (isUserInput), so it would never get highlighted until a
+    // remount. Repaint it in colour now: \r → line start, \x1b[2K → clear line.
+    terminal.current?.write(`\r\x1b[2K${PROMPT}${highlightCommand(command)}`);
     terminal.current?.write("\r\n");
     // Don't write the command again as it will be added to the commands array
     // and rendered by the useEffect that watches commands
@@ -150,7 +189,7 @@ export const useTerminal = () => {
       if (commands.length > 0) {
         for (let i = 0; i < commands.length; i += 1) {
           if (commands[i].type === "input") {
-            terminal.current.write("$ ");
+            terminal.current.write(PROMPT);
           }
           // Don't pass isUserInput=true here because we're initializing the terminal
           // and need to show all previous commands
@@ -158,7 +197,7 @@ export const useTerminal = () => {
         }
         lastCommandIndex.current = commands.length;
       }
-      terminal.current.write("$ ");
+      terminal.current.write(PROMPT);
     }
 
     return () => {
@@ -181,7 +220,7 @@ export const useTerminal = () => {
       }
       lastCommandIndex.current = commands.length;
       if (lastCommandType === "output") {
-        terminal.current.write("$ ");
+        terminal.current.write(PROMPT);
       }
     }
   }, [commands, disabled]);

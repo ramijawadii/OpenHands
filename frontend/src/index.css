@@ -21,7 +21,7 @@
   --cg-bg-page: hsl(60deg, 1.64%, 11.96%);
   --cg-bg-primary-sidebar: #171716;
   --cg-bg-sidebar: rgb(31, 31, 30);
-  --cg-bg-card: #171716;
+  --cg-bg-card: #121212;
   --cg-bg-hover: #0d0d0c;
   --cg-bg-active: #0a0a0a;
   --cg-bg-badge: rgba(43, 43, 41, 0.6);
@@ -31,10 +31,10 @@
   --cg-border: rgba(222, 220, 206, 0.15);
   --cg-border-card: #565656;
   --cg-accent: #2d86d4;
-  --cg-accent-purple: #9B87F5;
+  --cg-accent-purple: #8a8680;
   --cg-accent-bg: rgba(45, 134, 212, 0.10);
   --cg-accent-bg-strong: rgba(45, 134, 212, 0.18);
-  --cg-accent-purple-bg: rgba(155, 135, 245, 0.19);
+  --cg-accent-purple-bg: rgba(138, 134, 128, 0.19);
   --cg-workspace-bg: rgba(43, 43, 41, 0.45);
   --cg-workspace-bg-hover: rgba(43, 43, 41, 0.70);
   --cg-workspace-dropdown-bg: #1c1c1a;

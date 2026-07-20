@@ -8,31 +8,7 @@ import {
   type PasteBlock,
 } from "./chat-paste-preview";
 import { expandSlashCommand } from "#/utils/expand-slash-command";
-import AwsColorIcon from "#/icons/aws-color (1).svg?react";
-import AzureAIcon from "#/icons/azure-a.svg?react";
-import GoogleCloudIcon from "#/icons/icons8-google-cloud.svg?react";
 import { ContextRingIndicator } from "../context-ring-indicator";
-
-const CLOUD_PROVIDERS = [
-  {
-    label: "AWS",
-    Icon: AwsColorIcon,
-    prompt:
-      "Analyse my AWS infrastructure and report on security posture, resource inventory, and compliance status.",
-  },
-  {
-    label: "Azure",
-    Icon: AzureAIcon,
-    prompt:
-      "Analyse my Azure infrastructure and report on security posture, resource inventory, and compliance status.",
-  },
-  {
-    label: "Google Cloud",
-    Icon: GoogleCloudIcon,
-    prompt:
-      "Analyse my Google Cloud infrastructure and report on security posture, resource inventory, and compliance status.",
-  },
-] as const;
 
 interface ChatInputRowProps {
   chatInputRef: React.RefObject<HTMLDivElement | null>;
@@ -129,15 +105,16 @@ export function ChatInputRow({
     onKeyDown(e);
   };
 
-  /* ── Button style helpers ── */
+  /* ── Button style helpers (match the CloudGuard reference styling) ── */
   const btnBase =
-    "flex items-center gap-1.5 px-2.5 py-[5px] rounded-lg text-[12px] font-medium transition-colors duration-150 select-none cursor-pointer";
-  const btnIdle = "text-[var(--cg-text-nav)] hover:text-[var(--cg-text-primary)]";
+    "inline-flex shrink-0 items-center gap-1.5 rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-2.5 py-1 text-[12px] transition-colors duration-150 select-none cursor-pointer";
+  const btnIdle =
+    "text-[var(--cg-text-nav)] hover:text-[var(--cg-text-primary)]";
   const btnActive = "text-[var(--cg-text-primary)]";
-  const btnStyle = { border: "1px solid var(--cg-border)", background: "var(--cg-workspace-bg)" } as React.CSSProperties;
+  const btnStyle = {} as React.CSSProperties;
 
   return (
-    <div className="flex flex-col w-full gap-2.5 pb-[18px]">
+    <div className="flex flex-col w-full gap-2">
       {/* Paste preview blocks */}
       {pastedBlocks.length > 0 && (
         <div className="flex flex-col gap-1.5">
@@ -252,37 +229,6 @@ export function ChatInputRow({
             <span>Cmd</span>
           </button>
 
-          {/* Cloud provider icon buttons */}
-          {CLOUD_PROVIDERS.map(({ label, Icon, prompt }) => (
-            <button
-              key={label}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                if (!chatInputRef.current || disabled) return;
-                chatInputRef.current.focus();
-                document.execCommand("insertText", false, prompt);
-              }}
-              title={label}
-              className="flex items-center justify-center cursor-pointer select-none transition-opacity duration-150"
-              style={{
-                background: "transparent",
-                border: "none",
-                padding: "4px",
-                borderRadius: "6px",
-                opacity: disabled ? 0.25 : 0.65,
-              }}
-              onMouseEnter={(e) => {
-                if (!disabled)
-                  (e.currentTarget as HTMLElement).style.opacity = "1";
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.opacity = disabled ? "0.25" : "0.65";
-              }}
-            >
-              <Icon width={16} height={16} style={{ display: "block" }} />
-            </button>
-          ))}
         </div>
 
         {/* Right: context ring + mode selector + agent status + send */}

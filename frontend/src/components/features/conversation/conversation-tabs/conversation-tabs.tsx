@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
-import { StickyNote, FileTerminal, GitMerge, History } from "lucide-react";
+import { StickyNote, FileTerminal, GitMerge, History, X } from "lucide-react";
 import TerminalIcon from "#/icons/terminal.svg?react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
@@ -135,6 +135,13 @@ export function ConversationTabs() {
     },
   ];
 
+  // Closing must ALSO persist, otherwise the effect above re-applies the stored
+  // "shown" value and the panel snaps back open (looked like a view reset).
+  const closePanel = () => {
+    setHasRightPanelToggled(false);
+    setPersistedIsRightPanelShown(false);
+  };
+
   return (
     <div
       className={cn(
@@ -160,6 +167,16 @@ export function ConversationTabs() {
             />
           </ChatActionTooltip>
         ),
+      )}
+      {isRightPanelShown && (
+        <button
+          type="button"
+          aria-label="Close panel"
+          onClick={closePanel}
+          className="ml-auto shrink-0 rounded p-1 text-[var(--cg-text-muted)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)] transition-colors cursor-pointer"
+        >
+          <X className="h-4 w-4" />
+        </button>
       )}
     </div>
   );

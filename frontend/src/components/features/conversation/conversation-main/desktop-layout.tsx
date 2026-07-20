@@ -1,6 +1,7 @@
 import { cn } from "#/utils/utils";
 import { ChatInterfaceWrapper } from "./chat-interface-wrapper";
 import { ConversationTabContent } from "../conversation-tabs/conversation-tab-content/conversation-tab-content";
+import { ConversationTabs } from "../conversation-tabs/conversation-tabs";
 import { ResizeHandle } from "../../../ui/resize-handle";
 import { useResizablePanels } from "#/hooks/use-resizable-panels";
 
@@ -31,33 +32,37 @@ export function DesktopLayout({ isRightPanelShown }: DesktopLayoutProps) {
         <div
           className="flex flex-col bg-base overflow-hidden transition-all duration-300 ease-in-out"
           style={{
-            width: isRightPanelShown ? `${leftWidth}%` : "100%",
+            width: isRightPanelShown ? `${leftWidth}%` : undefined,
+            flex: isRightPanelShown ? undefined : "1 1 auto",
             transitionProperty: isDragging ? "none" : "all",
           }}
         >
           <ChatInterfaceWrapper isRightPanelShown={isRightPanelShown} />
         </div>
 
-        {/* Resize Handle */}
+        {/* Resize Handle — only meaningful while the panel is expanded */}
         {isRightPanelShown && <ResizeHandle onMouseDown={handleMouseDown} />}
 
-        {/* Right Panel */}
-        <div
-          className={cn(
-            "transition-all duration-300 ease-in-out overflow-hidden",
-            isRightPanelShown
-              ? "translate-x-0 opacity-100"
-              : "w-0 translate-x-full opacity-0",
-          )}
-          style={{
-            width: isRightPanelShown ? `${rightWidth}%` : "0%",
-            transitionProperty: isDragging ? "opacity, transform" : "all",
-          }}
-        >
-          <div className="flex flex-col flex-1 h-full w-full">
-            <ConversationTabContent />
+        {/* Right Panel — unmounted entirely when closed so nothing (not even the
+            tab strip) lingers. Reopen via the panel button in the chat header. */}
+        {isRightPanelShown && (
+          <div
+            className={cn(
+              "flex flex-col h-full shrink-0 overflow-hidden",
+              "border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)]",
+            )}
+            // Floor the panel width so dragging can't squeeze it past the point
+            // where its content (terminal columns, tab strip) starts clipping.
+            style={{ width: `${rightWidth}%`, minWidth: 460 }}
+          >
+            <div className="shrink-0 flex min-w-0 items-center gap-1 overflow-x-auto border-b border-[var(--cg-border-subtle)] px-3 py-2">
+              <ConversationTabs />
+            </div>
+            <div className="flex flex-col flex-1 min-h-0 w-full">
+              <ConversationTabContent />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ function Terminal() {
   const ref = useTerminal();
 
   return (
-    <div className="h-full flex flex-col bg-[#181818]">
+    <div className="h-full flex flex-col bg-[var(--cg-code-bg)]">
       {isRuntimeInactive && <WaitingForRuntimeMessage className="pt-16" />}
 
 

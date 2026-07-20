@@ -1,4 +1,3 @@
-/* eslint-disable no-param-reassign -- hover styling mutates e.currentTarget.style */
 import { ComponentType } from "react";
 import { cn } from "#/utils/utils";
 
@@ -15,40 +14,20 @@ export function ConversationTabNav({
   onClick,
   isActive,
 }: ConversationTabNavProps) {
+  // Matches the CloudGuard reference: pill tabs, active = card background.
   return (
     <button
       type="button"
-      onClick={() => {
-        onClick();
-      }}
+      onClick={onClick}
       className={cn(
-        "flex items-center gap-1.5 px-2.5 py-1.5 rounded-md cursor-pointer",
-        "text-[13px] font-medium whitespace-nowrap transition-colors duration-150",
+        "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5",
+        "text-[12.5px] whitespace-nowrap transition-colors cursor-pointer",
         isActive
-          ? "text-[var(--cg-text-primary)]"
-          : "text-[var(--cg-text-nav)]",
+          ? "bg-[var(--cg-bg-card)] text-[var(--cg-text-primary)]"
+          : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)]",
       )}
-      style={{
-        backgroundColor: isActive ? "var(--cg-bg-page)" : "transparent",
-        border: `1px solid ${isActive ? "var(--cg-border)" : "transparent"}`,
-      }}
-      onMouseEnter={(e) => {
-        if (!isActive)
-          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-            "var(--cg-workspace-bg-hover)";
-        (e.currentTarget as HTMLButtonElement).style.color =
-          "var(--cg-text-primary)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLButtonElement).style.backgroundColor = isActive
-          ? "var(--cg-bg-page)"
-          : "transparent";
-        (e.currentTarget as HTMLButtonElement).style.color = isActive
-          ? "var(--cg-text-primary)"
-          : "var(--cg-text-nav)";
-      }}
     >
-      <Icon className={cn("w-4 h-4 text-inherit shrink-0")} />
+      <Icon className="h-3.5 w-3.5 text-inherit shrink-0" />
       {label && <span>{label}</span>}
     </button>
   );

@@ -33,7 +33,6 @@ import { useUploadFiles } from "#/hooks/mutation/use-upload-files";
 import { useConfig } from "#/hooks/query/use-config";
 import { validateFiles } from "#/utils/file-validation";
 import { useConversationStore } from "#/state/conversation-store";
-import ConfirmationModeEnabled from "./confirmation-mode-enabled";
 import { CompactionBanner } from "./compaction-banner";
 import { ApprovalBanner } from "./approval-banner";
 import { ClarificationBanner } from "./clarification-banner";
@@ -308,7 +307,7 @@ export function ChatInterface() {
         <div
           ref={scrollRef}
           onScroll={(e) => onChatBodyScroll(e.currentTarget)}
-          className="custom-scrollbar-always flex flex-col grow overflow-y-auto overflow-x-hidden px-4 pt-4 gap-2 fast-smooth-scroll"
+          className="custom-scrollbar-always flex min-h-0 flex-col grow overflow-y-auto overflow-x-hidden px-4 sm:px-6 pt-4 pb-6 gap-5 fast-smooth-scroll"
         >
           {isLoadingMessages && (
             <div className="flex justify-center">
@@ -330,7 +329,6 @@ export function ChatInterface() {
         <div className="flex flex-col gap-[6px]">
           <div className="flex justify-between relative">
             <div className="flex items-center gap-1">
-              <ConfirmationModeEnabled />
               {events.length > 0 && (
                 <TrajectoryActions
                   onPositiveFeedback={() =>

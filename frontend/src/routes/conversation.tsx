@@ -24,9 +24,7 @@ import { ConversationSubscriptionsProvider } from "#/context/conversation-subscr
 import { useUserProviders } from "#/hooks/use-user-providers";
 
 import { ConversationMain } from "#/components/features/conversation/conversation-main/conversation-main";
-import { ConversationName } from "#/components/features/conversation/conversation-name";
 
-import { ConversationTabs } from "#/components/features/conversation/conversation-tabs/conversation-tabs";
 import { useStartConversation } from "#/hooks/mutation/use-start-conversation";
 
 function AppContent() {
@@ -109,15 +107,9 @@ function AppContent() {
     <WsClientProvider conversationId={conversationId}>
       <ConversationSubscriptionsProvider>
         <EventHandler>
-          <div
-            data-testid="app-route"
-            className="flex flex-col h-full gap-3"
-          >
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4.5 lg:pt-0">
-              <ConversationName />
-              <ConversationTabs />
-            </div>
-
+          {/* The name lives in the chat column and the tabs inside the right
+              panel, so the column divider runs the full height of the page. */}
+          <div data-testid="app-route" className="flex flex-col h-full">
             <ConversationMain />
           </div>
         </EventHandler>

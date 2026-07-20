@@ -1663,6 +1663,12 @@ export function AdminTopBar() {
       }}
     >
       <style>{DRAWER_KEYFRAMES}</style>
+      {/* Left slot — the conversation route portals its title in here, so the
+          name sits top-left, on the same row as search/notifications. */}
+      <div
+        id="cg-topbar-left"
+        style={{ marginRight: "auto", minWidth: 0, display: "flex" }}
+      />
       <GlobalSearch />
       <button
         type="button"

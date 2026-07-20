@@ -1,12 +1,9 @@
 /* eslint-disable i18next/no-literal-string */
-import { lazy, useMemo } from "react";
-import { useTranslation } from "react-i18next";
+import { lazy } from "react";
 import { ConversationLoading } from "../../conversation-loading";
-import { I18nKey } from "#/i18n/declaration";
 import { TabWrapper } from "./tab-wrapper";
 import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
-import { ConversationTabTitle } from "../conversation-tab-title";
 import Terminal from "#/components/features/terminal/terminal";
 import { useConversationStore } from "#/state/conversation-store";
 
@@ -18,8 +15,6 @@ const StatesTab = lazy(() => import("#/routes/states-tab"));
 
 export function ConversationTabContent() {
   const { selectedTab, shouldShownAgentLoading } = useConversationStore();
-
-  const { t } = useTranslation();
 
   const isEditorActive = selectedTab === "editor";
   const isJupyterActive = selectedTab === "jupyter";
@@ -35,28 +30,12 @@ export function ConversationTabContent() {
     { key: "states", component: StatesTab, isActive: isStatesActive },
   ];
 
-  const conversationTabTitle = useMemo(() => {
-    if (isEditorActive) return t(I18nKey.COMMON$CHANGES);
-    if (isJupyterActive) return t(I18nKey.COMMON$JUPYTER);
-    if (isTerminalActive) return t(I18nKey.COMMON$TERMINAL);
-    if (isDiagramsActive) return "Pages";
-    if (isStatesActive) return "States";
-    return "";
-  }, [
-    isEditorActive,
-    isJupyterActive,
-    isTerminalActive,
-    isDiagramsActive,
-    isStatesActive,
-  ]);
-
   if (shouldShownAgentLoading) {
     return <ConversationLoading />;
   }
 
   return (
     <TabContainer>
-      <ConversationTabTitle title={conversationTabTitle} />
       <TabContentArea>
         {tabs.map(({ key, component: Component, isActive }) => (
           <TabWrapper key={key} isActive={isActive}>

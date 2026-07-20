@@ -141,12 +141,7 @@ export function ChatInputContainer({
   return (
     <div
       ref={chatContainerRef}
-      className="relative box-border content-stretch flex flex-col items-start justify-center p-4 pt-3 w-full"
-      style={{
-        background: "var(--cg-bg-primary-sidebar)",
-        borderRadius: "15px",
-        border: "1px solid var(--cg-border)",
-      }}
+      className="relative box-border content-stretch flex w-full flex-col items-start justify-center rounded-2xl border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] p-3 shadow-[var(--cg-shadow-dropdown)]"
       onDragOver={(e) => onDragOver(e, disabled)}
       onDragLeave={(e) => onDragLeave(e, disabled)}
       onDrop={(e) => onDrop(e, disabled)}
@@ -175,7 +170,7 @@ export function ChatInputContainer({
       )}
 
       {/* Top row: server status top-right */}
-      <div className="flex justify-end w-full mb-1.5">
+      <div className="mb-2 flex w-full items-center justify-end gap-2 text-[11.5px] text-[var(--cg-text-muted)]">
         <ServerStatus conversationStatus={conversationStatus} />
       </div>
 

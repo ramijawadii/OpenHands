@@ -5,9 +5,7 @@ interface TabContainerProps {
 }
 
 export function TabContainer({ children }: TabContainerProps) {
-  return (
-    <div className="bg-[var(--cg-bg-page)] border-l border-[var(--cg-border-strong)] flex flex-col h-full w-full">
-      {children}
-    </div>
-  );
+  // The page divider + panel background live on the right column in
+  // desktop-layout, so this is just a full-height flex shell.
+  return <div className="flex flex-col h-full w-full">{children}</div>;
 }

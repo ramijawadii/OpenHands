@@ -1,27 +1,47 @@
+/* eslint-disable i18next/no-literal-string */
 import { motion, AnimatePresence } from "framer-motion";
-import { Suggestions } from "#/components/features/suggestions/suggestions";
+import {
+  Globe,
+  FileSearch,
+  ShieldCheck,
+  CodeXml,
+  Sparkles,
+  Play,
+} from "lucide-react";
 import { useConversationStore } from "#/state/conversation-store";
+
+// NOTE: hardcoded from the design. Wire this to the real skill-catalog count
+// when an endpoint is available so it can't go stale.
+const SKILL_COUNT = 223;
 
 const CLOUD_SUGGESTIONS = [
   {
-    label: "Scan for misconfigurations",
+    Icon: Globe,
+    label: "AWS Topology Map",
+    description: "Identity, storage, compute & network — full visual hierarchy",
     value:
-      "Scan my cloud environment for security misconfigurations. Start with kg_health to confirm tools are live, then enumerate IAM policies, S3 buckets, and compute resources to identify misconfigurations against CIS benchmarks. Report findings by severity.",
+      "Map my AWS topology. Start with kg_health to confirm tools are live, then enumerate identity, storage, compute and network resources and render the full hierarchy as a diagram.",
   },
   {
-    label: "Audit a cloud resource",
+    Icon: FileSearch,
+    label: "CloudTrail Anomaly Hunt",
+    description: "90-day API log analysis — spikes, odd hours, top callers",
     value:
-      "Audit a specific cloud resource for security issues. Use kg_search_commands to discover relevant audit commands, then kg_get_command_schema and kg_execute_command to collect resource data. Assess the security posture and report any policy violations or exposure.",
+      "Hunt for anomalies in CloudTrail. Use kg_ingest_cloudtrail to load the last 90 days of events, then analyse for call spikes, out-of-hours activity and top callers. Summarise the timeline and affected resources.",
   },
   {
-    label: "Analyse attack chain",
+    Icon: ShieldCheck,
+    label: "CIS Benchmark Audit",
+    description: "58-control audit on prod → export as PDF for leadership",
     value:
-      "Analyse the attack chain and blast radius for a potential compromise. Use kg_blast_radius and kg_cypher_query to trace lateral movement paths, privilege escalation routes, and potential data exposure. Visualise the findings as a diagram.",
+      "Run a CIS benchmark audit against production. Assess each control, report findings by severity, and export the result as a PDF suitable for leadership.",
   },
   {
-    label: "Incident response",
+    Icon: CodeXml,
+    label: "Code-to-Cloud Fix",
+    description: "Scan Terraform for security bugs and auto-generate a diff",
     value:
-      "Help me with cloud incident response. Use kg_ingest_cloudtrail to load recent CloudTrail events, then analyse for anomalous API calls, unauthorised access, and indicators of compromise. Summarise the timeline and affected resources.",
+      "Scan my Terraform for security issues, explain each finding, and auto-generate a diff that fixes them.",
   },
 ];
 
@@ -41,28 +61,46 @@ export function ChatSuggestions({ onSuggestionsClick }: ChatSuggestionsProps) {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="absolute top-0 left-0 right-0 bottom-[151px] flex flex-col items-center justify-center pointer-events-auto"
+          className="absolute top-0 left-0 right-0 bottom-[151px] flex flex-col items-center justify-center pointer-events-auto px-4 sm:px-6"
         >
-          <div className="flex flex-col items-center p-4 rounded-xl w-full mb-2">
-            <img
-              src="/logo.png"
-              alt="CloudGuard"
-              width={120}
-              height={120}
-              style={{ objectFit: "contain" }}
-              className="mb-4"
-            />
-            <span className="text-[28px] font-bold text-[var(--cg-text-primary)] leading-tight">
-              CloudGuard
-            </span>
-            <span className="text-[13px] text-gray-400 mt-1 mb-5 tracking-wide uppercase">
-              Cloud Security Reasoning Engine
-            </span>
+          <div className="flex w-full max-w-3xl flex-col items-center">
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--cg-accent-purple-bg)] text-[var(--cg-accent-purple)]">
+              <Sparkles className="h-5 w-5" />
+            </div>
+            <div className="mt-3 text-[14px] font-medium text-[var(--cg-text-primary)]">
+              CloudGuard is ready
+            </div>
+            <div className="mt-1 text-[12.5px] text-[var(--cg-text-muted)]">
+              Ask anything about your cloud posture — the agent has{" "}
+              {SKILL_COUNT} skills wired in.
+            </div>
+
+            <div className="mt-6 grid w-full grid-cols-1 gap-3 sm:grid-cols-2">
+              {CLOUD_SUGGESTIONS.map(({ Icon, label, description, value }) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onSuggestionsClick(value)}
+                  className="group flex items-start gap-3 rounded-xl border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-4 py-3.5 text-left transition hover:border-[var(--cg-accent-purple)] hover:bg-[var(--cg-accent-purple-bg)] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                >
+                  <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-[var(--cg-accent-purple-bg)] text-[var(--cg-accent-purple)] group-hover:bg-[var(--cg-bg-page)]">
+                    <Icon className="h-3.5 w-3.5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-[13px] font-medium text-[var(--cg-text-primary)]">
+                        {label}
+                      </span>
+                      <Play className="h-3 w-3 shrink-0 text-[var(--cg-accent-purple)] opacity-0 transition group-hover:opacity-100" />
+                    </span>
+                    <span className="mt-0.5 block text-[11.5px] leading-snug text-[var(--cg-text-muted)]">
+                      {description}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
-          <Suggestions
-            suggestions={CLOUD_SUGGESTIONS}
-            onSuggestionClick={onSuggestionsClick}
-          />
         </motion.div>
       )}
     </AnimatePresence>
