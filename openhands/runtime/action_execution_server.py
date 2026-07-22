@@ -811,6 +811,27 @@ if __name__ == '__main__':
         logger.info('Server info endpoint response: %s', response)
         return response
 
+    @app.get('/jupyter_info')
+    async def get_jupyter_info():
+        """Discovery for the control-plane Jupyter proxy: the in-sandbox Jupyter
+        server's port + auth token. Deliberately NOT part of /server_info, which
+        logs its whole response — the token must never be logged. Reachable only
+        over the internal runtime API (same trust boundary as execute_action)."""
+        assert client is not None
+        jp = client.plugins.get('jupyter')
+        if not isinstance(jp, JupyterPlugin) or not hasattr(
+            jp, 'kernel_gateway_token'
+        ):
+            return JSONResponse(
+                status_code=404,
+                content={'error': 'jupyter plugin not initialized'},
+            )
+        return {
+            'port': jp.kernel_gateway_port,
+            'token': jp.kernel_gateway_token,
+            'base_url': f'http://localhost:{jp.kernel_gateway_port}',
+        }
+
     @app.post('/execute_action')
     async def execute_action(action_request: ActionRequest):
         assert client is not None
