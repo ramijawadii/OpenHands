@@ -134,10 +134,15 @@ async def jupyter_settings(
     base = str(request.base_url).rstrip('/')
     ws_base = base.replace('https://', 'wss://', 1).replace('http://', 'ws://', 1)
     prefix = f'/api/conversations/{conversation_id}/jupyter'
+    # baseUrl is the Jupyter server ROOT as JupyterLab's ServerConnection expects
+    # it: the client joins `api/kernels`, `api/contents`, etc. onto it. wsUrl uses
+    # the SAME path (ws scheme) because ServerConnection derives the socket URL
+    # from baseUrl and joins `api/kernels/{id}/channels` — so the HTTP and WS
+    # proxy routes must share the `/jupyter/api/...` prefix (see proxy_ws).
     return {
         'available': target is not None,
         'baseUrl': f'{base}{prefix}',
-        'wsUrl': f'{ws_base}{prefix}/ws',
+        'wsUrl': f'{ws_base}{prefix}',
         'token': '',
     }
 
@@ -250,7 +255,11 @@ async def _bridge(client_ws: WebSocket, upstream) -> None:
         task.cancel()
 
 
-@app.websocket('/jupyter/ws/api/{path:path}')
+# Shares the '/jupyter/api/...' prefix with proxy_http on purpose: Starlette
+# routes on ASGI scope type, so a websocket upgrade lands here while plain HTTP
+# lands on proxy_http. This lets JupyterLab's ServerConnection derive the socket
+# URL from baseUrl (it joins 'api/kernels/{id}/channels') with no separate wsUrl.
+@app.websocket('/jupyter/api/{path:path}')
 async def proxy_ws(
     websocket: WebSocket,
     conversation_id: str,

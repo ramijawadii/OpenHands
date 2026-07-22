@@ -1,6 +1,5 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
-import { useTranslation } from "react-i18next";
 import CodeMirror from "@uiw/react-codemirror";
 import { vscodeDark } from "@uiw/codemirror-theme-vscode";
 import { python } from "@codemirror/lang-python";
@@ -24,6 +23,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { useWsClient } from "#/context/ws-client-provider";
 import { createChatMessage } from "#/services/chat-service";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { useJupyterServerSettings } from "#/hooks/query/use-jupyter-server-settings";
 import {
   JupyterViewSwitcher,
   NotebookToolbar,
@@ -32,6 +32,43 @@ import {
   type JupyterView,
   type DataFileEntry,
 } from "./jupyter-views";
+
+/** The full JupyterLab notebook — code-split so its 726-package bundle is only
+ *  fetched when a live server is available (see jupyter-react-notebook.tsx). */
+const LazyJupyterReactNotebook = React.lazy(
+  () => import("./jupyter-react-notebook"),
+);
+
+/** If the heavy JupyterLab UI throws at runtime (kernel handshake, CSS, an
+ *  upstream regression), we must NOT white-screen the whole tab — degrade to the
+ *  store-based notebook view. This boundary makes that failure survivable. */
+class JupyterReactBoundary extends React.Component<
+  { onError: () => void; children: React.ReactNode },
+  { failed: boolean }
+> {
+  constructor(props: { onError: () => void; children: React.ReactNode }) {
+    super(props);
+    this.state = { failed: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    const { onError } = this.props;
+    // eslint-disable-next-line no-console
+    console.error("[jupyter-react] runtime error, falling back:", error);
+    onError();
+  }
+
+  render() {
+    const { failed } = this.state;
+    const { children } = this.props;
+    if (failed) return null;
+    return children;
+  }
+}
 
 /** Trigger a client-side download without touching the network. */
 function downloadBlob(name: string, mime: string, body: string) {
@@ -266,15 +303,6 @@ function agentStateToRuntimeState(s: AgentState): RuntimeState {
 
 // ── helpers ───────────────────────────────────────────────
 
-function fmtRelative(date: Date | null): string {
-  if (!date) return "";
-  const d = Date.now() - date.getTime();
-  if (d < 5000) return "just now";
-  if (d < 60000) return `${Math.floor(d / 1000)}s ago`;
-  if (d < 3600000) return `${Math.floor(d / 60000)}m ago`;
-  return `${Math.floor(d / 3600000)}h ago`;
-}
-
 function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").pop() ?? path;
 }
@@ -378,9 +406,8 @@ function parseNotebookIO(cells: Cell[]): {
   const inputMap = new Map<string, { path: string; cells: number[] }>();
   const outputGroups = new Map<number, OutputItem[]>();
 
-  for (let i = 0; i < cells.length; i++) {
-    const cell = cells[i];
-    if (cell.type !== "input" || !cell.executionCount) continue;
+  cells.forEach((cell, i) => {
+    if (cell.type !== "input" || !cell.executionCount) return;
 
     const count = cell.executionCount;
     const code = cell.content;
@@ -390,10 +417,11 @@ function parseNotebookIO(cells: Cell[]): {
       const re = new RegExp(pattern.source, pattern.flags);
       for (const m of code.matchAll(re)) {
         const path = m[1];
-        if (!path || path.length < 2 || !hasRelevantExt(path)) continue;
-        if (!inputMap.has(path)) inputMap.set(path, { path, cells: [] });
-        const e = inputMap.get(path)!;
-        if (!e.cells.includes(count)) e.cells.push(count);
+        if (path && path.length >= 2 && hasRelevantExt(path)) {
+          if (!inputMap.has(path)) inputMap.set(path, { path, cells: [] });
+          const e = inputMap.get(path)!;
+          if (!e.cells.includes(count)) e.cells.push(count);
+        }
       }
     }
 
@@ -403,9 +431,10 @@ function parseNotebookIO(cells: Cell[]): {
       const re = new RegExp(pattern.source, pattern.flags);
       for (const m of code.matchAll(re)) {
         const path = m[1];
-        if (!path || path.length < 2 || !hasRelevantExt(path)) continue;
-        if (!items.find((o) => o.path === path))
-          items.push({ name: basename(path), path, type: "file" });
+        if (path && path.length >= 2 && hasRelevantExt(path)) {
+          if (!items.find((o) => o.path === path))
+            items.push({ name: basename(path), path, type: "file" });
+        }
       }
     }
 
@@ -422,7 +451,7 @@ function parseNotebookIO(cells: Cell[]): {
     }
 
     if (items.length > 0) outputGroups.set(count, items);
-  }
+  });
 
   const inputs: InputFile[] = [...inputMap.values()]
     .map((e) => ({
@@ -862,281 +891,6 @@ function NotebookIOPanel({
   );
 }
 
-// ── workspace files for empty state ──────────────────────
-
-function useWorkspaceFiles(conversationId: string) {
-  const [files, setFiles] = React.useState<string[]>([]);
-  const [loading, setLoading] = React.useState(false);
-
-  const refresh = React.useCallback(async () => {
-    setLoading(true);
-    try {
-      const r = await ConversationService.getFiles(conversationId);
-      setFiles(r ?? []);
-    } catch {
-      setFiles([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [conversationId]);
-
-  React.useEffect(() => {
-    refresh();
-  }, [refresh]);
-  return { files, loading, refresh };
-}
-
-// ── runtime dot colors ────────────────────────────────────
-
-const RUNTIME_DOT: Record<RuntimeState, string> = {
-  idle: "#22c55e",
-  starting: "#f59e0b",
-  busy: "#f59e0b",
-  restarting: "#f59e0b",
-  dead: "#ef4444",
-};
-
-// ── empty notebook state ──────────────────────────────────
-// UNUSED for now: the empty state was replaced by sample cells so the tab can be
-// reviewed with representative content. Retained (not deleted) because it holds
-// the notebook file-picker, which "Open notebook" needs when it is wired back
-// into the sample banner.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function EmptyNotebookState({
-  runtimeState,
-  kernelName,
-  conversationId,
-  onOpenNotebook,
-  onNewNotebook,
-}: {
-  runtimeState: RuntimeState;
-  kernelName: string;
-  conversationId: string;
-  onOpenNotebook: (path: string) => void;
-  onNewNotebook: () => void;
-}) {
-  const { files, loading, refresh } = useWorkspaceFiles(conversationId);
-  const notebooks = files.filter((f) => fileExt(f) === ".ipynb");
-  const { t } = useTranslation();
-
-  const stateLabel: Record<RuntimeState, string> = {
-    idle: "kernel idle",
-    starting: "initializing",
-    busy: "kernel busy",
-    restarting: "restarting",
-    dead: "kernel dead",
-  };
-
-  const { send } = useWsClient();
-
-  const handleAskAgent = () => {
-    send(
-      createChatMessage(
-        "[NOTEBOOK] Create a new Jupyter notebook and open it in the panel.",
-        [],
-        [],
-        new Date().toISOString(),
-      ),
-    );
-  };
-
-  return (
-    <div
-      className="flex flex-col items-center justify-center w-full h-full gap-4"
-      style={{ background: "var(--cg-bg-page)" }}
-    >
-      {/* Icon */}
-      <svg
-        className="w-14 h-14 opacity-20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.2}
-        viewBox="0 0 24 24"
-      >
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="16" y1="13" x2="8" y2="13" />
-        <line x1="16" y1="17" x2="8" y2="17" />
-        <polyline points="10 9 9 9 8 9" />
-      </svg>
-
-      {/* Title + subtitle */}
-      <p className="text-lg font-medium text-[var(--cg-text-primary)]">
-        No notebook open
-      </p>
-      <p className="text-sm text-center max-w-xs text-[var(--cg-text-muted)]">
-        Ask the agent to create a notebook — it will appear here automatically.
-      </p>
-
-      {/* Action button */}
-      <button
-        type="button"
-        onClick={handleAskAgent}
-        className="mt-2 px-4 py-2 rounded-lg text-sm font-medium text-[#181818] bg-white hover:bg-[#e5e5e5] transition-colors cursor-pointer"
-      >
-        Ask agent to create notebook
-      </button>
-
-      {/* Saved notebooks (compact) */}
-      {notebooks.length > 0 && (
-        <div
-          className="w-64 mt-2"
-          style={{ borderTop: "1px solid var(--cg-border)", paddingTop: 12 }}
-        >
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "var(--cg-text-muted)",
-            }}
-          >
-            Saved Notebooks
-          </span>
-          <div className="mt-1.5 flex flex-col gap-0.5">
-            {notebooks.map((nb) => (
-              <button
-                key={nb}
-                type="button"
-                className="flex items-center gap-2 w-full px-1 py-1.5 rounded text-left transition-colors"
-                style={{ color: "var(--cg-text-muted)" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background =
-                    "var(--cg-bg-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = "";
-                }}
-                onClick={() => onOpenNotebook(nb)}
-              >
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="var(--cg-text-muted)"
-                  strokeWidth="2"
-                >
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                  <polyline points="14 2 14 8 20 8" />
-                </svg>
-                <span className="truncate" style={{ fontSize: 12 }}>
-                  {basename(nb)}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── health bar ────────────────────────────────────────────
-
-function HealthBar({
-  runtimeState,
-  kernelName,
-  lastExecEndTime,
-  execCounter,
-  showFiles,
-  onToggleFiles,
-}: {
-  runtimeState: RuntimeState;
-  kernelName: string;
-  lastExecEndTime: number | null;
-  execCounter: number;
-  showFiles: boolean;
-  onToggleFiles: () => void;
-}) {
-  const [, tick] = React.useState(0);
-  React.useEffect(() => {
-    const id = setInterval(() => tick((n) => n + 1), 15000);
-    return () => clearInterval(id);
-  }, []);
-
-  const stateLabel: Record<RuntimeState, string> = {
-    idle: "kernel idle",
-    starting: "initializing kernel",
-    busy: "kernel busy",
-    restarting: "restarting",
-    dead: "kernel dead",
-  };
-
-  return (
-    <div
-      className="flex items-center gap-2 px-3 shrink-0"
-      style={{
-        height: 28,
-        background: "var(--cg-input-bg)",
-        borderBottom: "1px solid var(--cg-border)",
-        fontSize: 11,
-        color: "var(--cg-text-muted)",
-      }}
-    >
-      {/* explorer toggle */}
-      <button
-        type="button"
-        title={showFiles ? "Hide explorer" : "Show explorer"}
-        onClick={onToggleFiles}
-        style={{
-          opacity: showFiles ? 1 : 0.45,
-          color: showFiles ? "var(--cg-text-nav)" : "var(--cg-text-muted)",
-          transition: "opacity 0.15s",
-        }}
-      >
-        <svg
-          width="13"
-          height="13"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-        >
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-        </svg>
-      </button>
-
-      <div
-        className="self-stretch my-1"
-        style={{ width: 1, background: "var(--cg-border)" }}
-      />
-
-      {/* runtime dot */}
-      <span
-        className="w-1.5 h-1.5 rounded-full shrink-0"
-        style={{
-          backgroundColor: RUNTIME_DOT[runtimeState],
-          boxShadow:
-            runtimeState === "busy"
-              ? `0 0 5px ${RUNTIME_DOT[runtimeState]}`
-              : undefined,
-        }}
-      />
-      <span style={{ color: "var(--cg-text-muted)" }}>
-        {stateLabel[runtimeState]}
-      </span>
-
-      <span style={{ color: "var(--cg-border)" }}>•</span>
-      <span>{kernelName}</span>
-
-      {execCounter > 0 && (
-        <>
-          <span style={{ color: "var(--cg-border)" }}>•</span>
-          <span className="font-mono">run [{execCounter}]</span>
-          {lastExecEndTime && (
-            <span style={{ color: "var(--cg-text-muted)" }}>
-              {" "}
-              {fmtRelative(new Date(lastExecEndTime))}
-            </span>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 // ── main component ────────────────────────────────────────
 
 interface JupyterEditorProps {
@@ -1155,7 +909,6 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
     executionHistory,
     executionCounter,
     isDirty,
-    setNotebookTitle,
     newNotebook,
     markSaved,
   } = useJupyterStore();
@@ -1179,7 +932,16 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   }, [rawCells]);
 
   const jupyterRef = React.useRef<HTMLDivElement>(null);
-  const [showFiles, setShowFiles] = React.useState(false);
+  const [showFiles] = React.useState(false);
+
+  // Live-server track: mount the full JupyterLab UI only when the proxy reports a
+  // reachable, authenticated Jupyter server for this conversation. Until the
+  // runtime image is rebuilt with the server + proxy, this is always false and
+  // the store-based notebook view below renders — zero regression. If the heavy
+  // UI throws at runtime, `jupyterReactFailed` latches us back to the store view.
+  const { data: jupyterServer } = useJupyterServerSettings(conversationId);
+  const [jupyterReactFailed, setJupyterReactFailed] = React.useState(false);
+  const useLiveNotebook = !!jupyterServer?.available && !jupyterReactFailed;
 
   const runtimeState = agentStateToRuntimeState(curAgentState);
   const isRuntimeInactive = RUNTIME_INACTIVE_STATES.includes(curAgentState);
@@ -1196,23 +958,11 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
     prevRuntime.current = runtimeState;
   }, [runtimeState, isDirty, markSaved]);
 
-  const lastExec = executionHistory[executionHistory.length - 1] ?? null;
-
   const notifyAgent = React.useCallback(
     (msg: string) => {
       send(createChatMessage(msg, [], [], new Date().toISOString()));
     },
     [send],
-  );
-
-  const handleOpenNotebook = React.useCallback(
-    (path: string) => {
-      setNotebookTitle(basename(path));
-      notifyAgent(
-        `[NOTEBOOK] Opening notebook: ${path}. Please load and continue work in this notebook.`,
-      );
-    },
-    [setNotebookTitle, notifyAgent],
   );
 
   const handleNewNotebook = React.useCallback(() => {
@@ -1270,7 +1020,8 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   }, [cells]);
 
   const runningCell = React.useMemo(
-    () => cells.find((c) => c.type === "input" && c.executionState === "running"),
+    () =>
+      cells.find((c) => c.type === "input" && c.executionState === "running"),
     [cells],
   );
 
@@ -1324,7 +1075,10 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
           style={{ background: "var(--cg-bg-page)" }}
         >
           {view === "data" && (
-            <DataView files={dataFiles} onAttachToReport={handleAttachToReport} />
+            <DataView
+              files={dataFiles}
+              onAttachToReport={handleAttachToReport}
+            />
           )}
 
           {view === "runtime" && (
@@ -1344,98 +1098,116 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
             />
           )}
 
-          {view === "notebook" && (
-            <>
-              <NotebookToolbar
-                query={cellQuery}
-                onQuery={setCellQuery}
-                matchCount={visiblePaired.length}
-                totalCount={paired.length}
-                busy={runtimeState === "busy"}
-                onInterrupt={handleInterrupt}
-                onRestart={handleRestart}
-                onExportIpynb={() =>
-                  downloadBlob(
-                    `${notebookBase}.ipynb`,
-                    "application/x-ipynb+json",
-                    toIpynb(paired, kernelName),
-                  )
-                }
-                onExportHtml={() =>
-                  downloadBlob(
-                    `${notebookBase}.html`,
-                    "text/html",
-                    toHtml(paired, notebookTitle || "Notebook"),
-                  )
-                }
-              />
-              <div
-                data-testid="jupyter-container"
-                className="flex-1 overflow-y-auto fast-smooth-scroll custom-scrollbar-always pt-3"
-                style={{ background: "var(--cg-bg-page)" }}
-                ref={jupyterRef}
-                onScroll={(e) => onChatBodyScroll(e.currentTarget)}
-              >
-                <div className="flex flex-col gap-3 px-3 pb-3">
-                  {cells.length === 0 && (
-                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-accent-purple-bg)] px-3 py-1.5 text-[11px] text-[var(--cg-text-nav)]">
-                      <span className="min-w-0 flex-1">
-                        Sample — no cells executed yet. Live cells replace this
-                        as the agent runs.
-                      </span>
-                      {/* kept here so it isn't lost with the old empty state.
+          {view === "notebook" &&
+            (useLiveNotebook ? (
+              <JupyterReactBoundary onError={() => setJupyterReactFailed(true)}>
+                <React.Suspense
+                  fallback={
+                    <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+                      Loading notebook…
+                    </div>
+                  }
+                >
+                  <LazyJupyterReactNotebook
+                    baseUrl={jupyterServer!.baseUrl}
+                    wsUrl={jupyterServer!.wsUrl}
+                    token={jupyterServer!.token}
+                    path={`${notebookBase}.ipynb`}
+                  />
+                </React.Suspense>
+              </JupyterReactBoundary>
+            ) : (
+              <>
+                <NotebookToolbar
+                  query={cellQuery}
+                  onQuery={setCellQuery}
+                  matchCount={visiblePaired.length}
+                  totalCount={paired.length}
+                  busy={runtimeState === "busy"}
+                  onInterrupt={handleInterrupt}
+                  onRestart={handleRestart}
+                  onExportIpynb={() =>
+                    downloadBlob(
+                      `${notebookBase}.ipynb`,
+                      "application/x-ipynb+json",
+                      toIpynb(paired, kernelName),
+                    )
+                  }
+                  onExportHtml={() =>
+                    downloadBlob(
+                      `${notebookBase}.html`,
+                      "text/html",
+                      toHtml(paired, notebookTitle || "Notebook"),
+                    )
+                  }
+                />
+                <div
+                  data-testid="jupyter-container"
+                  className="flex-1 overflow-y-auto fast-smooth-scroll custom-scrollbar-always pt-3"
+                  style={{ background: "var(--cg-bg-page)" }}
+                  ref={jupyterRef}
+                  onScroll={(e) => onChatBodyScroll(e.currentTarget)}
+                >
+                  <div className="flex flex-col gap-3 px-3 pb-3">
+                    {cells.length === 0 && (
+                      <div className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-accent-purple-bg)] px-3 py-1.5 text-[11px] text-[var(--cg-text-nav)]">
+                        <span className="min-w-0 flex-1">
+                          Sample — no cells executed yet. Live cells replace
+                          this as the agent runs.
+                        </span>
+                        {/* kept here so it isn't lost with the old empty state.
                           "Open notebook" needed that state's file picker, so it
                           is not reproduced here. */}
-                      <button
-                        type="button"
-                        onClick={handleNewNotebook}
-                        className="shrink-0 cursor-pointer rounded border border-[var(--cg-border-subtle)] px-1.5 py-0.5 transition-colors hover:text-[var(--cg-text-primary)]"
-                      >
-                        New notebook
-                      </button>
-                    </div>
-                  )}
-                  {(cells.length === 0 ? SAMPLE_CELLS : pairCells(cells)).map(
-                    (c) => (
-                      <ExecutionCell
-                        key={c.key}
-                        n={c.n}
-                        kindLabel="Python 3"
-                        title={c.code.trim().split("\n")[0] ?? ""}
-                        status={statusOfCell(c.state)}
-                        code={c.code}
-                        output={c.output}
-                        images={c.images}
-                        renderCode={(code) => (
-                          <CodeMirror
-                            value={code}
-                            extensions={[python()]}
-                            theme={vscodeDark}
-                            editable={false}
-                            basicSetup={{
-                              lineNumbers: true,
-                              foldGutter: false,
-                              dropCursor: false,
-                              allowMultipleSelections: false,
-                              indentOnInput: false,
-                              highlightActiveLine: false,
-                              highlightSelectionMatches: false,
-                            }}
-                            style={{ fontSize: "11.5px" }}
-                          />
-                        )}
-                      />
-                    ),
-                  )}
+                        <button
+                          type="button"
+                          onClick={handleNewNotebook}
+                          className="shrink-0 cursor-pointer rounded border border-[var(--cg-border-subtle)] px-1.5 py-0.5 transition-colors hover:text-[var(--cg-text-primary)]"
+                        >
+                          New notebook
+                        </button>
+                      </div>
+                    )}
+                    {(cells.length === 0 ? SAMPLE_CELLS : pairCells(cells)).map(
+                      (c) => (
+                        <ExecutionCell
+                          key={c.key}
+                          n={c.n}
+                          kindLabel="Python 3"
+                          title={c.code.trim().split("\n")[0] ?? ""}
+                          status={statusOfCell(c.state)}
+                          code={c.code}
+                          output={c.output}
+                          images={c.images}
+                          renderCode={(code) => (
+                            <CodeMirror
+                              value={code}
+                              extensions={[python()]}
+                              theme={vscodeDark}
+                              editable={false}
+                              basicSetup={{
+                                lineNumbers: true,
+                                foldGutter: false,
+                                dropCursor: false,
+                                allowMultipleSelections: false,
+                                indentOnInput: false,
+                                highlightActiveLine: false,
+                                highlightSelectionMatches: false,
+                              }}
+                              style={{ fontSize: "11.5px" }}
+                            />
+                          )}
+                        />
+                      ),
+                    )}
+                  </div>
                 </div>
-              </div>
-              {!hitBottom && (
-                <div className="sticky bottom-2 flex items-center justify-center">
-                  <ScrollToBottomButton onClick={scrollDomToBottom} />
-                </div>
-              )}
-            </>
-          )}
+                {!hitBottom && (
+                  <div className="sticky bottom-2 flex items-center justify-center">
+                    <ScrollToBottomButton onClick={scrollDomToBottom} />
+                  </div>
+                )}
+              </>
+            ))}
         </div>
       </div>
     </div>

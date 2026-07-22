@@ -1,11 +1,47 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
-import { defineConfig, loadEnv } from "vite";
+import { readFileSync } from "node:fs";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
 import { reactRouter } from "@react-router/dev/vite";
 import { configDefaults } from "vitest/config";
 import tailwindcss from "@tailwindcss/vite";
+
+/**
+ * Load webpack-style `?text` imports as raw strings.
+ *
+ * @datalayer/jupyter-react's JupyterLite server code does
+ * `import SW_URL from './service-worker?text'` (a webpack raw-loader idiom Vite
+ * doesn't understand). We never use the in-browser JupyterLite kernel — we talk
+ * to the server-backed kernel through the control-plane proxy — but the module
+ * is still in the graph, so it must at least resolve to a valid default export.
+ * We vendor the transform here rather than pull an external loader dep
+ * (own-the-supply-chain). The `\0` prefix marks the id virtual so no other
+ * plugin touches it.
+ */
+function jupyterTextLoader(): Plugin {
+  const SUFFIX = "?text";
+  const MARK = "\0cg-text:";
+  return {
+    name: "cg-jupyter-text-loader",
+    enforce: "pre",
+    async resolveId(source, importer, options) {
+      if (!source.endsWith(SUFFIX)) return null;
+      const base = source.slice(0, -SUFFIX.length);
+      const resolved = await this.resolve(base, importer, {
+        ...options,
+        skipSelf: true,
+      });
+      return resolved ? MARK + resolved.id : null;
+    },
+    load(id) {
+      if (!id.startsWith(MARK)) return null;
+      const file = id.slice(MARK.length);
+      return `export default ${JSON.stringify(readFileSync(file, "utf-8"))};`;
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const {
@@ -26,11 +62,21 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
+      jupyterTextLoader(),
       !process.env.VITEST && reactRouter(),
       viteTsconfigPaths(),
       svgr(),
       tailwindcss(),
     ],
+    resolve: {
+      alias: [
+        // json5 ships an ESM build (dist/index.mjs) that only default-exports;
+        // @jupyterlab/settingregistry does `import { parse } from 'json5'`, which
+        // Rollup can't satisfy from the ESM entry. Point at the CJS build so the
+        // commonjs plugin synthesises the named exports.
+        { find: /^json5$/, replacement: "json5/lib/index.js" },
+      ],
+    },
     optimizeDeps: {
       include: [
         // Pre-bundle ALL dependencies to prevent runtime optimization and page reloads

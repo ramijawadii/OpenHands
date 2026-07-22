@@ -40,15 +40,18 @@ class JupyterPlugin(Plugin):
     def _jupyter_subcommand(self) -> str:
         """The `jupyter <subcommand> <args>` to launch, after `-m jupyter`.
 
-        Default: `kernelgateway` (the proven path — kernels only).
-        Opt-in via CLOUDGUARD_JUPYTER_SERVER=1: full `jupyter server`, which
-        additionally exposes the `/api/contents` file API that @datalayer/
-        jupyter-react needs (step 1 of the jupyter-react track). The kernel API
-        (`/api/kernels`) is compatible, so the agent's client is unaffected. The
-        flag keeps a broken server from taking down agent execution on rebuild —
-        it must be validated (agent runs a cell) before becoming the default.
+        Default: full `jupyter server` — it exposes the `/api/contents` file API
+        that @datalayer/jupyter-react needs AND the kernel API (`/api/kernels`)
+        the agent's client already uses, so the agent execution path is
+        unaffected (validated empirically 2026-07-22: POST /api/kernels → 201,
+        GET /api/contents with token → 200, no token → 403).
+
+        Escape hatch: `CLOUDGUARD_JUPYTER_SERVER=0` reverts to the older
+        `kernelgateway` (kernels only) if a server regression ever surfaces —
+        agent execution keeps working either way. Both bind 0.0.0.0 and require
+        the same generated token, so nothing is exposed without auth.
         """
-        if os.getenv('CLOUDGUARD_JUPYTER_SERVER', '0') == '1':
+        if os.getenv('CLOUDGUARD_JUPYTER_SERVER', '1') != '0':
             return (
                 'server '
                 '--ServerApp.ip=0.0.0.0 '
