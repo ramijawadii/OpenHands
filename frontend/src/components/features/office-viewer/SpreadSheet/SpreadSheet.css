@@ -1,0 +1,209 @@
+/* Handsontable's internal overlays use very high z-indexes (frozen headers
+   ~210, menus up to 9999). `isolation: isolate` gives this subtree its own
+   stacking context, so those values are contained here and can no longer paint
+   over app-level drawers (notifications, dialogs) that sit outside it. */
+.ss-root {
+  isolation: isolate;
+  position: relative;
+  z-index: 0;
+
+  /* Theme-INVARIANT: the spreadsheet always presents light, in both app themes.
+     These pin the --cg-* tokens the toolbar consumes to their light values, so
+     the toolbar matches the light-pinned grid regardless of app dark/light. */
+  --cg-bg-page: hsl(48deg, 33.3%, 97.1%);
+  --cg-bg-sidebar: hsl(53deg, 28.6%, 94.5%);
+  --cg-bg-card: #ffffff;
+  --cg-bg-hover: hsl(50deg, 20.7%, 91%);
+  --cg-text-primary: hsl(0deg, 0%, 7%);
+  --cg-text-nav: hsl(60deg, 2.5%, 23.3%);
+  --cg-text-muted: hsl(51deg, 3.1%, 43.7%);
+  --cg-border-subtle: rgba(30, 20, 10, 0.07);
+  --cg-border-strong: rgba(30, 20, 10, 0.25);
+  --cg-danger: #c94040;
+
+  color: var(--cg-text-primary);
+  background: var(--cg-bg-page);
+  /* native controls (search input, select dropdowns, scrollbars) also stay
+     light — without this they follow the app's dark color-scheme */
+  color-scheme: light;
+}
+
+/* shortcuts modal — rendered inside .ss-root so it inherits the light context
+   and the isolate stacking boundary */
+.ss-modal-overlay {
+  position: absolute;
+  inset: 0;
+  /* above every Handsontable overlay (headers ~210, menus up to 9999) */
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+.ss-modal {
+  width: min(420px, 92%);
+  max-height: 80%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--cg-border-subtle);
+  border-radius: 10px;
+  background: var(--cg-bg-card);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+.ss-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cg-border-subtle);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--cg-text-primary);
+}
+.ss-modal-body {
+  overflow-y: auto;
+  padding: 6px 12px 12px;
+}
+.ss-shortcut-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  font-size: 11.5px;
+  color: var(--cg-text-nav);
+}
+.ss-kbd {
+  flex-shrink: 0;
+  min-width: 118px;
+  padding: 2px 6px;
+  border: 1px solid var(--cg-border-subtle);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--cg-bg-hover);
+  font-family: monospace;
+  font-size: 10.5px;
+  color: var(--cg-text-primary);
+  text-align: center;
+}
+
+/* The app's global `.text-white` / dark color-scheme leaks white text into the
+   grid cells, making them invisible on the light sheet. Force readable colours
+   for the pinned light theme; formatting styles (bold/colour) still override. */
+.ss-root .htCore td,
+.ss-root .handsontable td,
+.ss-root .handsontable th {
+  color: #1a1a18 !important;
+}
+.ss-root .handsontable th {
+  color: #3a3a36 !important;
+}
+/* the editor textarea shown while typing — was white-on-white, so edits were
+   invisible and looked like typing did nothing */
+.handsontableInput,
+.handsontableInputHolder textarea {
+  color: #1a1a18 !important;
+  background: #ffffff !important;
+  caret-color: #1a1a18 !important;
+}
+
+/* Cell formatting applied via Handsontable cell `className`. Handsontable
+   renders these classes onto the <td>, so they win over the theme cell text. */
+.htCore td.ss-bold {
+  font-weight: 700;
+}
+.htCore td.ss-italic {
+  font-style: italic;
+}
+.htCore td.ss-underline {
+  text-decoration: underline;
+}
+
+/* toolbar */
+.ss-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--cg-border-subtle);
+  background: var(--cg-bg-sidebar);
+}
+.ss-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--cg-text-nav);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.ss-btn:hover {
+  background: var(--cg-bg-hover);
+  color: var(--cg-text-primary);
+}
+.ss-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ss-btn.is-active {
+  background: var(--cg-bg-card);
+  color: var(--cg-text-primary);
+  border-color: var(--cg-border-subtle);
+}
+.ss-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 3px;
+  background: var(--cg-border-subtle);
+}
+.ss-cellref {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--cg-border-subtle);
+  border-radius: 6px;
+  background: var(--cg-bg-card);
+  color: var(--cg-text-nav);
+  font-family: monospace;
+  font-size: 11.5px;
+}
+.ss-formula {
+  flex: 1;
+  min-width: 120px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--cg-border-subtle);
+  border-radius: 6px;
+  background: var(--cg-bg-card);
+  color: var(--cg-text-primary);
+  font-family: monospace;
+  font-size: 11.5px;
+  outline: none;
+}
+.ss-formula:focus {
+  border-color: var(--cg-text-muted);
+}
+.ss-search {
+  width: 130px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--cg-border-subtle);
+  border-radius: 6px;
+  background: var(--cg-bg-card);
+  color: var(--cg-text-primary);
+  font-size: 11.5px;
+  outline: none;
+}
+.ss-search:focus {
+  border-color: var(--cg-text-muted);
+}

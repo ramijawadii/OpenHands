@@ -1,5 +1,6 @@
 import asyncio
 import os
+import secrets
 import subprocess
 import sys
 import time
@@ -31,6 +32,7 @@ class JupyterRequirement(PluginRequirement):
 class JupyterPlugin(Plugin):
     name: str = 'jupyter'
     kernel_gateway_port: int
+    kernel_gateway_token: str
     kernel_id: str
     gateway_process: asyncio.subprocess.Process | subprocess.Popen
     python_interpreter_path: str
@@ -39,6 +41,12 @@ class JupyterPlugin(Plugin):
         self, username: str, kernel_id: str = 'openhands-default'
     ) -> None:
         self.kernel_gateway_port = find_available_tcp_port(40000, 49999)
+        # Gateway auth token. The gateway binds 0.0.0.0, so a token is the
+        # minimum bar before it can ever be exposed beyond the sandbox — it is
+        # the first step of the jupyter-react server track. The agent's own
+        # client (JupyterKernel below) carries the same token, so nothing in the
+        # existing execution path changes behaviourally.
+        self.kernel_gateway_token = secrets.token_hex(24)
         self.kernel_id = kernel_id
         is_local_runtime = os.environ.get('LOCAL_RUNTIME_MODE') == '1'
         is_windows = sys.platform == 'win32'
@@ -72,7 +80,8 @@ class JupyterPlugin(Plugin):
                 f'cd /d "{code_repo_path}" && '
                 f'"{sys.executable}" -m jupyter kernelgateway '
                 '--KernelGatewayApp.ip=0.0.0.0 '
-                f'--KernelGatewayApp.port={self.kernel_gateway_port}'
+                f'--KernelGatewayApp.port={self.kernel_gateway_port} '
+                f'--KernelGatewayApp.auth_token={self.kernel_gateway_token}'
             )
             logger.debug(f'Jupyter launch command (Windows): {jupyter_launch_command}')
 
@@ -116,7 +125,8 @@ class JupyterPlugin(Plugin):
                 f'{poetry_prefix}'
                 f'"{sys.executable}" -m jupyter kernelgateway '
                 '--KernelGatewayApp.ip=0.0.0.0 '
-                f'--KernelGatewayApp.port={self.kernel_gateway_port}\n'
+                f'--KernelGatewayApp.port={self.kernel_gateway_port} '
+                f'--KernelGatewayApp.auth_token={self.kernel_gateway_token}\n'
                 'EOF'
             )
             logger.debug(f'Jupyter launch command: {jupyter_launch_command}')
@@ -157,7 +167,9 @@ class JupyterPlugin(Plugin):
 
         if not hasattr(self, 'kernel'):
             self.kernel = JupyterKernel(
-                f'localhost:{self.kernel_gateway_port}', self.kernel_id
+                f'localhost:{self.kernel_gateway_port}',
+                self.kernel_id,
+                token=self.kernel_gateway_token,
             )
 
         if not self.kernel.initialized:

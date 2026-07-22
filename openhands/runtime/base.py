@@ -153,7 +153,17 @@ class Runtime(FileEditRuntimeMixin):
             copy.deepcopy(plugins) if plugins is not None and len(plugins) > 0 else []
         )
         # add VSCode plugin if not in headless mode
-        if not headless_mode:
+        #
+        # CloudGuard: VSCode is initialised on EVERY runtime spawn, and its startup (extension
+        # host + server bind) is a measurable share of the ~40-57s cold-start an operator waits
+        # through before the agent is usable. CLOUDGUARD_DISABLE_VSCODE=1 skips it for deployments
+        # that drive the editor from a separate workbench container instead of the in-conversation
+        # tab. TRADE-OFF: with this set, the VSCode tab inside a conversation will not work.
+        _vscode_disabled = (
+            os.environ.get('CLOUDGUARD_DISABLE_VSCODE', '').strip().lower()
+            in ('1', 'true', 'yes')
+        )
+        if not headless_mode and not _vscode_disabled:
             self.plugins.append(VSCodeRequirement())
 
         self.status_callback = status_callback

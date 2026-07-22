@@ -416,7 +416,30 @@ class DockerRuntime(ActionExecutionClient):
             lock for lock in [app_lock_1, app_lock_2] if lock is not None
         ]
 
-        self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
+        # CloudGuard: container-network mode.
+        #
+        # By default the app reaches the runtime at `local_runtime_url:<host_port>` — i.e. over a
+        # PUBLISHED PORT on the host. That makes every conversation depend on the Docker host's
+        # port-forwarding path, and when that forwarder degrades the symptom is brutal: the TCP
+        # connect still succeeds (the proxy accepts) but no bytes ever flow, so the agent hangs in
+        # `loading` forever instead of failing fast. It also costs a host-port allocation per spawn.
+        #
+        # When CLOUDGUARD_RUNTIME_NETWORK names a user-defined docker network that the APP is also
+        # attached to, we instead address the runtime by CONTAINER NAME on that network. Container
+        # DNS is resolved by the docker embedded resolver, never touching the host, so the whole
+        # failure mode disappears along with the per-spawn port allocation.
+        runtime_network = (os.environ.get('CLOUDGUARD_RUNTIME_NETWORK') or '').strip()
+        if runtime_network:
+            self.api_url = f'http://{self.container_name}:{self._container_port}'
+            self.log(
+                'info',
+                f'Container-network mode: reaching runtime at {self.api_url} over '
+                f'"{runtime_network}" (no host port forwarding).',
+            )
+        else:
+            self.api_url = (
+                f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
+            )
 
         use_host_network = self.config.sandbox.use_host_network
         network_mode: typing.Literal['host'] | None = (
@@ -554,6 +577,11 @@ class DockerRuntime(ActionExecutionClient):
                 # Override the default 'bash' entrypoint because the command is a binary.
                 entrypoint=[],
                 network_mode=network_mode,
+                # CloudGuard: join the app's user-defined network so `api_url` (container DNS)
+                # resolves. Port publishing is deliberately LEFT IN PLACE — the browser-facing
+                # VSCode/app URLs still use it; only the agent<->runtime control path moves off
+                # host forwarding, which is the path that hangs when the forwarder degrades.
+                network=runtime_network or None,
                 ports=port_mapping,
                 working_dir='/openhands/code/',  # do not change this!
                 name=self.container_name,

@@ -29,7 +29,9 @@ export function ThoughtIndicator({ streaming = false }: ThoughtIndicatorProps) {
     <div className="flex items-center gap-2 my-1 text-xs text-[var(--cg-text-muted)] select-none">
       <span
         className={`w-1.5 h-1.5 rounded-full ${
-          streaming ? "bg-violet-400 animate-pulse" : "bg-[var(--cg-text-muted)]"
+          streaming
+            ? "bg-[var(--cg-accent-purple)] animate-pulse"
+            : "bg-[var(--cg-text-muted)]"
         }`}
       />
       <span>{streaming ? `Thinking… ${seconds}s` : "Thought"}</span>

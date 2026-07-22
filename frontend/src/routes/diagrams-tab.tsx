@@ -9,7 +9,7 @@ import { sanitizeMermaid } from "#/utils/sanitize-mermaid";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
-import { XlsxViewer } from "#/components/features/office-viewer/XlsxViewer";
+import SpreadSheet from "#/components/features/office-viewer/SpreadSheet";
 import {
   setHealthConversation,
   reportArtifactHealth,
@@ -250,6 +250,24 @@ function DiagramsTab() {
   const [svgHtml, setSvgHtml] = useState<string>("");
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isEmpty, setIsEmpty] = useState(false);
+  // a user-started (blank) or uploaded spreadsheet, rendered independently of
+  // the agent-generated manifest
+  const [localSheet, setLocalSheet] = useState<{
+    buffer?: ArrayBuffer;
+    filename: string;
+    blank?: boolean;
+  } | null>(null);
+  const uploadRef = useRef<HTMLInputElement | null>(null);
+
+  const onUploadSheet = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      setLocalSheet({
+        buffer: reader.result as ArrayBuffer,
+        filename: file.name,
+      });
+    reader.readAsArrayBuffer(file);
+  };
   const [copiedSource, setCopiedSource] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [prevRealPage, setPrevRealPage] = useState<string | null>(null);
@@ -710,6 +728,38 @@ function DiagramsTab() {
   // always matches the server pre-render (both empty div), eliminating #418.
   if (!mounted) return <div className="w-full h-full bg-[var(--cg-bg-page)]" />;
 
+  // ── User-started / uploaded spreadsheet ───────────────────────────────────
+  // Takes precedence over the manifest so the user can work in their own sheet
+  // regardless of what the agent produced.
+  if (localSheet) {
+    return (
+      <div className="flex h-full w-full flex-col bg-[var(--cg-bg-page)]">
+        <div className="flex items-center gap-2 border-b border-[var(--cg-border)] px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => setLocalSheet(null)}
+            className="flex items-center gap-1 rounded border border-[var(--cg-border)] bg-[var(--cg-input-bg)] px-2 py-1 text-xs text-[var(--cg-text-muted)] transition-colors hover:border-[var(--cg-border-strong)] hover:text-[var(--cg-text-primary)]"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+            Back to pages
+          </button>
+          <span className="truncate font-mono text-[12px] text-[var(--cg-text-nav)]">
+            {localSheet.filename}
+          </span>
+        </div>
+        <div className="min-h-0 flex-1">
+          <SpreadSheet
+            arrayBuffer={localSheet.buffer}
+            filename={localSheet.filename}
+            startBlank={localSheet.blank}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // ── Empty state ─────────────────────────────────────────────────────────────
 
   if (isEmpty) {
@@ -729,9 +779,38 @@ function DiagramsTab() {
         </svg>
         <p className="text-lg font-medium text-[var(--cg-text-primary)]">No pages yet</p>
         <p className="text-sm text-center max-w-xs text-[var(--cg-text-muted)]">
-          Ask the agent to generate a diagram or page — it will appear here
-          automatically.
+          Ask the agent to generate a diagram or page — or start your own
+          spreadsheet below.
         </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              setLocalSheet({ filename: "untitled.csv", blank: true })
+            }
+            className="rounded-md border border-[var(--cg-border)] bg-[var(--cg-input-bg)] px-3 py-1.5 text-[13px] text-[var(--cg-text-nav)] transition-colors hover:border-[var(--cg-border-strong)] hover:text-[var(--cg-text-primary)]"
+          >
+            New spreadsheet
+          </button>
+          <button
+            type="button"
+            onClick={() => uploadRef.current?.click()}
+            className="rounded-md border border-[var(--cg-border)] bg-[var(--cg-input-bg)] px-3 py-1.5 text-[13px] text-[var(--cg-text-nav)] transition-colors hover:border-[var(--cg-border-strong)] hover:text-[var(--cg-text-primary)]"
+          >
+            Upload spreadsheet
+          </button>
+        </div>
+        <input
+          ref={uploadRef}
+          type="file"
+          accept=".xlsx,.xls,.xlsm,.csv"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUploadSheet(f);
+            e.target.value = "";
+          }}
+        />
       </div>
     );
   }
@@ -869,7 +948,7 @@ function DiagramsTab() {
         // Excel viewer
         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
           {binaryData ? (
-            <XlsxViewer
+            <SpreadSheet
               arrayBuffer={binaryData}
               filename={selectedFile ?? "workbook.xlsx"}
               onReady={(meta) => {

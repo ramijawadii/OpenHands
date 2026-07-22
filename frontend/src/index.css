@@ -70,10 +70,11 @@
   --cg-border: rgba(30, 20, 10, 0.12);
   --cg-border-card: rgba(30, 20, 10, 0.2);
   --cg-accent: hsl(210deg, 70.9%, 51.6%);
-  --cg-accent-purple: hsl(262deg, 83.3%, 63.9%);
+  /* neutral dark grey, mirroring the dark theme's warm grey — no violet */
+  --cg-accent-purple: hsl(45deg, 3%, 32%);
   --cg-accent-bg: rgba(45, 134, 212, 0.08);
   --cg-accent-bg-strong: rgba(45, 134, 212, 0.15);
-  --cg-accent-purple-bg: rgba(130, 90, 230, 0.12);
+  --cg-accent-purple-bg: rgba(84, 82, 78, 0.12);
   --cg-workspace-bg: rgba(200, 190, 170, 0.4);
   --cg-workspace-bg-hover: rgba(200, 190, 170, 0.6);
   --cg-workspace-dropdown-bg: hsl(53deg, 28.6%, 90%);
@@ -183,4 +184,222 @@ code {
 .fast-smooth-scroll {
   scroll-behavior: smooth;
   scroll-timeline: 100ms;
+}
+
+/* ── Chat embedded in the right panel ──────────────────────────────────────
+   Same ChatInterface as the main column, but the panel is far narrower, so the
+   default rhythm wastes space. Scoped entirely to .cg-chat-embedded: the main
+   conversation column is unaffected. !important is needed to win over the
+   Tailwind utilities baked into the shared components. */
+
+.cg-chat-embedded {
+  font-size: 12.5px;
+}
+
+/* message list: tighter gutters and inter-message spacing */
+.cg-chat-embedded .custom-scrollbar-always {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  padding-top: 0.75rem !important;
+  padding-bottom: 1rem !important;
+  gap: 0.9rem !important;
+}
+
+/* message body text */
+.cg-chat-embedded .markdown-body,
+.cg-chat-embedded .markdown-body p,
+.cg-chat-embedded .markdown-body li {
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.cg-chat-embedded .markdown-body pre,
+.cg-chat-embedded .markdown-body code {
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.cg-chat-embedded .markdown-body h1 { font-size: 15px; }
+.cg-chat-embedded .markdown-body h2 { font-size: 14px; }
+.cg-chat-embedded .markdown-body h3,
+.cg-chat-embedded .markdown-body h4 { font-size: 13px; }
+
+.cg-chat-embedded .markdown-body :is(p, ul, ol, pre, table) {
+  margin-top: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+/* the chat box itself */
+.cg-chat-embedded textarea,
+.cg-chat-embedded [contenteditable="true"] {
+  font-size: 12.5px !important;
+  line-height: 1.5 !important;
+  min-height: 34px !important;
+}
+
+.cg-chat-embedded button {
+  font-size: 11.5px;
+}
+
+/* chat box: shorter. The shared input hardcodes 44px min-height and 16px text
+   for the wide main column; in the panel that eats most of the drawer. */
+.cg-chat-embedded .rounded-2xl.p-3 {
+  padding: 0.5rem !important;
+  border-radius: 0.85rem !important;
+}
+.cg-chat-embedded .rounded-2xl.p-3 > .mb-2 {
+  margin-bottom: 0.25rem !important;
+}
+.cg-chat-embedded .min-h-\[44px\] {
+  min-height: 30px !important;
+}
+.cg-chat-embedded .chat-input {
+  font-size: 12.5px !important;
+  line-height: 1.4 !important;
+  min-height: 30px !important;
+  max-height: 180px !important;
+}
+
+/* the suggestions overlay is positioned off the input's height — retune it to
+   match the shorter box, otherwise a dead gap opens above the chat box. */
+.cg-chat-embedded .bottom-\[151px\] {
+  bottom: 112px !important;
+}
+
+/* empty-state header */
+.cg-chat-embedded .max-w-3xl {
+  max-width: 100% !important;
+}
+.cg-chat-embedded .h-10.w-10 {
+  height: 2rem !important;
+  width: 2rem !important;
+  border-radius: 0.6rem !important;
+}
+.cg-chat-embedded .h-10.w-10 svg {
+  height: 1rem !important;
+  width: 1rem !important;
+}
+
+/* suggestion cards: fit the drawer width */
+.cg-chat-embedded .grid.sm\:grid-cols-2 {
+  gap: 0.5rem !important;
+  margin-top: 1rem !important;
+}
+.cg-chat-embedded .grid.sm\:grid-cols-2 > button {
+  padding: 0.55rem 0.7rem !important;
+  border-radius: 0.6rem !important;
+  gap: 0.5rem !important;
+}
+.cg-chat-embedded .grid.sm\:grid-cols-2 > button .h-7.w-7 {
+  height: 1.35rem !important;
+  width: 1.35rem !important;
+  border-radius: 0.45rem !important;
+}
+.cg-chat-embedded .grid.sm\:grid-cols-2 > button .text-\[13px\] {
+  font-size: 12px !important;
+}
+.cg-chat-embedded .grid.sm\:grid-cols-2 > button .text-\[11\.5px\] {
+  font-size: 10.5px !important;
+  line-height: 1.35 !important;
+}
+
+/* the chat column has right padding only (pr-0 md:pr-4), which reads as
+   off-centre in the narrow drawer — mirror it on the left. */
+.cg-chat-embedded .pr-0.md\:pr-4 {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+}
+
+/* ── popovers inside the embedded chat ─────────────────────────────────────
+   Both menus are sized/anchored for the wide main column. */
+
+/* mode menu (Autonomous / Ask / Plan): 260px is too wide for the drawer */
+.cg-chat-embedded .w-\[260px\] {
+  width: 215px !important;
+}
+.cg-chat-embedded .w-\[260px\] button {
+  padding: 0.4rem 0.6rem !important;
+  gap: 0.5rem !important;
+}
+.cg-chat-embedded .w-\[260px\] button .w-7.h-7 {
+  width: 1.3rem !important;
+  height: 1.3rem !important;
+  border-radius: 0.4rem !important;
+}
+.cg-chat-embedded .w-\[260px\] button .w-7.h-7 svg {
+  width: 0.75rem !important;
+  height: 0.75rem !important;
+}
+.cg-chat-embedded .w-\[260px\] button .text-sm {
+  font-size: 12px !important;
+}
+.cg-chat-embedded .w-\[260px\] button .text-\[11px\] {
+  font-size: 10.5px !important;
+  line-height: 1.3 !important;
+}
+
+/* server-status menu: anchored left of a badge that sits flush right, so it
+   opened off the edge of the drawer. Flip it to grow leftwards. */
+.cg-chat-embedded .left-2.w-fit.min-w-max {
+  left: auto !important;
+  right: 0 !important;
+  max-width: calc(100% - 0.5rem) !important;
+}
+.cg-chat-embedded .left-2.w-fit.min-w-max li,
+.cg-chat-embedded .left-2.w-fit.min-w-max button {
+  font-size: 11px !important;
+  padding-top: 0.3rem !important;
+  padding-bottom: 0.3rem !important;
+}
+
+/* ── Conversation cards inside the drawer ──────────────────────────────────
+   ConversationCard is built for the wide flyout; the drawer is much narrower,
+   so tighten padding/typography without touching the shared component. */
+.cg-conv-compact [data-testid="conversation-card"] {
+  padding: 0.5rem 0.6rem !important;
+  border-radius: 0.5rem !important;
+  gap: 0.35rem !important;
+}
+.cg-conv-compact [data-testid="conversation-card"] .text-sm,
+.cg-conv-compact [data-testid="conversation-card"] h3 {
+  font-size: 12px !important;
+  line-height: 1.35 !important;
+}
+.cg-conv-compact [data-testid="conversation-card"] .text-xs,
+.cg-conv-compact [data-testid="conversation-card"] .text-\[11px\] {
+  font-size: 10.5px !important;
+}
+/* keep the star / kebab hit targets usable but smaller */
+.cg-conv-compact [data-testid="conversation-card"] button svg {
+  width: 0.8rem !important;
+  height: 0.8rem !important;
+}
+/* the context menu must stay inside the drawer, not overflow its right edge */
+.cg-conv-compact [data-testid="context-menu"] {
+  right: 0 !important;
+  left: auto !important;
+  min-width: 150px !important;
+  font-size: 11px !important;
+}
+
+/* compact chat bubbles in the embedded drawer chat — smaller padding, tighter
+   spacing and font so messages fit the narrow panel */
+.cg-chat-embedded [data-testid="user-message"] {
+  padding: 0.5rem 0.7rem !important;
+  border-radius: 0.7rem !important;
+  gap: 0.35rem !important;
+}
+.cg-chat-embedded [data-testid="agent-message"] {
+  margin-top: 0.85rem !important;
+  gap: 0.35rem !important;
+}
+.cg-chat-embedded [data-testid="user-message"] .markdown-body,
+.cg-chat-embedded [data-testid="agent-message"] .markdown-body,
+.cg-chat-embedded [data-testid="user-message"] .markdown-body p,
+.cg-chat-embedded [data-testid="agent-message"] .markdown-body p {
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+.cg-chat-embedded [data-testid="user-message"] {
+  max-width: 88% !important;
 }

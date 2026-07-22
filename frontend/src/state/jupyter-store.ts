@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { nextSeq } from "./command-store";
 import { persist, createJSONStorage } from "zustand/middleware";
 
 export type CellExecutionState =
@@ -20,6 +21,9 @@ export type Cell = {
   content: string;
   type: "input" | "output";
   imageUrls?: string[];
+  ts?: number;
+  seq?: number;
+  exitCode?: number | null;
   executionState: CellExecutionState;
   executionCount?: number;
   executionStart?: number;
@@ -88,6 +92,8 @@ export const useJupyterStore = create<JupyterState>()(
               id,
               content,
               type: "input",
+              ts: now,
+              seq: nextSeq(),
               executionState: "running",
               executionCount: nextCount,
               executionStart: now,

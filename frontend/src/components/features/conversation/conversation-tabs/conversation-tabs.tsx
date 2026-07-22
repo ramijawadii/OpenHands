@@ -4,11 +4,12 @@ import { useLocalStorage } from "@uidotdev/usehooks";
 import {
   StickyNote,
   FileTerminal,
-  SquareTerminal,
-  History,
+  ScrollText,
+  MessagesSquare,
+  Workflow,
+  Activity,
   X,
 } from "lucide-react";
-import TerminalIcon from "#/icons/terminal.svg?react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
@@ -44,12 +45,17 @@ export function ConversationTabs() {
 
   // Initialize Zustand state from localStorage on component mount
   useEffect(() => {
-    // Coerce a stale persisted "vscode" selection (the tab was removed) to the
-    // editor so returning users don't land on an empty panel.
+    // Coerce stale persisted selections for tabs that no longer exist, so a
+    // returning user never lands on an empty panel. "conversations" became a
+    // mode of the Chat view rather than a tab of its own.
+    const STALE: Record<string, ConversationTab> = {
+      vscode: "terminal",
+      // Commands is no longer a panel tab — it lives inside the Chat view.
+      editor: "terminal",
+      conversations: "terminal",
+    };
     const initialTab =
-      (persistedSelectedTab as string) === "vscode"
-        ? "editor"
-        : persistedSelectedTab;
+      STALE[persistedSelectedTab as string] ?? persistedSelectedTab;
     if (initialTab !== persistedSelectedTab) {
       setPersistedSelectedTab(initialTab);
     }
@@ -96,48 +102,60 @@ export function ConversationTabs() {
   const isTabActive = (tab: ConversationTab) =>
     isRightPanelShown && selectedTab === tab;
 
-  // Order mirrors the design mockup (Terminal · Artifact · Jupyter · …); the
-  // Artifact (Pages) tab sits where the mockup's placeholder "Topology" was.
+  // Chat · Commands · Jupyter · Report · Logs · Remediation · Sandbox.
+  // The store keys are historical
+  // ("terminal" = Chat, "diagrams" = Report, "states" = Logs) so that tab
+  // selections already persisted in localStorage keep resolving.
   const tabs = [
     {
       isActive: isTabActive("terminal"),
-      icon: TerminalIcon,
-      label: t(I18nKey.COMMON$TERMINAL),
+      icon: MessagesSquare,
+      label: "Chat",
       onClick: () => onTabSelected("terminal"),
-      tooltipContent: t(I18nKey.COMMON$TERMINAL),
-      tooltipAriaLabel: t(I18nKey.COMMON$TERMINAL),
-    },
-    {
-      isActive: isTabActive("diagrams"),
-      icon: StickyNote,
-      label: "Artifact",
-      onClick: () => onTabSelected("diagrams"),
-      tooltipContent: "Artifact",
-      tooltipAriaLabel: "Artifact",
+      tooltipContent: "Chat — the conversation, embedded in the panel",
+      tooltipAriaLabel: "Chat",
     },
     {
       isActive: isTabActive("jupyter"),
       icon: FileTerminal,
-      label: t(I18nKey.COMMON$JUPYTER),
+      label: "Data Analysis",
       onClick: () => onTabSelected("jupyter"),
-      tooltipContent: t(I18nKey.COMMON$JUPYTER),
-      tooltipAriaLabel: t(I18nKey.COMMON$JUPYTER),
+      tooltipContent:
+        "Data Analysis — Jupyter, Sheet, Data Connector, File Systems",
+      tooltipAriaLabel: "Data Analysis",
     },
     {
-      isActive: isTabActive("editor"),
-      icon: SquareTerminal,
-      label: "Commands",
-      onClick: () => onTabSelected("editor"),
-      tooltipContent: "Commands — executed shell cells (In/Out)",
-      tooltipAriaLabel: "Commands",
+      isActive: isTabActive("diagrams"),
+      icon: StickyNote,
+      label: "Report",
+      onClick: () => onTabSelected("diagrams"),
+      tooltipContent: "Report — generated artifacts and diagrams",
+      tooltipAriaLabel: "Report",
     },
     {
       isActive: isTabActive("states"),
-      icon: History,
-      label: "States",
+      icon: ScrollText,
+      label: "Logs",
       onClick: () => onTabSelected("states"),
-      tooltipContent: "States — workspace rewind points (flashpoints)",
-      tooltipAriaLabel: "States",
+      tooltipContent: "Logs — audit trail of everything the agent executed",
+      tooltipAriaLabel: "Logs",
+    },
+    {
+      isActive: isTabActive("remediation"),
+      icon: Workflow,
+      label: "Remediation",
+      onClick: () => onTabSelected("remediation"),
+      tooltipContent:
+        "Remediation Workflow — propose → blast radius → simulate → approve → apply",
+      tooltipAriaLabel: "Remediation Workflow",
+    },
+    {
+      isActive: isTabActive("sandbox"),
+      icon: Activity,
+      label: "Sandbox settings",
+      onClick: () => onTabSelected("sandbox"),
+      tooltipContent: "Sandbox settings — resources and running processes",
+      tooltipAriaLabel: "Sandbox settings",
     },
   ];
 

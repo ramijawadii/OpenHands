@@ -25,9 +25,10 @@ const STYLES: Record<
     wrapper: "text-amber-400 border-amber-700/50 bg-amber-900/20",
   },
   compacting: {
-    dot: "bg-violet-400 animate-pulse",
+    dot: "bg-[var(--cg-accent-purple)] animate-pulse",
     label: "Compacting…",
-    wrapper: "text-violet-400 border-violet-700/50 bg-violet-900/20",
+    wrapper:
+      "text-[var(--cg-text-nav)] border-[var(--cg-border-strong)] bg-[var(--cg-accent-purple-bg)]",
   },
 };
 

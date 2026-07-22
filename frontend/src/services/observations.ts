@@ -1,12 +1,16 @@
 import { ObservationMessage } from "#/types/message";
 import { useJupyterStore } from "#/state/jupyter-store";
-import { useCommandStore } from "#/state/command-store";
+import { useCommandStore, parseTs } from "#/state/command-store";
 import ObservationType from "#/types/observation-type";
 import { useBrowserStore } from "#/stores/browser-store";
 import { useAgentStore } from "#/stores/agent-store";
 import { AgentState } from "#/types/agent-state";
+import { recordObservation } from "./log-recorder";
 
 export function handleObservationMessage(message: ObservationMessage) {
+  // Audit trail (Logs tab) — completes the action identified by `cause`.
+  recordObservation(message);
+
   switch (message.observation) {
     case ObservationType.RUN: {
       if (message.extras.hidden) break;
@@ -19,7 +23,12 @@ export function handleObservationMessage(message: ObservationMessage) {
         content = `${head}\r\n\n... (truncated ${message.content.length - 5000} characters) ...\r\n\n${tail}`;
       }
 
-      useCommandStore.getState().appendOutput(content);
+      useCommandStore.getState().appendOutput(
+        content,
+        parseTs((message as { timestamp?: string }).timestamp),
+        (message as { extras?: { metadata?: { exit_code?: number | null } } })
+          .extras?.metadata?.exit_code ?? null,
+      );
       break;
     }
     case ObservationType.RUN_IPYTHON:

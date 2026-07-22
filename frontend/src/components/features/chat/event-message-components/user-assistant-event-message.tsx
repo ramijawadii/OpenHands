@@ -32,26 +32,42 @@ const TAB_META: Record<
     subtitle: string;
   }
 > = {
+  // Keys are historical: "terminal" = Chat, "editor" = Commands,
+  // "diagrams" = Report, "states" = Logs.
   terminal: {
     icon: TerminalSquare,
-    label: "Terminal",
-    subtitle: "Shell · Interactive",
+    label: "Chat",
+    subtitle: "Conversation",
   },
   jupyter: {
     icon: FileTerminal,
     label: "Jupyter Notebook",
     subtitle: "Python · Interactive",
   },
-  editor: { icon: GitMerge, label: "Changes", subtitle: "Git · Diff" },
+  editor: {
+    icon: GitMerge,
+    label: "Commands",
+    subtitle: "Shell · In/Out",
+  },
   diagrams: {
     icon: StickyNote,
-    label: "Artifact",
+    label: "Report",
     subtitle: "Document · Pages",
   },
   states: {
     icon: History,
-    label: "States",
-    subtitle: "Workspace · Flashpoints",
+    label: "Logs",
+    subtitle: "Audit · Executions",
+  },
+  remediation: {
+    icon: History,
+    label: "Remediation Workflow",
+    subtitle: "Gated · Approval",
+  },
+  sandbox: {
+    icon: History,
+    label: "Sandbox Health",
+    subtitle: "Resources · Processes",
   },
 };
 

@@ -1,18 +1,250 @@
+/* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { useTranslation } from "react-i18next";
+import CodeMirror from "@uiw/react-codemirror";
+import { vscodeDark } from "@uiw/codemirror-theme-vscode";
+import { python } from "@codemirror/lang-python";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
-import { JupyterCell } from "./jupyter-cell";
+import {
+  ExecutionCell,
+  type ExecStatus,
+} from "#/components/features/execution/execution-cell";
+import { parseCellContent } from "#/utils/parse-cell-content";
+import {
+  useJupyterStore,
+  type CellExecutionState,
+  type RuntimeState,
+  type Cell,
+} from "#/state/jupyter-store";
 import { ScrollToBottomButton } from "#/components/shared/buttons/scroll-to-bottom-button";
 import { RUNTIME_INACTIVE_STATES, AgentState } from "#/types/agent-state";
-import { I18nKey } from "#/i18n/declaration";
-import JupyterLargeIcon from "#/icons/jupyter-large.svg?react";
 import { WaitingForRuntimeMessage } from "../chat/waiting-for-runtime-message";
 import { useAgentStore } from "#/stores/agent-store";
-import { useJupyterStore, type RuntimeState, type Cell } from "#/state/jupyter-store";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { useWsClient } from "#/context/ws-client-provider";
 import { createChatMessage } from "#/services/chat-service";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import {
+  JupyterViewSwitcher,
+  NotebookToolbar,
+  DataView,
+  RuntimeView,
+  type JupyterView,
+  type DataFileEntry,
+} from "./jupyter-views";
+
+/** Trigger a client-side download without touching the network. */
+function downloadBlob(name: string, mime: string, body: string) {
+  const url = URL.createObjectURL(new Blob([body], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** nbformat 4.4 — the point of exporting is that it opens in real Jupyter. */
+function toIpynb(paired: PairedCell[], kernelName: string): string {
+  return JSON.stringify(
+    {
+      nbformat: 4,
+      nbformat_minor: 4,
+      metadata: {
+        kernelspec: {
+          display_name: kernelName,
+          language: "python",
+          name: "python3",
+        },
+        language_info: { name: "python" },
+      },
+      cells: paired.map((c) => ({
+        cell_type: "code",
+        execution_count: c.n,
+        metadata: {},
+        source: c.code
+          .split("\n")
+          .map((l, i, a) => (i === a.length - 1 ? l : `${l}\n`)),
+        outputs: [
+          ...(c.output
+            ? [{ output_type: "stream", name: "stdout", text: c.output }]
+            : []),
+          ...c.images.map((url) => ({
+            output_type: "display_data",
+            data: { "image/png": url.replace(/^data:[^,]+,/, "") },
+            metadata: {},
+          })),
+        ],
+      })),
+    },
+    null,
+    1,
+  );
+}
+
+const esc = (t: string) =>
+  t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function toHtml(paired: PairedCell[], title: string): string {
+  const body = paired
+    .map(
+      (c) => `<section>
+  <div class="lbl">In [${c.n}]</div>
+  <pre class="code">${esc(c.code)}</pre>
+  ${c.output ? `<div class="lbl">Out[${c.n}]</div><pre class="out">${esc(c.output)}</pre>` : ""}
+  ${c.images.map((u) => `<img src="${u}" alt="output ${c.n}"/>`).join("")}
+</section>`,
+    )
+    .join("\n");
+  return `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title>
+<style>
+ body{font:13px/1.5 -apple-system,Segoe UI,sans-serif;background:#121212;color:#f7f7f2;margin:0;padding:24px}
+ h1{font-size:18px;margin:0 0 16px}
+ section{border:1px solid #2a2a2a;border-radius:8px;margin-bottom:14px;overflow:hidden}
+ .lbl{background:#1a1a1a;padding:4px 10px;font:11px monospace;color:#968f85}
+ pre{margin:0;padding:10px;font:11.5px/1.5 monospace;white-space:pre-wrap;word-break:break-word}
+ .code{color:#f7f7f2}.out{background:#0d0d0c;color:#bfbdb4}
+ img{max-width:100%;display:block;padding:10px}
+</style>
+<h1>${esc(title)}</h1>
+${body}`;
+}
+
+/** Pair the flat input/output stream into one box per execution, matching the
+ *  Commands tab. `n` uses the kernel's real executionCount, not a positional
+ *  index. Output images (matplotlib plots) are carried through rather than
+ *  dropped. */
+type PairedCell = {
+  key: string;
+  n: number;
+  code: string;
+  output: string;
+  images: string[];
+  state: CellExecutionState;
+};
+
+function pairCells(cells: Cell[]): PairedCell[] {
+  const out: PairedCell[] = [];
+  cells.forEach((c) => {
+    if (c.type === "input") {
+      out.push({
+        key: c.id,
+        n: c.executionCount ?? out.length + 1,
+        code: c.content,
+        output: "",
+        images: [],
+        state: c.executionState,
+      });
+      return;
+    }
+    const lines = parseCellContent(c.content, c.imageUrls);
+    const text = lines
+      .filter((l) => l.type !== "image")
+      .map((l) => l.content)
+      .join("\n");
+    const imgs = lines
+      .filter((l) => l.type === "image" && l.url)
+      .map((l) => l.url as string);
+
+    const last = out[out.length - 1];
+    if (!last) {
+      // output with no preceding cell (reconnect mid-execution) — surface it
+      out.push({
+        key: c.id,
+        n: out.length + 1,
+        code: "(output received without a matching cell)",
+        output: text,
+        images: imgs,
+        state: "idle",
+      });
+      return;
+    }
+    last.output = last.output ? `${last.output}\n${text}` : text;
+    last.images.push(...imgs);
+  });
+  return out;
+}
+
+/** A small bar chart as an inline SVG data URI — stands in for a matplotlib
+ *  PNG so image output can be seen before anything has run. Inline (not a CDN)
+ *  so the app never reaches out for it. */
+const SAMPLE_PLOT = `data:image/svg+xml;utf8,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="260" viewBox="0 0 520 260">
+    <rect width="520" height="260" fill="#ffffff"/>
+    <line x1="60" y1="210" x2="490" y2="210" stroke="#333" stroke-width="1"/>
+    <line x1="60" y1="30" x2="60" y2="210" stroke="#333" stroke-width="1"/>
+    <text x="275" y="245" font-family="sans-serif" font-size="13" text-anchor="middle" fill="#333">Findings by severity</text>
+    <text x="20" y="125" font-family="sans-serif" font-size="11" fill="#666" transform="rotate(-90 20 125)">count</text>
+    ${[
+      { x: 90, h: 150, c: "#c0392b", l: "critical", v: "41" },
+      { x: 180, h: 110, c: "#e67e22", l: "high", v: "30" },
+      { x: 270, h: 70, c: "#f1c40f", l: "medium", v: "19" },
+      { x: 360, h: 40, c: "#2980b9", l: "low", v: "11" },
+    ]
+      .map(
+        (b) =>
+          `<rect x="${b.x}" y="${210 - b.h}" width="60" height="${b.h}" fill="${b.c}"/>
+           <text x="${b.x + 30}" y="${205 - b.h}" font-family="sans-serif" font-size="11" text-anchor="middle" fill="#333">${b.v}</text>
+           <text x="${b.x + 30}" y="226" font-family="sans-serif" font-size="10" text-anchor="middle" fill="#666">${b.l}</text>`,
+      )
+      .join("")}
+  </svg>`,
+)}`;
+
+/** Shown only until the kernel produces real cells, so the tab can be reviewed
+ *  with representative content (including an image result). */
+const SAMPLE_CELLS: PairedCell[] = [
+  {
+    key: "sample-1",
+    n: 1,
+    code: "import pandas as pd\nfindings = pd.read_json('/workspace/prowler.json')\nfindings.shape",
+    output: "(412, 17)",
+    images: [],
+    state: "success",
+  },
+  {
+    key: "sample-2",
+    n: 2,
+    code: "findings.groupby('severity').size().sort_values(ascending=False)",
+    output:
+      "severity\ncritical    41\nhigh        30\nmedium      19\nlow         11\ndtype: int64",
+    images: [],
+    state: "success",
+  },
+  {
+    key: "sample-3",
+    n: 3,
+    code: "import matplotlib.pyplot as plt\nfindings.groupby('severity').size().plot.bar()\nplt.title('Findings by severity')\nplt.show()",
+    output: "<Figure size 640x480 with 1 Axes>",
+    images: [SAMPLE_PLOT],
+    state: "success",
+  },
+  {
+    key: "sample-4",
+    n: 4,
+    code: "findings[findings.severity == 'critical'].service.value_counts().head()",
+    output:
+      "iam      14\ns3        9\nec2       8\nrds       6\nlambda    4\nName: service, dtype: int64",
+    images: [],
+    state: "success",
+  },
+  {
+    key: "sample-5",
+    n: 5,
+    code: "findings.to_csv('/workspace/pages/findings.csv', index=False)",
+    output:
+      "Traceback (most recent call last):\n  File \"<stdin>\", line 1, in <module>\nPermissionError: [Errno 13] Permission denied: '/workspace/pages/findings.csv'",
+    images: [],
+    state: "error",
+  },
+];
+
+/** The kernel's execution state is authoritative for IPython — there is no
+ *  exit code, so we never report "unknown" here. */
+function statusOfCell(state: CellExecutionState): ExecStatus {
+  if (state === "error") return { kind: "failed", label: "error" };
+  if (state === "success" || state === "idle") return { kind: "ok" };
+  return { kind: "running" };
+}
 
 // ── runtime mapping ───────────────────────────────────────
 
@@ -55,11 +287,43 @@ function fileExt(name: string): string {
 // ── notebook IO parsing ───────────────────────────────────
 
 const DATA_EXTS = new Set([
-  "csv", "tsv", "xlsx", "xls", "json", "jsonl", "parquet", "feather",
-  "h5", "hdf5", "pkl", "pickle", "db", "sqlite", "npy", "npz", "txt",
-  "yaml", "yml", "xml", "pt", "pth", "ckpt", "bin", "mat", "sav",
+  "csv",
+  "tsv",
+  "xlsx",
+  "xls",
+  "json",
+  "jsonl",
+  "parquet",
+  "feather",
+  "h5",
+  "hdf5",
+  "pkl",
+  "pickle",
+  "db",
+  "sqlite",
+  "npy",
+  "npz",
+  "txt",
+  "yaml",
+  "yml",
+  "xml",
+  "pt",
+  "pth",
+  "ckpt",
+  "bin",
+  "mat",
+  "sav",
 ]);
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "bmp", "tiff", "svg", "webp"]);
+const IMAGE_EXTS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "bmp",
+  "tiff",
+  "svg",
+  "webp",
+]);
 
 function hasRelevantExt(path: string): boolean {
   const ext = (path.split(".").pop() ?? "").toLowerCase();
@@ -127,8 +391,7 @@ function parseNotebookIO(cells: Cell[]): {
       for (const m of code.matchAll(re)) {
         const path = m[1];
         if (!path || path.length < 2 || !hasRelevantExt(path)) continue;
-        if (!inputMap.has(path))
-          inputMap.set(path, { path, cells: [] });
+        if (!inputMap.has(path)) inputMap.set(path, { path, cells: [] });
         const e = inputMap.get(path)!;
         if (!e.cells.includes(count)) e.cells.push(count);
       }
@@ -162,7 +425,11 @@ function parseNotebookIO(cells: Cell[]): {
   }
 
   const inputs: InputFile[] = [...inputMap.values()]
-    .map((e) => ({ name: basename(e.path), path: e.path, cells: e.cells.sort((a, b) => a - b) }))
+    .map((e) => ({
+      name: basename(e.path),
+      path: e.path,
+      cells: e.cells.sort((a, b) => a - b),
+    }))
     .sort((a, b) => a.cells[0] - b.cells[0]);
 
   const outputs: CellOutputGroup[] = [...outputGroups.entries()]
@@ -208,7 +475,10 @@ const EXT_CFG: Record<string, { bg: string; label: string }> = {
 
 function FileTypeIcon({ name }: { name: string }) {
   const ext = fileExt(name);
-  const cfg = EXT_CFG[ext] ?? { bg: "#4B5563", label: ext.slice(1, 4).toUpperCase() || "DOC" };
+  const cfg = EXT_CFG[ext] ?? {
+    bg: "#4B5563",
+    label: ext.slice(1, 4).toUpperCase() || "DOC",
+  };
   return (
     <span
       className="inline-flex items-center justify-center shrink-0 rounded-[2px] font-bold select-none text-white"
@@ -312,11 +582,7 @@ function IORow({
       onKeyDown={(e) => e.key === "Enter" && onDownload()}
     >
       <FileTypeIcon name={name} />
-      <span
-        className="flex-1 truncate"
-        style={{ fontSize: 12.5 }}
-        title={name}
-      >
+      <span className="flex-1 truncate" style={{ fontSize: 12.5 }} title={name}>
         {name}
       </span>
 
@@ -362,13 +628,7 @@ function IORow({
   );
 }
 
-function SectionHeader({
-  label,
-  count,
-}: {
-  label: string;
-  count: number;
-}) {
+function SectionHeader({ label, count }: { label: string; count: number }) {
   return (
     <div
       className="flex items-center justify-between select-none"
@@ -453,10 +713,7 @@ function CollapsibleCellGroup({
         >
           <polyline points="9 18 15 12 9 6" />
         </svg>
-        <span
-          className="font-mono"
-          style={{ fontSize: 11, color: VS.dim }}
-        >
+        <span className="font-mono" style={{ fontSize: 11, color: VS.dim }}>
           Cell&nbsp;
         </span>
         <span
@@ -470,10 +727,7 @@ function CollapsibleCellGroup({
         >
           [{cellCount}]
         </span>
-        <span
-          className="ml-1"
-          style={{ fontSize: 10, color: VS.badge }}
-        >
+        <span className="ml-1" style={{ fontSize: 10, color: VS.badge }}>
           {items.length} item{items.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -542,7 +796,10 @@ function NotebookIOPanel({
       {/* content */}
       <div
         className="flex-1 overflow-y-auto"
-        style={{ scrollbarWidth: "thin", scrollbarColor: `${VS.sep} transparent` }}
+        style={{
+          scrollbarWidth: "thin",
+          scrollbarColor: `${VS.sep} transparent`,
+        }}
       >
         {!hasContent ? (
           <div
@@ -584,7 +841,10 @@ function NotebookIOPanel({
             {/* OUTPUTS */}
             {outputs.length > 0 && (
               <>
-                <SectionHeader label="Outputs" count={outputs.reduce((s, g) => s + g.items.length, 0)} />
+                <SectionHeader
+                  label="Outputs"
+                  count={outputs.reduce((s, g) => s + g.items.length, 0)}
+                />
                 {outputs.map((group) => (
                   <CollapsibleCellGroup
                     key={group.cellCount}
@@ -620,7 +880,9 @@ function useWorkspaceFiles(conversationId: string) {
     }
   }, [conversationId]);
 
-  React.useEffect(() => { refresh(); }, [refresh]);
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
   return { files, loading, refresh };
 }
 
@@ -635,7 +897,11 @@ const RUNTIME_DOT: Record<RuntimeState, string> = {
 };
 
 // ── empty notebook state ──────────────────────────────────
-
+// UNUSED for now: the empty state was replaced by sample cells so the tab can be
+// reviewed with representative content. Retained (not deleted) because it holds
+// the notebook file-picker, which "Open notebook" needs when it is wired back
+// into the sample banner.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function EmptyNotebookState({
   runtimeState,
   kernelName,
@@ -664,12 +930,14 @@ function EmptyNotebookState({
   const { send } = useWsClient();
 
   const handleAskAgent = () => {
-    send(createChatMessage(
-      "[NOTEBOOK] Create a new Jupyter notebook and open it in the panel.",
-      [],
-      [],
-      new Date().toISOString(),
-    ));
+    send(
+      createChatMessage(
+        "[NOTEBOOK] Create a new Jupyter notebook and open it in the panel.",
+        [],
+        [],
+        new Date().toISOString(),
+      ),
+    );
   };
 
   return (
@@ -693,7 +961,9 @@ function EmptyNotebookState({
       </svg>
 
       {/* Title + subtitle */}
-      <p className="text-lg font-medium text-[var(--cg-text-primary)]">No notebook open</p>
+      <p className="text-lg font-medium text-[var(--cg-text-primary)]">
+        No notebook open
+      </p>
       <p className="text-sm text-center max-w-xs text-[var(--cg-text-muted)]">
         Ask the agent to create a notebook — it will appear here automatically.
       </p>
@@ -707,11 +977,21 @@ function EmptyNotebookState({
         Ask agent to create notebook
       </button>
 
-
       {/* Saved notebooks (compact) */}
       {notebooks.length > 0 && (
-        <div className="w-64 mt-2" style={{ borderTop: "1px solid var(--cg-border)", paddingTop: 12 }}>
-          <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--cg-text-muted)" }}>
+        <div
+          className="w-64 mt-2"
+          style={{ borderTop: "1px solid var(--cg-border)", paddingTop: 12 }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--cg-text-muted)",
+            }}
+          >
             Saved Notebooks
           </span>
           <div className="mt-1.5 flex flex-col gap-0.5">
@@ -721,15 +1001,29 @@ function EmptyNotebookState({
                 type="button"
                 className="flex items-center gap-2 w-full px-1 py-1.5 rounded text-left transition-colors"
                 style={{ color: "var(--cg-text-muted)" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--cg-bg-hover)"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = ""; }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    "var(--cg-bg-hover)";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background = "";
+                }}
                 onClick={() => onOpenNotebook(nb)}
               >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--cg-text-muted)" strokeWidth="2">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="var(--cg-text-muted)"
+                  strokeWidth="2"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
                 </svg>
-                <span className="truncate" style={{ fontSize: 12 }}>{basename(nb)}</span>
+                <span className="truncate" style={{ fontSize: 12 }}>
+                  {basename(nb)}
+                </span>
               </button>
             ))}
           </div>
@@ -820,7 +1114,9 @@ function HealthBar({
               : undefined,
         }}
       />
-      <span style={{ color: "var(--cg-text-muted)" }}>{stateLabel[runtimeState]}</span>
+      <span style={{ color: "var(--cg-text-muted)" }}>
+        {stateLabel[runtimeState]}
+      </span>
 
       <span style={{ color: "var(--cg-border)" }}>•</span>
       <span>{kernelName}</span>
@@ -831,7 +1127,8 @@ function HealthBar({
           <span className="font-mono">run [{execCounter}]</span>
           {lastExecEndTime && (
             <span style={{ color: "var(--cg-text-muted)" }}>
-              {" "}{fmtRelative(new Date(lastExecEndTime))}
+              {" "}
+              {fmtRelative(new Date(lastExecEndTime))}
             </span>
           )}
         </>
@@ -854,6 +1151,7 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   const {
     cells: rawCells,
     kernelName,
+    notebookTitle,
     executionHistory,
     executionCounter,
     isDirty,
@@ -866,7 +1164,8 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   // and their immediately following output cells — they are infrastructure, not
   // user work.  We track state in a single pass so the filter never breaks if
   // the agent wraps multiple helpers in one cell.
-  const INTERNAL_RE = /_safe_diagram\s*\(|_safe_page\s*\(|_safe_file\s*\(|latex_compile\.py/;
+  const INTERNAL_RE =
+    /_safe_diagram\s*\(|_safe_page\s*\(|_safe_file\s*\(|latex_compile\.py/;
   const cells = React.useMemo(() => {
     let suppressOutput = false;
     return rawCells.filter((cell) => {
@@ -876,7 +1175,7 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
       }
       return !suppressOutput;
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rawCells]);
 
   const jupyterRef = React.useRef<HTMLDivElement>(null);
@@ -909,15 +1208,97 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   const handleOpenNotebook = React.useCallback(
     (path: string) => {
       setNotebookTitle(basename(path));
-      notifyAgent(`[NOTEBOOK] Opening notebook: ${path}. Please load and continue work in this notebook.`);
+      notifyAgent(
+        `[NOTEBOOK] Opening notebook: ${path}. Please load and continue work in this notebook.`,
+      );
     },
     [setNotebookTitle, notifyAgent],
   );
 
   const handleNewNotebook = React.useCallback(() => {
     newNotebook();
-    notifyAgent("[NOTEBOOK] Creating a new Jupyter notebook. Please start a fresh Python notebook session in /workspace.");
+    notifyAgent(
+      "[NOTEBOOK] Creating a new Jupyter notebook. Please start a fresh Python notebook session in /workspace.",
+    );
   }, [newNotebook, notifyAgent]);
+
+  // ── views ────────────────────────────────────────────────────────────────
+  const [view, setView] = React.useState<JupyterView>("notebook");
+  const [cellQuery, setCellQuery] = React.useState("");
+  const sessionStart = React.useRef(Date.now()).current;
+
+  const paired = React.useMemo(
+    () => (cells.length === 0 ? SAMPLE_CELLS : pairCells(cells)),
+    [cells],
+  );
+
+  const visiblePaired = React.useMemo(() => {
+    const q = cellQuery.trim().toLowerCase();
+    if (!q) return paired;
+    return paired.filter(
+      (c) =>
+        c.code.toLowerCase().includes(q) || c.output.toLowerCase().includes(q),
+    );
+  }, [paired, cellQuery]);
+
+  // Lineage for the Data view: which cell read/wrote which artifact.
+  const dataFiles = React.useMemo<DataFileEntry[]>(() => {
+    const { inputs, outputs } = parseNotebookIO(cells);
+    const rows: DataFileEntry[] = inputs.map((f) => ({
+      path: f.path,
+      name: f.name,
+      kind: "input",
+      cells: f.cells,
+    }));
+    outputs.forEach((g) =>
+      g.items.forEach((it) => {
+        if (it.type !== "file" || !it.path) return;
+        const existing = rows.find(
+          (r) => r.kind === "output" && r.path === it.path,
+        );
+        if (existing) existing.cells.push(g.cellCount);
+        else
+          rows.push({
+            path: it.path,
+            name: it.name,
+            kind: "output",
+            cells: [g.cellCount],
+          });
+      }),
+    );
+    return rows;
+  }, [cells]);
+
+  const runningCell = React.useMemo(
+    () => cells.find((c) => c.type === "input" && c.executionState === "running"),
+    [cells],
+  );
+
+  const notebookBase = (notebookTitle || "notebook").replace(/\.ipynb$/i, "");
+
+  // Kernel control goes through the agent — the app never reaches into the
+  // sandbox itself, so these are requests, not direct signals.
+  const handleInterrupt = React.useCallback(
+    () =>
+      notifyAgent(
+        "[NOTEBOOK] Please interrupt the currently running Jupyter cell.",
+      ),
+    [notifyAgent],
+  );
+  const handleRestart = React.useCallback(
+    () =>
+      notifyAgent(
+        "[NOTEBOOK] Please restart the Jupyter kernel. Existing variables will be lost.",
+      ),
+    [notifyAgent],
+  );
+  const handleAttachToReport = React.useCallback(
+    (path: string) =>
+      notifyAgent(
+        `[NOTEBOOK] Please copy the artifact ${path} into /workspace/pages so it appears in the Report, and record which cell produced it.`,
+      ),
+    [notifyAgent],
+  );
 
   if (isRuntimeInactive) return <WaitingForRuntimeMessage />;
 
@@ -926,17 +1307,15 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
       className="flex-1 h-full flex flex-col"
       style={{ maxWidth, background: "var(--cg-bg-page)" }}
     >
-      <HealthBar
-        runtimeState={runtimeState}
-        kernelName={kernelName}
-        lastExecEndTime={lastExec?.endTime ?? null}
-        execCounter={executionCounter}
-        showFiles={showFiles}
-        onToggleFiles={() => setShowFiles((v) => !v)}
-      />
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-1.5">
+        <JupyterViewSwitcher view={view} onChange={setView} />
+        <span className="truncate font-mono text-[11px] text-[var(--cg-text-muted)]">
+          {notebookTitle}
+        </span>
+      </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {showFiles && (
+        {showFiles && view === "notebook" && (
           <NotebookIOPanel cells={cells} conversationId={conversationId} />
         )}
 
@@ -944,16 +1323,52 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
           className="flex-1 flex flex-col overflow-hidden"
           style={{ background: "var(--cg-bg-page)" }}
         >
-          {cells.length === 0 ? (
-            <EmptyNotebookState
+          {view === "data" && (
+            <DataView files={dataFiles} onAttachToReport={handleAttachToReport} />
+          )}
+
+          {view === "runtime" && (
+            <RuntimeView
               runtimeState={runtimeState}
               kernelName={kernelName}
-              conversationId={conversationId}
-              onOpenNotebook={handleOpenNotebook}
-              onNewNotebook={handleNewNotebook}
+              executionCounter={executionCounter}
+              executionHistory={executionHistory}
+              runningSince={runningCell?.executionStart}
+              runningLabel={runningCell?.content.split("\n")[0]}
+              queued={
+                cells.filter(
+                  (c) => c.type === "input" && c.executionState === "queued",
+                ).length
+              }
+              sessionStart={sessionStart}
             />
-          ) : (
+          )}
+
+          {view === "notebook" && (
             <>
+              <NotebookToolbar
+                query={cellQuery}
+                onQuery={setCellQuery}
+                matchCount={visiblePaired.length}
+                totalCount={paired.length}
+                busy={runtimeState === "busy"}
+                onInterrupt={handleInterrupt}
+                onRestart={handleRestart}
+                onExportIpynb={() =>
+                  downloadBlob(
+                    `${notebookBase}.ipynb`,
+                    "application/x-ipynb+json",
+                    toIpynb(paired, kernelName),
+                  )
+                }
+                onExportHtml={() =>
+                  downloadBlob(
+                    `${notebookBase}.html`,
+                    "text/html",
+                    toHtml(paired, notebookTitle || "Notebook"),
+                  )
+                }
+              />
               <div
                 data-testid="jupyter-container"
                 className="flex-1 overflow-y-auto fast-smooth-scroll custom-scrollbar-always pt-3"
@@ -961,9 +1376,58 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
                 ref={jupyterRef}
                 onScroll={(e) => onChatBodyScroll(e.currentTarget)}
               >
-                {cells.map((cell) => (
-                  <JupyterCell key={cell.id} cell={cell} />
-                ))}
+                <div className="flex flex-col gap-3 px-3 pb-3">
+                  {cells.length === 0 && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-accent-purple-bg)] px-3 py-1.5 text-[11px] text-[var(--cg-text-nav)]">
+                      <span className="min-w-0 flex-1">
+                        Sample — no cells executed yet. Live cells replace this
+                        as the agent runs.
+                      </span>
+                      {/* kept here so it isn't lost with the old empty state.
+                          "Open notebook" needed that state's file picker, so it
+                          is not reproduced here. */}
+                      <button
+                        type="button"
+                        onClick={handleNewNotebook}
+                        className="shrink-0 cursor-pointer rounded border border-[var(--cg-border-subtle)] px-1.5 py-0.5 transition-colors hover:text-[var(--cg-text-primary)]"
+                      >
+                        New notebook
+                      </button>
+                    </div>
+                  )}
+                  {(cells.length === 0 ? SAMPLE_CELLS : pairCells(cells)).map(
+                    (c) => (
+                      <ExecutionCell
+                        key={c.key}
+                        n={c.n}
+                        kindLabel="Python 3"
+                        title={c.code.trim().split("\n")[0] ?? ""}
+                        status={statusOfCell(c.state)}
+                        code={c.code}
+                        output={c.output}
+                        images={c.images}
+                        renderCode={(code) => (
+                          <CodeMirror
+                            value={code}
+                            extensions={[python()]}
+                            theme={vscodeDark}
+                            editable={false}
+                            basicSetup={{
+                              lineNumbers: true,
+                              foldGutter: false,
+                              dropCursor: false,
+                              allowMultipleSelections: false,
+                              indentOnInput: false,
+                              highlightActiveLine: false,
+                              highlightSelectionMatches: false,
+                            }}
+                            style={{ fontSize: "11.5px" }}
+                          />
+                        )}
+                      />
+                    ),
+                  )}
+                </div>
               </div>
               {!hitBottom && (
                 <div className="sticky bottom-2 flex items-center justify-center">

@@ -51,10 +51,19 @@ def strip_ansi(o: str) -> str:
 
 
 class JupyterKernel:
-    def __init__(self, url_suffix: str, convid: str, lang: str = 'python') -> None:
+    def __init__(
+        self,
+        url_suffix: str,
+        convid: str,
+        lang: str = 'python',
+        token: str | None = None,
+    ) -> None:
         self.base_url = f'http://{url_suffix}'
         self.base_ws_url = f'ws://{url_suffix}'
         self.lang = lang
+        # Auth token for the kernel gateway. Empty string / None ⇒ token-less
+        # gateway (legacy). When set, every HTTP + WS request must carry it.
+        self.token = token or ''
         self.kernel_id: str | None = None
         self.ws: tornado.websocket.WebSocketClientConnection | None = None
         self.convid = convid
@@ -97,6 +106,11 @@ class JupyterKernel:
             self.ws.close()
             self.ws = None
 
+        # token auth header for the gateway (empty ⇒ omitted, legacy behaviour)
+        auth_headers = (
+            {'Authorization': f'token {self.token}'} if self.token else {}
+        )
+
         client = AsyncHTTPClient()
         if not self.kernel_id:
             n_tries = 5
@@ -106,6 +120,7 @@ class JupyterKernel:
                         '{}/api/kernels'.format(self.base_url),
                         method='POST',
                         body=json_encode({'name': self.lang}),
+                        headers=auth_headers,
                     )
                     kernel = json_decode(response.body)
                     self.kernel_id = kernel['id']
@@ -121,7 +136,8 @@ class JupyterKernel:
         ws_req = HTTPRequest(
             url='{}/api/kernels/{}/channels'.format(
                 self.base_ws_url, url_escape(self.kernel_id)
-            )
+            ),
+            headers=auth_headers,
         )
         self.ws = await websocket_connect(ws_req)
         logging.info('Connected to kernel websocket')

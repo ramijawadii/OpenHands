@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,10 @@ from openhands.utils.async_utils import call_sync_from_async
 from openhands.utils.search_utils import offset_to_page_id, page_id_to_offset
 
 conversation_metadata_type_adapter = TypeAdapter(ConversationMetadata)
+
+# Upper bound on concurrent metadata reads during search(); high enough to make
+# the load effectively one round-trip, low enough not to exhaust file handles.
+_SEARCH_CONCURRENCY = 32
 
 
 @dataclass
@@ -82,14 +87,29 @@ class FileConversationStore(ConversationStore):
         num_conversations = len(conversation_ids)
         start = page_id_to_offset(page_id)
         end = min(limit + start, num_conversations)
-        conversations = []
-        for conversation_id in conversation_ids:
-            try:
-                conversations.append(await self.get_metadata(conversation_id))
-            except Exception:
-                logger.warning(
-                    f'Could not load conversation metadata: {conversation_id}'
-                )
+
+        # Load every conversation's metadata CONCURRENTLY. Previously this was a
+        # sequential `await` per file, so N conversations meant N serial I/O
+        # round-trips — the cause of the slow history load. A bounded semaphore
+        # keeps us from opening an unbounded number of file handles at once.
+        # Pagination semantics are unchanged: we still load all, sort, then slice
+        # by the total-id count so page boundaries stay stable.
+        sem = asyncio.Semaphore(_SEARCH_CONCURRENCY)
+
+        async def _load(cid: str) -> ConversationMetadata | None:
+            async with sem:
+                try:
+                    return await self.get_metadata(cid)
+                except Exception:
+                    logger.warning(
+                        f'Could not load conversation metadata: {cid}'
+                    )
+                    return None
+
+        loaded = await asyncio.gather(
+            *(_load(cid) for cid in conversation_ids)
+        )
+        conversations = [c for c in loaded if c is not None]
         conversations.sort(key=_sort_key, reverse=True)
         conversations = conversations[start:end]
         next_page_id = offset_to_page_id(end, end < num_conversations)

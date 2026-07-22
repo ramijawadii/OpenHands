@@ -6,7 +6,9 @@ export type ConversationTab =
   | "jupyter"
   | "terminal"
   | "diagrams"
-  | "states";
+  | "states"
+  | "remediation"
+  | "sandbox";
 
 export interface IMessageToSend {
   text: string;

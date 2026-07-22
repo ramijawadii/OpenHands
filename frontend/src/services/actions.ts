@@ -8,8 +8,9 @@ import {
   StatusMessage,
 } from "#/types/message";
 import { handleObservationMessage } from "./observations";
+import { recordAction } from "./log-recorder";
 import { useJupyterStore } from "#/state/jupyter-store";
-import { useCommandStore } from "#/state/command-store";
+import { useCommandStore, parseTs } from "#/state/command-store";
 import { queryClient } from "#/query-client-config";
 import {
   ActionSecurityRisk,
@@ -31,8 +32,11 @@ export function handleActionMessage(message: ActionMessage) {
     useMetricsStore.getState().setMetrics(metrics);
   }
 
+  // Audit trail (Logs tab) — keyed by backend event id.
+  recordAction(message);
+
   if (message.action === ActionType.RUN) {
-    useCommandStore.getState().appendInput(message.args.command);
+    useCommandStore.getState().appendInput(message.args.command, parseTs(message.timestamp));
   }
 
   if (message.action === ActionType.RUN_IPYTHON) {
