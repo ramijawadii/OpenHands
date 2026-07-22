@@ -37,6 +37,36 @@ class JupyterPlugin(Plugin):
     gateway_process: asyncio.subprocess.Process | subprocess.Popen
     python_interpreter_path: str
 
+    def _jupyter_subcommand(self) -> str:
+        """The `jupyter <subcommand> <args>` to launch, after `-m jupyter`.
+
+        Default: `kernelgateway` (the proven path — kernels only).
+        Opt-in via CLOUDGUARD_JUPYTER_SERVER=1: full `jupyter server`, which
+        additionally exposes the `/api/contents` file API that @datalayer/
+        jupyter-react needs (step 1 of the jupyter-react track). The kernel API
+        (`/api/kernels`) is compatible, so the agent's client is unaffected. The
+        flag keeps a broken server from taking down agent execution on rebuild —
+        it must be validated (agent runs a cell) before becoming the default.
+        """
+        if os.getenv('CLOUDGUARD_JUPYTER_SERVER', '0') == '1':
+            return (
+                'server '
+                '--ServerApp.ip=0.0.0.0 '
+                f'--ServerApp.port={self.kernel_gateway_port} '
+                f'--IdentityProvider.token={self.kernel_gateway_token} '
+                "--ServerApp.allow_origin='*' "
+                '--ServerApp.disable_check_xsrf=True '
+                '--ServerApp.allow_remote_access=True '
+                '--ServerApp.allow_root=True '
+                '--ServerApp.root_dir=/workspace'
+            )
+        return (
+            'kernelgateway '
+            '--KernelGatewayApp.ip=0.0.0.0 '
+            f'--KernelGatewayApp.port={self.kernel_gateway_port} '
+            f'--KernelGatewayApp.auth_token={self.kernel_gateway_token}'
+        )
+
     async def initialize(
         self, username: str, kernel_id: str = 'openhands-default'
     ) -> None:
@@ -78,10 +108,7 @@ class JupyterPlugin(Plugin):
             # Windows-specific command format
             jupyter_launch_command = (
                 f'cd /d "{code_repo_path}" && '
-                f'"{sys.executable}" -m jupyter kernelgateway '
-                '--KernelGatewayApp.ip=0.0.0.0 '
-                f'--KernelGatewayApp.port={self.kernel_gateway_port} '
-                f'--KernelGatewayApp.auth_token={self.kernel_gateway_token}'
+                f'"{sys.executable}" -m jupyter {self._jupyter_subcommand()}'
             )
             logger.debug(f'Jupyter launch command (Windows): {jupyter_launch_command}')
 
@@ -123,10 +150,7 @@ class JupyterPlugin(Plugin):
             jupyter_launch_command = (
                 f"{prefix}/bin/bash << 'EOF'\n"
                 f'{poetry_prefix}'
-                f'"{sys.executable}" -m jupyter kernelgateway '
-                '--KernelGatewayApp.ip=0.0.0.0 '
-                f'--KernelGatewayApp.port={self.kernel_gateway_port} '
-                f'--KernelGatewayApp.auth_token={self.kernel_gateway_token}\n'
+                f'"{sys.executable}" -m jupyter {self._jupyter_subcommand()}\n'
                 'EOF'
             )
             logger.debug(f'Jupyter launch command: {jupyter_launch_command}')
