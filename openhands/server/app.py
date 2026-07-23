@@ -364,4 +364,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard settings routes unavailable: %s", _cg_exc
     )
 
+# ONLYOFFICE document-server token + save-callback (JWT signed server-side).
+try:
+    from openhands.server.routes.cloudguard_onlyoffice import (
+        router as cloudguard_onlyoffice_router,
+    )
+
+    app.include_router(cloudguard_onlyoffice_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard ONLYOFFICE routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)

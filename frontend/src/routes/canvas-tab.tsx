@@ -3,7 +3,7 @@ import React from "react";
 import { FileText, Table2, FileTerminal, PenTool } from "lucide-react";
 import { cn } from "#/utils/utils";
 import Jupyter from "#/routes/jupyter-tab";
-import SpreadSheet from "#/components/features/office-viewer/SpreadSheet";
+import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import DocumentsView from "#/components/features/canvas/documents-view";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
@@ -80,9 +80,12 @@ function CanvasTab() {
 
         {view === "sheet" && (
           <div className="h-full">
-            <SpreadSheet
-              filename="analysis.csv"
-              savePath="pages/analysis.csv"
+            {/* The spreadsheet opens in ONLYOFFICE (full cell editor), backed by
+                the workspace file via the signed file proxy. */}
+            <OnlyOfficeFile
+              filePath="pages/analysis.csv"
+              fileName="analysis.csv"
+              mode="edit"
             />
           </div>
         )}

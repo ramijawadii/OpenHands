@@ -54,6 +54,7 @@ export default [
       route("api-keys", "routes/api-keys.tsx"),
     ]),
     route("profile", "routes/account-profile.tsx"),
+    route("onlyoffice-demo", "routes/onlyoffice-demo.tsx"),
     route("admin", "routes/admin.tsx", [
       index("routes/admin-overview.tsx", { id: "admin-overview-index" }),
       route("overview", "routes/admin-overview.tsx"),
