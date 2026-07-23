@@ -52,6 +52,24 @@ class JupyterPlugin(Plugin):
         the same generated token, so nothing is exposed without auth.
         """
         if os.getenv('CLOUDGUARD_JUPYTER_SERVER', '1') != '0':
+            # Kernel reaper. The full JupyterLab IDE (@datalayer/jupyter-react)
+            # spawns a kernel per launcher/notebook and does NOT always shut them
+            # down, so idle kernels accumulate (observed as leaked kernels holding
+            # RAM). cull_idle_timeout reaps them, BUT cull_connected=False means a
+            # kernel with a live client (the agent's own kernel, and any notebook
+            # the user has open in the IDE) is NEVER reaped — only genuinely
+            # orphaned/idle ones are. cull_busy=False also spares mid-execution
+            # kernels. Tunable via CLOUDGUARD_KERNEL_CULL_IDLE_TIMEOUT (seconds;
+            # 0 disables culling entirely).
+            cull_idle = os.getenv('CLOUDGUARD_KERNEL_CULL_IDLE_TIMEOUT', '1800')
+            cull_args = ''
+            if cull_idle != '0':
+                cull_args = (
+                    f'--MappingKernelManager.cull_idle_timeout={cull_idle} '
+                    '--MappingKernelManager.cull_interval=300 '
+                    '--MappingKernelManager.cull_connected=False '
+                    '--MappingKernelManager.cull_busy=False '
+                )
             return (
                 'server '
                 '--ServerApp.ip=0.0.0.0 '
@@ -61,6 +79,7 @@ class JupyterPlugin(Plugin):
                 '--ServerApp.disable_check_xsrf=True '
                 '--ServerApp.allow_remote_access=True '
                 '--ServerApp.allow_root=True '
+                f'{cull_args}'
                 '--ServerApp.root_dir=/workspace'
             )
         return (
