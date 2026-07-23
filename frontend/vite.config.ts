@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 /// <reference types="vite-plugin-svgr/client" />
 import { readFileSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
 import { defineConfig, loadEnv, type Plugin } from "vite";
 import viteTsconfigPaths from "vite-tsconfig-paths";
 import svgr from "vite-plugin-svgr";
@@ -43,6 +44,62 @@ function jupyterTextLoader(): Plugin {
   };
 }
 
+/**
+ * Load `*.raw.css` as a raw STRING (default export), not a stylesheet.
+ *
+ * JupyterLab's apputils-extension does `import scrollbarCss from
+ * './scrollbar.raw.css'` (webpack `raw-loader` idiom — the CSS text as a string,
+ * injected at runtime). Vite treats any `.css` as a side-effect stylesheet with
+ * no default export, so the import throws `"default" is not exported`. We resolve
+ * the file, then serve it from a VIRTUAL id that does NOT end in `.css` (so
+ * Vite's CSS pipeline ignores it) whose content is `export default "<text>"`.
+ */
+function rawCssLoader(): Plugin {
+  const SUFFIX = ".rawcssjs";
+  return {
+    name: "cg-raw-css-loader",
+    enforce: "pre",
+    async resolveId(source, importer, options) {
+      if (!source.endsWith(".raw.css")) return null;
+      const resolved = await this.resolve(source, importer, {
+        ...options,
+        skipSelf: true,
+      });
+      return resolved ? `\0${resolved.id}${SUFFIX}` : null;
+    },
+    load(id) {
+      if (!id.startsWith("\0") || !id.endsWith(SUFFIX)) return null;
+      const file = id.slice(1, -SUFFIX.length);
+      return `export default ${JSON.stringify(readFileSync(file, "utf-8"))};`;
+    },
+  };
+}
+
+/**
+ * Strip the legacy webpack `~` prefix from CSS `@import` / `url()` specifiers.
+ *
+ * The full JupyterLab app-shell extensions (pulled in by JupyterLabApp) ship CSS
+ * like `@import '~react-toastify/dist/ReactToastify.min.css'`. The `~` is a
+ * webpack convention meaning "resolve from node_modules"; Vite / @tailwindcss's
+ * CSS resolver doesn't understand it and the build fails with "Can't resolve
+ * '~react-toastify/...'". Rewriting `~pkg` → `pkg` makes it a bare specifier that
+ * resolves normally (react-toastify et al. are installed). Runs `pre` so the
+ * rewrite happens before Tailwind/Vite try to resolve the import.
+ */
+function stripTildeCssImports(): Plugin {
+  return {
+    name: "cg-strip-tilde-css-imports",
+    enforce: "pre",
+    transform(code, id) {
+      if (!id.endsWith(".css") || !code.includes("~")) return null;
+      const out = code
+        .replace(/@import\s+(['"])~/g, "@import $1")
+        .replace(/url\(\s*(['"]?)~/g, "url($1");
+      return out === code ? null : { code: out, map: null };
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
   const {
     VITE_BACKEND_HOST = "127.0.0.1:3000",
@@ -63,6 +120,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       jupyterTextLoader(),
+      rawCssLoader(),
+      stripTildeCssImports(),
       !process.env.VITEST && reactRouter(),
       viteTsconfigPaths(),
       svgr(),
@@ -75,6 +134,15 @@ export default defineConfig(({ mode }) => {
         // Rollup can't satisfy from the ESM entry. Point at the CJS build so the
         // commonjs plugin synthesises the named exports.
         { find: /^json5$/, replacement: "json5/lib/index.js" },
+        // Rewrite the legacy webpack `~` prefix in CSS @import specifiers (e.g.
+        // `@import '~react-toastify/...'` in the JupyterLab app-shell CSS) to an
+        // ABSOLUTE node_modules path. Tailwind's CSS loader honours this alias
+        // but resolves a bare `pkg/...` relative to the project root (ENOENT), so
+        // we must point it straight at node_modules. No dep starts with `~`.
+        {
+          find: /^~/,
+          replacement: `${pathResolve(process.cwd(), "node_modules")}/`,
+        },
       ],
     },
     optimizeDeps: {

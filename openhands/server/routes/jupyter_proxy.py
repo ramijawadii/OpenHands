@@ -87,7 +87,18 @@ async def _discover(runtime: Runtime) -> dict | None:
         info = resp.json()
         if 'port' not in info or 'token' not in info:
             return None
-        return {'host': host, 'port': int(info['port']), 'token': info['token']}
+        # CRITICAL: reach the JUPYTER port by the runtime's CONTAINER NAME, not the
+        # action_execution_server_url host. When the runtime is addressed via the
+        # host's published action port (e.g. host.docker.internal:33402), the
+        # jupyter port is NOT host-published — it lives only on the shared docker
+        # network, where container-to-container any port is reachable. The
+        # container name resolves there; host.docker.internal:<jupyter> would 502.
+        jupyter_host = getattr(runtime, 'container_name', None) or host
+        return {
+            'host': jupyter_host,
+            'port': int(info['port']),
+            'token': info['token'],
+        }
     except Exception as e:  # noqa: BLE001 — discovery is best-effort, fail soft
         logger.warning(f'jupyter proxy: discovery failed: {e}')
         return None
@@ -149,9 +160,30 @@ async def jupyter_settings(
 
 # ── HTTP proxy ────────────────────────────────────────────────────────────────
 
+# The full JupyterLab IDE hits the lab-server APIs, which the Jupyter server
+# serves under /lab/api/* — but JupyterLab's client requests them under /api/*
+# (relative to baseUrl). Rewrite those so the settings / themes / translations /
+# workspaces / listings plugins (and thus the whole shell) resolve instead of
+# 404-ing. Kernel/contents/sessions/terminals stay under /api/*.
+_LAB_APIS = ('settings', 'workspaces', 'translations', 'themes', 'listings')
+
+
+def _upstream_path(path: str) -> str:
+    if path.startswith('api/'):
+        rest = path[len('api/') :]
+        if rest.split('/', 1)[0] in _LAB_APIS:
+            return f'lab/api/{rest}'
+    elif path.startswith('@'):
+        # Theme CSS + assets are requested as a scoped package relative to
+        # baseUrl (e.g. `@jupyterlab/theme-light-extension/index.css`) but the
+        # server serves them under /lab/api/themes/. Without this the ThemeManager
+        # shows "Stylesheet failed to load".
+        return f'lab/api/themes/{path}'
+    return path
+
 
 @app.api_route(
-    '/jupyter/api/{path:path}',
+    '/jupyter/{path:path}',
     methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 )
 async def proxy_http(
@@ -172,7 +204,7 @@ async def proxy_http(
             'Notebook server not available in this sandbox',
         )
 
-    url = f'http://{target["host"]}:{target["port"]}/api/{path}'
+    url = f'http://{target["host"]}:{target["port"]}/{_upstream_path(path)}'
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in _STRIP_REQ
     }
@@ -255,11 +287,11 @@ async def _bridge(client_ws: WebSocket, upstream) -> None:
         task.cancel()
 
 
-# Shares the '/jupyter/api/...' prefix with proxy_http on purpose: Starlette
+# Shares the '/jupyter/...' catch-all prefix with proxy_http on purpose: Starlette
 # routes on ASGI scope type, so a websocket upgrade lands here while plain HTTP
-# lands on proxy_http. This lets JupyterLab's ServerConnection derive the socket
-# URL from baseUrl (it joins 'api/kernels/{id}/channels') with no separate wsUrl.
-@app.websocket('/jupyter/api/{path:path}')
+# lands on proxy_http. Covers kernel channels (api/kernels/{id}/channels) AND lab
+# terminals (terminals/websocket/{name}) with no separate wsUrl.
+@app.websocket('/jupyter/{path:path}')
 async def proxy_ws(
     websocket: WebSocket,
     conversation_id: str,
@@ -294,19 +326,32 @@ async def proxy_ws(
             await websocket.close(code=1011)  # server can't fulfil
             return
 
-        upstream_url = f'ws://{target["host"]}:{target["port"]}/api/{path}'
+        upstream_url = (
+            f'ws://{target["host"]}:{target["port"]}/{_upstream_path(path)}'
+        )
         if websocket.url.query:
             upstream_url += f'?{websocket.url.query}'
 
-        await websocket.accept()
-        _audit(user_id, conversation_id, f'WS {path}')
+        # Negotiate the Jupyter kernel subprotocol END-TO-END. JupyterLab's browser
+        # client opens the kernel channels socket with the BINARY protocol
+        # `v1.kernel.websocket.jupyter.org`. If the proxy accepts toward the
+        # browser without selecting that subprotocol AND doesn't request it from
+        # the upstream Jupyter server, the two legs disagree on frame encoding and
+        # the socket is [accepted] then closes immediately (no kernel). So: connect
+        # upstream FIRST offering the same subprotocols, then accept toward the
+        # browser echoing whatever the server actually selected.
+        requested = websocket.headers.get('sec-websocket-protocol', '')
+        offered = [p.strip() for p in requested.split(',') if p.strip()]
         try:
             async with websockets.connect(
                 upstream_url,
                 additional_headers={'Authorization': f'token {target["token"]}'},
+                subprotocols=offered or None,  # type: ignore[arg-type]
                 max_size=None,
                 open_timeout=10,
             ) as upstream:
+                await websocket.accept(subprotocol=upstream.subprotocol)
+                _audit(user_id, conversation_id, f'WS {path}')
                 await _bridge(websocket, upstream)
         except Exception as e:  # noqa: BLE001 — upstream unreachable / closed
             logger.warning(f'jupyter ws proxy: upstream error: {e}')

@@ -33,11 +33,8 @@ import {
   type DataFileEntry,
 } from "./jupyter-views";
 
-/** The full JupyterLab notebook — code-split so its 726-package bundle is only
- *  fetched when a live server is available (see jupyter-react-notebook.tsx). */
-const LazyJupyterReactNotebook = React.lazy(
-  () => import("./jupyter-react-notebook"),
-);
+/** The full JupyterLab IDE (file browser + launcher + menus + multi-doc tabs). */
+const LazyJupyterReactIde = React.lazy(() => import("./jupyter-react-ide"));
 
 /** If the heavy JupyterLab UI throws at runtime (kernel handshake, CSS, an
  *  upstream regression), we must NOT white-screen the whole tab — degrade to the
@@ -941,7 +938,13 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   // UI throws at runtime, `jupyterReactFailed` latches us back to the store view.
   const { data: jupyterServer } = useJupyterServerSettings(conversationId);
   const [jupyterReactFailed, setJupyterReactFailed] = React.useState(false);
-  const useLiveNotebook = !!jupyterServer?.available && !jupyterReactFailed;
+  // LATCH availability: once the live server has been seen, keep the IDE mounted
+  // even if a later settings refetch briefly returns available:false (a discovery
+  // race). Unmount+remount would re-initialise the whole JupyterLab app and throw
+  // "Plugin … is already registered". The error boundary still governs failures.
+  const everAvailableRef = React.useRef(false);
+  if (jupyterServer?.available) everAvailableRef.current = true;
+  const useLiveNotebook = everAvailableRef.current && !jupyterReactFailed;
 
   const runtimeState = agentStateToRuntimeState(curAgentState);
   const isRuntimeInactive = RUNTIME_INACTIVE_STATES.includes(curAgentState);
@@ -1051,19 +1054,30 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
     [notifyAgent],
   );
 
-  if (isRuntimeInactive) return <WaitingForRuntimeMessage />;
+  // In live-IDE mode do NOT bail out on agent-state churn (INIT/LOADING/ERROR):
+  // the JupyterLab app connects DIRECTLY to the sandbox jupyter server through the
+  // proxy, independent of the agent loop. Unmounting it here on a transient agent
+  // state would remount the whole lab app → double plugin-registration / infinite
+  // settings loop. Once the server is live (useLiveNotebook latched), keep it up.
+  if (isRuntimeInactive && !useLiveNotebook)
+    return <WaitingForRuntimeMessage />;
 
   return (
     <div
       className="flex-1 h-full flex flex-col"
       style={{ maxWidth, background: "var(--cg-bg-page)" }}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-1.5">
-        <JupyterViewSwitcher view={view} onChange={setView} />
-        <span className="truncate font-mono text-[11px] text-[var(--cg-text-muted)]">
-          {notebookTitle}
-        </span>
-      </div>
+      {/* The Notebook/Data/Runtime switcher is redundant once the full JupyterLab
+          IDE is mounted (it has its own tabs + menus), and it steals vertical
+          space that clips the lab's top tab bar — hide it in live-IDE mode. */}
+      {!useLiveNotebook && (
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-1.5">
+          <JupyterViewSwitcher view={view} onChange={setView} />
+          <span className="truncate font-mono text-[11px] text-[var(--cg-text-muted)]">
+            {notebookTitle}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {showFiles && view === "notebook" && (
@@ -1108,11 +1122,10 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
                     </div>
                   }
                 >
-                  <LazyJupyterReactNotebook
+                  <LazyJupyterReactIde
                     baseUrl={jupyterServer!.baseUrl}
                     wsUrl={jupyterServer!.wsUrl}
                     token={jupyterServer!.token}
-                    path={`${notebookBase}.ipynb`}
                   />
                 </React.Suspense>
               </JupyterReactBoundary>

@@ -1,4 +1,8 @@
 /* eslint-disable i18next/no-literal-string */
+// MUST be first: installs a `require` shim before any jupyter-react/JupyterLab
+// module evaluates (they contain raw CJS `require(...)` calls that Rollup leaves
+// in place and that would otherwise throw "require is not defined" on mount).
+import "./jupyter-require-shim";
 import React from "react";
 import type { INotebookContent } from "@jupyterlab/nbformat";
 import { ServiceManager, ServerConnection } from "@jupyterlab/services";
@@ -11,8 +15,18 @@ import { ServiceManager, ServerConnection } from "@jupyterlab/services";
 // in-browser-kernel code (a webpack `?text` raw import Vite can't parse), which
 // we don't use — we talk to the server-backed kernel via the proxy. This keeps
 // our supply-chain surface minimal and the build clean.
-import { Notebook } from "@datalayer/jupyter-react/notebook";
+import {
+  Notebook,
+  NotebookToolbar,
+  CellSidebar,
+  CellSidebarExtension,
+} from "@datalayer/jupyter-react/notebook";
 import { JupyterReactTheme } from "@datalayer/jupyter-react/theme";
+// JupyterLab base styling (the --jp-* CSS variables + notebook/cell layout).
+// Without it the notebook mounts but renders invisible on a dark background.
+// This is the `./style/*` export (self-contained base.css — no webpack-`~`
+// imports, unlike the app-shell extension CSS we deliberately avoid).
+import "@datalayer/jupyter-react/style/index.css";
 
 /** The full JupyterLab notebook (step 4 of the jupyter-react track).
  *
@@ -59,16 +73,12 @@ interface Props {
   wsUrl: string;
   /** empty in the proxy model — kept for API symmetry / local-dev override */
   token: string;
-  /** notebook path in /workspace to bind saves to; optional */
-  path?: string;
+  // NOTE: no `path` prop — we intentionally mount in-memory nbformat rather
+  // than loading a file from the contents API (see the note below). A
+  // save-to-path binding is a later step and will reintroduce it then.
 }
 
-export default function JupyterReactNotebook({
-  baseUrl,
-  wsUrl,
-  token,
-  path,
-}: Props) {
+export default function JupyterReactNotebook({ baseUrl, wsUrl, token }: Props) {
   // Build the ServiceManager against the proxied URLs. `credentials:
   // "same-origin"` so the browser sends the app session cookie to the proxy
   // (which then injects the sandbox token). Memoised on the URLs so a re-render
@@ -88,16 +98,45 @@ export default function JupyterReactNotebook({
   // change, so we don't leak WebSockets across conversation switches.
   React.useEffect(() => () => serviceManager.dispose(), [serviceManager]);
 
+  // Per-cell controls (run / insert / delete beside each cell). Memoised so the
+  // extension isn't re-created every render.
+  const extensions = React.useMemo(
+    () => [new CellSidebarExtension({ factory: CellSidebar })],
+    [],
+  );
+
+  // IMPORTANT: pass `nbformat` (in-memory starter) and DO NOT pass `path`. With a
+  // `path`, the Notebook tries to LOAD that file from the contents API — and a
+  // brand-new sandbox has no such file, so it 404s with a "File Load Error"
+  // modal. In-memory content mounts cleanly; saving to a path is a later step.
+  // Sizing: JupyterLab's Notebook is a Lumino widget that needs a CONCRETE height
+  // — `height="100%"` collapses to 0 through the JupyterReactTheme wrapper (whose
+  // div isn't height:100%), so the notebook mounts but renders invisible. Give it
+  // a real viewport-relative height inside an explicitly-sized, light, scrollable
+  // container so the cells are visible on the dark app shell.
   return (
-    <JupyterReactTheme>
-      <Notebook
-        id="cg-analysis-notebook"
-        serviceManager={serviceManager}
-        startDefaultKernel
-        nbformat={STARTER_NB}
-        path={path}
-        height="100%"
-      />
-    </JupyterReactTheme>
+    <div
+      style={{
+        position: "relative",
+        height: "100%",
+        minHeight: 480,
+        width: "100%",
+        overflow: "auto",
+        background: "#ffffff",
+      }}
+    >
+      <JupyterReactTheme>
+        <Notebook
+          id="cg-analysis-notebook"
+          serviceManager={serviceManager}
+          startDefaultKernel
+          nbformat={STARTER_NB}
+          Toolbar={NotebookToolbar}
+          extensions={extensions}
+          cellSidebarMargin={120}
+          height="calc(100vh - 150px)"
+        />
+      </JupyterReactTheme>
+    </div>
   );
 }
