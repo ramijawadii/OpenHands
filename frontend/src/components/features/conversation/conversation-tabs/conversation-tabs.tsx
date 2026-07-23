@@ -1,19 +1,17 @@
 import { useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import {
   StickyNote,
-  FileTerminal,
-  ScrollText,
+  LayoutGrid,
   MessagesSquare,
   Workflow,
-  Activity,
+  Send,
+  Settings2,
   X,
 } from "lucide-react";
 import { cn } from "#/utils/utils";
 import { ConversationTabNav } from "./conversation-tab-nav";
 import { ChatActionTooltip } from "../../chat/chat-action-tooltip";
-import { I18nKey } from "#/i18n/declaration";
 import {
   useConversationStore,
   type ConversationTab,
@@ -82,8 +80,6 @@ export function ConversationTabs() {
     handlePanelVisibilityChange();
   }, [isRightPanelShown, selectedTab, onTabChange]);
 
-  const { t } = useTranslation();
-
   const onTabSelected = (tab: ConversationTab) => {
     if (selectedTab === tab && isRightPanelShown) {
       // If clicking the same active tab, close the drawer
@@ -102,10 +98,12 @@ export function ConversationTabs() {
   const isTabActive = (tab: ConversationTab) =>
     isRightPanelShown && selectedTab === tab;
 
-  // Chat · Commands · Jupyter · Report · Logs · Remediation · Sandbox.
-  // The store keys are historical
-  // ("terminal" = Chat, "diagrams" = Report, "states" = Logs) so that tab
-  // selections already persisted in localStorage keep resolving.
+  // Chat · Canvas · Report · Remediation · Communication · Settings.
+  // The store keys are HISTORICAL and no longer match their labels — they are
+  // kept so tab selections already persisted in localStorage keep resolving:
+  //   "terminal" = Chat, "jupyter" = Canvas, "diagrams" = Report,
+  //   "states" = Communication (freed when the Logs tab was removed),
+  //   "sandbox" = Settings.
   const tabs = [
     {
       isActive: isTabActive("terminal"),
@@ -117,12 +115,11 @@ export function ConversationTabs() {
     },
     {
       isActive: isTabActive("jupyter"),
-      icon: FileTerminal,
-      label: "Data Analysis",
+      icon: LayoutGrid,
+      label: "Canvas",
       onClick: () => onTabSelected("jupyter"),
-      tooltipContent:
-        "Data Analysis — Jupyter, Sheet, Data Connector, File Systems",
-      tooltipAriaLabel: "Data Analysis",
+      tooltipContent: "Canvas — Documents, Sheet, Notebook, Whiteboard",
+      tooltipAriaLabel: "Canvas",
     },
     {
       isActive: isTabActive("diagrams"),
@@ -131,14 +128,6 @@ export function ConversationTabs() {
       onClick: () => onTabSelected("diagrams"),
       tooltipContent: "Report — generated artifacts and diagrams",
       tooltipAriaLabel: "Report",
-    },
-    {
-      isActive: isTabActive("states"),
-      icon: ScrollText,
-      label: "Logs",
-      onClick: () => onTabSelected("states"),
-      tooltipContent: "Logs — audit trail of everything the agent executed",
-      tooltipAriaLabel: "Logs",
     },
     {
       isActive: isTabActive("remediation"),
@@ -150,12 +139,21 @@ export function ConversationTabs() {
       tooltipAriaLabel: "Remediation Workflow",
     },
     {
+      isActive: isTabActive("states"),
+      icon: Send,
+      label: "Communication",
+      onClick: () => onTabSelected("states"),
+      tooltipContent:
+        "Communication — notifications, approvals and outbound updates",
+      tooltipAriaLabel: "Communication",
+    },
+    {
       isActive: isTabActive("sandbox"),
-      icon: Activity,
-      label: "Sandbox settings",
+      icon: Settings2,
+      label: "Settings",
       onClick: () => onTabSelected("sandbox"),
-      tooltipContent: "Sandbox settings — resources and running processes",
-      tooltipAriaLabel: "Sandbox settings",
+      tooltipContent: "Settings — sandbox resources and running processes",
+      tooltipAriaLabel: "Settings",
     },
   ];
 

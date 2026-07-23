@@ -6,18 +6,20 @@ import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
 import { useConversationStore } from "#/state/conversation-store";
 
-// Lazy load all tab components
+// Lazy load all tab components.
+//
+// The store keys are HISTORICAL and no longer match their labels — they are kept
+// so tab selections already persisted in localStorage keep resolving:
+//   "terminal" = Chat, "jupyter" = Canvas, "diagrams" = Report,
+//   "states" = Communication, "sandbox" = Settings.
 const EditorTab = lazy(() => import("#/routes/commands-tab"));
-// "terminal" now renders the embedded Chat (the xterm tab was removed); the key
-// is kept so persisted tab selections stay valid.
 const ChatTab = lazy(() => import("#/routes/chat-tab"));
-// "jupyter" key now renders the Data Analysis tab (Jupyter · Sheet · Data
-// Connector · File Systems); the key is kept for persisted selections.
-const DataAnalysisTab = lazy(() => import("#/routes/data-analysis-tab"));
+// Canvas: Documents · Sheet · Notebook (JupyterLab IDE) · Whiteboard.
+const CanvasTab = lazy(() => import("#/routes/canvas-tab"));
 const DiagramsTab = lazy(() => import("#/routes/diagrams-tab"));
-// Logs replaces the old States (file-history rewind) panel. states-tab.tsx is
-// intentionally kept on disk — rewind belongs in the remediation path, not here.
-const LogsTab = lazy(() => import("#/routes/logs-tab"));
+// Communication took over the "states" key when the Logs tab was removed.
+// logs-tab.tsx / states-tab.tsx are intentionally kept on disk.
+const CommunicationTab = lazy(() => import("#/routes/communication-tab"));
 const RemediationTab = lazy(() => import("#/routes/remediation-tab"));
 const SandboxHealthTab = lazy(() => import("#/routes/sandbox-health-tab"));
 
@@ -34,10 +36,10 @@ export function ConversationTabContent() {
 
   const tabs = [
     { key: "editor", component: EditorTab, isActive: isEditorActive },
-    { key: "jupyter", component: DataAnalysisTab, isActive: isJupyterActive },
+    { key: "jupyter", component: CanvasTab, isActive: isJupyterActive },
     { key: "terminal", component: ChatTab, isActive: isTerminalActive },
     { key: "diagrams", component: DiagramsTab, isActive: isDiagramsActive },
-    { key: "states", component: LogsTab, isActive: isStatesActive },
+    { key: "states", component: CommunicationTab, isActive: isStatesActive },
     {
       key: "remediation",
       component: RemediationTab,
