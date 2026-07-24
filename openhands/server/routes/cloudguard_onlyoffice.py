@@ -26,6 +26,7 @@ import hmac
 import logging
 import mimetypes
 import os
+import re
 import secrets
 import time
 from pathlib import Path
@@ -259,6 +260,55 @@ def _make_key() -> str:
     return f"{int(time.time() * 1000)}-{secrets.token_hex(8)}"
 
 
+async def _file_version(cid: str, path: str) -> str | None:
+    """Best-effort 'mtime-size' fingerprint of a workspace file (docker-exec stat).
+
+    Used to build a STABLE-yet-content-aware ONLYOFFICE document key: an unchanged
+    file keeps the same key → ONLYOFFICE reuses the server-side converted session
+    (fast reopen, no re-conversion, no client cache needed — the doc's "reconnect
+    to the same session"). When the agent REWRITES the file, mtime/size change →
+    new key → fresh convert, so a stale cached copy is never served (the classic
+    ONLYOFFICE key-caching trap). Returns None on any failure (→ unique key)."""
+    from openhands.server.shared import conversation_manager
+
+    conv = None
+    try:
+        conv = await conversation_manager.attach_to_conversation(cid, None)
+        if conv is None:
+            return None
+        runtime = conv.runtime
+        cname = getattr(runtime, "container_name", None)
+        if not cname:
+            return None
+        norm = os.path.normpath(path)
+        full = os.path.join(runtime.config.workspace_mount_path_in_sandbox, norm)
+        import docker as _docker
+
+        c = _docker.from_env().containers.get(cname)
+        code, out = c.exec_run(["stat", "-c", "%Y-%s", full], demux=False)
+        if code != 0:
+            return None
+        return out.decode("utf-8", "replace").strip() or None
+    except Exception:  # noqa: BLE001 — never block token issuance on a stat failure
+        return None
+    finally:
+        if conv is not None:
+            try:
+                await conversation_manager.detach_from_conversation(conv)
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _document_key(cid: str, path: str, mode: str, version: str | None) -> str:
+    """ONLYOFFICE document.key: stable per (conversation, file, version, mode) so
+    reopening resumes the same server-side session; unique fallback when the file
+    can't be fingerprinted. Max 120 chars, [A-Za-z0-9-_] (ONLYOFFICE constraint)."""
+    if version is None:
+        return _make_key()
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", f"{cid}-{path}-{version}-{mode}")
+    return safe[:120]
+
+
 # ── /token ───────────────────────────────────────────────────────────────────
 class TokenRequest(BaseModel):
     # Either pass an explicit, container-reachable fileUrl…
@@ -293,8 +343,15 @@ async def create_token(
 
     if body.fileUrl:
         file_url = body.fileUrl
+        # Explicit URL: no sandbox file to fingerprint → a unique session each time.
+        doc_key = _make_key()
     elif body.conversationId and body.filePath:
         file_url = _signed_file_url(body.conversationId, body.filePath)
+        # Stable-by-fingerprint key → reopening the SAME file reuses ONLYOFFICE's
+        # server-side session (fast, no re-convert); a rewritten file gets a new
+        # key so a stale cached copy is never served. See _file_version.
+        version = await _file_version(body.conversationId, body.filePath)
+        doc_key = _document_key(body.conversationId, body.filePath, mode, version)
     else:
         raise HTTPException(
             status_code=400,
@@ -308,7 +365,7 @@ async def create_token(
     config: dict = {
         "document": {
             "fileType": ext,
-            "key": _make_key(),
+            "key": doc_key,
             "title": body.fileName,
             "url": file_url,
         },
