@@ -20,12 +20,19 @@ interface Props {
 }
 
 export default function WhiteboardView({ conversationId }: Props) {
-  const storageKey = `cg-whiteboard-${conversationId ?? "default"}`;
+  // NOTE the `drawio` namespace: the old `cg-whiteboard-*` key holds EXCALIDRAW
+  // JSON from before the swap. Feeding that to draw.io makes it pop
+  // "Not a diagram file (Start tag expected, '<' not found)", so we start a
+  // fresh key rather than trying to read the previous format.
+  const storageKey = `cg-drawio-${conversationId ?? "default"}`;
   const ref = React.useRef<DrawIoEmbedRef>(null);
 
   const initialXml = React.useMemo(() => {
     try {
-      return localStorage.getItem(storageKey) ?? "";
+      const raw = localStorage.getItem(storageKey);
+      // Only hand draw.io something that actually looks like diagram XML —
+      // anything else (legacy JSON, truncated write) would throw its error modal.
+      return raw && raw.trimStart().startsWith("<") ? raw : "";
     } catch {
       return "";
     }

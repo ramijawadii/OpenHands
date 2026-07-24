@@ -34,8 +34,15 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
     ConversationService.getFile(conversationId, filePath)
       .then((content) => {
         if (cancelled) return;
-        if (content == null || content === "") {
+        if (content == null || content.trim() === "") {
           setState({ status: "error", message: "Diagram is empty." });
+        } else if (!content.trimStart().startsWith("<")) {
+          // Not XML — e.g. a .xml that isn't a draw.io file. Say so ourselves
+          // instead of letting draw.io throw its "Not a diagram file" modal.
+          setState({
+            status: "error",
+            message: "This file isn't a draw.io diagram.",
+          });
         } else {
           setState({ status: "ready", xml: content });
         }

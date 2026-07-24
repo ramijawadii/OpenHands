@@ -45,10 +45,12 @@ export function ConversationTabContent() {
     { key: "sandbox", component: SandboxHealthTab, isActive: isSandboxActive },
   ];
 
-  if (shouldShownAgentLoading) {
-    return <ConversationLoading />;
-  }
-
+  // The loading state is an OVERLAY, never an early return. Returning
+  // <ConversationLoading/> instead unmounted every tab — and remounting the
+  // Canvas Notebook re-initialises JupyterLab, which blows up on its
+  // module-level singletons ("Cell executor can only be set once") and sends the
+  // FAST design-token store into infinite recursion ("Maximum call stack size
+  // exceeded"). Keeping the tabs mounted makes that class of crash impossible.
   return (
     <TabContainer>
       <TabContentArea>
@@ -58,6 +60,11 @@ export function ConversationTabContent() {
           </TabWrapper>
         ))}
       </TabContentArea>
+      {shouldShownAgentLoading && (
+        <div className="absolute inset-0 z-20 bg-[var(--cg-bg-page)]">
+          <ConversationLoading />
+        </div>
+      )}
     </TabContainer>
   );
 }
