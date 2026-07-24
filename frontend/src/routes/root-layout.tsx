@@ -31,6 +31,7 @@ import { EmailVerificationGuard } from "#/components/features/guards/email-verif
 import { MaintenanceBanner } from "#/components/features/maintenance/maintenance-banner";
 import { cn } from "#/utils/utils";
 import { ThemeProvider } from "#/context/theme-context";
+import MemoryHud from "#/components/features/dev/memory-hud";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -263,6 +264,9 @@ export default function MainApp() {
         {config.data?.FEATURE_FLAGS.ENABLE_BILLING &&
           config.data?.APP_MODE === "saas" &&
           settings?.IS_NEW_USER && <SetupPaymentModal />}
+
+        {/* Opt-in dev heap readout (?memhud=1). Renders nothing otherwise. */}
+        <MemoryHud />
       </div>
     </ThemeProvider>
   );
