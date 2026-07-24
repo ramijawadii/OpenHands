@@ -30,13 +30,25 @@ const VIEWS: {
   { id: "whiteboard", label: "Whiteboard", icon: PenTool },
 ];
 
+// Hover-intent dwell before we prewarm — an incidental mouse pass must not mount
+// a heavy editor. Matches the plan's §4.1 debounced prewarm.
+const HOVER_INTENT_MS = 250;
+
 function ViewSwitcher({
   view,
   onChange,
+  onPrewarm,
 }: {
   view: View;
   onChange: (v: View) => void;
+  onPrewarm: (v: View) => void;
 }) {
+  const hoverTimer = React.useRef<number | undefined>(undefined);
+  const clearHover = () => {
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+  };
+  React.useEffect(() => clearHover, []);
+
   return (
     <div className="flex items-center gap-1 border-b border-[var(--cg-border-subtle)] px-3 py-1.5">
       {VIEWS.map(({ id, label, icon: Icon }) => (
@@ -44,6 +56,17 @@ function ViewSwitcher({
           key={id}
           type="button"
           onClick={() => onChange(id)}
+          // Prewarm on hover-intent: after a short dwell, mount the pane hidden
+          // so clicking hits an already-warm editor.
+          onMouseEnter={() => {
+            clearHover();
+            hoverTimer.current = window.setTimeout(
+              () => onPrewarm(id),
+              HOVER_INTENT_MS,
+            );
+          }}
+          onMouseLeave={clearHover}
+          onFocus={() => onPrewarm(id)}
           className={cn(
             "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] transition-colors",
             view === id
@@ -91,6 +114,18 @@ function CanvasTab() {
     });
   }, [view]);
 
+  // Prewarm: mount a pane (hidden) ahead of a click WITHOUT disturbing the active
+  // pane (index 0 is never evicted). Reuses the LRU + idle-eviction, so a
+  // prewarmed-but-never-clicked pane is reclaimed after IDLE_EVICT_MS.
+  const prewarm = React.useCallback((v: View) => {
+    setResident((prev) => {
+      if (prev.includes(v)) return prev;
+      const active = prev[0];
+      const rest = prev.slice(1).filter((x) => x !== v);
+      return [active, v, ...rest].slice(0, MAX_RESIDENT);
+    });
+  }, []);
+
   // Idle eviction: if a resident pane has been hidden for IDLE_EVICT_MS, drop it.
   React.useEffect(() => {
     if (resident.length <= 1) return undefined;
@@ -100,13 +135,24 @@ function CanvasTab() {
     return () => window.clearTimeout(t);
   }, [resident, view]);
 
+  // When a pane becomes active, nudge a resize on the next frame so an editor
+  // that was mounted while hidden (prewarmed) lays out to full size on show —
+  // ONLYOFFICE, draw.io and Lumino all relayout on window resize. Cheap + safe,
+  // and keeps the proven display:none visibility model (no behavioural change).
+  React.useEffect(() => {
+    const id = window.requestAnimationFrame(() =>
+      window.dispatchEvent(new Event("resize")),
+    );
+    return () => window.cancelAnimationFrame(id);
+  }, [view]);
+
   const isResident = (v: View) => resident.includes(v);
   const paneClass = (v: View) =>
     cn("h-full w-full", view === v ? "block" : "hidden");
 
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-[var(--cg-bg-page)]">
-      <ViewSwitcher view={view} onChange={setView} />
+      <ViewSwitcher view={view} onChange={setView} onPrewarm={prewarm} />
       <div className="relative min-h-0 flex-1">
         {isResident("notebook") && (
           <div className={paneClass("notebook")}>
