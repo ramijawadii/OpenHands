@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="184" height="32" viewBox="0 0 184 32" fill="none" role="img" aria-label="Inference Defense">
+  <rect x="1" y="4" width="22" height="24" rx="4" fill="#6D5EF6"/>
+  <path d="M12 9.5l7 3.2v4.1c0 3.9-2.7 6.7-7 8.2-4.3-1.5-7-4.3-7-8.2v-4.1L12 9.5z" fill="#fff"/>
+  <path d="M8.7 16.6l2.2 2.2 4.4-4.5" stroke="#6D5EF6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <text x="32" y="16" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="13" font-weight="700" fill="#1F2430">Inference</text>
+  <text x="32" y="27" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="10.5" font-weight="500" letter-spacing="0.5" fill="#6B7280">DEFENSE</text>
+</svg>

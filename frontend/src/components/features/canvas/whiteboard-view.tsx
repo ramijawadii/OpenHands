@@ -1,7 +1,10 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { DrawIoEmbed, type DrawIoEmbedRef } from "react-drawio";
-import { DRAWIO_BASE_URL } from "#/components/features/office-viewer/drawio-viewer";
+import {
+  DRAWIO_BASE_URL,
+  DRAWIO_CONFIGURATION,
+} from "#/components/features/office-viewer/drawio-viewer";
 
 /** Whiteboard — freeform diagramming on the Canvas tab, powered by SELF-HOSTED
  *  draw.io (diagrams.net). The editor iframe loads from our own draw.io container
@@ -59,15 +62,12 @@ export default function WhiteboardView({ conversationId }: Props) {
         xml={initialXml}
         // Fire onAutoSave on every change so a tab switch never loses work.
         autosave
-        // Defaults: white (light) mode, grid OFF, page view OFF.
-        // grid/dark are URL params; page view is a draw.io config option.
-        configuration={{
-          defaultGridEnabled: false,
-          defaultPageVisible: false,
-        }}
+        // Defaults: white (light) mode, grid OFF, page view OFF, de-branded
+        // chrome. grid/dark are URL params; page view + CSS live in the config.
+        configuration={DRAWIO_CONFIGURATION}
         urlParameters={{
           ui: "min",
-          spin: true,
+          spin: false,
           // Keep it a contained embed: no exit button, no "save & exit" flow —
           // autosave feeds our persist() and the diagram never leaves the app.
           saveAndExit: false,

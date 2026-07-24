@@ -61,6 +61,34 @@ def _uploads_dir() -> Path:
     return Path(os.environ.get("ONLYOFFICE_UPLOADS_DIR", "/tmp/onlyoffice-uploads"))
 
 
+# ── Branding (docs/rebranding/onlyoffice-branding-surface.md) ─────────────────
+# Licence-SAFE customization: set our own logo + customer block + a compact
+# header. We do NOT set about:false / feedback:false here — hiding those on
+# ONLYOFFICE Community Edition (AGPL) requires a branding/commercial licence, so
+# that removal is a separate, deliberate decision, not baked in.
+_BRAND_NAME = "Inference Defense"
+
+
+def _brand_logo_url() -> str:
+    """Absolute, BROWSER-reachable URL to our editor logo. Served by the app
+    frontend (public/brand/…). Overridable; empty ⇒ omit the logo override so we
+    fall back to the default editor mark rather than a broken image."""
+    return os.environ.get(
+        "ONLYOFFICE_LOGO_URL", "http://localhost:3000/brand/onlyoffice-logo.svg"
+    ).strip()
+
+
+def _customization() -> dict:
+    cz: dict = {
+        "compactHeader": True,
+        "customer": {"name": _BRAND_NAME},
+    }
+    logo = _brand_logo_url()
+    if logo:
+        cz["logo"] = {"image": logo, "imageDark": logo, "url": ""}
+    return cz
+
+
 def _backend_origin() -> str:
     """Origin the ONLYOFFICE CONTAINER uses to reach this backend (file proxy +
     callback). localhost inside the container is the container itself, so on a
@@ -292,6 +320,7 @@ async def create_token(
                 "id": "user-1",
                 "name": "Analyst",
             },
+            "customization": _customization(),
         },
     }
 

@@ -42,3 +42,15 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
+
+/* ── Rebranding (docs/rebranding/jupyterlab-investigation.md) ─────────────────
+ * De-brand the JupyterLab chrome we control. Scoped under #cg-jupyterlab-ide so
+ * nothing leaks to the rest of the app. JupyterLab is BSD-licensed; this hides
+ * the top-left Jupyter logo and the "About JupyterLab" help entry. The app name
+ * (title/About header) is set via PageConfig appName in jupyter-react-ide.tsx. */
+#cg-jupyterlab-ide #jp-MainLogo,
+#cg-jupyterlab-ide .jp-Launcher-kernelIcon .jp-icon-brand0,
+#cg-jupyterlab-ide [data-command="help:about"],
+#cg-jupyterlab-ide .lm-Menu-item[data-command="help:about"] {
+  display: none !important;
+}

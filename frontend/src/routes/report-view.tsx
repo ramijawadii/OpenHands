@@ -8,6 +8,7 @@ import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
   X,
+  Share2,
 } from "lucide-react";
 import {
   FaFilePdf,
@@ -16,7 +17,7 @@ import {
   FaFileCsv,
   FaFileAlt,
 } from "react-icons/fa";
-import { SiMarkdown, SiDiagramsdotnet } from "react-icons/si";
+import { SiMarkdown } from "react-icons/si";
 import { cn } from "#/utils/utils";
 import { openHands } from "#/api/open-hands-axios";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
@@ -66,7 +67,8 @@ const KIND_META: Record<
   sheet: { label: "Sheets", icon: FaFileExcel, color: "#1D6F42" },
   pdf: { label: "PDFs", icon: FaFilePdf, color: "#E2574C" },
   markdown: { label: "Markdown", icon: SiMarkdown, color: "#9CA3AF" },
-  diagram: { label: "Diagrams", icon: SiDiagramsdotnet, color: "#F08705" },
+  // Neutral diagram glyph (no vendor brand mark). See docs/rebranding/.
+  diagram: { label: "Diagrams", icon: Share2, color: "#F59E0B" },
 };
 
 // Section order = the order the groups appear in the list.

@@ -11,6 +11,24 @@ export const DRAWIO_BASE_URL =
   (import.meta.env.VITE_DRAWIO_SERVER_URL as string | undefined) ||
   "http://localhost:8085";
 
+/** Shared draw.io editor configuration for both the Whiteboard and the viewer.
+ *  Defaults (white mode, grid off, page view off) live here, plus best-effort
+ *  CSS to hide the vendor's About/help/logo chrome. NOTE: the branded loading
+ *  spinner is removed via `spin: false` in urlParameters, not CSS — it renders
+ *  before config loads. See docs/rebranding/drawio-branding-surface.md.
+ *  (draw.io is Apache-2.0; only the chrome we control is de-branded.) */
+export const DRAWIO_CONFIGURATION = {
+  defaultGridEnabled: false,
+  defaultPageVisible: false,
+  css: [
+    "a[href*='diagrams.net'],",
+    "a[href*='drawio.com'],",
+    "a[href*='draw.io'],",
+    ".geAboutDialog { display: none !important; }",
+    ".geStatus > img, .geMenubarContainer .geLogo { display: none !important; }",
+  ].join("\n"),
+};
+
 interface Props {
   /** conversation whose sandbox holds the diagram file */
   conversationId: string;
@@ -37,11 +55,11 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
         if (content == null || content.trim() === "") {
           setState({ status: "error", message: "Diagram is empty." });
         } else if (!content.trimStart().startsWith("<")) {
-          // Not XML — e.g. a .xml that isn't a draw.io file. Say so ourselves
-          // instead of letting draw.io throw its "Not a diagram file" modal.
+          // Not XML — e.g. a .xml that isn't a diagram file. Say so ourselves
+          // instead of letting the editor throw its "Not a diagram file" modal.
           setState({
             status: "error",
-            message: "This file isn't a draw.io diagram.",
+            message: "This file isn't a diagram.",
           });
         } else {
           setState({ status: "ready", xml: content });
@@ -80,17 +98,14 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
         baseUrl={DRAWIO_BASE_URL}
         xml={state.xml}
         // Same defaults as the Whiteboard: white (light) mode, grid OFF,
-        // page view OFF. Viewer-oriented: minimal chrome, no save button
-        // (save-back into the sandbox is a later step).
-        configuration={{
-          defaultGridEnabled: false,
-          defaultPageVisible: false,
-        }}
+        // page view OFF, de-branded chrome. Viewer-oriented: minimal chrome,
+        // no save button (save-back into the sandbox is a later step).
+        configuration={DRAWIO_CONFIGURATION}
         urlParameters={{
           ui: "min",
           dark: false,
           grid: false,
-          spin: true,
+          spin: false,
           noSaveBtn: true,
           noExitBtn: true,
         }}

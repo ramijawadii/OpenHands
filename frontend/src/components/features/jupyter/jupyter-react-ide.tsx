@@ -37,6 +37,11 @@ PageConfig.setOption("themesUrl", "lab/api/themes");
 // flip the "Simple" switch in the status bar.
 PageConfig.setOption("mode", "single-document");
 
+// Rebrand the app name → shown in the window/tab title and the About dialog
+// header. JupyterLab is BSD-licensed; the logo swap + About hiding are done via
+// scoped CSS in jupyter-react-ide.css. See docs/rebranding/jupyterlab-investigation.md.
+PageConfig.setOption("appName", "Inference Defense Notebook");
+
 // Embedded JupyterLab must NEVER own the browser URL.
 //
 // We cannot disable the router (~30 core plugins require its IRouter service), so
