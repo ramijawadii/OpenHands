@@ -59,6 +59,12 @@ export default function WhiteboardView({ conversationId }: Props) {
         xml={initialXml}
         // Fire onAutoSave on every change so a tab switch never loses work.
         autosave
+        // Defaults: white (light) mode, grid OFF, page view OFF.
+        // grid/dark are URL params; page view is a draw.io config option.
+        configuration={{
+          defaultGridEnabled: false,
+          defaultPageVisible: false,
+        }}
         urlParameters={{
           ui: "min",
           spin: true,
@@ -67,7 +73,8 @@ export default function WhiteboardView({ conversationId }: Props) {
           saveAndExit: false,
           noSaveBtn: false,
           noExitBtn: true,
-          dark: true,
+          dark: false,
+          grid: false,
         }}
         onSave={(e) => persist(e.xml)}
         onAutoSave={(e) => persist(e.xml)}

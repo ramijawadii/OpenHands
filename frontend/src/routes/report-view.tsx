@@ -1,18 +1,22 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import {
-  FileText,
-  FileSpreadsheet,
-  FileType2,
-  Network,
   Loader2,
   RefreshCw,
   ArrowLeft,
-  Search as SearchIcon,
+  Search,
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
-  Inbox,
+  X,
 } from "lucide-react";
+import {
+  FaFilePdf,
+  FaFileWord,
+  FaFileExcel,
+  FaFileCsv,
+  FaFileAlt,
+} from "react-icons/fa";
+import { SiMarkdown, SiDiagramsdotnet } from "react-icons/si";
 import { cn } from "#/utils/utils";
 import { openHands } from "#/api/open-hands-axios";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
@@ -21,10 +25,14 @@ import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
 
-/** Report — discovery of the conversation's existing artifacts (like the
- *  conversation history list): filter by type + date, then open each in the
- *  right viewer — pdf→PDF, doc/sheet→ONLYOFFICE, markdown→markdown (renders
- *  mermaid), architecture diagram→draw.io.
+/** Report — discovery of the conversation's existing artifacts.
+ *
+ *  Deliberately mirrors the conversation-history UI (same toolbar, same
+ *  Section headers with counts, same card rows) so the two feel identical —
+ *  only the rows carry real file-type icons instead of a status dot.
+ *
+ *  Opens each artifact in the right viewer: pdf→PDF, doc/sheet→ONLYOFFICE,
+ *  markdown→markdown (renders mermaid), architecture diagram→draw.io.
  */
 
 const DrawioViewer = React.lazy(
@@ -40,38 +48,43 @@ interface Artifact {
   kind: Kind;
 }
 
+// Real file-type icons (react-icons) in their conventional brand colours, so a
+// row reads as the actual file at a glance — the analog of the history list's
+// status dot.
 const KIND_META: Record<
   Kind,
   {
     label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    tone: string;
+    icon: React.ComponentType<{
+      className?: string;
+      style?: React.CSSProperties;
+    }>;
+    color: string;
   }
 > = {
-  document: { label: "Document", icon: FileText, tone: "text-sky-400" },
-  sheet: { label: "Sheet", icon: FileSpreadsheet, tone: "text-emerald-400" },
-  pdf: { label: "PDF", icon: FileType2, tone: "text-rose-400" },
-  markdown: { label: "Markdown", icon: FileText, tone: "text-violet-400" },
-  diagram: { label: "Diagram", icon: Network, tone: "text-amber-400" },
+  document: { label: "Documents", icon: FaFileWord, color: "#2B7CD3" },
+  sheet: { label: "Sheets", icon: FaFileExcel, color: "#1D6F42" },
+  pdf: { label: "PDFs", icon: FaFilePdf, color: "#E2574C" },
+  markdown: { label: "Markdown", icon: SiMarkdown, color: "#9CA3AF" },
+  diagram: { label: "Diagrams", icon: SiDiagramsdotnet, color: "#F08705" },
 };
 
-const FILTERS: { id: Kind | "all"; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "document", label: "Documents" },
-  { id: "sheet", label: "Sheets" },
-  { id: "pdf", label: "PDFs" },
-  { id: "markdown", label: "Markdown" },
-  { id: "diagram", label: "Diagrams" },
-];
+// Section order = the order the groups appear in the list.
+const KIND_ORDER: Kind[] = ["document", "sheet", "pdf", "markdown", "diagram"];
 
 function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").pop() ?? path;
 }
 
-function fmtSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/** csv gets the csv glyph, plain text/rtf the generic doc glyph — a small
+ *  fidelity win over using the group icon for every row. */
+function iconFor(a: { path: string; kind: Kind }) {
+  const ext = basename(a.path).split(".").pop()?.toLowerCase();
+  if (ext === "csv") return { Icon: FaFileCsv, color: "#1D6F42" };
+  if (ext === "txt" || ext === "rtf")
+    return { Icon: FaFileAlt, color: "#9CA3AF" };
+  const meta = KIND_META[a.kind];
+  return { Icon: meta.icon, color: meta.color };
 }
 
 function fmtRelative(epochSeconds: number): string {
@@ -89,7 +102,6 @@ export default function ReportView() {
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
-  const [filter, setFilter] = React.useState<Kind | "all">("all");
   const [query, setQuery] = React.useState("");
   const [newestFirst, setNewestFirst] = React.useState(true);
   const [selected, setSelected] = React.useState<Artifact | null>(null);
@@ -119,18 +131,20 @@ export default function ReportView() {
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return artifacts
-      .filter((a) => (filter === "all" ? true : a.kind === filter))
       .filter((a) => (q ? a.path.toLowerCase().includes(q) : true))
       .sort((a, b) => (newestFirst ? b.mtime - a.mtime : a.mtime - b.mtime));
-  }, [artifacts, filter, query, newestFirst]);
+  }, [artifacts, query, newestFirst]);
 
-  const counts = React.useMemo(() => {
-    const c: Record<string, number> = { all: artifacts.length };
-    artifacts.forEach((a) => {
-      c[a.kind] = (c[a.kind] ?? 0) + 1;
+  // Grouped by kind — the type sections play the role Active/History plays in
+  // the conversation list.
+  const groups = React.useMemo(() => {
+    const acc = {} as Record<Kind, Artifact[]>;
+    KIND_ORDER.forEach((k) => {
+      acc[k] = [];
     });
-    return c;
-  }, [artifacts]);
+    visible.forEach((a) => acc[a.kind]?.push(a));
+    return acc;
+  }, [visible]);
 
   // ── Viewer ──────────────────────────────────────────────────────────────────
   if (selected) {
@@ -165,125 +179,159 @@ export default function ReportView() {
     );
   }
 
-  // ── Discovery list ──────────────────────────────────────────────────────────
+  // ── Discovery list — same shell/toolbar/sections as conversation-history ────
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-[var(--cg-bg-page)]">
-      {/* Filters row */}
-      <div className="flex flex-col gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-2">
-        <div className="flex items-center gap-2">
-          <div className="relative min-w-0 flex-1">
-            <SearchIcon className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cg-text-muted)]" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search reports…"
-              className="w-full rounded-md border border-[var(--cg-border-subtle)] bg-transparent py-1 pl-7 pr-2 text-[12px] text-[var(--cg-text-primary)] placeholder:text-[var(--cg-text-muted)]"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => setNewestFirst((v) => !v)}
-            title={newestFirst ? "Newest first" : "Oldest first"}
-            className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-[var(--cg-border-subtle)] px-2 py-1 text-[11px] text-[var(--cg-text-nav)] transition-colors hover:text-[var(--cg-text-primary)]"
-          >
-            {newestFirst ? (
-              <ArrowDownWideNarrow className="h-3.5 w-3.5" />
-            ) : (
-              <ArrowUpWideNarrow className="h-3.5 w-3.5" />
-            )}
-            Date
-          </button>
-          <button
-            type="button"
-            onClick={refresh}
-            aria-label="Refresh"
-            className="inline-flex shrink-0 cursor-pointer items-center rounded-md border border-[var(--cg-border-subtle)] px-2 py-1 text-[11px] text-[var(--cg-text-nav)] transition-colors hover:text-[var(--cg-text-primary)]"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          {FILTERS.map((f) => (
+    <div className="cg-conv-compact flex h-full w-full flex-col">
+      {/* toolbar — mirrors conversation-history's */}
+      <div className="flex items-center gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-2">
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cg-text-muted)]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search reports…"
+            className="w-full rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] py-1.5 pr-7 pl-7 text-[11.5px] text-[var(--cg-text-primary)] outline-none placeholder:text-[var(--cg-text-muted)] focus:border-[var(--cg-text-muted)]"
+          />
+          {query && (
             <button
-              key={f.id}
               type="button"
-              onClick={() => setFilter(f.id)}
-              className={cn(
-                "inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] transition-colors",
-                filter === f.id
-                  ? "bg-[var(--cg-bg-card)] text-[var(--cg-text-primary)]"
-                  : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)]",
-              )}
+              aria-label="Clear search"
+              onClick={() => setQuery("")}
+              className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)]"
             >
-              {f.label}
-              {counts[f.id] != null && (
-                <span className="text-[10px] text-[var(--cg-text-muted)]">
-                  {counts[f.id] ?? 0}
-                </span>
-              )}
+              <X className="h-3.5 w-3.5" />
             </button>
+          )}
+        </div>
+        <button
+          type="button"
+          title={newestFirst ? "Newest first" : "Oldest first"}
+          aria-label="Sort by date"
+          onClick={() => setNewestFirst((v) => !v)}
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-2 py-1.5 text-[11.5px] text-[var(--cg-text-nav)] transition-colors hover:border-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)]"
+        >
+          {newestFirst ? (
+            <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+          ) : (
+            <ArrowUpWideNarrow className="h-3.5 w-3.5" />
+          )}
+          Date
+        </button>
+        <button
+          type="button"
+          title="Refresh"
+          aria-label="Refresh"
+          onClick={refresh}
+          className="inline-flex shrink-0 cursor-pointer items-center rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-2 py-1.5 text-[11.5px] text-[var(--cg-text-nav)] transition-colors hover:border-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)]"
+        >
+          {loading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+
+      {/* list */}
+      <div className="cg-scroll min-h-0 flex-1 overflow-y-auto px-3 py-3">
+        {loading && artifacts.length === 0 && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin text-[var(--cg-text-muted)]" />
+          </div>
+        )}
+
+        {error && (
+          <p className="px-1 py-6 text-center text-[11.5px] text-[var(--cg-danger)]">
+            Could not load reports.
+          </p>
+        )}
+
+        {!loading && !error && visible.length === 0 && (
+          <p className="px-1 py-6 text-center text-[11.5px] text-[var(--cg-text-muted)]">
+            {query ? "No reports match." : "No reports yet."}
+          </p>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {KIND_ORDER.map((kind) => (
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
+            <Section
+              key={kind}
+              title={KIND_META[kind].label}
+              count={groups[kind]?.length ?? 0}
+            >
+              {groups[kind]?.map((a) => {
+                const { Icon, color } = iconFor(a);
+                return (
+                  <div
+                    key={a.path}
+                    onClick={() => setSelected(a)}
+                    className={cn(
+                      "group relative w-full cursor-pointer rounded-lg px-3 py-2",
+                      "transition-colors duration-300",
+                      "bg-transparent hover:bg-[var(--cg-bg-hover)]",
+                    )}
+                    style={{
+                      transitionTimingFunction:
+                        "cubic-bezier(0.165, 0.85, 0.45, 1)",
+                    }}
+                  >
+                    {/* Title row — real file icon replaces the status dot */}
+                    <div className="flex min-h-[20px] w-full items-center justify-between">
+                      <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
+                        <Icon
+                          className="h-3.5 w-3.5 shrink-0"
+                          style={{ color }}
+                        />
+                        <span className="truncate text-[13px] text-[var(--cg-text-primary)]">
+                          {basename(a.path)}
+                        </span>
+                      </div>
+                    </div>
+                    {/* Footer row — path left, relative time right */}
+                    <div className="mt-1 flex flex-row items-center justify-between">
+                      <span className="truncate text-xs text-[var(--cg-text-muted)]">
+                        {a.path.includes("/")
+                          ? a.path.slice(0, a.path.lastIndexOf("/"))
+                          : "workspace"}
+                      </span>
+                      <p className="flex-1 text-right text-xs text-[#A3A3A3]">
+                        <time>{fmtRelative(a.mtime)}</time>
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </Section>
           ))}
         </div>
       </div>
+    </div>
+  );
+}
 
-      {/* List */}
-      <div className="cg-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2">
-        {loading && (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-[var(--cg-text-muted)]">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span className="text-[12px]">Loading reports…</span>
-          </div>
-        )}
-        {!loading && error && (
-          <p className="px-1 text-[11.5px] text-[var(--cg-text-muted)]">
-            {error}
-          </p>
-        )}
-        {!loading && !error && visible.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-            <Inbox className="h-8 w-8 opacity-30" />
-            <p className="text-[12px] text-[var(--cg-text-muted)]">
-              No reports {filter === "all" ? "yet" : `of type "${filter}"`}.
-            </p>
-            <p className="max-w-xs text-[11px] text-[var(--cg-text-muted)]">
-              Documents, sheets, PDFs, markdown and diagrams the agent writes to
-              the workspace appear here.
-            </p>
-          </div>
-        )}
-
-        <div className="flex flex-col gap-1">
-          {visible.map((a) => {
-            const { icon: Icon, tone, label } = KIND_META[a.kind];
-            return (
-              <button
-                key={a.path}
-                type="button"
-                onClick={() => setSelected(a)}
-                className="group flex items-center gap-3 rounded-md border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-3 py-2 text-left transition-colors hover:border-[var(--cg-text-muted)]"
-              >
-                <Icon className={cn("h-4 w-4 shrink-0", tone)} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[12.5px] text-[var(--cg-text-primary)]">
-                    {basename(a.path)}
-                  </p>
-                  <p className="truncate font-mono text-[10.5px] text-[var(--cg-text-muted)]">
-                    {a.path}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-col items-end gap-0.5">
-                  <span className="rounded bg-[var(--cg-bg-badge)] px-1.5 py-0.5 text-[10px] text-[var(--cg-text-nav)]">
-                    {label}
-                  </span>
-                  <span className="text-[10px] text-[var(--cg-text-muted)]">
-                    {fmtRelative(a.mtime)} · {fmtSize(a.size)}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+/** Same section header as conversation-history (title + count pill). */
+function Section({
+  title,
+  count,
+  children,
+}: {
+  title: string;
+  count: number;
+  children: React.ReactNode;
+}) {
+  if (count === 0) return null;
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2 px-1">
+        <span className="text-[10px] font-medium tracking-wider text-[var(--cg-text-nav)] uppercase">
+          {title}
+        </span>
+        <span className="rounded bg-white/5 px-1.5 py-px text-[10px] tabular-nums text-[var(--cg-text-muted)]">
+          {count}
+        </span>
       </div>
+      <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
 }

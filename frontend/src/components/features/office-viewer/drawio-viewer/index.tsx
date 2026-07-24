@@ -79,11 +79,17 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
       <DrawIoEmbed
         baseUrl={DRAWIO_BASE_URL}
         xml={state.xml}
-        // Viewer-oriented: minimal chrome, dark, no save button (read-only-ish;
-        // save-back into the sandbox is a later step).
+        // Same defaults as the Whiteboard: white (light) mode, grid OFF,
+        // page view OFF. Viewer-oriented: minimal chrome, no save button
+        // (save-back into the sandbox is a later step).
+        configuration={{
+          defaultGridEnabled: false,
+          defaultPageVisible: false,
+        }}
         urlParameters={{
           ui: "min",
-          dark: true,
+          dark: false,
+          grid: false,
           spin: true,
           noSaveBtn: true,
           noExitBtn: true,
