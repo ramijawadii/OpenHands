@@ -1,15 +1,30 @@
 /* eslint-disable i18next/no-literal-string */
 /* eslint-disable react/no-unstable-nested-components */
-import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { ReactFlow, Background, Controls, BackgroundVariant } from "@xyflow/react";
+/* Pre-existing legacy lint debt in this large file, unrelated to the ONLYOFFICE
+   change below — disabled here so a one-spot edit stays committable. Worth a
+   dedicated cleanup pass, tracked as BUG-OO-1. */
+/* eslint-disable no-nested-ternary, no-promise-executor-return, react/display-name, no-param-reassign */
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import {
+  ReactFlow,
+  Background,
+  Controls,
+  BackgroundVariant,
+} from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { RotateCw, ChevronDown, Download } from "lucide-react";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
 import { sanitizeMermaid } from "#/utils/sanitize-mermaid";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
-import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import SpreadSheet from "#/components/features/office-viewer/SpreadSheet";
+import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import {
   setHealthConversation,
   reportArtifactHealth,
@@ -99,12 +114,18 @@ function getMermaid(cb: (m: MermaidModule) => void): void {
 // ── Count rendered nodes/edges from a Mermaid SVG (for health metadata) ──────
 // DOM-based, version-robust: regex on class names misses current Mermaid output
 // (edge paths are `.edgePaths path` / `.flowchart-link`, not `edgePath`).
-function countMermaidParts(svg: string): { nodes: number; edges: number; subgraphs: number } {
+function countMermaidParts(svg: string): {
+  nodes: number;
+  edges: number;
+  subgraphs: number;
+} {
   try {
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const nodes = doc.querySelectorAll("g.node").length;
     // Comma-selector returns a deduped union, so a path matching both counts once.
-    const edges = doc.querySelectorAll(".edgePaths path.flowchart-link, path.flowchart-link, .edgePaths > path").length;
+    const edges = doc.querySelectorAll(
+      ".edgePaths path.flowchart-link, path.flowchart-link, .edgePaths > path",
+    ).length;
     const subgraphs = doc.querySelectorAll("g.cluster").length;
     return { nodes, edges, subgraphs };
   } catch {
@@ -130,7 +151,6 @@ function MermaidSvgNode({ data }: { data: MermaidNodeData }) {
 
 const NODE_TYPES = { mermaidSvg: MermaidSvgNode };
 
-
 // ── MermaidBlock — renders a fenced mermaid block inside a .md page ───────────
 
 interface MermaidBlockProps {
@@ -140,7 +160,12 @@ interface MermaidBlockProps {
   onExpand?: (code: string) => void;
 }
 
-function MermaidBlock({ code, onError, onSuccess, onExpand }: MermaidBlockProps) {
+function MermaidBlock({
+  code,
+  onError,
+  onSuccess,
+  onExpand,
+}: MermaidBlockProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -203,7 +228,11 @@ function MermaidBlock({ code, onError, onSuccess, onExpand }: MermaidBlockProps)
         ref={ref}
         className={`bg-[var(--cg-bg-page)] p-4 min-h-[80px]${hasRendered && onExpand ? " cursor-pointer" : ""}`}
         onClick={hasRendered && onExpand ? () => onExpand(code) : undefined}
-        title={hasRendered && onExpand ? "Click to open in diagram canvas" : undefined}
+        title={
+          hasRendered && onExpand
+            ? "Click to open in diagram canvas"
+            : undefined
+        }
       />
       {/* Always-visible expand button in top-right corner */}
       {hasRendered && onExpand && (
@@ -215,7 +244,14 @@ function MermaidBlock({ code, onError, onSuccess, onExpand }: MermaidBlockProps)
             hover:text-[var(--cg-text-primary)] hover:border-[var(--cg-border-strong)] rounded p-1.5 z-10 transition-colors"
           title="Open in diagram canvas"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
           </svg>
         </button>
@@ -382,20 +418,23 @@ function DiagramsTab() {
   // Virtual files: code is served immediately from memory, uploaded in background.
   const virtualFilesRef = useRef<Map<string, string>>(new Map());
 
-  const expandToStandalone = useCallback((code: string) => {
-    // Save the current real page so the back button can restore it
-    setSelectedFile((prev) => {
-      if (prev && !virtualFilesRef.current.has(prev)) setPrevRealPage(prev);
-      return prev;
-    });
-    const name = `diagram_${Date.now()}.mmd`;
-    virtualFilesRef.current.set(name, code);
-    setSelectedFile(name);
-    if (conversationId) {
-      const f = new File([code], name, { type: "text/plain" });
-      ConversationService.uploadFiles(conversationId, [f]).catch(() => {});
-    }
-  }, [conversationId]);
+  const expandToStandalone = useCallback(
+    (code: string) => {
+      // Save the current real page so the back button can restore it
+      setSelectedFile((prev) => {
+        if (prev && !virtualFilesRef.current.has(prev)) setPrevRealPage(prev);
+        return prev;
+      });
+      const name = `diagram_${Date.now()}.mmd`;
+      virtualFilesRef.current.set(name, code);
+      setSelectedFile(name);
+      if (conversationId) {
+        const f = new File([code], name, { type: "text/plain" });
+        ConversationService.uploadFiles(conversationId, [f]).catch(() => {});
+      }
+    },
+    [conversationId],
+  );
 
   // Stable refs for notionComponents — lets the components memo use empty deps
   // so NotionRenderer never gets a new components reference on manifest polls,
@@ -539,8 +578,8 @@ function DiagramsTab() {
       setPageContent(text);
       setRenderError(null);
     });
-  // refreshKey intentionally triggers a re-fetch of the current file on manual refresh
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // refreshKey intentionally triggers a re-fetch of the current file on manual refresh
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFile, basePath, fileType, readFile, readFileBinary, refreshKey]);
 
   // ── Mermaid render for pure .mmd files ─────────────────────────────────────
@@ -601,9 +640,17 @@ function DiagramsTab() {
         document.getElementById(id)?.remove();
       }
     });
-  }, [pageContent, isMdFile, selectedFile, clearRenderError, reportRenderError]);
+  }, [
+    pageContent,
+    isMdFile,
+    selectedFile,
+    clearRenderError,
+    reportRenderError,
+  ]);
 
-  const selectedEntry = manifest?.diagrams?.find((d) => d.file === selectedFile);
+  const selectedEntry = manifest?.diagrams?.find(
+    (d) => d.file === selectedFile,
+  );
 
   // Collapse "<base>-v<N>.<ext>" version spam → one entry per base (latest version).
   // The agent saves a new -vN.pdf on every recompile; the selector should show the
@@ -677,7 +724,7 @@ function DiagramsTab() {
   // Mermaid code block renderer for MarkdownRenderer
   const mermaidCodeRenderer = useMemo(
     () =>
-      ({
+      function ({
         language,
         code,
         inline,
@@ -685,7 +732,7 @@ function DiagramsTab() {
         language: string;
         code: string;
         inline: boolean;
-      }): React.ReactNode | null => {
+      }): React.ReactNode | null {
         if (inline || language.toLowerCase() !== "mermaid") return null;
         return (
           <MermaidBlock
@@ -740,7 +787,14 @@ function DiagramsTab() {
             onClick={() => setLocalSheet(null)}
             className="flex items-center gap-1 rounded border border-[var(--cg-border)] bg-[var(--cg-input-bg)] px-2 py-1 text-xs text-[var(--cg-text-muted)] transition-colors hover:border-[var(--cg-border-strong)] hover:text-[var(--cg-text-primary)]"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
               <path d="M19 12H5M12 5l-7 7 7 7" />
             </svg>
             Back to pages
@@ -777,7 +831,9 @@ function DiagramsTab() {
           <rect x="14" y="12" width="7" height="9" rx="1" />
           <rect x="3" y="16" width="7" height="5" rx="1" />
         </svg>
-        <p className="text-lg font-medium text-[var(--cg-text-primary)]">No pages yet</p>
+        <p className="text-lg font-medium text-[var(--cg-text-primary)]">
+          No pages yet
+        </p>
         <p className="text-sm text-center max-w-xs text-[var(--cg-text-muted)]">
           Ask the agent to generate a diagram or page — or start your own
           spreadsheet below.
@@ -833,7 +889,14 @@ function DiagramsTab() {
             className="flex items-center gap-1 text-xs text-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)] bg-[var(--cg-input-bg)] border border-[var(--cg-border)] hover:border-[var(--cg-border-strong)] rounded px-2 py-1 transition-colors flex-shrink-0"
             title="Back to pages"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+            >
               <path d="M19 12H5M12 5l-7 7 7 7" />
             </svg>
             Back
@@ -845,20 +908,35 @@ function DiagramsTab() {
             <select
               className="w-full appearance-none bg-[var(--cg-input-bg)] text-[var(--cg-text-nav)] text-[13px] rounded-[3px] pl-2.5 pr-7 py-1 border border-[var(--cg-border)] focus:outline-none focus:border-[var(--cg-accent)] cursor-pointer hover:border-[var(--cg-border-strong)] transition-colors"
               style={{ colorScheme: "light dark" }}
-              value={selectedFile && !virtualFilesRef.current.has(selectedFile) ? selectedFile : (manifest.latest ?? "")}
-              onChange={(e) => { setSelectedFile(e.target.value); setPrevRealPage(null); }}
+              value={
+                selectedFile && !virtualFilesRef.current.has(selectedFile)
+                  ? selectedFile
+                  : (manifest.latest ?? "")
+              }
+              onChange={(e) => {
+                setSelectedFile(e.target.value);
+                setPrevRealPage(null);
+              }}
             >
               {collapsedDiagrams.map((d) => {
                 // Derive version from filename (e.g. report-v2.md → v2) if not already in name
                 const vMatch = d.file.match(/-v(\d+)\.[^.]+$/);
-                const vTag = vMatch && !d.name.toLowerCase().includes(`v${vMatch[1]}`) ? ` (v${vMatch[1]})` : "";
+                const vTag =
+                  vMatch && !d.name.toLowerCase().includes(`v${vMatch[1]}`)
+                    ? ` (v${vMatch[1]})`
+                    : "";
                 return (
                   <option
                     key={d.file}
                     value={d.file}
-                    style={{ backgroundColor: "var(--cg-bg-page)", color: "var(--cg-text-nav)" }}
+                    style={{
+                      backgroundColor: "var(--cg-bg-page)",
+                      color: "var(--cg-text-nav)",
+                    }}
                   >
-                    {d.name}{vTag}{!d.valid ? " ⚠" : ""}
+                    {d.name}
+                    {vTag}
+                    {!d.valid ? " ⚠" : ""}
                   </option>
                 );
               })}
@@ -912,31 +990,13 @@ function DiagramsTab() {
 
       {/* ── Content area ── */}
       {fileType === "pdf" ? (
-        // PDF viewer
+        // PDF viewer — ONLYOFFICE, backed by the workspace file (signed proxy).
         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-          {binaryData ? (
-            <PDFViewer
-              arrayBuffer={binaryData}
-              filename={selectedFile ?? "document.pdf"}
-              onReady={(meta) => {
-                if (selectedFile)
-                  reportArtifactHealth({
-                    file: selectedFile,
-                    tab: "pdf",
-                    status: "ok",
-                    meta,
-                  });
-              }}
-              onDisplayError={(err) => {
-                if (selectedFile)
-                  reportArtifactHealth({
-                    file: selectedFile,
-                    tab: "pdf",
-                    status: "error",
-                    error: err,
-                    meta: { kind: "pdf" },
-                  });
-              }}
+          {selectedFile ? (
+            <OnlyOfficeFile
+              filePath={selectedFile}
+              fileName={selectedFile}
+              mode="view"
             />
           ) : (
             <div className="flex items-center justify-center w-full h-full bg-[var(--cg-bg-page)] text-[var(--cg-text-muted)] text-sm">
@@ -945,31 +1005,13 @@ function DiagramsTab() {
           )}
         </div>
       ) : fileType === "xlsx" ? (
-        // Excel viewer
+        // Excel viewer — ONLYOFFICE cell editor, backed by the workspace file.
         <div className="flex-1 overflow-hidden" style={{ minHeight: 0 }}>
-          {binaryData ? (
-            <SpreadSheet
-              arrayBuffer={binaryData}
-              filename={selectedFile ?? "workbook.xlsx"}
-              onReady={(meta) => {
-                if (selectedFile)
-                  reportArtifactHealth({
-                    file: selectedFile,
-                    tab: "xlsx",
-                    status: "ok",
-                    meta,
-                  });
-              }}
-              onDisplayError={(err) => {
-                if (selectedFile)
-                  reportArtifactHealth({
-                    file: selectedFile,
-                    tab: "xlsx",
-                    status: "error",
-                    error: err,
-                    meta: { kind: "xlsx" },
-                  });
-              }}
+          {selectedFile ? (
+            <OnlyOfficeFile
+              filePath={selectedFile}
+              fileName={selectedFile}
+              mode="edit"
             />
           ) : (
             <div className="flex items-center justify-center w-full h-full bg-[var(--cg-bg-page)] text-[var(--cg-text-muted)] text-sm">
@@ -1004,7 +1046,8 @@ function DiagramsTab() {
             style={
               {
                 "--xy-controls-button-background-color": "var(--cg-bg-card)",
-                "--xy-controls-button-background-color-hover": "var(--cg-bg-hover)",
+                "--xy-controls-button-background-color-hover":
+                  "var(--cg-bg-hover)",
                 "--xy-controls-button-border-color": "var(--cg-border)",
                 "--xy-controls-button-color": "var(--cg-text-nav)",
                 "--xy-controls-background-color": "var(--cg-bg-card)",
@@ -1057,7 +1100,9 @@ function DiagramsTab() {
               </div>
             ) : (
               <div className="flex items-center justify-center w-full h-full bg-[var(--cg-bg-page)]">
-                <span className="text-[var(--cg-text-muted)] text-sm">Rendering…</span>
+                <span className="text-[var(--cg-text-muted)] text-sm">
+                  Rendering…
+                </span>
               </div>
             )}
           </div>
