@@ -63,23 +63,39 @@ function CanvasTab() {
   const [view, setView] = React.useState<View>("notebook");
   const { conversationId } = useConversationId();
 
+  // Keep-alive mounting. Every embedded editor here (JupyterLab, ONLYOFFICE,
+  // draw.io) is expensive to initialise — re-mounting re-registers plugins /
+  // re-fetches a token + reloads DocsAPI / reloads the draw.io iframe. So we
+  // mount a view the FIRST time it becomes active (initialising while visible,
+  // which ONLYOFFICE/draw.io need), then keep it mounted and just hide it with
+  // CSS on later switches. Result: switching Canvas views never re-initialises.
+  const [mounted, setMounted] = React.useState<Set<View>>(
+    () => new Set<View>(["notebook"]),
+  );
+  React.useEffect(() => {
+    setMounted((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));
+  }, [view]);
+
+  const paneClass = (v: View) =>
+    cn("h-full w-full", view === v ? "block" : "hidden");
+
   return (
     <div className="flex h-full w-full flex-col overflow-hidden bg-[var(--cg-bg-page)]">
       <ViewSwitcher view={view} onChange={setView} />
-      <div className="min-h-0 flex-1">
-        {/* Notebook stays MOUNTED across view switches: the JupyterLab app is
-            expensive to initialise and re-mounting it re-registers every plugin
-            (and would drop the live kernel). Hide it instead of unmounting. */}
-        <div className={cn("h-full", view === "notebook" ? "block" : "hidden")}>
+      <div className="relative min-h-0 flex-1">
+        {/* Notebook is mounted from the start (Canvas opens on it). */}
+        <div className={paneClass("notebook")}>
           <Jupyter />
         </div>
 
-        {view === "documents" && (
-          <DocumentsView conversationId={conversationId} />
+        {mounted.has("documents") && (
+          <div className={paneClass("documents")}>
+            <DocumentsView conversationId={conversationId} />
+          </div>
         )}
 
-        {view === "sheet" && (
-          <div className="h-full">
+        {mounted.has("sheet") && (
+          <div className={paneClass("sheet")}>
             {/* The spreadsheet opens in ONLYOFFICE (full cell editor), backed by
                 the workspace file via the signed file proxy. */}
             <OnlyOfficeFile
@@ -90,16 +106,18 @@ function CanvasTab() {
           </div>
         )}
 
-        {view === "whiteboard" && (
-          <React.Suspense
-            fallback={
-              <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
-                Loading whiteboard…
-              </div>
-            }
-          >
-            <LazyWhiteboard conversationId={conversationId} />
-          </React.Suspense>
+        {mounted.has("whiteboard") && (
+          <div className={paneClass("whiteboard")}>
+            <React.Suspense
+              fallback={
+                <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+                  Loading whiteboard…
+                </div>
+              }
+            >
+              <LazyWhiteboard conversationId={conversationId} />
+            </React.Suspense>
+          </div>
         )}
       </div>
     </div>
