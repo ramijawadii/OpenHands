@@ -18,6 +18,7 @@ import {
   Layers,
   Network,
   AlertTriangle,
+  MessagesSquare,
   GitBranch,
   Code2,
   Package,
@@ -1243,11 +1244,9 @@ export function Sidebar() {
                   Icon: Network,
                 },
                 {
-                  label: "Issues",
-                  to: "/issues",
-                  Icon: AlertTriangle,
-                  badge: "12",
-                  badgeColor: "var(--cg-danger)",
+                  label: "Communication",
+                  to: "/communication",
+                  Icon: MessagesSquare,
                 },
                 {
                   label: "Findings",

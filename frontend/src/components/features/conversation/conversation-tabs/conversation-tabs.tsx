@@ -5,7 +5,6 @@ import {
   LayoutGrid,
   MessagesSquare,
   Workflow,
-  Send,
   Settings2,
   X,
 } from "lucide-react";
@@ -51,6 +50,8 @@ export function ConversationTabs() {
       // Commands is no longer a panel tab — it lives inside the Chat view.
       editor: "terminal",
       conversations: "terminal",
+      // Communication moved to the sidebar; retire its old drawer key.
+      states: "terminal",
     };
     const initialTab =
       STALE[persistedSelectedTab as string] ?? persistedSelectedTab;
@@ -137,15 +138,6 @@ export function ConversationTabs() {
       tooltipContent:
         "Remediation Workflow — propose → blast radius → simulate → approve → apply",
       tooltipAriaLabel: "Remediation Workflow",
-    },
-    {
-      isActive: isTabActive("states"),
-      icon: Send,
-      label: "Communication",
-      onClick: () => onTabSelected("states"),
-      tooltipContent:
-        "Communication — notifications, approvals and outbound updates",
-      tooltipAriaLabel: "Communication",
     },
     {
       isActive: isTabActive("sandbox"),

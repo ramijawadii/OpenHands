@@ -138,6 +138,7 @@ export default [
     }),
     route("issues", "routes/global-zone.tsx", { id: "gz-issues" }),
     route("findings", "routes/global-zone.tsx", { id: "gz-findings" }),
+    route("communication", "routes/communication-page.tsx"),
     route("conversations/:conversationId", "routes/conversation.tsx"),
     route("microagent-management", "routes/microagent-management.tsx"),
   ]),

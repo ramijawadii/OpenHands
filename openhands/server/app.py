@@ -378,4 +378,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard ONLYOFFICE routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard artifact discovery (Report tab: workspace files + type/date metadata).
+try:
+    from openhands.server.routes.cloudguard_artifacts import (
+        router as cloudguard_artifacts_router,
+    )
+
+    app.include_router(cloudguard_artifacts_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard artifacts routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)
