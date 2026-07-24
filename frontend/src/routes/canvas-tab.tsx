@@ -59,23 +59,48 @@ function ViewSwitcher({
   );
 }
 
+// How many heavy editor panes may stay resident at once, and how long a hidden
+// pane survives before it's evicted to free memory. This is the VS-Code model:
+// keep-alive so switching is instant, but BOUNDED so memory can't grow without
+// limit (each pane is a whole JupyterLab app / ONLYOFFICE or draw.io iframe).
+const MAX_RESIDENT = 2; // active + 1 most-recently-used
+const IDLE_EVICT_MS = 3 * 60_000; // drop a hidden pane after 3 min unused
+
 function CanvasTab() {
   const [view, setView] = React.useState<View>("notebook");
   const { conversationId } = useConversationId();
 
-  // Keep-alive mounting. Every embedded editor here (JupyterLab, ONLYOFFICE,
-  // draw.io) is expensive to initialise — re-mounting re-registers plugins /
-  // re-fetches a token + reloads DocsAPI / reloads the draw.io iframe. So we
-  // mount a view the FIRST time it becomes active (initialising while visible,
-  // which ONLYOFFICE/draw.io need), then keep it mounted and just hide it with
-  // CSS on later switches. Result: switching Canvas views never re-initialises.
-  const [mounted, setMounted] = React.useState<Set<View>>(
-    () => new Set<View>(["notebook"]),
-  );
+  // Bounded LRU keep-alive. `resident` is MRU-ordered; a view mounts the first
+  // time it becomes active (so it initialises while visible, which ONLYOFFICE /
+  // draw.io require for correct sizing), stays mounted+hidden on later switches
+  // for instant return, and is EVICTED once it falls past MAX_RESIDENT or sits
+  // idle past IDLE_EVICT_MS — re-created on demand. Bounds memory to at most
+  // MAX_RESIDENT heavy iframes instead of all four.
+  const [resident, setResident] = React.useState<View[]>([view]);
+
   React.useEffect(() => {
-    setMounted((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));
+    setResident((prev) => {
+      const next = [view, ...prev.filter((v) => v !== view)].slice(
+        0,
+        MAX_RESIDENT,
+      );
+      // Same membership+order → keep the ref so we don't churn renders.
+      return next.length === prev.length && next.every((v, i) => v === prev[i])
+        ? prev
+        : next;
+    });
   }, [view]);
 
+  // Idle eviction: if a resident pane has been hidden for IDLE_EVICT_MS, drop it.
+  React.useEffect(() => {
+    if (resident.length <= 1) return undefined;
+    const t = window.setTimeout(() => {
+      setResident((prev) => (prev.length > 1 ? [prev[0]] : prev));
+    }, IDLE_EVICT_MS);
+    return () => window.clearTimeout(t);
+  }, [resident, view]);
+
+  const isResident = (v: View) => resident.includes(v);
   const paneClass = (v: View) =>
     cn("h-full w-full", view === v ? "block" : "hidden");
 
@@ -83,18 +108,19 @@ function CanvasTab() {
     <div className="flex h-full w-full flex-col overflow-hidden bg-[var(--cg-bg-page)]">
       <ViewSwitcher view={view} onChange={setView} />
       <div className="relative min-h-0 flex-1">
-        {/* Notebook is mounted from the start (Canvas opens on it). */}
-        <div className={paneClass("notebook")}>
-          <Jupyter />
-        </div>
+        {isResident("notebook") && (
+          <div className={paneClass("notebook")}>
+            <Jupyter />
+          </div>
+        )}
 
-        {mounted.has("documents") && (
+        {isResident("documents") && (
           <div className={paneClass("documents")}>
             <DocumentsView conversationId={conversationId} />
           </div>
         )}
 
-        {mounted.has("sheet") && (
+        {isResident("sheet") && (
           <div className={paneClass("sheet")}>
             {/* The spreadsheet opens in ONLYOFFICE (full cell editor), backed by
                 the workspace file via the signed file proxy. */}
@@ -106,7 +132,7 @@ function CanvasTab() {
           </div>
         )}
 
-        {mounted.has("whiteboard") && (
+        {isResident("whiteboard") && (
           <div className={paneClass("whiteboard")}>
             <React.Suspense
               fallback={
