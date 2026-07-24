@@ -74,6 +74,14 @@ function OnlyOfficeEditor({
 }: OnlyOfficeEditorProps) {
   const [state, setState] = React.useState<LoadState>({ status: "loading" });
 
+  // UNIQUE per instance. ONLYOFFICE's DocsAPI mounts each editor by DOM id, so a
+  // hardcoded id collides when two editors are alive at once (e.g. Canvas
+  // Documents + Sheet both resident under the keep-alive) — the second silently
+  // fails to load. React.useId() is stable across renders; strip characters
+  // that aren't valid in an id/selector.
+  const rawId = React.useId();
+  const editorId = `onlyoffice-editor-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
+
   React.useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
@@ -154,7 +162,7 @@ function OnlyOfficeEditor({
   return (
     <div style={{ height, width }}>
       <DocumentEditor
-        id="onlyoffice-editor"
+        id={editorId}
         documentServerUrl={serverUrl}
         config={editorConfig}
         events_onDocumentStateChange={(event) => {

@@ -30,6 +30,17 @@ import MemoryIcon from "#/icons/memory_icon.svg?react";
 import type { ConversationTab } from "#/state/conversation-store";
 import type { IPythonAction } from "#/types/core/actions";
 
+// Rendered-window cap. A long conversation can hold thousands of events; each
+// EventMessage is heavy (markdown + syntax highlight + mermaid), so rendering
+// all of them balloons the DOM and memory. Render only the last RENDER_WINDOW
+// by default (the tail is what auto-scroll shows) and reveal older ones in
+// LOAD_CHUNK-sized steps on demand. The full `messages` array is kept intact for
+// lookups/badges and for the "show earlier" reveal — nothing is lost. This is
+// the Slack/Discord pattern: glitch-free (no variable-height virtualization) and
+// bounds the DOM regardless of conversation length.
+const RENDER_WINDOW = 60;
+const LOAD_CHUNK = 100;
+
 function computeToolBadges(
   msgs: (OpenHandsAction | OpenHandsObservation)[],
   msgIndex: number,
@@ -87,6 +98,10 @@ export const Messages: React.FC<MessagesProps> = React.memo(
     const { data: conversation } = useUserConversation(conversationId);
 
     const optimisticUserMessage = getOptimisticUserMessage();
+
+    // How many trailing messages to render (see RENDER_WINDOW). Grows when the
+    // user reveals older messages; never shrinks, so the tail keeps following.
+    const [maxRender, setMaxRender] = React.useState(RENDER_WINDOW);
 
     const [selectedEventId, setSelectedEventId] = React.useState<number | null>(
       null,
@@ -256,16 +271,29 @@ export const Messages: React.FC<MessagesProps> = React.memo(
       });
     };
 
+    const startIdx =
+      messages.length > maxRender ? messages.length - maxRender : 0;
+
     return (
       <>
-        {messages.map((message, index) => {
+        {startIdx > 0 && (
+          <button
+            type="button"
+            onClick={() => setMaxRender((m) => m + LOAD_CHUNK)}
+            className="mx-auto mb-1 rounded-full border border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-3 py-1 text-[11px] text-[var(--cg-text-nav)] transition-colors hover:text-[var(--cg-text-primary)]"
+          >
+            {`Show ${startIdx} earlier message${startIdx === 1 ? "" : "s"}`}
+          </button>
+        )}
+        {messages.slice(startIdx).map((message, i) => {
+          const index = startIdx + i;
           // CloudGuard: if this action's paired observation carries a plan snapshot,
           // render the gray checklist always-visible after it (the cell stays collapsed).
           const planMarkdown = isOpenHandsAction(message)
             ? (lookups.planSnapshotByCause.get(message.id) ?? "")
             : "";
           return (
-            <React.Fragment key={index}>
+            <React.Fragment key={message.id ?? index}>
               <EventMessage
                 event={message}
                 hasObservationPair={actionHasObservationPair(message)}

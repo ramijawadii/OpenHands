@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import { nextSeq } from "./command-store";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { nextSeq } from "./command-store";
 
 export type CellExecutionState =
   | "idle"
@@ -9,12 +9,7 @@ export type CellExecutionState =
   | "success"
   | "error";
 
-export type RuntimeState =
-  | "idle"
-  | "starting"
-  | "busy"
-  | "restarting"
-  | "dead";
+export type RuntimeState = "idle" | "starting" | "busy" | "restarting" | "dead";
 
 export type Cell = {
   id: string;
@@ -66,6 +61,15 @@ interface JupyterState {
 
 const generateId = () => Math.random().toString(36).slice(2, 10);
 
+// Bound the in-memory Jupyter log: the agent can execute code thousands of times
+// in a long session, and every run appends a cell + a history record. Keep only
+// the most recent — older cells scroll out of view anyway and the authoritative
+// record lives server-side. Prevents unbounded heap growth over a session.
+const MAX_CELLS = 400;
+const MAX_HISTORY = 400;
+const capTail = <T>(arr: T[], max: number): T[] =>
+  arr.length > max ? arr.slice(arr.length - max) : arr;
+
 const isErrorContent = (content: string): boolean =>
   /^(Traceback|Error:|Exception:|\[ERROR\])/m.test(content.trimStart());
 
@@ -86,19 +90,22 @@ export const useJupyterStore = create<JupyterState>()(
         const now = Date.now();
         const nextCount = get().executionCounter + 1;
         set((state) => ({
-          cells: [
-            ...state.cells,
-            {
-              id,
-              content,
-              type: "input",
-              ts: now,
-              seq: nextSeq(),
-              executionState: "running",
-              executionCount: nextCount,
-              executionStart: now,
-            },
-          ],
+          cells: capTail(
+            [
+              ...state.cells,
+              {
+                id,
+                content,
+                type: "input",
+                ts: now,
+                seq: nextSeq(),
+                executionState: "running",
+                executionCount: nextCount,
+                executionStart: now,
+              },
+            ],
+            MAX_CELLS,
+          ),
           connected: true,
           isDirty: true,
           executionCounter: nextCount,
@@ -115,7 +122,7 @@ export const useJupyterStore = create<JupyterState>()(
 
         // find last running input cell
         let runningInputIdx = -1;
-        for (let i = cells.length - 1; i >= 0; i--) {
+        for (let i = cells.length - 1; i >= 0; i -= 1) {
           if (
             cells[i].type === "input" &&
             cells[i].executionState === "running"
@@ -160,10 +167,10 @@ export const useJupyterStore = create<JupyterState>()(
           };
 
           return {
-            cells: [...updatedCells, outputCell],
+            cells: capTail([...updatedCells, outputCell], MAX_CELLS),
             isDirty: true,
             executionHistory: historyRecord
-              ? [...state.executionHistory, historyRecord]
+              ? capTail([...state.executionHistory, historyRecord], MAX_HISTORY)
               : state.executionHistory,
           };
         });
