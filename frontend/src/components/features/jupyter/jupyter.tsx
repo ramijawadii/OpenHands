@@ -35,6 +35,27 @@ import {
 
 /** The full JupyterLab IDE (file browser + launcher + menus + multi-doc tabs). */
 const LazyJupyterReactIde = React.lazy(() => import("./jupyter-react-ide"));
+const LazyJupyterIframe = React.lazy(() => import("./jupyter-iframe"));
+
+// Process-isolated Notebook flag (opt-in, default OFF). ?jlabiframe=1 persists;
+// ?jlabiframe=0 clears. Inlined (not imported from the lazy module) so the heavy
+// iframe module stays code-split.
+function isJlabIframeEnabled(): boolean {
+  try {
+    const q = new URLSearchParams(window.location.search).get("jlabiframe");
+    if (q === "1") {
+      localStorage.setItem("cg-jlab-iframe", "1");
+      return true;
+    }
+    if (q === "0") {
+      localStorage.removeItem("cg-jlab-iframe");
+      return false;
+    }
+    return localStorage.getItem("cg-jlab-iframe") === "1";
+  } catch {
+    return false;
+  }
+}
 
 /** If the heavy JupyterLab UI throws at runtime (kernel handshake, CSS, an
  *  upstream regression), we must NOT white-screen the whole tab — degrade to the
@@ -945,6 +966,8 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   const everAvailableRef = React.useRef(false);
   if (jupyterServer?.available) everAvailableRef.current = true;
   const useLiveNotebook = everAvailableRef.current && !jupyterReactFailed;
+  // Process-isolated Notebook via the JLab gateway iframe (opt-in, default off).
+  const useIframeNotebook = useLiveNotebook && isJlabIframeEnabled();
 
   const runtimeState = agentStateToRuntimeState(curAgentState);
   const isRuntimeInactive = RUNTIME_INACTIVE_STATES.includes(curAgentState);
@@ -1112,7 +1135,21 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
             />
           )}
 
+          {/* Process-isolated iframe Notebook (opt-in ?jlabiframe=1). */}
+          {view === "notebook" && useIframeNotebook && (
+            <React.Suspense
+              fallback={
+                <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+                  Loading notebook…
+                </div>
+              }
+            >
+              <LazyJupyterIframe conversationId={conversationId} />
+            </React.Suspense>
+          )}
+
           {view === "notebook" &&
+            !useIframeNotebook &&
             (useLiveNotebook ? (
               <JupyterReactBoundary onError={() => setJupyterReactFailed(true)}>
                 <React.Suspense
