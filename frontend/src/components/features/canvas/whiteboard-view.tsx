@@ -5,6 +5,13 @@ import {
   DRAWIO_BASE_URL,
   DRAWIO_CONFIGURATION,
 } from "#/components/features/office-viewer/drawio-viewer";
+import ConversationService from "#/api/conversation-service/conversation-service.api";
+
+// Durable copy of the whiteboard in the sandbox workspace (Tier A2: backend is
+// the source of truth so the iframe is disposable). Also makes the whiteboard a
+// first-class artifact — it shows up in the Report tab's diagram list.
+const WORKSPACE_PATH = "whiteboard.drawio";
+const WORKSPACE_SAVE_DEBOUNCE_MS = 2500;
 
 /** Whiteboard — freeform diagramming on the Canvas tab, powered by SELF-HOSTED
  *  draw.io (diagrams.net). The editor iframe loads from our own draw.io container
@@ -41,8 +48,38 @@ export default function WhiteboardView({ conversationId }: Props) {
     }
   }, [storageKey]);
 
-  // Persist on save/autosave. draw.io emits onSave for explicit saves; we enable
-  // autosave via urlParameters so edits survive a tab switch without a Save click.
+  // Debounced durable save to the workspace. Autosave fires on every change, so
+  // we write localStorage instantly (fast cache) but only upload to the sandbox
+  // after the user pauses — the durable copy the backend owns.
+  const wsSaveTimer = React.useRef<number | undefined>(undefined);
+  const lastSavedXml = React.useRef<string>("");
+  const saveToWorkspace = React.useCallback(
+    (xml: string) => {
+      if (!conversationId || xml === lastSavedXml.current) return;
+      if (wsSaveTimer.current) window.clearTimeout(wsSaveTimer.current);
+      wsSaveTimer.current = window.setTimeout(() => {
+        lastSavedXml.current = xml;
+        const file = new File([xml], WORKSPACE_PATH, {
+          type: "application/xml",
+        });
+        ConversationService.uploadFiles(conversationId, [file]).catch(() => {
+          // Runtime not reachable — localStorage still holds it; retry on next edit.
+          lastSavedXml.current = "";
+        });
+      }, WORKSPACE_SAVE_DEBOUNCE_MS);
+    },
+    [conversationId],
+  );
+
+  React.useEffect(
+    () => () => {
+      if (wsSaveTimer.current) window.clearTimeout(wsSaveTimer.current);
+    },
+    [],
+  );
+
+  // Persist on save/autosave: instant localStorage cache + debounced durable
+  // workspace copy (backend source of truth, iframe disposable).
   const persist = React.useCallback(
     (xml: string) => {
       try {
@@ -50,8 +87,9 @@ export default function WhiteboardView({ conversationId }: Props) {
       } catch {
         // Quota / private-mode — drawing still works, it just won't persist.
       }
+      saveToWorkspace(xml);
     },
-    [storageKey],
+    [storageKey, saveToWorkspace],
   );
 
   return (
