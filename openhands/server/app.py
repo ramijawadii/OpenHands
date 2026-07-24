@@ -392,4 +392,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard artifacts routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard JLab-gateway session minting (process-isolated Notebook; flag-gated UI).
+try:
+    from openhands.server.routes.cloudguard_jupyter_gateway import (
+        router as cloudguard_jlab_router,
+    )
+
+    app.include_router(cloudguard_jlab_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard JLab-gateway routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)
