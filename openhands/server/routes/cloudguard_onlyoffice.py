@@ -412,11 +412,15 @@ async def create_token(
         doc_key = _make_key()
     elif body.conversationId and body.filePath:
         file_url = _signed_file_url(body.conversationId, body.filePath)
-        # Stable-by-fingerprint key → reopening the SAME file reuses ONLYOFFICE's
-        # server-side session (fast, no re-convert); a rewritten file gets a new
-        # key so a stale cached copy is never served. See _file_version.
-        version = await _file_version(body.conversationId, body.filePath)
-        doc_key = _document_key(body.conversationId, body.filePath, mode, version)
+        # FRESH key per open. A stable content-fingerprint key (the old A1 opt) made
+        # the Document Server resurrect a prior editing session on page reload and
+        # pop "The file version has been changed. The page will be reloaded." when
+        # its cached state diverged from disk. A unique key means every open loads
+        # the CURRENT workspace file cleanly — no stale-session reconciliation.
+        # Save-back is keyed on (cid, path), NOT the doc key, so it is unaffected.
+        # Trade-off: the DS re-converts on each open (negligible for these files);
+        # correctness/no-glitch beats the resume micro-optimization.
+        doc_key = _make_key()
     else:
         raise HTTPException(
             status_code=400,
