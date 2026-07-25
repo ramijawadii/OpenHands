@@ -83,6 +83,9 @@ def _customization() -> dict:
     cz: dict = {
         "compactHeader": True,
         "customer": {"name": _BRAND_NAME},
+        # Let the Save button / Ctrl+S force a save (status 6 callback) so edits
+        # round-trip to the sandbox immediately, not only when the editor closes.
+        "forcesave": True,
     }
     logo = _brand_logo_url()
     if logo:
@@ -117,6 +120,68 @@ def _signed_file_url(cid: str, path: str, ttl_seconds: int = 3600) -> str:
         {"cid": cid, "path": path, "exp": exp, "sig": _file_sig(cid, path, exp)}
     )
     return f"{_backend_origin()}/api/onlyoffice/file?{qs}"
+
+
+# ── signed save-back callback ─────────────────────────────────────────────────
+# ONLYOFFICE only tells us an opaque document `key` + a download `url` on save; it
+# has no idea which conversation/workspace file it belongs to. We bind that target
+# INTO the callbackUrl (ONLYOFFICE preserves its query string), HMAC-signed so a
+# valid-JWT callback can't be pointed at an arbitrary path. No expiry: an editing
+# session can outlive the file-read TTL.
+def _callback_sig(cid: str, path: str) -> str:
+    msg = f"callback\n{cid}\n{path}".encode()
+    return hmac.new(_jwt_secret().encode(), msg, hashlib.sha256).hexdigest()
+
+
+def _signed_callback_url(cid: str, path: str) -> str:
+    qs = urlencode({"cid": cid, "path": path, "sig": _callback_sig(cid, path)})
+    return f"{_backend_origin()}/api/onlyoffice/callback?{qs}"
+
+
+def _write_sandbox_file(runtime, full_path: str, content: bytes) -> None:
+    """Write RAW bytes back into the conversation's runtime container.
+
+    The write-side mirror of _read_sandbox_file: stream a one-entry tar into the
+    still-running container via the docker SDK (put_archive), keyed by
+    container_name — same reason we `cat` on read rather than going through the
+    action server. Falls back to runtime.copy_to for runtimes without a
+    container_name (CLI/K8s).
+    """
+    import io
+    import tarfile
+
+    container_name = getattr(runtime, "container_name", None)
+    dirpath = os.path.dirname(full_path) or "/"
+    name = os.path.basename(full_path)
+    if container_name:
+        import docker as _docker
+
+        buf = io.BytesIO()
+        with tarfile.open(fileobj=buf, mode="w") as tar:
+            info = tarfile.TarInfo(name=name)
+            info.size = len(content)
+            info.mtime = int(time.time())
+            info.mode = 0o644
+            tar.addfile(info, io.BytesIO(content))
+        buf.seek(0)
+        container = _docker.from_env().containers.get(container_name)
+        if not container.put_archive(dirpath, buf.getvalue()):
+            raise RuntimeError("put_archive returned False")
+        return
+
+    # Fallback: stage under the correct basename on the host (copy_to keeps the
+    # host filename) and let the runtime copy it in.
+    import shutil
+    import tempfile
+
+    tmpdir = tempfile.mkdtemp()
+    try:
+        host_path = os.path.join(tmpdir, name)
+        with open(host_path, "wb") as fh:
+            fh.write(content)
+        runtime.copy_to(host_path, dirpath)
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def _content_type_for(path: str) -> str:
@@ -358,9 +423,15 @@ async def create_token(
             detail="provide either fileUrl or (conversationId and filePath)",
         )
 
-    # Default the callback to this backend's proxy origin so saves round-trip
-    # without the caller having to know the container-side host.
-    callback_url = body.callbackUrl or f"{_backend_origin()}/api/onlyoffice/callback"
+    # Callback target: when we know the sandbox file (conversationId + filePath),
+    # sign it INTO the callbackUrl so save-back writes to the right workspace path.
+    # An explicit fileUrl has no known writeback target → plain callback (log-only).
+    if body.callbackUrl:
+        callback_url = body.callbackUrl
+    elif body.conversationId and body.filePath:
+        callback_url = _signed_callback_url(body.conversationId, body.filePath)
+    else:
+        callback_url = f"{_backend_origin()}/api/onlyoffice/callback"
 
     config: dict = {
         "document": {
@@ -410,37 +481,92 @@ def _verify_callback_jwt(authorization: str | None, body: dict) -> None:
         raise HTTPException(status_code=401, detail=f"invalid callback JWT: {exc}") from exc
 
 
+async def _save_to_sandbox(cid: str, path: str, content: bytes) -> None:
+    """Write the edited document back to the conversation's workspace file."""
+    norm = os.path.normpath(path)
+    if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
+        raise ValueError(f"invalid writeback path: {path}")
+
+    from openhands.server.shared import conversation_manager
+
+    conversation = None
+    try:
+        conversation = await conversation_manager.attach_to_conversation(cid, None)
+        if conversation is None:
+            raise RuntimeError("conversation not running")
+        runtime = conversation.runtime
+        full_path = os.path.join(runtime.config.workspace_mount_path_in_sandbox, norm)
+        _write_sandbox_file(runtime, full_path, content)
+        logger.info(
+            "onlyoffice save-back: wrote %d bytes → %s (cid=%s)",
+            len(content),
+            full_path,
+            cid,
+        )
+    finally:
+        if conversation is not None:
+            try:
+                await conversation_manager.detach_from_conversation(conversation)
+            except Exception:  # noqa: BLE001
+                pass
+
+
 @router.post("/callback")
 async def save_callback(
     body: dict = Body(...),
     authorization: str | None = Header(default=None),
+    cid: str | None = None,
+    path: str | None = None,
+    sig: str | None = None,
 ):
     """Handle document-server save callbacks.
 
     status codes: 1=editing, 2=ready-to-save, 3=save-error, 4=closed-no-changes,
     6=force-save, 7=force-save-error. On 2/6 the document is downloadable at
-    ``url``. We ALWAYS return {"error": 0} so ONLYOFFICE marks the callback
-    handled (any other body makes it retry indefinitely).
+    ``url``. If the callbackUrl carried a signed (cid, path) target we write the
+    edited document straight back to that sandbox file; otherwise we fall back to
+    the local uploads dir (log-only, e.g. an explicit fileUrl with no known path).
+    We ALWAYS return {"error": 0} so ONLYOFFICE marks the callback handled (any
+    other body makes it retry indefinitely).
     """
     _verify_callback_jwt(authorization, body)
 
     status = body.get("status")
     key = body.get("key")
     url = body.get("url")
-    logger.info("onlyoffice callback: status=%s key=%s url=%s", status, key, url)
+    logger.info(
+        "onlyoffice callback: status=%s key=%s cid=%s path=%s url=%s",
+        status,
+        key,
+        cid,
+        path,
+        url,
+    )
 
     if status in (2, 6) and url:
         try:
-            uploads = _uploads_dir()
-            uploads.mkdir(parents=True, exist_ok=True)
-            # Best-effort filename from the doc key; ONLYOFFICE serves the saved doc.
-            dest = uploads / f"{key or _make_key()}"
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(url)
                 resp.raise_for_status()
-                dest.write_bytes(resp.content)
-            logger.info("onlyoffice callback: saved %d bytes → %s", len(resp.content), dest)
+            content = resp.content
+
+            target_ok = bool(cid and path and sig) and hmac.compare_digest(
+                sig or "", _callback_sig(cid or "", path or "")
+            )
+            if target_ok:
+                await _save_to_sandbox(cid, path, content)  # type: ignore[arg-type]
+            else:
+                # No verified sandbox target — keep a local copy so the edit isn't lost.
+                uploads = _uploads_dir()
+                uploads.mkdir(parents=True, exist_ok=True)
+                dest = uploads / f"{key or _make_key()}"
+                dest.write_bytes(content)
+                logger.info(
+                    "onlyoffice callback: no signed target, saved %d bytes → %s",
+                    len(content),
+                    dest,
+                )
         except Exception as exc:  # noqa: BLE001 — never fail the callback on a save error
-            logger.error("onlyoffice callback: download/save failed: %s", exc)
+            logger.error("onlyoffice callback: download/save-back failed: %s", exc)
 
     return {"error": 0}
