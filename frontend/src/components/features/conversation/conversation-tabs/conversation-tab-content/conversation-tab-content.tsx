@@ -4,7 +4,18 @@ import { ConversationLoading } from "../../conversation-loading";
 import { TabWrapper } from "./tab-wrapper";
 import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
+import { TabErrorBoundary } from "./tab-error-boundary";
 import { useConversationStore } from "#/state/conversation-store";
+
+// Human labels for the boundary message (keys are historical — see below).
+const TAB_LABELS: Record<string, string> = {
+  editor: "Commands",
+  jupyter: "Canvas",
+  terminal: "Chat",
+  diagrams: "Report",
+  remediation: "Remediation",
+  sandbox: "Settings",
+};
 
 // Lazy load all tab components.
 //
@@ -56,7 +67,9 @@ export function ConversationTabContent() {
       <TabContentArea>
         {tabs.map(({ key, component: Component, isActive }) => (
           <TabWrapper key={key} isActive={isActive}>
-            <Component />
+            <TabErrorBoundary name={TAB_LABELS[key] ?? key}>
+              <Component />
+            </TabErrorBoundary>
           </TabWrapper>
         ))}
       </TabContentArea>

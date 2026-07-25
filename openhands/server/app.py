@@ -406,4 +406,18 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard JLab-gateway routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard surface health aggregator (fail-closed signal for the SurfaceSupervisor).
+try:
+    from openhands.server.routes.cloudguard_surfaces import (
+        router as cloudguard_surfaces_router,
+    )
+
+    app.include_router(cloudguard_surfaces_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard surfaces routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)

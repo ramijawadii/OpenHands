@@ -2,6 +2,7 @@
 import React from "react";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import OnlyOfficeEditor from "#/components/features/office-viewer/OnlyOfficeEditor";
+import SurfaceHost from "#/components/features/surfaces/surface-host";
 
 /**
  * OnlyOfficeFile — open a file that lives in the CURRENT conversation's sandbox
@@ -82,16 +83,25 @@ export default function OnlyOfficeFile({
   }
 
   return (
-    <OnlyOfficeEditor
-      // A fresh editor (and thus a fresh, unique document key) per file+mode.
-      key={`${conversationId}|${filePath}|${mode}`}
+    <SurfaceHost
+      surfaceId="onlyoffice"
       conversationId={conversationId}
-      filePath={filePath}
-      fileName={fileName ?? basename(filePath)}
-      fileType={extOf(filePath)}
-      mode={mode}
-      height={height}
-      width={width}
-    />
+      title="Editor"
+    >
+      {(nonce) => (
+        <OnlyOfficeEditor
+          // A fresh editor (unique document key) per file+mode, and per Reopen
+          // (the SurfaceHost nonce) so recovery loads a clean session.
+          key={`${conversationId}|${filePath}|${mode}|${nonce}`}
+          conversationId={conversationId}
+          filePath={filePath}
+          fileName={fileName ?? basename(filePath)}
+          fileType={extOf(filePath)}
+          mode={mode}
+          height={height}
+          width={width}
+        />
+      )}
+    </SurfaceHost>
   );
 }

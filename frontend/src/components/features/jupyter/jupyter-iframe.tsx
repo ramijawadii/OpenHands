@@ -2,22 +2,24 @@
 import React from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { openHands } from "#/api/open-hands-axios";
+import SurfaceHost from "#/components/features/surfaces/surface-host";
 
 /**
- * JupyterIframe — the process-isolated Notebook (Step 3 of the isolation plan).
- * Fetches a cid-bound gateway session from the app and mounts the conversation's
- * NATIVE JupyterLab in a cross-origin iframe ({cid}.jlab.<host>), so it runs in
- * its own OS process and can be destroyed to free the whole process.
+ * JupyterIframe — the process-isolated Notebook. Fetches a cid-bound gateway
+ * session and mounts the conversation's NATIVE JupyterLab in a cross-origin iframe
+ * ({cid}.jlab.<host>), so it runs in its own OS process. This is THE notebook
+ * surface (it replaced the in-process @datalayer embed).
  *
- * This is THE notebook surface (it replaced the in-process @datalayer embed).
- * See docs/architecture/artifact-fast-isolation-plan.md.
+ * Wrapped in SurfaceHost for uniform fail-safe behaviour: health-gated mount,
+ * non-destructive degradation, and a Reopen that remounts a fresh session (the
+ * `key={nonce}` on NotebookFrame). See FAIL_SAFE_ISOLATION_SPEC.md.
  */
 
 interface Props {
   conversationId: string;
 }
 
-export default function JupyterIframe({ conversationId }: Props) {
+function NotebookFrame({ conversationId }: Props) {
   const [url, setUrl] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -67,5 +69,17 @@ export default function JupyterIframe({ conversationId }: Props) {
       sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups allow-modals"
       style={{ width: "100%", height: "100%", border: 0, display: "block" }}
     />
+  );
+}
+
+export default function JupyterIframe({ conversationId }: Props) {
+  return (
+    <SurfaceHost
+      surfaceId="notebook"
+      conversationId={conversationId}
+      title="Notebook"
+    >
+      {(nonce) => <NotebookFrame key={nonce} conversationId={conversationId} />}
+    </SurfaceHost>
   );
 }

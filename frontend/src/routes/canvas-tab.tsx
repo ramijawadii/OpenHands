@@ -5,6 +5,7 @@ import { cn } from "#/utils/utils";
 import Jupyter from "#/routes/jupyter-tab";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import DocumentsView from "#/components/features/canvas/documents-view";
+import SurfaceHost from "#/components/features/surfaces/surface-host";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
 /** Canvas — the working surface. One tab, four views:
@@ -180,15 +181,23 @@ function CanvasTab() {
 
         {isResident("whiteboard") && (
           <div className={paneClass("whiteboard")}>
-            <React.Suspense
-              fallback={
-                <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
-                  Loading whiteboard…
-                </div>
-              }
+            <SurfaceHost
+              surfaceId="whiteboard"
+              conversationId={conversationId ?? "default"}
+              title="Whiteboard"
             >
-              <LazyWhiteboard conversationId={conversationId} />
-            </React.Suspense>
+              {(nonce) => (
+                <React.Suspense
+                  fallback={
+                    <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+                      Loading whiteboard…
+                    </div>
+                  }
+                >
+                  <LazyWhiteboard key={nonce} conversationId={conversationId} />
+                </React.Suspense>
+              )}
+            </SurfaceHost>
           </div>
         )}
       </div>
