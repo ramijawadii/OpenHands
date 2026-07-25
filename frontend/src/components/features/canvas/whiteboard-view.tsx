@@ -13,6 +13,42 @@ import ConversationService from "#/api/conversation-service/conversation-service
 const WORKSPACE_PATH = "whiteboard.drawio";
 const WORKSPACE_SAVE_DEBOUNCE_MS = 2500;
 
+/** draw.io's save/autosave hands us the file in **xmlsvg** format — a
+ *  `data:image/svg+xml;base64,…` string with the real `<mxfile>` embedded
+ *  (HTML-escaped) in the SVG's `content` attribute — NOT raw XML. Storing that
+ *  verbatim was the saving bug: the load guard (`startsWith("<")`) rejected it,
+ *  so the whiteboard came up blank on reload. Return the actual diagram XML from
+ *  either representation (raw XML or xmlsvg), or "" if it's neither. */
+function toDiagramXml(value: string | null | undefined): string {
+  if (!value) return "";
+  const v = value.trimStart();
+  if (v.startsWith("<")) return value;
+  if (!v.startsWith("data:image/svg+xml")) return "";
+  try {
+    const b64 = value.slice(value.indexOf(",") + 1);
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const svg = new TextDecoder().decode(bytes);
+    const m = svg.match(/content="([^"]*)"/);
+    if (!m) return "";
+    const [, escaped] = m;
+    // Reuse the browser's HTML entity table to unescape &lt; &gt; &quot; &amp; …
+    const ta = document.createElement("textarea");
+    ta.innerHTML = escaped;
+    const xml = ta.value.trim();
+    return xml.startsWith("<") ? xml : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeGetItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
 /** Whiteboard — freeform diagramming on the Canvas tab, powered by SELF-HOSTED
  *  draw.io (diagrams.net). The editor iframe loads from our own draw.io container
  *  (never embed.diagrams.net), keeping the own-the-supply-chain principle.
@@ -37,16 +73,44 @@ export default function WhiteboardView({ conversationId }: Props) {
   const storageKey = `cg-drawio-${conversationId ?? "default"}`;
   const ref = React.useRef<DrawIoEmbedRef>(null);
 
-  const initialXml = React.useMemo(() => {
-    try {
-      const raw = localStorage.getItem(storageKey);
-      // Only hand draw.io something that actually looks like diagram XML —
-      // anything else (legacy JSON, truncated write) would throw its error modal.
-      return raw && raw.trimStart().startsWith("<") ? raw : "";
-    } catch {
-      return "";
+  // Resolve the initial diagram: instant localStorage cache first, then fall back
+  // to the DURABLE workspace copy (backend is the source of truth, so the board
+  // survives a cleared cache or a different browser). null = still resolving.
+  const [initialXml, setInitialXml] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const local = toDiagramXml(safeGetItem(storageKey));
+    if (local) {
+      setInitialXml(local);
+      return undefined;
     }
-  }, [storageKey]);
+    if (!conversationId) {
+      setInitialXml("");
+      return undefined;
+    }
+    setInitialXml(null);
+    ConversationService.getFile(conversationId, WORKSPACE_PATH)
+      .then((raw) => {
+        if (cancelled) return;
+        const xml = toDiagramXml(raw);
+        if (xml) {
+          try {
+            localStorage.setItem(storageKey, xml);
+          } catch {
+            // ignore quota / private-mode
+          }
+        }
+        setInitialXml(xml);
+      })
+      .catch(() => {
+        // No durable copy yet (or runtime unreachable) — start blank.
+        if (!cancelled) setInitialXml("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey, conversationId]);
 
   // Debounced durable save to the workspace. Autosave fires on every change, so
   // we write localStorage instantly (fast cache) but only upload to the sandbox
@@ -78,10 +142,13 @@ export default function WhiteboardView({ conversationId }: Props) {
     [],
   );
 
-  // Persist on save/autosave: instant localStorage cache + debounced durable
-  // workspace copy (backend source of truth, iframe disposable).
+  // Persist on save/autosave: NORMALISE draw.io's xmlsvg payload to real diagram
+  // XML first (that was the bug — the raw data-URI never restored), then write the
+  // instant localStorage cache + debounced durable workspace copy.
   const persist = React.useCallback(
-    (xml: string) => {
+    (raw: string) => {
+      const xml = toDiagramXml(raw);
+      if (!xml) return; // don't overwrite good state with an empty/failed export
       try {
         localStorage.setItem(storageKey, xml);
       } catch {
@@ -92,9 +159,20 @@ export default function WhiteboardView({ conversationId }: Props) {
     [storageKey, saveToWorkspace],
   );
 
+  // Wait until the initial diagram is resolved so DrawIoEmbed mounts once with the
+  // correct XML (remounting it with a late xml prop would not reload the canvas).
+  if (initialXml === null) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+        Loading whiteboard…
+      </div>
+    );
+  }
+
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>
       <DrawIoEmbed
+        key={storageKey}
         ref={ref}
         baseUrl={DRAWIO_BASE_URL}
         xml={initialXml}
