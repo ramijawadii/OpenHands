@@ -37,23 +37,26 @@ import {
 const LazyJupyterReactIde = React.lazy(() => import("./jupyter-react-ide"));
 const LazyJupyterIframe = React.lazy(() => import("./jupyter-iframe"));
 
-// Process-isolated Notebook flag (opt-in, default OFF). ?jlabiframe=1 persists;
-// ?jlabiframe=0 clears. Inlined (not imported from the lazy module) so the heavy
-// iframe module stays code-split.
+// Process-isolated Notebook flag — now DEFAULT ON. The native JupyterLab served
+// through the JLab gateway iframe runs in its own OS process and is the stable
+// notebook; the in-process @datalayer embed (jupyter-react-ide) crash-loops on
+// remount (DesignToken max-call-stack / double plugin init) so it must NOT be the
+// default. ?jlabiframe=0 opts BACK to the embed (persisted); ?jlabiframe=1 clears.
+// Inlined (not imported from the lazy module) so the heavy module stays code-split.
 function isJlabIframeEnabled(): boolean {
   try {
     const q = new URLSearchParams(window.location.search).get("jlabiframe");
-    if (q === "1") {
-      localStorage.setItem("cg-jlab-iframe", "1");
-      return true;
-    }
     if (q === "0") {
-      localStorage.removeItem("cg-jlab-iframe");
+      localStorage.setItem("cg-jlab-iframe-off", "1");
       return false;
     }
-    return localStorage.getItem("cg-jlab-iframe") === "1";
+    if (q === "1") {
+      localStorage.removeItem("cg-jlab-iframe-off");
+      return true;
+    }
+    return localStorage.getItem("cg-jlab-iframe-off") !== "1";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -966,7 +969,8 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   const everAvailableRef = React.useRef(false);
   if (jupyterServer?.available) everAvailableRef.current = true;
   const useLiveNotebook = everAvailableRef.current && !jupyterReactFailed;
-  // Process-isolated Notebook via the JLab gateway iframe (opt-in, default off).
+  // Process-isolated Notebook via the JLab gateway iframe (DEFAULT ON; ?jlabiframe=0
+  // opts back to the crash-prone in-process embed).
   const useIframeNotebook = useLiveNotebook && isJlabIframeEnabled();
 
   const runtimeState = agentStateToRuntimeState(curAgentState);
