@@ -420,4 +420,16 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard surfaces routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
+try:
+    from openhands.server.routes.cloudguard_vfs import router as cloudguard_vfs_router
+
+    app.include_router(cloudguard_vfs_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard VFS routes unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)
