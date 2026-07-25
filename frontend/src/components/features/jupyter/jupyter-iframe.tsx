@@ -9,10 +9,8 @@ import { openHands } from "#/api/open-hands-axios";
  * NATIVE JupyterLab in a cross-origin iframe ({cid}.jlab.<host>), so it runs in
  * its own OS process and can be destroyed to free the whole process.
  *
- * OPT-IN and default OFF — the @datalayer embed stays the default until this is
- * validated in a real browser. Enable with ?jlabiframe=1 (persists), ?jlabiframe=0
- * to disable — the flag check lives in jupyter.tsx (inlined so this heavy module
- * stays code-split). See docs/architecture/artifact-fast-isolation-plan.md.
+ * This is THE notebook surface (it replaced the in-process @datalayer embed).
+ * See docs/architecture/artifact-fast-isolation-plan.md.
  */
 
 interface Props {

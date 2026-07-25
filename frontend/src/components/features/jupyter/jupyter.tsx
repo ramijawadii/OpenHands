@@ -33,63 +33,12 @@ import {
   type DataFileEntry,
 } from "./jupyter-views";
 
-/** The full JupyterLab IDE (file browser + launcher + menus + multi-doc tabs). */
-const LazyJupyterReactIde = React.lazy(() => import("./jupyter-react-ide"));
+// Process-isolated Notebook: native JupyterLab served through the JLab gateway in
+// its OWN OS process (cross-origin iframe). This replaced the in-process
+// @datalayer embed (jupyter-react-ide), which crash-looped on remount (DesignToken
+// max-call-stack / double plugin init) and shipped a ~2MB chunk. Lazy so it only
+// loads when the Notebook view is opened.
 const LazyJupyterIframe = React.lazy(() => import("./jupyter-iframe"));
-
-// Process-isolated Notebook flag — now DEFAULT ON. The native JupyterLab served
-// through the JLab gateway iframe runs in its own OS process and is the stable
-// notebook; the in-process @datalayer embed (jupyter-react-ide) crash-loops on
-// remount (DesignToken max-call-stack / double plugin init) so it must NOT be the
-// default. ?jlabiframe=0 opts BACK to the embed (persisted); ?jlabiframe=1 clears.
-// Inlined (not imported from the lazy module) so the heavy module stays code-split.
-function isJlabIframeEnabled(): boolean {
-  try {
-    const q = new URLSearchParams(window.location.search).get("jlabiframe");
-    if (q === "0") {
-      localStorage.setItem("cg-jlab-iframe-off", "1");
-      return false;
-    }
-    if (q === "1") {
-      localStorage.removeItem("cg-jlab-iframe-off");
-      return true;
-    }
-    return localStorage.getItem("cg-jlab-iframe-off") !== "1";
-  } catch {
-    return true;
-  }
-}
-
-/** If the heavy JupyterLab UI throws at runtime (kernel handshake, CSS, an
- *  upstream regression), we must NOT white-screen the whole tab — degrade to the
- *  store-based notebook view. This boundary makes that failure survivable. */
-class JupyterReactBoundary extends React.Component<
-  { onError: () => void; children: React.ReactNode },
-  { failed: boolean }
-> {
-  constructor(props: { onError: () => void; children: React.ReactNode }) {
-    super(props);
-    this.state = { failed: false };
-  }
-
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-
-  componentDidCatch(error: unknown) {
-    const { onError } = this.props;
-    // eslint-disable-next-line no-console
-    console.error("[jupyter-react] runtime error, falling back:", error);
-    onError();
-  }
-
-  render() {
-    const { failed } = this.state;
-    const { children } = this.props;
-    if (failed) return null;
-    return children;
-  }
-}
 
 /** Trigger a client-side download without touching the network. */
 function downloadBlob(name: string, mime: string, body: string) {
@@ -955,23 +904,16 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
   const jupyterRef = React.useRef<HTMLDivElement>(null);
   const [showFiles] = React.useState(false);
 
-  // Live-server track: mount the full JupyterLab UI only when the proxy reports a
-  // reachable, authenticated Jupyter server for this conversation. Until the
-  // runtime image is rebuilt with the server + proxy, this is always false and
-  // the store-based notebook view below renders — zero regression. If the heavy
-  // UI throws at runtime, `jupyterReactFailed` latches us back to the store view.
+  // Live-server track: mount the native JupyterLab iframe only when the proxy
+  // reports a reachable, authenticated Jupyter server for this conversation.
+  // Until then the store-based notebook view below renders — zero regression.
   const { data: jupyterServer } = useJupyterServerSettings(conversationId);
-  const [jupyterReactFailed, setJupyterReactFailed] = React.useState(false);
-  // LATCH availability: once the live server has been seen, keep the IDE mounted
-  // even if a later settings refetch briefly returns available:false (a discovery
-  // race). Unmount+remount would re-initialise the whole JupyterLab app and throw
-  // "Plugin … is already registered". The error boundary still governs failures.
+  // LATCH availability: once the live server has been seen, keep it mounted even
+  // if a later settings refetch briefly returns available:false (a discovery
+  // race). The iframe surfaces its own load/gateway errors inline.
   const everAvailableRef = React.useRef(false);
   if (jupyterServer?.available) everAvailableRef.current = true;
-  const useLiveNotebook = everAvailableRef.current && !jupyterReactFailed;
-  // Process-isolated Notebook via the JLab gateway iframe (DEFAULT ON; ?jlabiframe=0
-  // opts back to the crash-prone in-process embed).
-  const useIframeNotebook = useLiveNotebook && isJlabIframeEnabled();
+  const useLiveNotebook = everAvailableRef.current;
 
   const runtimeState = agentStateToRuntimeState(curAgentState);
   const isRuntimeInactive = RUNTIME_INACTIVE_STATES.includes(curAgentState);
@@ -1139,37 +1081,20 @@ export function JupyterEditor({ maxWidth }: JupyterEditorProps) {
             />
           )}
 
-          {/* Process-isolated iframe Notebook (opt-in ?jlabiframe=1). */}
-          {view === "notebook" && useIframeNotebook && (
-            <React.Suspense
-              fallback={
-                <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
-                  Loading notebook…
-                </div>
-              }
-            >
-              <LazyJupyterIframe conversationId={conversationId} />
-            </React.Suspense>
-          )}
-
+          {/* Process-isolated Notebook: native JupyterLab in its OWN OS process,
+              served through the JLab gateway iframe. Falls back to the store-based
+              view until the sandbox Jupyter server is reachable. */}
           {view === "notebook" &&
-            !useIframeNotebook &&
             (useLiveNotebook ? (
-              <JupyterReactBoundary onError={() => setJupyterReactFailed(true)}>
-                <React.Suspense
-                  fallback={
-                    <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
-                      Loading notebook…
-                    </div>
-                  }
-                >
-                  <LazyJupyterReactIde
-                    baseUrl={jupyterServer!.baseUrl}
-                    wsUrl={jupyterServer!.wsUrl}
-                    token={jupyterServer!.token}
-                  />
-                </React.Suspense>
-              </JupyterReactBoundary>
+              <React.Suspense
+                fallback={
+                  <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+                    Loading notebook…
+                  </div>
+                }
+              >
+                <LazyJupyterIframe conversationId={conversationId} />
+              </React.Suspense>
             ) : (
               <>
                 <NotebookToolbar
