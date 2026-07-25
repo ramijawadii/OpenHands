@@ -70,12 +70,31 @@ def _invalidate_conv(conversation_id: str) -> None:
     _CONV_CACHE.pop(conversation_id, None)
 
 
+# Shared read cache (Tier 2): served across all per-request drivers. A cache hit
+# skips the reliability wrapper AND the docker round-trip; concurrent misses of the
+# same file coalesce to one fetch. Namespaced by container for tenant isolation.
+_READ_CACHE = None
+
+
+def _read_cache():
+    global _READ_CACHE
+    if _READ_CACHE is None:
+        from cloudguard.vfs import VFSReadCache
+
+        _READ_CACHE = VFSReadCache(max_entries=1024, ttl=5.0)
+    return _READ_CACHE
+
+
 def _vfs_for(resolved: tuple[str, str]):
     container, root = resolved
     from cloudguard.vfs import VFS, ReliableDriver
-    from cloudguard.vfs.drivers import SandboxWorkspaceDriver
+    from cloudguard.vfs.drivers import CachingDriver, SandboxWorkspaceDriver
 
-    driver = ReliableDriver(SandboxWorkspaceDriver(container, root))
+    driver = CachingDriver(
+        ReliableDriver(SandboxWorkspaceDriver(container, root)),
+        _read_cache(),
+        namespace=container,
+    )
     return VFS(lambda ctx: driver)
 
 
@@ -180,6 +199,11 @@ async def vfs_write(body: WriteRequest = Body(...), _p=Depends(require_principal
         ),
     )
     return JSONResponse(_entry_json(e))
+
+
+@router.get("/cache-stats")
+async def vfs_cache_stats(_p=Depends(require_principal)):
+    return JSONResponse(_read_cache().stats())
 
 
 def _entry_json(e) -> dict:
