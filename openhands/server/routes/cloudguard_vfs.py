@@ -32,21 +32,46 @@ router = APIRouter(prefix="/api/cloudguard/vfs")
 _TENANT = "default"
 
 
-async def _attach(conversation_id: str):
+# Cache the resolved (container_name, workspace_root) per conversation so we DON'T
+# attach_to_conversation on every request — that attach/detach was the end-to-end
+# bottleneck (~140-470ms, variable) once the driver dropped to ~11ms. The container
+# name (openhands-runtime-{cid}) is stable across runtime restarts, so the cache
+# stays valid; the driver re-resolves its own container handle on failure. On a
+# VFSUnavailable we invalidate so the next request re-attaches.
+_CONV_CACHE: dict[str, tuple[str, str]] = {}
+
+
+async def _resolve(conversation_id: str) -> tuple[str, str]:
+    hit = _CONV_CACHE.get(conversation_id)
+    if hit is not None:
+        return hit
     from openhands.server.shared import conversation_manager
 
     conv = await conversation_manager.attach_to_conversation(conversation_id, None)
     if conv is None:
         raise HTTPException(status_code=404, detail="conversation not running")
-    return conv
+    try:
+        runtime = conv.runtime
+        container = getattr(runtime, "container_name", None)
+        if not container:
+            raise HTTPException(status_code=503, detail="runtime has no container")
+        root = runtime.config.workspace_mount_path_in_sandbox
+        resolved = (container, root)
+        _CONV_CACHE[conversation_id] = resolved
+        return resolved
+    finally:
+        try:
+            await conversation_manager.detach_from_conversation(conv)
+        except Exception:  # noqa: BLE001
+            pass
 
 
-def _build_vfs(conv):
-    runtime = conv.runtime
-    container = getattr(runtime, "container_name", None)
-    if not container:
-        raise HTTPException(status_code=503, detail="runtime has no container")
-    root = runtime.config.workspace_mount_path_in_sandbox
+def _invalidate_conv(conversation_id: str) -> None:
+    _CONV_CACHE.pop(conversation_id, None)
+
+
+def _vfs_for(resolved: tuple[str, str]):
+    container, root = resolved
     from cloudguard.vfs import VFS, ReliableDriver
     from cloudguard.vfs.drivers import SandboxWorkspaceDriver
 
@@ -87,50 +112,51 @@ class WriteRequest(BaseModel):
     mime: str | None = Field(default=None, max_length=128)
 
 
-@router.get("/read")
-async def vfs_read(conversation_id: str, path: str, _p=Depends(require_principal)):
-    conv = await _attach(conversation_id)
+async def _run(conversation_id: str, coro_factory):
+    """Resolve (cached) then run an op, mapping errors + invalidating the cache on
+    an unavailable runtime so the next request re-attaches."""
+    from cloudguard.vfs import VFSUnavailable
+
+    resolved = await _resolve(conversation_id)
     try:
-        data = await _build_vfs(conv).read(_ctx(conversation_id, _p), path)
-        return Response(content=data, media_type="application/octet-stream")
+        return await coro_factory(_vfs_for(resolved))
     except HTTPException:
         raise
+    except VFSUnavailable as exc:
+        _invalidate_conv(conversation_id)
+        raise _map_error(exc) from exc
     except Exception as exc:  # noqa: BLE001
         raise _map_error(exc) from exc
-    finally:
-        await _detach(conv)
+
+
+@router.get("/read")
+async def vfs_read(conversation_id: str, path: str, _p=Depends(require_principal)):
+    data = await _run(
+        conversation_id, lambda vfs: vfs.read(_ctx(conversation_id, _p), path)
+    )
+    return Response(content=data, media_type="application/octet-stream")
 
 
 @router.get("/stat")
 async def vfs_stat(conversation_id: str, path: str, _p=Depends(require_principal)):
-    conv = await _attach(conversation_id)
-    try:
-        e = await _build_vfs(conv).stat(_ctx(conversation_id, _p), path)
-        return JSONResponse(_entry_json(e))
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise _map_error(exc) from exc
-    finally:
-        await _detach(conv)
+    e = await _run(
+        conversation_id, lambda vfs: vfs.stat(_ctx(conversation_id, _p), path)
+    )
+    return JSONResponse(_entry_json(e))
 
 
 @router.get("/list")
 async def vfs_list(
-    conversation_id: str, prefix: str = "", recursive: bool = True, _p=Depends(require_principal)
+    conversation_id: str,
+    prefix: str = "",
+    recursive: bool = True,
+    _p=Depends(require_principal),
 ):
-    conv = await _attach(conversation_id)
-    try:
-        entries = await _build_vfs(conv).list(
-            _ctx(conversation_id, _p), prefix, recursive=recursive
-        )
-        return JSONResponse({"entries": [_entry_json(e) for e in entries]})
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise _map_error(exc) from exc
-    finally:
-        await _detach(conv)
+    entries = await _run(
+        conversation_id,
+        lambda vfs: vfs.list(_ctx(conversation_id, _p), prefix, recursive=recursive),
+    )
+    return JSONResponse({"entries": [_entry_json(e) for e in entries]})
 
 
 @router.post("/write")
@@ -145,18 +171,15 @@ async def vfs_write(body: WriteRequest = Body(...), _p=Depends(require_principal
     else:
         raise HTTPException(status_code=400, detail="provide text or content_b64")
 
-    conv = await _attach(body.conversation_id)
-    try:
-        e = await _build_vfs(conv).write(
-            _ctx(body.conversation_id, _p), body.path, data, mime=body.mime
-        )
-        return JSONResponse(_entry_json(e))
-    except HTTPException:
-        raise
-    except Exception as exc:  # noqa: BLE001
-        raise _map_error(exc) from exc
-    finally:
-        await _detach(conv)
+    e = await _run(
+        body.conversation_id,
+        # dedup=False → one docker round-trip (no idempotency pre-stat); the sandbox
+        # driver makes each round-trip expensive, and saves usually change content.
+        lambda vfs: vfs.write(
+            _ctx(body.conversation_id, _p), body.path, data, mime=body.mime, dedup=False
+        ),
+    )
+    return JSONResponse(_entry_json(e))
 
 
 def _entry_json(e) -> dict:
@@ -169,12 +192,3 @@ def _entry_json(e) -> dict:
         "mime": e.mime,
         "kind": e.kind,
     }
-
-
-async def _detach(conv) -> None:
-    from openhands.server.shared import conversation_manager
-
-    try:
-        await conversation_manager.detach_from_conversation(conv)
-    except Exception:  # noqa: BLE001
-        pass
