@@ -340,11 +340,16 @@ def _vfs_upload_enabled() -> bool:
 async def upload_files(
     files: list[UploadFile],
     conversation: ServerConversation = Depends(get_conversation),
+    user_id: str | None = Depends(get_user_id),
 ):
     uploaded_files = []
     skipped_files = []
     runtime: Runtime = conversation.runtime
     use_vfs = _vfs_upload_enabled()
+    # CISO-2: attribute the write to the authenticated principal (not a static tag)
+    # so the audit chain can answer "who uploaded this?". Falls back to 'upload'
+    # only when auth is off (OSS single-user) and no id is available.
+    actor = f'user:{user_id}' if user_id else 'upload'
 
     for file in files:
         rel_path = str(file.filename)
@@ -354,9 +359,10 @@ async def upload_files(
         try:
             file_content = await file.read()
             # V5: prefer the VFS seam when flipped on. Passes RAW bytes (the VFS
-            # handles binary natively — better than the legacy utf-8 decode). Any
-            # VFS error degrades to the legacy FileWriteAction below.
+            # handles binary natively — better than the legacy utf-8 decode).
             if use_vfs:
+                from cloudguard.vfs import VFSDenied, VFSInvalidPath
+
                 try:
                     from openhands.server.routes.cloudguard_vfs import surface_write
 
@@ -365,11 +371,19 @@ async def upload_files(
                         rel_path,
                         file_content,
                         mime=file.content_type,
-                        actor='upload',
+                        actor=actor,
                     )
                     uploaded_files.append(file_path)
                     continue
-                except Exception as vexc:  # noqa: BLE001 — degrade, never drop the upload
+                except (VFSDenied, VFSInvalidPath) as sec:
+                    # CISO-1: authoritative VFS rejection (policy/traversal). Do NOT
+                    # fall back to the raw FileWriteAction — that legacy path has no
+                    # traversal gate and would defeat the VFS decision. Skip it.
+                    skipped_files.append(
+                        {'name': file.filename, 'reason': f'vfs rejected: {sec}'}
+                    )
+                    continue
+                except Exception as vexc:  # noqa: BLE001 — transport/infra only: degrade, never drop
                     logger.warning(
                         'vfs upload write failed (%s); falling back to direct write',
                         vexc,

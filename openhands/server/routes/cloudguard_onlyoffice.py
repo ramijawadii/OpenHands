@@ -508,6 +508,8 @@ async def _save_to_sandbox(cid: str, path: str, content: bytes) -> None:
     # runs the full pipeline (audit chain entry + event + buffer-not-fail). Any VFS
     # error falls through to the legacy direct write below so no edit is dropped.
     if _vfs_writeback_enabled():
+        from cloudguard.vfs import VFSDenied, VFSInvalidPath
+
         try:
             from openhands.server.routes.cloudguard_vfs import surface_write
 
@@ -522,7 +524,18 @@ async def _save_to_sandbox(cid: str, path: str, content: bytes) -> None:
                 entry.content_hash,
             )
             return
-        except Exception as exc:  # noqa: BLE001 — degrade to direct write, never lose the edit
+        except (VFSDenied, VFSInvalidPath) as sec:
+            # CISO-1: an authoritative VFS security decision. Falling back to a raw
+            # write would DEFEAT the policy/path gate — so we honor the rejection
+            # and do NOT write. The caller (callback) returns error:0 regardless;
+            # the edit is intentionally not persisted.
+            logger.warning(
+                "onlyoffice save-back REJECTED by VFS (%s) for %s — not falling back",
+                sec,
+                norm,
+            )
+            raise
+        except Exception as exc:  # noqa: BLE001 — transport/infra only: degrade, never lose the edit
             logger.warning(
                 "onlyoffice VFS save-back failed (%s); falling back to direct write", exc
             )

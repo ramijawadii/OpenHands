@@ -84,3 +84,19 @@ async def test_traversal_rejected_regardless_of_flag(monkeypatch):
     monkeypatch.setenv("CLOUDGUARD_VFS_ONLYOFFICE_WRITEBACK", "1")
     with pytest.raises(ValueError):
         await oo._save_to_sandbox("cid1", "../../etc/passwd", b"x")
+
+
+@pytest.mark.asyncio
+async def test_vfs_rejection_does_not_fall_back(monkeypatch):
+    """CISO-1: a VFS security rejection (denied/invalid) must NOT degrade to the
+    raw direct write — that would defeat the policy/path gate."""
+    from cloudguard.vfs import VFSDenied, VFSInvalidPath
+
+    monkeypatch.setenv("CLOUDGUARD_VFS_ONLYOFFICE_WRITEBACK", "1")
+    for exc in (VFSDenied("worm"), VFSInvalidPath("bad")):
+        sw = AsyncMock(side_effect=exc)
+        with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
+            with patch.object(oo, "_write_sandbox_file") as direct:
+                with pytest.raises(type(exc)):
+                    await oo._save_to_sandbox("cid1", "reports/a.docx", b"x")
+        direct.assert_not_called()  # rejection honored, no raw write

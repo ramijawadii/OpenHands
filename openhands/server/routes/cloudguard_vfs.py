@@ -255,16 +255,25 @@ async def surface_write(
     """Write bytes to a conversation's workspace THROUGH the VFS pipeline.
 
     `path` is workspace-relative (the sandbox driver joins the root itself).
-    Raises the mapped HTTPException on failure (denied/invalid/unavailable) so the
-    caller can decide whether to fall back to its legacy direct write.
+
+    Raises the NATIVE VFS exception types (NOT the HTTP-mapped ones) so a caller
+    can tell a security REJECTION apart from a transport failure — this is the
+    CISO-1 contract: a surface must fall back to its legacy raw write ONLY on
+    VFSUnavailable/infra errors, and must NEVER fall back on VFSDenied /
+    VFSInvalidPath (those are authoritative decisions that a raw write would defeat).
+      - VFSDenied      → policy rejected the write (WORM/mode/manifest)
+      - VFSInvalidPath → path gate rejected it (traversal/absolute/…)
+      - VFSUnavailable → driver/runtime down (safe to fall back or buffer)
     """
-    from cloudguard.vfs import VFSContext
+    from cloudguard.vfs import VFSContext, VFSUnavailable
 
     ctx = VFSContext(tenant=_TENANT, conversation=conversation_id, actor=actor)
-    return await _run(
-        conversation_id,
-        lambda vfs: vfs.write(ctx, path, data, mime=mime, dedup=False),
-    )
+    resolved = await _resolve(conversation_id)
+    try:
+        return await _vfs_for(resolved).write(ctx, path, data, mime=mime, dedup=False)
+    except VFSUnavailable:
+        _invalidate_conv(conversation_id)  # force re-attach next time
+        raise
 
 
 @router.get("/read")

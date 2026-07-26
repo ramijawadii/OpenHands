@@ -53,6 +53,7 @@ async def test_flag_on_routes_through_vfs(monkeypatch):
             await files_route.upload_files(
                 [_upload("diagrams/wb.drawio.svg", b"<mxfile/>", "application/xml")],
                 _conv(),
+                user_id=None,
             )
     sw.assert_awaited_once()
     args, kwargs = sw.call_args
@@ -64,16 +65,49 @@ async def test_flag_on_routes_through_vfs(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_flag_on_vfs_error_falls_back(monkeypatch):
-    """A VFS failure per-file must degrade to the legacy write, never drop it."""
+async def test_flag_on_transport_error_falls_back(monkeypatch):
+    """A transport/infra failure per-file must degrade to the legacy write."""
     monkeypatch.setenv("CLOUDGUARD_VFS_UPLOAD_WRITEBACK", "on")
 
     sw = AsyncMock(side_effect=RuntimeError("vfs down"))
     with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
         with patch.object(files_route, "call_sync_from_async", AsyncMock()) as csa:
             resp = await files_route.upload_files(
-                [_upload("pages/y.csv", b"x", "text/csv")], _conv()
+                [_upload("pages/y.csv", b"x", "text/csv")], _conv(), user_id=None
             )
     sw.assert_awaited_once()
     csa.assert_awaited_once()  # fell back
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_flag_on_vfs_rejection_skips_no_fallback(monkeypatch):
+    """CISO-1: a VFS security rejection must be SKIPPED, never written via the
+    legacy raw path (which has no traversal gate)."""
+    import json
+
+    from cloudguard.vfs import VFSInvalidPath
+
+    monkeypatch.setenv("CLOUDGUARD_VFS_UPLOAD_WRITEBACK", "1")
+    sw = AsyncMock(side_effect=VFSInvalidPath("traversal"))
+    with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
+        with patch.object(files_route, "call_sync_from_async", AsyncMock()) as csa:
+            resp = await files_route.upload_files(
+                [_upload("../../etc/passwd", b"x", "text/plain")], _conv(), user_id=None
+            )
+    csa.assert_not_awaited()  # NO raw fallback
+    body = json.loads(resp.body)
+    assert body["uploaded_files"] == []
+    assert body["skipped_files"] and "vfs rejected" in body["skipped_files"][0]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_principal_threaded_as_actor(monkeypatch):
+    """CISO-2: the authenticated user id is used as the audit actor."""
+    monkeypatch.setenv("CLOUDGUARD_VFS_UPLOAD_WRITEBACK", "1")
+    sw = AsyncMock(return_value=SimpleNamespace(content_hash="h"))
+    with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
+        await files_route.upload_files(
+            [_upload("pages/x.csv", b"a", "text/csv")], _conv(), user_id="alice"
+        )
+    assert sw.call_args.kwargs["actor"] == "user:alice"
