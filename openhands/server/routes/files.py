@@ -323,6 +323,19 @@ async def git_diff(
         )
 
 
+def _vfs_upload_enabled() -> bool:
+    """V5 flip flag: route workspace uploads (whiteboard + spreadsheet + any
+    file upload) through the VFS pipeline (tamper-evident audit + buffer-not-fail)
+    instead of a raw FileWriteAction. Default OFF = the shared upload path is
+    unchanged; a VFS error falls back per-file so an upload is never lost."""
+    return os.environ.get('CLOUDGUARD_VFS_UPLOAD_WRITEBACK', '').strip().lower() in (
+        '1',
+        'true',
+        'yes',
+        'on',
+    )
+
+
 @app.post('/upload-files', response_model=POSTUploadFilesModel)
 async def upload_files(
     files: list[UploadFile],
@@ -331,13 +344,36 @@ async def upload_files(
     uploaded_files = []
     skipped_files = []
     runtime: Runtime = conversation.runtime
+    use_vfs = _vfs_upload_enabled()
 
     for file in files:
+        rel_path = str(file.filename)
         file_path = os.path.join(
-            runtime.config.workspace_mount_path_in_sandbox, str(file.filename)
+            runtime.config.workspace_mount_path_in_sandbox, rel_path
         )
         try:
             file_content = await file.read()
+            # V5: prefer the VFS seam when flipped on. Passes RAW bytes (the VFS
+            # handles binary natively — better than the legacy utf-8 decode). Any
+            # VFS error degrades to the legacy FileWriteAction below.
+            if use_vfs:
+                try:
+                    from openhands.server.routes.cloudguard_vfs import surface_write
+
+                    await surface_write(
+                        conversation.sid,
+                        rel_path,
+                        file_content,
+                        mime=file.content_type,
+                        actor='upload',
+                    )
+                    uploaded_files.append(file_path)
+                    continue
+                except Exception as vexc:  # noqa: BLE001 — degrade, never drop the upload
+                    logger.warning(
+                        'vfs upload write failed (%s); falling back to direct write',
+                        vexc,
+                    )
             write_action = FileWriteAction(
                 # TODO: DISCUSS UTF8 encoding here
                 path=file_path,
