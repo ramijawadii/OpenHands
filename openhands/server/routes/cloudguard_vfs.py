@@ -109,6 +109,37 @@ def _audit_sink():
     return OutboxAuditSink(_OUTBOX)
 
 
+_ANCHOR = None
+_WRITE_BUFFER = None
+
+
+def _write_buffer():
+    global _WRITE_BUFFER
+    if _WRITE_BUFFER is None:
+        import os
+
+        from cloudguard.vfs import WriteBuffer
+
+        spool = os.environ.get("CLOUDGUARD_VFS_SPOOL_DIR", "/tmp/cloudguard-vfs-spool")
+        _WRITE_BUFFER = WriteBuffer(spool)
+    return _WRITE_BUFFER
+
+
+def _audit_anchor():
+    global _ANCHOR
+    if _ANCHOR is None:
+        import os
+
+        from cloudguard.vfs import AuditAnchor, LocalAnchorSink
+
+        audit_dir = os.environ.get("CLOUDGUARD_VFS_AUDIT_DIR", "/tmp/cloudguard-vfs-audit")
+        _ANCHOR = AuditAnchor(
+            LocalAnchorSink(os.path.join(audit_dir, "anchor.log")),
+            store_dir=os.path.join(audit_dir, "chain"),
+        )
+    return _ANCHOR
+
+
 def _ensure_flusher():
     global _FLUSHER
     if _FLUSHER is None and _OUTBOX is not None:
@@ -117,7 +148,12 @@ def _ensure_flusher():
         from cloudguard.vfs import AuditFlusher, TenantAuditSink
 
         audit_dir = os.environ.get("CLOUDGUARD_VFS_AUDIT_DIR", "/tmp/cloudguard-vfs-audit")
-        _FLUSHER = AuditFlusher(_OUTBOX, TenantAuditSink(store_dir=os.path.join(audit_dir, "chain")))
+        _FLUSHER = AuditFlusher(
+            _OUTBOX,
+            TenantAuditSink(store_dir=os.path.join(audit_dir, "chain")),
+            anchor=_audit_anchor(),  # CISO-2: anchor the head off-box after each flush
+            anchor_tenants=(_TENANT,),
+        )
         try:
             _FLUSHER.start()
         except Exception as exc:  # noqa: BLE001 — no running loop yet; drained lazily
@@ -129,10 +165,21 @@ def _ensure_flusher():
 def _vfs_for(resolved: tuple[str, str]):
     container, root = resolved
     from cloudguard.vfs import VFS, ReliableDriver
-    from cloudguard.vfs.drivers import CachingDriver, SandboxWorkspaceDriver
+    from cloudguard.vfs.drivers import (
+        BufferingDriver,
+        CachingDriver,
+        SandboxWorkspaceDriver,
+    )
 
+    # Cache(hit skips docker) → Buffer(never-fail write, SRE-5) → Reliable → Sandbox.
+    # BufferingDriver under CachingDriver: a buffered write is cache-write-through,
+    # so read-after-write hits the cache even while the backlog drains.
     driver = CachingDriver(
-        ReliableDriver(SandboxWorkspaceDriver(container, root)),
+        BufferingDriver(
+            ReliableDriver(SandboxWorkspaceDriver(container, root)),
+            _write_buffer(),
+            namespace=container,
+        ),
         _read_cache(),
         namespace=container,
     )
@@ -258,7 +305,21 @@ async def vfs_audit_stats(_p=Depends(require_principal)):
         except Exception:  # noqa: BLE001
             pending = None
     flusher = _FLUSHER.stats() if _FLUSHER is not None else {"running": False}
-    return JSONResponse({"outbox_pending": pending, "flusher": flusher})
+    anchor = None
+    if _ANCHOR is not None:
+        try:
+            anchor = _audit_anchor().check(_TENANT)  # CISO-2 truncation cross-check
+        except Exception:  # noqa: BLE001
+            anchor = None
+    buffer_depth = _WRITE_BUFFER.depth() if _WRITE_BUFFER is not None else 0
+    return JSONResponse(
+        {
+            "outbox_pending": pending,
+            "flusher": flusher,
+            "write_buffer_depth": buffer_depth,
+            "audit_anchor": anchor,
+        }
+    )
 
 
 def _entry_json(e) -> dict:
