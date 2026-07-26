@@ -111,6 +111,10 @@ def _audit_sink():
 
 _ANCHOR = None
 _WRITE_BUFFER = None
+_DRAINER = None
+# container_name -> workspace root, so the background drainer can rebuild a driver
+# for a namespace whose only surface has gone idle.
+_ROOTS: dict[str, str] = {}
 
 
 def _write_buffer():
@@ -162,8 +166,36 @@ def _ensure_flusher():
         _FLUSHER.notify()  # low-latency drain after each op
 
 
+async def _drain_one(ns: str) -> int:
+    """Replay one namespace's buffered writes into a freshly-built backing driver.
+    Used by the background BufferDrainer (SRE-2). Wrapped in ReliableDriver so a
+    still-down container raises VFSUnavailable → buffer.drain stops cleanly and
+    keeps the backlog."""
+    from cloudguard.vfs import ReliableDriver
+    from cloudguard.vfs.drivers import SandboxWorkspaceDriver
+
+    root = _ROOTS.get(ns, "/workspace")
+    driver = ReliableDriver(SandboxWorkspaceDriver(ns, root))
+    return await _write_buffer().drain(ns, driver.write)
+
+
+def _ensure_drainer():
+    """Start the single background buffer drainer (SRE-2) so a buffered write lands
+    even if its surface goes idle. Needs a running loop; started lazily."""
+    global _DRAINER
+    if _DRAINER is None:
+        from cloudguard.vfs import BufferDrainer
+
+        _DRAINER = BufferDrainer(_write_buffer(), _drain_one, interval=5.0)
+        try:
+            _DRAINER.start()
+        except Exception as exc:  # noqa: BLE001 — no loop yet; drains opportunistically on write
+            logger.warning("buffer drainer start deferred: %s", exc)
+
+
 def _vfs_for(resolved: tuple[str, str]):
     container, root = resolved
+    _ROOTS[container] = root
     from cloudguard.vfs import VFS, ReliableDriver
     from cloudguard.vfs.drivers import (
         BufferingDriver,
@@ -185,7 +217,24 @@ def _vfs_for(resolved: tuple[str, str]):
     )
     sink = _audit_sink()
     _ensure_flusher()
+    _ensure_drainer()
     return VFS(lambda ctx: driver, audit=sink)
+
+
+async def surface_read(conversation_id: str, path: str) -> bytes:
+    """Read a workspace file THROUGH the VFS (read-your-writes aware). A surface
+    that both writes and reads via the VFS (SRE-1b) uses this so a reopen after a
+    degraded/buffered save sees the buffered bytes, not the stale backing file.
+    Raises native VFS exceptions."""
+    from cloudguard.vfs import VFSContext, VFSUnavailable
+
+    ctx = VFSContext(tenant=_TENANT, conversation=conversation_id, actor="surface")
+    resolved = await _resolve(conversation_id)
+    try:
+        return await _vfs_for(resolved).read(ctx, path)
+    except VFSUnavailable:
+        _invalidate_conv(conversation_id)
+        raise
 
 
 def _ctx(conversation_id: str, principal) -> "object":
@@ -350,11 +399,13 @@ async def vfs_audit_stats(_p=Depends(require_principal)):
         except Exception:  # noqa: BLE001
             anchor = None
     buffer_depth = _WRITE_BUFFER.depth() if _WRITE_BUFFER is not None else 0
+    drainer = _DRAINER.stats() if _DRAINER is not None else {"running": False}
     return JSONResponse(
         {
             "outbox_pending": pending,
             "flusher": flusher,
             "write_buffer_depth": buffer_depth,
+            "buffer_drainer": drainer,
             "audit_anchor": anchor,
         }
     )
@@ -369,4 +420,5 @@ def _entry_json(e) -> dict:
         "version": e.version,
         "mime": e.mime,
         "kind": e.kind,
+        "durable": getattr(e, "durable", True),
     }

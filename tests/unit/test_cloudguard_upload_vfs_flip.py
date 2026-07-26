@@ -47,7 +47,7 @@ async def test_flag_on_routes_through_vfs(monkeypatch):
     monkeypatch.setenv("CLOUDGUARD_VFS_UPLOAD_WRITEBACK", "1")
     assert files_route._vfs_upload_enabled() is True
 
-    sw = AsyncMock(return_value=SimpleNamespace(content_hash="h"))
+    sw = AsyncMock(return_value=SimpleNamespace(content_hash="h", durable=True))
     with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
         with patch.object(files_route, "call_sync_from_async", AsyncMock()) as csa:
             await files_route.upload_files(
@@ -105,7 +105,7 @@ async def test_flag_on_vfs_rejection_skips_no_fallback(monkeypatch):
 async def test_principal_threaded_as_actor(monkeypatch):
     """CISO-2: the authenticated user id is used as the audit actor."""
     monkeypatch.setenv("CLOUDGUARD_VFS_UPLOAD_WRITEBACK", "1")
-    sw = AsyncMock(return_value=SimpleNamespace(content_hash="h"))
+    sw = AsyncMock(return_value=SimpleNamespace(content_hash="h", durable=True))
     with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
         await files_route.upload_files(
             [_upload("pages/x.csv", b"a", "text/csv")], _conv(), user_id="alice"

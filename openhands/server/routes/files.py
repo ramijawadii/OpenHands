@@ -366,13 +366,20 @@ async def upload_files(
                 try:
                     from openhands.server.routes.cloudguard_vfs import surface_write
 
-                    await surface_write(
+                    entry = await surface_write(
                         conversation.sid,
                         rel_path,
                         file_content,
                         mime=file.content_type,
                         actor=actor,
                     )
+                    if not entry.durable:
+                        # SRE-1b: driver down → durably spooled + drainer will land
+                        # it. read-your-writes serves it meanwhile; flag for ops.
+                        logger.warning(
+                            'vfs upload BUFFERED (driver down) → %s (spooled + will drain)',
+                            file_path,
+                        )
                     uploaded_files.append(file_path)
                     continue
                 except (VFSDenied, VFSInvalidPath) as sec:

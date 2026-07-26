@@ -40,7 +40,7 @@ async def test_flag_on_routes_through_vfs(monkeypatch):
     monkeypatch.setenv("CLOUDGUARD_VFS_ONLYOFFICE_WRITEBACK", "1")
     assert oo._vfs_writeback_enabled() is True
 
-    entry = SimpleNamespace(content_hash="abc123")
+    entry = SimpleNamespace(content_hash="abc123", durable=True)
     sw = AsyncMock(return_value=entry)
     with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
         with patch.object(oo, "_write_sandbox_file") as direct:
@@ -84,6 +84,20 @@ async def test_traversal_rejected_regardless_of_flag(monkeypatch):
     monkeypatch.setenv("CLOUDGUARD_VFS_ONLYOFFICE_WRITEBACK", "1")
     with pytest.raises(ValueError):
         await oo._save_to_sandbox("cid1", "../../etc/passwd", b"x")
+
+
+@pytest.mark.asyncio
+async def test_degraded_buffered_write_does_not_fall_back(monkeypatch):
+    """SRE-1b: a buffered (durable=False) write is accepted — it is durably spooled
+    and the drainer will land it — so it must NOT trigger the direct-write fallback."""
+    monkeypatch.setenv("CLOUDGUARD_VFS_ONLYOFFICE_WRITEBACK", "1")
+    entry = SimpleNamespace(content_hash="deadbeef", durable=False)
+    sw = AsyncMock(return_value=entry)
+    with patch("openhands.server.routes.cloudguard_vfs.surface_write", sw):
+        with patch.object(oo, "_write_sandbox_file") as direct:
+            await oo._save_to_sandbox("cid1", "reports/a.docx", b"x")
+    sw.assert_awaited_once()
+    direct.assert_not_called()  # spooled + will drain, no raw fallback
 
 
 @pytest.mark.asyncio

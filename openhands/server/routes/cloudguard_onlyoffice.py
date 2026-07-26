@@ -257,6 +257,31 @@ async def serve_file(cid: str, path: str, exp: int, sig: str) -> Response:
     if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
         raise HTTPException(status_code=400, detail="invalid path")
 
+    # SRE-1b: when the writeback flip is on, read THROUGH the VFS so a reopen after
+    # a buffered save serves read-your-writes content (the spooled bytes), not the
+    # stale backing file. Falls back to the direct read on VFS-unavailable/error.
+    if _vfs_writeback_enabled():
+        from cloudguard.vfs import VFSNotFound
+
+        try:
+            from openhands.server.routes.cloudguard_vfs import surface_read
+
+            data = await surface_read(cid, norm)
+            filename = os.path.basename(norm)
+            return Response(
+                content=data,
+                media_type=_content_type_for(norm),
+                headers={"Content-Disposition": f'inline; filename="{quote(filename)}"'},
+            )
+        except VFSNotFound as exc:
+            raise HTTPException(status_code=404, detail="file not found") from exc
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001 — VFS down/unexpected: fall back to direct read
+            logger.warning(
+                "onlyoffice VFS read failed (%s); falling back to direct read", exc
+            )
+
     # Local import so a missing server dep never breaks module import / server start.
     from openhands.server.shared import conversation_manager
 
@@ -516,13 +541,28 @@ async def _save_to_sandbox(cid: str, path: str, content: bytes) -> None:
             entry = await surface_write(
                 cid, norm, content, mime=_content_type_for(norm), actor="onlyoffice"
             )
-            logger.info(
-                "onlyoffice save-back via VFS: %d bytes → %s (cid=%s hash=%s)",
-                len(content),
-                norm,
-                cid,
-                entry.content_hash,
-            )
+            if not entry.durable:
+                # SRE-1b: the backing driver was down, so the save is DURABLY
+                # SPOOLED (survives restart on the app-private volume) and the
+                # background drainer will land it — but it is not yet on the file.
+                # Flag it: a reopen before the drain serves read-your-writes buffer
+                # content (surface_read), so the user never sees a stale doc.
+                logger.warning(
+                    "onlyoffice save-back BUFFERED (driver down) %d bytes → %s "
+                    "(cid=%s hash=%s) — spooled + will drain",
+                    len(content),
+                    norm,
+                    cid,
+                    entry.content_hash,
+                )
+            else:
+                logger.info(
+                    "onlyoffice save-back via VFS: %d bytes → %s (cid=%s hash=%s)",
+                    len(content),
+                    norm,
+                    cid,
+                    entry.content_hash,
+                )
             return
         except (VFSDenied, VFSInvalidPath) as sec:
             # CISO-1: an authoritative VFS security decision. Falling back to a raw
