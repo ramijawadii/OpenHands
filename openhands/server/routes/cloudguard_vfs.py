@@ -85,6 +85,47 @@ def _read_cache():
     return _READ_CACHE
 
 
+# Real audit path (SRE-1): every VFS op records to a durable transactional outbox
+# on the fast path; a SINGLE background AuditFlusher drains it to the tenant_audit
+# hash chain (single-writer — no per-tenant file-lock contention). The write is
+# never blocked on the chain; a sink outage replays nothing-lost.
+_OUTBOX = None
+_FLUSHER = None
+
+
+def _audit_sink():
+    """Lazily build the outbox + start the single flusher (needs a running loop)."""
+    global _OUTBOX, _FLUSHER
+    if _OUTBOX is None:
+        import os
+
+        from cloudguard.vfs import OutboxAuditSink, TransactionalOutbox
+
+        audit_dir = os.environ.get("CLOUDGUARD_VFS_AUDIT_DIR", "/tmp/cloudguard-vfs-audit")
+        _OUTBOX = TransactionalOutbox(os.path.join(audit_dir, "outbox.jsonl"))
+        return OutboxAuditSink(_OUTBOX)
+    from cloudguard.vfs import OutboxAuditSink
+
+    return OutboxAuditSink(_OUTBOX)
+
+
+def _ensure_flusher():
+    global _FLUSHER
+    if _FLUSHER is None and _OUTBOX is not None:
+        import os
+
+        from cloudguard.vfs import AuditFlusher, TenantAuditSink
+
+        audit_dir = os.environ.get("CLOUDGUARD_VFS_AUDIT_DIR", "/tmp/cloudguard-vfs-audit")
+        _FLUSHER = AuditFlusher(_OUTBOX, TenantAuditSink(store_dir=os.path.join(audit_dir, "chain")))
+        try:
+            _FLUSHER.start()
+        except Exception as exc:  # noqa: BLE001 — no running loop yet; drained lazily
+            logger.warning("audit flusher start deferred: %s", exc)
+    if _FLUSHER is not None:
+        _FLUSHER.notify()  # low-latency drain after each op
+
+
 def _vfs_for(resolved: tuple[str, str]):
     container, root = resolved
     from cloudguard.vfs import VFS, ReliableDriver
@@ -95,7 +136,9 @@ def _vfs_for(resolved: tuple[str, str]):
         _read_cache(),
         namespace=container,
     )
-    return VFS(lambda ctx: driver)
+    sink = _audit_sink()
+    _ensure_flusher()
+    return VFS(lambda ctx: driver, audit=sink)
 
 
 def _ctx(conversation_id: str, principal) -> "object":
@@ -204,6 +247,18 @@ async def vfs_write(body: WriteRequest = Body(...), _p=Depends(require_principal
 @router.get("/cache-stats")
 async def vfs_cache_stats(_p=Depends(require_principal)):
     return JSONResponse(_read_cache().stats())
+
+
+@router.get("/audit-stats")
+async def vfs_audit_stats(_p=Depends(require_principal)):
+    pending = None
+    if _OUTBOX is not None:
+        try:
+            pending = len(await _OUTBOX.pending())
+        except Exception:  # noqa: BLE001
+            pending = None
+    flusher = _FLUSHER.stats() if _FLUSHER is not None else {"running": False}
+    return JSONResponse({"outbox_pending": pending, "flusher": flusher})
 
 
 def _entry_json(e) -> dict:
