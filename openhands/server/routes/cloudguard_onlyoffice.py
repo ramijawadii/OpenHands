@@ -485,11 +485,47 @@ def _verify_callback_jwt(authorization: str | None, body: dict) -> None:
         raise HTTPException(status_code=401, detail=f"invalid callback JWT: {exc}") from exc
 
 
+def _vfs_writeback_enabled() -> bool:
+    """V5 flip flag: route ONLYOFFICE save-back through the VFS pipeline (policy +
+    tamper-evident audit + buffer-not-fail) instead of a raw put_archive. Default
+    OFF so the flip is opt-in and zero-regression; a VFS failure falls back to the
+    legacy direct write so an edit is never lost during rollout."""
+    return os.environ.get("CLOUDGUARD_VFS_ONLYOFFICE_WRITEBACK", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
 async def _save_to_sandbox(cid: str, path: str, content: bytes) -> None:
     """Write the edited document back to the conversation's workspace file."""
     norm = os.path.normpath(path)
     if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
         raise ValueError(f"invalid writeback path: {path}")
+
+    # V5: prefer the VFS seam when flipped on. Same target file, but the write now
+    # runs the full pipeline (audit chain entry + event + buffer-not-fail). Any VFS
+    # error falls through to the legacy direct write below so no edit is dropped.
+    if _vfs_writeback_enabled():
+        try:
+            from openhands.server.routes.cloudguard_vfs import surface_write
+
+            entry = await surface_write(
+                cid, norm, content, mime=_content_type_for(norm), actor="onlyoffice"
+            )
+            logger.info(
+                "onlyoffice save-back via VFS: %d bytes → %s (cid=%s hash=%s)",
+                len(content),
+                norm,
+                cid,
+                entry.content_hash,
+            )
+            return
+        except Exception as exc:  # noqa: BLE001 — degrade to direct write, never lose the edit
+            logger.warning(
+                "onlyoffice VFS save-back failed (%s); falling back to direct write", exc
+            )
 
     from openhands.server.shared import conversation_manager
 

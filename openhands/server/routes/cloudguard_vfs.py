@@ -238,6 +238,35 @@ async def _run(conversation_id: str, coro_factory):
         raise _map_error(exc) from exc
 
 
+# ── V5: surface flip helper ──────────────────────────────────────────────────
+# Public entry other surface routes (ONLYOFFICE save-back, whiteboard, discovery)
+# call to route a write through the SAME VFS pipeline the HTTP endpoints use —
+# resolve → policy → driver(cache→buffer→reliable→sandbox) → event → audit. This
+# is how a surface "flips" onto the VFS: it gets tamper-evident audit + buffer-not-
+# fail durability for free, instead of a raw put_archive. Returns the VFSEntry.
+async def surface_write(
+    conversation_id: str,
+    path: str,
+    data: bytes,
+    *,
+    mime: str | None = None,
+    actor: str = "surface",
+):
+    """Write bytes to a conversation's workspace THROUGH the VFS pipeline.
+
+    `path` is workspace-relative (the sandbox driver joins the root itself).
+    Raises the mapped HTTPException on failure (denied/invalid/unavailable) so the
+    caller can decide whether to fall back to its legacy direct write.
+    """
+    from cloudguard.vfs import VFSContext
+
+    ctx = VFSContext(tenant=_TENANT, conversation=conversation_id, actor=actor)
+    return await _run(
+        conversation_id,
+        lambda vfs: vfs.write(ctx, path, data, mime=mime, dedup=False),
+    )
+
+
 @router.get("/read")
 async def vfs_read(conversation_id: str, path: str, _p=Depends(require_principal)):
     data = await _run(
