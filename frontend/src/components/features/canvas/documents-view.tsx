@@ -37,6 +37,11 @@ function pickDocument(files: string[]): string | null {
   );
 }
 
+// When the workspace has no agent-written document yet, open a blank scratch doc
+// so Documents always shows an editable editor (parity with the Sheet). The
+// backend seeds this path with a minimal valid .docx on first open.
+const SCRATCH_DOC = "pages/document.docx";
+
 interface Props {
   conversationId: string;
 }
@@ -53,9 +58,9 @@ export default function DocumentsView({ conversationId }: Props) {
     ConversationService.getFiles(conversationId)
       .then((list) => {
         if (cancelled) return;
-        const picked = pickDocument(list ?? []);
-        setDoc(picked);
-        if (!picked) setError("No document to open yet.");
+        // Prefer a real agent-written document; otherwise open a blank scratch
+        // doc so the editor always embeds (the backend seeds it on first open).
+        setDoc(pickDocument(list ?? []) ?? SCRATCH_DOC);
       })
       .catch(() => {
         if (!cancelled) setError("Workspace not reachable yet.");
@@ -77,11 +82,15 @@ export default function DocumentsView({ conversationId }: Props) {
     );
   }
 
+  // Only a genuinely unreachable workspace shows a message now; otherwise we open
+  // an agent doc or the blank scratch document.
   if (error || !doc) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center text-[var(--cg-text-muted)]">
         <FileText className="h-8 w-8 opacity-30" />
-        <span className="text-[12px]">{error ?? "No document to open."}</span>
+        <span className="text-[12px]">
+          {error ?? "Workspace not reachable yet."}
+        </span>
         <span className="max-w-xs text-[11px] opacity-70">
           Documents the agent writes to the workspace (.docx, .pdf, .txt…) open
           here automatically.

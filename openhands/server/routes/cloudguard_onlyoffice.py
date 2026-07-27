@@ -413,6 +413,427 @@ class TokenRequest(BaseModel):
     callbackUrl: str | None = Field(default=None, max_length=4096)
 
 
+# ── Layer 1: Document Builder (headless Office JS generation) ─────────────────
+# The agent generates docx/xlsx/pptx by sending an Office JS script to the DS's
+# /docbuilder endpoint — the SAME engine as the editor, so output is byte-perfect.
+# Flow: host the script at a signed URL the DS can fetch → POST /docbuilder (JWT)
+# → DS runs it headlessly → returns a cache fileUrl → we download the bytes.
+def _ds_internal() -> str:
+    """DS origin reachable FROM the app container (same docker network)."""
+    return os.environ.get("ONLYOFFICE_INTERNAL_URL", "http://onlyoffice-docs").rstrip(
+        "/"
+    )
+
+
+# id -> (script, expiry). Short-lived; the DS fetches each script once, immediately.
+_SCRIPT_STORE: dict[str, tuple[str, float]] = {}
+
+
+def _script_sig(sid: str, exp: int) -> str:
+    msg = f"script\n{sid}\n{exp}".encode()
+    return hmac.new(_jwt_secret().encode(), msg, hashlib.sha256).hexdigest()
+
+
+def _host_script(script: str, ttl_seconds: int = 120) -> str:
+    """Stash a docbuilder script and return a signed URL the DS container can GET."""
+    sid = secrets.token_hex(8)
+    exp = int(time.time()) + ttl_seconds
+    _SCRIPT_STORE[sid] = (script, float(exp))
+    # prune expired entries opportunistically
+    now = time.time()
+    for k in [k for k, (_, e) in _SCRIPT_STORE.items() if e < now]:
+        _SCRIPT_STORE.pop(k, None)
+    qs = urlencode({"id": sid, "exp": exp, "sig": _script_sig(sid, exp)})
+    return f"{_backend_origin()}/api/onlyoffice/script?{qs}"
+
+
+# ── Layer 3: Conversion (x2t via ConvertService) — WORKS on this DS ───────────
+async def _convert_ds(
+    source_url: str, from_ext: str, to_ext: str, timeout: float = 60.0
+) -> bytes:
+    """Convert a DS-fetchable file to another format; return the result bytes."""
+    import uuid
+
+    payload = {
+        "async": False,
+        "filetype": from_ext,
+        "outputtype": to_ext,
+        "key": f"conv-{uuid.uuid4().hex[:12]}",
+        "url": source_url,
+        "title": f"convert.{from_ext}",
+    }
+    token = jwt.encode({"payload": payload}, _jwt_secret(), algorithm="HS256")
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(
+            f"{_ds_internal()}/ConvertService.ashx",
+            json={**payload, "token": token},
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("error"):
+            raise RuntimeError(f"conversion error {data.get('error')}")
+        file_url = data.get("fileUrl")
+        if not file_url:
+            raise RuntimeError(f"conversion incomplete: {data}")
+        internal = file_url
+        for pub in (_document_server_url(), "http://localhost", "https://localhost"):
+            if pub and internal.startswith(pub):
+                internal = _ds_internal() + internal[len(pub) :]
+                break
+        fr = await client.get(internal)
+        fr.raise_for_status()
+        return fr.content
+
+
+@router.get("/docbuilder-selftest")
+async def docbuilder_selftest(mode: str = "sync", _p=Depends(require_principal)):
+    """Layer 1 docbuilder probe — dumps the RAW response so we can see where the
+    v9.4.0 embedded converter puts the output URL."""
+    script = (
+        'builder.CreateFile("docx");'
+        "var oDocument = Api.GetDocument();"
+        "var oParagraph = Api.CreateParagraph();"
+        'oParagraph.AddText("docbuilder works");'
+        "oDocument.Push(oParagraph);"
+        'builder.SaveFile("docx", "output.docx");'
+        "builder.CloseFile();"
+    )
+    url = _host_script(script)
+    is_async = mode == "async"
+    token = jwt.encode(
+        {"payload": {"async": is_async, "url": url}}, _jwt_secret(), algorithm="HS256"
+    )
+    out = []
+    async with httpx.AsyncClient(timeout=60) as client:
+        for _ in range(6):
+            r = await client.post(
+                f"{_ds_internal()}/docbuilder",
+                json={"async": is_async, "url": url},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            data = r.json()
+            out.append(data)
+            if not is_async or data.get("end"):
+                break
+            import asyncio
+
+            await asyncio.sleep(1)
+    return {"mode": mode, "responses": out}
+
+
+@router.get("/office-selftest")
+async def office_selftest(conversation_id: str, _p=Depends(require_principal)):
+    """Prove the WORKING office stack in-process: code-gen (openpyxl/python-docx)
+    produces valid files, and Layer 3 conversion round-trips through the real DS.
+    (Layer 1 docbuilder is disabled — it crashes in this DS image.)"""
+    import io
+    import zipfile
+
+    import docx
+    import openpyxl
+
+    out: dict = {}
+    docx_bytes = _blank_ooxml("docx") or b""
+    xlsx_bytes = _blank_ooxml("xlsx") or b""
+    out["codegen"] = {
+        "docx_bytes": len(docx_bytes),
+        "docx_valid": docx.Document(io.BytesIO(docx_bytes)) is not None,
+        "xlsx_bytes": len(xlsx_bytes),
+        "xlsx_valid": openpyxl.load_workbook(io.BytesIO(xlsx_bytes)) is not None,
+    }
+    try:
+        src = _signed_file_url(conversation_id, "pages/analysis.csv")
+        data = await _convert_ds(src, "csv", "xlsx")
+        z = zipfile.ZipFile(io.BytesIO(data))
+        out["conversion"] = {"ok": True, "bytes": len(data), "valid_xlsx": z.testzip() is None}
+    except Exception as exc:  # noqa: BLE001
+        out["conversion"] = {"ok": False, "error": str(exc)}
+    return out
+
+
+# ── Office generation (code-gen) + workspace write — the agent-facing Layer 1 ──
+def _gen_findings_xlsx(findings: list[dict], sheet_name: str, color: bool) -> bytes:
+    import io
+
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = sheet_name[:31] or "Findings"
+    headers = ["Severity", "Title", "Resource", "Control", "Status"]
+    ws.append(headers)
+    for col in range(1, len(headers) + 1):
+        c = ws.cell(1, col)
+        c.font = Font(bold=True, color="FFFFFF")
+        c.fill = PatternFill("solid", fgColor="1F2E46")
+    sev_fill = {"CRITICAL": "B4202A", "HIGH": "F85149", "MEDIUM": "D9A020", "LOW": "3FB950"}
+    for f in findings:
+        ws.append([
+            f.get("severity", ""), f.get("title", ""), f.get("resource", ""),
+            f.get("control", ""), f.get("status", "open"),
+        ])
+        if color:
+            fill = sev_fill.get(str(f.get("severity", "")).upper())
+            if fill:
+                ws.cell(ws.max_row, 1).fill = PatternFill("solid", fgColor=fill)
+                ws.cell(ws.max_row, 1).font = Font(bold=True, color="FFFFFF")
+    for i, w in enumerate((12, 46, 34, 12, 10), 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
+    ws.freeze_panes = "A2"
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _gen_report_docx(title: str, blocks: list[dict]) -> bytes:
+    import io
+
+    import docx
+
+    d = docx.Document()
+    if title:
+        d.add_heading(title, 0)
+    for b in blocks:
+        kind = b.get("type")
+        if kind == "heading":
+            d.add_heading(b.get("text", ""), int(b.get("level", 1)))
+        elif kind == "paragraph":
+            d.add_paragraph(b.get("text", ""))
+        elif kind == "bullet":
+            for item in b.get("items", []):
+                d.add_paragraph(str(item), style="List Bullet")
+        elif kind == "table":
+            rows = b.get("rows", [])
+            if rows:
+                t = d.add_table(rows=len(rows), cols=len(rows[0]))
+                t.style = "Light Grid Accent 1"
+                for ri, row in enumerate(rows):
+                    for ci, val in enumerate(row):
+                        t.cell(ri, ci).text = str(val)
+    buf = io.BytesIO()
+    d.save(buf)
+    return buf.getvalue()
+
+
+async def _write_workspace_file(cid: str, path: str, data: bytes) -> str:
+    """Write bytes to a conversation's workspace (creating parent dirs). Returns
+    the absolute sandbox path."""
+    norm = os.path.normpath(path)
+    if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
+        raise HTTPException(status_code=400, detail="invalid path")
+    from openhands.server.shared import conversation_manager
+
+    conv = None
+    try:
+        conv = await conversation_manager.attach_to_conversation(cid, None)
+        if conv is None:
+            raise HTTPException(status_code=404, detail="conversation not running")
+        runtime = conv.runtime
+        full = os.path.join(runtime.config.workspace_mount_path_in_sandbox, norm)
+        cname = getattr(runtime, "container_name", None)
+        if cname:
+            import docker as _docker
+
+            c = _docker.from_env().containers.get(cname)
+            parent = os.path.dirname(full)
+            if parent:
+                c.exec_run(["mkdir", "-p", parent])
+        _write_sandbox_file(runtime, full, data)
+        return full
+    finally:
+        if conv is not None:
+            try:
+                await conversation_manager.detach_from_conversation(conv)
+            except Exception:  # noqa: BLE001
+                pass
+
+
+class SheetRequest(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    findings: list[dict] = Field(default_factory=list)
+    sheetName: str = Field(default="Findings", max_length=64)
+    colorCoding: bool = True
+
+
+class DocRequest(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    title: str = Field(default="", max_length=256)
+    blocks: list[dict] = Field(default_factory=list)
+
+
+class ConvertRequest(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)  # source, workspace-relative
+    outputPath: str = Field(..., max_length=4096)
+    fromType: str = Field(..., max_length=16)
+    toType: str = Field(..., max_length=16)
+
+
+@router.post("/office/sheet")
+async def office_sheet(body: SheetRequest, _p=Depends(require_principal)):
+    """Layer 1 (code-gen): write structured findings into a color-coded .xlsx."""
+    data = _gen_findings_xlsx(body.findings, body.sheetName, body.colorCoding)
+    full = await _write_workspace_file(body.conversationId, body.path, data)
+    return {"path": full, "bytes": len(data), "rows": len(body.findings)}
+
+
+@router.post("/office/doc")
+async def office_doc(body: DocRequest, _p=Depends(require_principal)):
+    """Layer 1 (code-gen): build a styled .docx report from structured blocks."""
+    data = _gen_report_docx(body.title, body.blocks)
+    full = await _write_workspace_file(body.conversationId, body.path, data)
+    return {"path": full, "bytes": len(data), "blocks": len(body.blocks)}
+
+
+@router.post("/office/convert")
+async def office_convert(body: ConvertRequest, _p=Depends(require_principal)):
+    """Layer 3: convert a workspace file to another format via the DS."""
+    src = _signed_file_url(body.conversationId, body.path)
+    data = await _convert_ds(src, body.fromType.lstrip("."), body.toType.lstrip("."))
+    full = await _write_workspace_file(body.conversationId, body.outputPath, data)
+    return {"path": full, "bytes": len(data), "from": body.fromType, "to": body.toType}
+
+
+@router.get("/script")
+async def serve_script(id: str, exp: int, sig: str) -> Response:
+    """Serve a docbuilder script to the ONLYOFFICE container (HMAC-signed, no session)."""
+    now = int(time.time())
+    if exp < now:
+        raise HTTPException(status_code=403, detail="link expired")
+    if not hmac.compare_digest(sig, _script_sig(id, exp)):
+        raise HTTPException(status_code=403, detail="bad signature")
+    entry = _SCRIPT_STORE.get(id)
+    if entry is None or entry[1] < now:
+        _SCRIPT_STORE.pop(id, None)
+        raise HTTPException(status_code=404, detail="script not found")
+    return Response(content=entry[0], media_type="application/javascript")
+
+
+async def _docbuilder_build(script: str, timeout: float = 60.0) -> bytes:
+    """Run an Office JS builder script headlessly on the DS; return the result bytes.
+
+    The script MUST call builder.SaveFile(...) — the DS returns that file's cache
+    URL, which we download (rewriting the public host to the DS-internal host so
+    the app can reach it)."""
+    script_url = _host_script(script)
+    token = jwt.encode(
+        {"payload": {"async": False, "url": script_url}},
+        _jwt_secret(),
+        algorithm="HS256",
+    )
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(
+            f"{_ds_internal()}/docbuilder",
+            json={"async": False, "url": script_url},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("error"):
+            raise RuntimeError(f"docbuilder error {data.get('error')}")
+        file_url = data.get("fileUrl") or (data.get("urls") or {}).get("output")
+        if not file_url:
+            raise RuntimeError(f"docbuilder returned no fileUrl: {data}")
+        # The DS emits its PUBLIC host (localhost); swap to the internal host so the
+        # app can fetch it.
+        internal = file_url
+        for pub in (_document_server_url(), "http://localhost", "https://localhost"):
+            if pub and internal.startswith(pub):
+                internal = _ds_internal() + internal[len(pub) :]
+                break
+        fr = await client.get(internal)
+        fr.raise_for_status()
+        return fr.content
+
+
+# File types we can seed with a minimal valid template when a scratch surface
+# opens a path that doesn't exist yet. Text types are trivial; docx/xlsx are built
+# in-memory as minimal-but-valid OOXML so ONLYOFFICE opens a clean blank document.
+_SEEDABLE_TEXT = {"csv", "txt"}
+_SEEDABLE_OOXML = {"docx", "xlsx"}
+
+_NS_CT = "http://schemas.openxmlformats.org/package/2006/content-types"
+_NS_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
+_NS_OFFICE_DOC = (
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument"
+)
+
+
+def _blank_ooxml(ext: str) -> bytes | None:
+    """A guaranteed-valid empty .docx / .xlsx, generated with python-docx /
+    openpyxl (standard OOXML that ONLYOFFICE opens identically). This replaces an
+    earlier hand-rolled minimal package, which the Document Server could reject."""
+    import io
+
+    if ext == "docx":
+        import docx
+
+        buf = io.BytesIO()
+        docx.Document().save(buf)
+        return buf.getvalue()
+    if ext == "xlsx":
+        import openpyxl
+
+        buf = io.BytesIO()
+        openpyxl.Workbook().save(buf)
+        return buf.getvalue()
+    return None
+
+
+async def _ensure_seed_file(cid: str, path: str, ext: str) -> None:
+    """Create `path` with minimal valid content if it doesn't exist (text +
+    docx/xlsx). Best-effort — never blocks token issuance."""
+    if ext not in _SEEDABLE_TEXT and ext not in _SEEDABLE_OOXML:
+        return
+    norm = os.path.normpath(path)
+    if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
+        return
+
+    from openhands.server.shared import conversation_manager
+
+    conv = None
+    try:
+        conv = await conversation_manager.attach_to_conversation(cid, None)
+        if conv is None:
+            return
+        runtime = conv.runtime
+        cname = getattr(runtime, "container_name", None)
+        if not cname:
+            return
+        full = os.path.join(runtime.config.workspace_mount_path_in_sandbox, norm)
+        import docker as _docker
+
+        c = _docker.from_env().containers.get(cname)
+        code, _ = c.exec_run(["test", "-f", full])
+        if code == 0:
+            return  # already exists — nothing to seed
+        if ext == "csv":
+            content: bytes | None = b"\n"  # opens as a clean empty grid
+        elif ext == "txt":
+            content = b""
+        else:
+            content = _blank_ooxml(ext)  # docx / xlsx
+        if content is None:
+            return
+        parent = os.path.dirname(full)
+        if parent:
+            c.exec_run(["mkdir", "-p", parent])
+        _write_sandbox_file(runtime, full, content)
+        logger.info("onlyoffice: seeded missing scratch file %s (cid=%s)", norm, cid)
+    except Exception as exc:  # noqa: BLE001 — seeding is best-effort
+        logger.warning("onlyoffice seed failed for %s: %s", path, exc)
+    finally:
+        if conv is not None:
+            try:
+                await conversation_manager.detach_from_conversation(conv)
+            except Exception:  # noqa: BLE001
+                pass
+
+
 @router.post("/token")
 async def create_token(
     body: TokenRequest,
@@ -436,6 +857,11 @@ async def create_token(
         # Explicit URL: no sandbox file to fingerprint → a unique session each time.
         doc_key = _make_key()
     elif body.conversationId and body.filePath:
+        # A scratch surface (e.g. the Canvas Sheet) opens a FIXED workspace path
+        # that may not exist yet on a fresh conversation. Without the file, the
+        # Document Server's download fails with "Download failed". Seed a minimal
+        # valid file for text types so the editor opens a blank sheet instead.
+        await _ensure_seed_file(body.conversationId, body.filePath, ext)
         file_url = _signed_file_url(body.conversationId, body.filePath)
         # FRESH key per open. A stable content-fingerprint key (the old A1 opt) made
         # the Document Server resurrect a prior editing session on page reload and
