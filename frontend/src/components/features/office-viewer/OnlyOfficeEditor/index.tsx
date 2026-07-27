@@ -1,8 +1,9 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { DocumentEditor } from "@onlyoffice/document-editor-react";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import { openHands } from "#/api/open-hands-axios";
+import { useOnlyOfficeLive } from "./use-onlyoffice-live";
 
 /**
  * OnlyOfficeEditor — embeds the self-hosted ONLYOFFICE document server to view or
@@ -82,6 +83,15 @@ function OnlyOfficeEditor({
   const rawId = React.useId();
   const editorId = `onlyoffice-editor-${rawId.replace(/[^a-zA-Z0-9_-]/g, "")}`;
 
+  // Layer 2: live agent co-pilot for THIS editor (best-effort; degrades to
+  // headless when unavailable — see use-onlyoffice-live).
+  const { onDocumentReady, agentWorking } = useOnlyOfficeLive(
+    editorId,
+    conversationId,
+    filePath,
+    fileType,
+  );
+
   React.useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
@@ -160,11 +170,39 @@ function OnlyOfficeEditor({
   };
 
   return (
-    <div style={{ height, width }}>
+    <div style={{ height, width, position: "relative" }}>
+      {agentWorking && (
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            right: 14,
+            zIndex: 30,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "4px 10px",
+            borderRadius: 999,
+            fontSize: 12,
+            fontWeight: 600,
+            color: "var(--cg-text-primary)",
+            background: "var(--cg-accent-purple-bg)",
+            border: "1px solid var(--cg-accent-purple)",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.15)",
+          }}
+        >
+          <Sparkles
+            className="h-3.5 w-3.5"
+            style={{ animation: "pulse 1.2s infinite" }}
+          />
+          Agent is working…
+        </div>
+      )}
       <DocumentEditor
         id={editorId}
         documentServerUrl={serverUrl}
         config={editorConfig}
+        events_onDocumentReady={() => onDocumentReady()}
         events_onDocumentStateChange={(event) => {
           // event.data === true → the document has unsaved changes.
           // eslint-disable-next-line no-console

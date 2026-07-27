@@ -689,6 +689,24 @@ async def office_doc(body: DocRequest, _p=Depends(require_principal)):
     return {"path": full, "bytes": len(data), "blocks": len(body.blocks)}
 
 
+class LiveCmdRequest(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    op: str = Field(..., max_length=32)
+    args: dict = Field(default_factory=dict)
+    timeout: float = Field(default=3.0, ge=0.1, le=10.0)
+
+
+@router.post("/office/live")
+async def office_live(body: LiveCmdRequest, _p=Depends(require_principal)):
+    """Layer 2: send a live command to the analyst's open editor. Returns
+    {"live": True, ...} if it executed there, or {"live": False, "reason": ...} so
+    the agent knows to fall back (the file isn't open / the tab went away)."""
+    return await live_send(
+        body.conversationId, body.path, body.op, body.args, timeout=body.timeout
+    )
+
+
 @router.post("/office/convert")
 async def office_convert(body: ConvertRequest, _p=Depends(require_principal)):
     """Layer 3: convert a workspace file to another format via the DS."""
@@ -696,6 +714,170 @@ async def office_convert(body: ConvertRequest, _p=Depends(require_principal)):
     data = await _convert_ds(src, body.fromType.lstrip("."), body.toType.lstrip("."))
     full = await _write_workspace_file(body.conversationId, body.outputPath, data)
     return {"path": full, "bytes": len(data), "from": body.fromType, "to": body.toType}
+
+
+# ── Layer 2: live editor co-pilot — session registry + command channel ────────
+# Robustness model: Layer 2 is best-effort live sugar over the reliable Layer 1
+# floor. Every measure below exists so a live command can NEVER hard-fail — it
+# either executes in the open editor or the caller falls back to headless.
+#
+#   * Session registry with heartbeat TTL  → no "ghost" editors; a closed/crashed
+#     tab expires and the router silently routes headless.
+#   * Command envelope + ack + timeout      → a dropped socket / closed tab / macro
+#     error all resolve to a clean fallback, never a hang.
+#   * Keyed by (conversation, path)         → strict isolation; a command can only
+#     reach that conversation's editor, never another user's.
+#   * Bounded per-session queue (drop-oldest)→ an agent that floods commands can't
+#     unbound memory.
+import asyncio as _asyncio
+import uuid as _uuid
+
+_LIVE_TTL = 25.0  # seconds since last heartbeat before an editor is "closed"
+_LIVE_MAX_QUEUE = 50  # per-session command backlog cap (drop-oldest)
+# (conversation, norm_path) -> {"editor_id", "tab", "ts"}
+_LIVE_SESSIONS: dict[tuple[str, str], dict] = {}
+# (conversation, norm_path) -> list[envelope]
+_LIVE_QUEUE: dict[tuple[str, str], list[dict]] = {}
+# cmd_id -> {"ok": bool, "result": ..., "error": ...}
+_LIVE_ACKS: dict[str, dict] = {}
+
+
+def _live_key(cid: str, path: str) -> tuple[str, str]:
+    return (cid, os.path.normpath(path or ""))
+
+
+def _live_is_open(cid: str, path: str) -> bool:
+    s = _LIVE_SESSIONS.get(_live_key(cid, path))
+    return bool(s) and (time.time() - s["ts"] < _LIVE_TTL)
+
+
+def _live_prune() -> None:
+    now = time.time()
+    for k, s in list(_LIVE_SESSIONS.items()):
+        if now - s["ts"] >= _LIVE_TTL:
+            _LIVE_SESSIONS.pop(k, None)
+            _LIVE_QUEUE.pop(k, None)
+
+
+class LiveRegister(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    filePath: str = Field(..., max_length=4096)
+    editorId: str = Field(..., max_length=128)
+    tab: str = Field(default="", max_length=64)
+
+
+@router.post("/live/register")
+async def live_register(body: LiveRegister, _p=Depends(require_principal)):
+    """Frontend registers an OPEN editor (after onDocumentReady) so the agent can
+    target it live. Refreshed by /live/heartbeat."""
+    _live_prune()
+    _LIVE_SESSIONS[_live_key(body.conversationId, body.filePath)] = {
+        "editor_id": body.editorId,
+        "tab": body.tab,
+        "ts": time.time(),
+    }
+    return {"registered": True}
+
+
+class LiveRef(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    filePath: str = Field(..., max_length=4096)
+
+
+@router.post("/live/heartbeat")
+async def live_heartbeat(body: LiveRef, _p=Depends(require_principal)):
+    """Keep-alive — misses expire the session (TTL) so the router goes headless."""
+    s = _LIVE_SESSIONS.get(_live_key(body.conversationId, body.filePath))
+    if s is not None:
+        s["ts"] = time.time()
+        return {"alive": True}
+    return {"alive": False}  # frontend should re-register
+
+
+@router.get("/live/poll")
+async def live_poll(
+    conversation_id: str, path: str, _p=Depends(require_principal)
+):
+    """Frontend pulls pending live commands for its open editor + refreshes the
+    heartbeat in the same call. Returns [] when idle."""
+    key = _live_key(conversation_id, path)
+    s = _LIVE_SESSIONS.get(key)
+    if s is not None:
+        s["ts"] = time.time()  # poll doubles as heartbeat
+    cmds = _LIVE_QUEUE.pop(key, [])
+    return {"commands": cmds}
+
+
+class LiveAck(BaseModel):
+    id: str = Field(..., max_length=64)
+    ok: bool = True
+    result: dict | None = None
+    error: str | None = None
+
+
+@router.post("/live/ack")
+async def live_ack(body: LiveAck, _p=Depends(require_principal)):
+    """Frontend reports a command's execution result; unblocks the waiting tool."""
+    _LIVE_ACKS[body.id] = {"ok": body.ok, "result": body.result, "error": body.error}
+    return {"received": True}
+
+
+@router.post("/live/deregister")
+async def live_deregister(body: LiveRef, _p=Depends(require_principal)):
+    key = _live_key(body.conversationId, body.filePath)
+    _LIVE_SESSIONS.pop(key, None)
+    _LIVE_QUEUE.pop(key, None)
+    return {"deregistered": True}
+
+
+async def live_send(
+    cid: str, path: str, op: str, args: dict, timeout: float = 3.0
+) -> dict:
+    """Send a live command to an open editor and await its ack. Returns
+    {"live": True, "ok": ..., "result"/"error": ...} when it reached the editor,
+    or {"live": False, "reason": ...} so the caller falls back to Layer 1.
+
+    Never raises for the not-live case — falling back is the normal path."""
+    if not _live_is_open(cid, path):
+        return {"live": False, "reason": "editor not open"}
+    key = _live_key(cid, path)
+    cmd_id = _uuid.uuid4().hex
+    envelope = {"id": cmd_id, "op": op, "args": args, "ts": time.time()}
+    q = _LIVE_QUEUE.setdefault(key, [])
+    q.append(envelope)
+    if len(q) > _LIVE_MAX_QUEUE:  # drop-oldest backpressure
+        del q[: len(q) - _LIVE_MAX_QUEUE]
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        ack = _LIVE_ACKS.pop(cmd_id, None)
+        if ack is not None:
+            return {"live": True, **ack}
+        await _asyncio.sleep(0.05)
+    # timed out — the tab likely closed mid-flight; drop the command + go headless
+    try:
+        _LIVE_QUEUE.get(key, []).remove(envelope)
+    except ValueError:
+        pass
+    return {"live": False, "reason": "timeout"}
+
+
+@router.get("/live/status")
+async def live_status(_p=Depends(require_principal)):
+    """Observability: current open editors + queue depths."""
+    _live_prune()
+    now = time.time()
+    return {
+        "sessions": [
+            {
+                "conversation": k[0],
+                "path": k[1],
+                "tab": s["tab"],
+                "age_s": round(now - s["ts"], 1),
+                "queued": len(_LIVE_QUEUE.get(k, [])),
+            }
+            for k, s in _LIVE_SESSIONS.items()
+        ]
+    }
 
 
 @router.get("/script")
