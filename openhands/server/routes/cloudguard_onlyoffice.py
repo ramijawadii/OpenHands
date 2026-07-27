@@ -574,67 +574,15 @@ async def office_selftest(conversation_id: str, _p=Depends(require_principal)):
 
 # ── Office generation (code-gen) + workspace write — the agent-facing Layer 1 ──
 def _gen_findings_xlsx(findings: list[dict], sheet_name: str, color: bool) -> bytes:
-    import io
+    from cloudguard.office import generate
 
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill
-
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = sheet_name[:31] or "Findings"
-    headers = ["Severity", "Title", "Resource", "Control", "Status"]
-    ws.append(headers)
-    for col in range(1, len(headers) + 1):
-        c = ws.cell(1, col)
-        c.font = Font(bold=True, color="FFFFFF")
-        c.fill = PatternFill("solid", fgColor="1F2E46")
-    sev_fill = {"CRITICAL": "B4202A", "HIGH": "F85149", "MEDIUM": "D9A020", "LOW": "3FB950"}
-    for f in findings:
-        ws.append([
-            f.get("severity", ""), f.get("title", ""), f.get("resource", ""),
-            f.get("control", ""), f.get("status", "open"),
-        ])
-        if color:
-            fill = sev_fill.get(str(f.get("severity", "")).upper())
-            if fill:
-                ws.cell(ws.max_row, 1).fill = PatternFill("solid", fgColor=fill)
-                ws.cell(ws.max_row, 1).font = Font(bold=True, color="FFFFFF")
-    for i, w in enumerate((12, 46, 34, 12, 10), 1):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = w
-    ws.freeze_panes = "A2"
-    buf = io.BytesIO()
-    wb.save(buf)
-    return buf.getvalue()
+    return generate.findings_workbook(findings, sheet_name)
 
 
 def _gen_report_docx(title: str, blocks: list[dict]) -> bytes:
-    import io
+    from cloudguard.office import generate
 
-    import docx
-
-    d = docx.Document()
-    if title:
-        d.add_heading(title, 0)
-    for b in blocks:
-        kind = b.get("type")
-        if kind == "heading":
-            d.add_heading(b.get("text", ""), int(b.get("level", 1)))
-        elif kind == "paragraph":
-            d.add_paragraph(b.get("text", ""))
-        elif kind == "bullet":
-            for item in b.get("items", []):
-                d.add_paragraph(str(item), style="List Bullet")
-        elif kind == "table":
-            rows = b.get("rows", [])
-            if rows:
-                t = d.add_table(rows=len(rows), cols=len(rows[0]))
-                t.style = "Light Grid Accent 1"
-                for ri, row in enumerate(rows):
-                    for ci, val in enumerate(row):
-                        t.cell(ri, ci).text = str(val)
-    buf = io.BytesIO()
-    d.save(buf)
-    return buf.getvalue()
+    return generate.build_document(title, blocks)
 
 
 async def _write_workspace_file(cid: str, path: str, data: bytes) -> str:
