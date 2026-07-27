@@ -44,6 +44,26 @@ logger = logging.getLogger("openhands")
 
 router = APIRouter(prefix="/api/onlyoffice")
 
+# Internal token for sandbox→app office calls (office_convert / office_live). The
+# agent's runtime is a trusted first party, but its calls carry no console session,
+# so require_principal would reject them. We mint a per-process token here and
+# forward it to each runtime's env (docker_runtime), so the sandbox tool can prove
+# it's ours. Overridable via CLOUDGUARD_OFFICE_TOKEN; never a hardcoded secret.
+os.environ.setdefault("CLOUDGUARD_OFFICE_TOKEN", secrets.token_hex(16))
+
+
+async def _principal_or_internal(
+    x_cloudguard_internal: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
+):
+    """Accept EITHER a valid console principal OR the internal office token (used by
+    the sandbox MCP tools). Falls back to require_principal so browser calls are
+    unaffected."""
+    tok = os.environ.get("CLOUDGUARD_OFFICE_TOKEN", "")
+    if tok and x_cloudguard_internal and hmac.compare_digest(x_cloudguard_internal, tok):
+        return {"id": "agent", "internal": True}
+    return await require_principal(authorization=authorization)
+
 
 # ── config ───────────────────────────────────────────────────────────────────
 def _jwt_secret() -> str:
@@ -698,7 +718,7 @@ class LiveCmdRequest(BaseModel):
 
 
 @router.post("/office/live")
-async def office_live(body: LiveCmdRequest, _p=Depends(require_principal)):
+async def office_live(body: LiveCmdRequest, _p=Depends(_principal_or_internal)):
     """Layer 2: send a live command to the analyst's open editor. Returns
     {"live": True, ...} if it executed there, or {"live": False, "reason": ...} so
     the agent knows to fall back (the file isn't open / the tab went away)."""
@@ -708,7 +728,7 @@ async def office_live(body: LiveCmdRequest, _p=Depends(require_principal)):
 
 
 @router.post("/office/convert")
-async def office_convert(body: ConvertRequest, _p=Depends(require_principal)):
+async def office_convert(body: ConvertRequest, _p=Depends(_principal_or_internal)):
     """Layer 3: convert a workspace file to another format via the DS."""
     src = _signed_file_url(body.conversationId, body.path)
     data = await _convert_ds(src, body.fromType.lstrip("."), body.toType.lstrip("."))

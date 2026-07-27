@@ -494,6 +494,10 @@ class DockerRuntime(ActionExecutionClient):
                 # staged edit-approvals / clarifications to THIS session (the chat
                 # banner filters by it). Matches the frontend URL conversationId.
                 'CLOUDGUARD_CONVERSATION_ID': str(self.sid),
+                # Internal token so the sandbox office MCP tools can call the app's
+                # /office/{convert,live} endpoints (minted per-process in
+                # cloudguard_onlyoffice; forwarded here so app + runtime match).
+                'CLOUDGUARD_OFFICE_TOKEN': os.environ.get('CLOUDGUARD_OFFICE_TOKEN', ''),
             }
         )
         if self.config.debug or DEBUG:
