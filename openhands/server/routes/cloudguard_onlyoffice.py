@@ -36,7 +36,7 @@ from urllib.parse import quote, urlencode
 import httpx
 import jwt
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from openhands.server.routes.cloudguard_principal import require_principal
@@ -813,6 +813,19 @@ def _live_savelock_acquire(cid: str, path: str, holder: str, ms: int = 10000) ->
         return True
 
 
+def _live_publish_wake(cid: str, path: str) -> None:
+    """Sub-second latency: publish a wake so an open SSE stream for this shard reads
+    the queue immediately (instead of waiting for the next poll). No Redis → no-op
+    (the plugin's 1 s poll still delivers)."""
+    r = _redis()
+    if not r:
+        return
+    try:
+        r.publish(f"cg:live:evt:{_live_shard(cid, path)}", "1")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _live_savelock_release(cid: str, path: str, holder: str) -> None:
     r = _redis()
     if not r:
@@ -1094,6 +1107,7 @@ async def live_send(
     q.append(envelope)
     if len(q) > _LIVE_MAX_QUEUE:  # drop-oldest backpressure
         del q[: len(q) - _LIVE_MAX_QUEUE]
+    _live_publish_wake(cid, path)  # sub-second: wake any open SSE stream for this shard
     deadline = time.time() + timeout
     while time.time() < deadline:
         ack = _LIVE_ACKS.pop(cmd_id, None)
@@ -1321,6 +1335,68 @@ def _live_record_ack(cid: str, path: str, id: str, ok: bool, result, error: str)
     if q:
         _LIVE_QUEUE[key] = [e for e in q if e.get("id") != id]
     _LIVE_ACKS[id] = {"ok": bool(ok), "result": result, "error": (error or None)}
+
+
+@router.get("/live/plugin-stream")
+async def live_plugin_stream(cid: str, path: str, sig: str, conn: str = "", seat: str = "edit"):
+    """Public (shard-signed): SSE push for sub-second delivery. Holds the connection,
+    subscribes to the shard's Redis wake channel, and emits `event: cmd` frames the
+    instant office_live enqueues. The plugin keeps its 1 s poll as a fallback and
+    dedups by id, so SSE + poll never double-execute. No Redis → 200 ms fast-check."""
+    import json as _json
+
+    _live_verify_shard(cid, path, sig)
+    key = _live_key(cid, path)
+
+    async def gen():
+        r = _redis()
+        ps = None
+        if r:
+            try:
+                ps = r.pubsub(ignore_subscribe_messages=True)
+                ps.subscribe(f"cg:live:evt:{_live_shard(cid, path)}")
+            except Exception:  # noqa: BLE001
+                ps = None
+        _LIVE_SESSIONS[key] = {"editor_id": conn or "plugin", "tab": "", "ts": time.time()}
+        _live_presence_touch(cid, path, conn, seat)
+        yield ": connected\n\n"
+        sent: set[str] = set()
+        last_ka = time.time()
+        try:
+            while True:
+                for e in list(_LIVE_QUEUE.get(key, [])):
+                    eid = e.get("id")
+                    if eid and eid not in sent:
+                        sent.add(eid)
+                        yield f"event: cmd\ndata: {_json.dumps(e)}\n\n"
+                s = _LIVE_SESSIONS.get(key)
+                if s is not None:
+                    s["ts"] = time.time()  # stream doubles as heartbeat
+                _live_presence_touch(cid, path, conn, seat)
+                woke = False
+                if ps:
+                    try:
+                        msg = await _asyncio.to_thread(ps.get_message, timeout=1.0)
+                        woke = bool(msg)
+                    except Exception:  # noqa: BLE001
+                        await _asyncio.sleep(0.2)
+                else:
+                    await _asyncio.sleep(0.2)  # no redis → fast server-side check
+                if not woke and time.time() - last_ka > 15:
+                    yield ": ka\n\n"
+                    last_ka = time.time()
+        finally:
+            try:
+                if ps:
+                    ps.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+    resp = StreamingResponse(gen(), media_type="text/event-stream")
+    resp.headers["Access-Control-Allow-Origin"] = "*"
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"  # don't let a proxy buffer the stream
+    return resp
 
 
 @router.get("/live/plugin-ack")
