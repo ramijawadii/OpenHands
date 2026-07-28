@@ -75,8 +75,21 @@ def _jwt_secret() -> str:
 
 
 def _document_server_url() -> str:
-    """Public origin the browser loads the editor JS from (published :80)."""
-    return os.environ.get("ONLYOFFICE_SERVER_URL", "http://localhost").rstrip("/")
+    """Public origin the browser loads the editor JS from. To make the editor
+    FIRST-PARTY (same-origin as the app → service worker + co-authoring + save-back
+    work), point this at the same-origin gateway. Env wins; else a marker file
+    (toggle without recreating the container); else the published DS :80."""
+    v = os.environ.get("ONLYOFFICE_SERVER_URL")
+    if v:
+        return v.rstrip("/")
+    try:
+        with open(os.environ.get("CLOUDGUARD_DS_URL_FILE", "/app/.cloudguard_ds_url")) as fh:
+            u = fh.read().strip()
+            if u:
+                return u.rstrip("/")
+    except Exception:  # noqa: BLE001
+        pass
+    return "http://localhost"
 
 
 def _uploads_dir() -> Path:
@@ -1624,6 +1637,40 @@ async def live_dev_enqueue(cid: str, path: str, op: str = "highlight",
     return res
 
 
+@router.get("/dev-harness", response_class=Response)
+async def dev_harness(cid: str, path: str):
+    """Dev-only same-origin editor harness (served by the app → reachable through the
+    gateway at its origin). Lets us drive the REAL editor headless to debug save-back
+    without the browser dance. Gated by live-enabled."""
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="not enabled")
+    import json as _json
+
+    html = (
+        "<!DOCTYPE html><html><head><meta charset='utf-8'><title>harness</title>"
+        "<style>#log{position:fixed;right:0;top:0;width:40vw;height:100vh;overflow:auto;"
+        "background:#111;color:#0f0;font:11px monospace;white-space:pre-wrap;padding:6px;z-index:9}</style>"
+        "</head><body><div id='editor'></div><div id='log'></div><script>"
+        "var CID=" + _json.dumps(cid) + ",P=" + _json.dumps(path) + ";window.__ready=false;window.__err=null;"
+        "function log(m){var d=document.createElement('div');d.textContent=m;document.getElementById('log').appendChild(d);}"
+        "(async function(){"
+        "var r=await fetch('/api/onlyoffice/token',{method:'POST',headers:{'Content-Type':'application/json'},"
+        "body:JSON.stringify({conversationId:CID,filePath:P,fileName:P.split('/').pop(),fileType:P.split('.').pop(),mode:'edit'})});"
+        "var t=await r.json();log('token dsUrl='+t.documentServerUrl);"
+        "await new Promise(function(res,rej){var s=document.createElement('script');"
+        "s.src=t.documentServerUrl+'/web-apps/apps/api/documents/api.js';s.onload=res;s.onerror=rej;document.head.appendChild(s);});"
+        "log('DocsAPI loaded');var cfg=Object.assign({},t.config,{token:t.token,width:'100%',height:'100%'});"
+        "cfg.events={onDocumentReady:function(){log('onDocumentReady');window.__ready=true;},"
+        "onError:function(e){log('EDITOR ERROR '+JSON.stringify(e&&e.data));window.__err=JSON.stringify(e&&e.data);}};"
+        "window.docEditor=new DocsAPI.DocEditor('editor',cfg);"
+        "})().catch(function(e){log('HARNESS ERR '+e);window.__err=String(e);});"
+        "</script></body></html>"
+    )
+    r = Response(content=html, media_type="text/html")
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
 @router.get("/live/dev-save")
 async def live_dev_save(cid: str, path: str):
     if not _live_enabled():
@@ -1859,7 +1906,7 @@ async def create_token(
         config["editorConfig"]["plugins"] = {
             "autostart": [_LIVE_PLUGIN_GUID],
             "pluginsData": [
-                f"{_document_server_url()}/sdkjs-plugins/id-live/config.json"
+                f"{_document_server_url()}/sdkjs-plugins/id-live-v2/config.json"
             ],
         }
 
