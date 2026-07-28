@@ -709,6 +709,14 @@ _LIVE_SESSIONS: dict[tuple[str, str], dict] = {}
 _LIVE_QUEUE: dict[tuple[str, str], list[dict]] = {}
 # cmd_id -> {"ok": bool, "result": ..., "error": ...}
 _LIVE_ACKS: dict[str, dict] = {}
+# (conversation, norm_path) -> monotonically increasing per-shard sequence number.
+# M2: seq gives the plugin gap/reorder detection across reconnects; envelopes carry
+# a version so the protocol can evolve. Delivery is at-least-once (poll returns the
+# queue WITHOUT popping — see live_plugin_poll) + idempotent (the plugin dedups by
+# id and re-acks) → a dropped poll response or lost ack never loses/duplicates an
+# effect. A command leaves the queue only on ack (live_plugin_ack) or send-timeout.
+_LIVE_SEQ: dict[tuple[str, str], int] = {}
+_LIVE_PROTO_V = 1
 
 
 def _live_key(cid: str, path: str) -> tuple[str, str]:
@@ -811,7 +819,17 @@ async def live_send(
         return {"live": False, "reason": "editor not open"}
     key = _live_key(cid, path)
     cmd_id = _uuid.uuid4().hex
-    envelope = {"id": cmd_id, "op": op, "args": args, "ts": time.time()}
+    seq = _LIVE_SEQ.get(key, 0) + 1
+    _LIVE_SEQ[key] = seq
+    envelope = {
+        "v": _LIVE_PROTO_V,
+        "id": cmd_id,
+        "seq": seq,
+        "op": op,
+        "args": args,
+        "ts": time.time(),
+        "deadline_ms": int(timeout * 1000),
+    }
     q = _LIVE_QUEUE.setdefault(key, [])
     q.append(envelope)
     if len(q) > _LIVE_MAX_QUEUE:  # drop-oldest backpressure
@@ -822,7 +840,8 @@ async def live_send(
         if ack is not None:
             return {"live": True, **ack}
         await _asyncio.sleep(0.05)
-    # timed out — the tab likely closed mid-flight; drop the command + go headless
+    # timed out — the tab likely closed mid-flight; drop the command so it can't
+    # redeliver after the caller has already fallen back to headless.
     try:
         _LIVE_QUEUE.get(key, []).remove(envelope)
     except ValueError:
@@ -1027,14 +1046,22 @@ async def live_plugin_poll(cid: str, path: str, sig: str):
     _live_verify_shard(cid, path, sig)
     key = _live_key(cid, path)
     _LIVE_SESSIONS[key] = {"editor_id": "plugin", "tab": "", "ts": time.time()}
-    cmds = _LIVE_QUEUE.pop(key, [])
+    # M2: at-least-once — return the queue WITHOUT popping. Commands leave only on
+    # ack (below) or send-timeout. The plugin dedups by id, so redelivery after a
+    # dropped response is safe.
+    cmds = list(_LIVE_QUEUE.get(key, []))
     return _cors_json(_json.dumps({"commands": cmds}))
 
 
 @router.get("/live/plugin-ack")
 async def live_plugin_ack(cid: str, path: str, sig: str, id: str, ok: int = 1, error: str = ""):
-    """Public (shard-signed): the plugin reports a command result; unblocks office_live."""
+    """Public (shard-signed): the plugin reports a command result; removes it from
+    the queue (so it stops redelivering) and unblocks office_live's live_send."""
     _live_verify_shard(cid, path, sig)
+    key = _live_key(cid, path)
+    q = _LIVE_QUEUE.get(key)
+    if q:
+        _LIVE_QUEUE[key] = [e for e in q if e.get("id") != id]
     _LIVE_ACKS[id] = {"ok": bool(ok), "result": None, "error": (error or None)}
     return _cors_json('{"received":true}')
 
