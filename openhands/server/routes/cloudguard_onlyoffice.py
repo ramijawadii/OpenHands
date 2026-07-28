@@ -670,7 +670,12 @@ class LiveCmdRequest(BaseModel):
 async def office_live(body: LiveCmdRequest, _p=Depends(_principal_or_internal)):
     """Layer 2: send a live command to the analyst's open editor. Returns
     {"live": True, ...} if it executed there, or {"live": False, "reason": ...} so
-    the agent knows to fall back (the file isn't open / the tab went away)."""
+    the agent knows to fall back (the file isn't open / the tab went away).
+
+    op="save" is special: it force-persists the open editor's state (incl. the
+    agent's live edits) back to the sandbox file, rather than routing a command."""
+    if body.op == "save":
+        return await _live_forcesave(body.conversationId, body.path)
     return await live_send(
         body.conversationId, body.path, body.op, body.args, timeout=body.timeout
     )
@@ -717,6 +722,9 @@ _LIVE_ACKS: dict[str, dict] = {}
 # effect. A command leaves the queue only on ack (live_plugin_ack) or send-timeout.
 _LIVE_SEQ: dict[tuple[str, str], int] = {}
 _LIVE_PROTO_V = 1
+# shard -> the ONLYOFFICE document key of the currently-open editor, so we can
+# forcesave THAT session (persist agent edits back to the sandbox file).
+_LIVE_DOCKEY: dict[str, str] = {}
 
 # ── M3: Redis-backed presence + seat accounting + save-lock ───────────────────
 # Presence/seats live in Redis so they survive an app restart and are correct
@@ -811,6 +819,28 @@ def _live_savelock_acquire(cid: str, path: str, holder: str, ms: int = 10000) ->
         return bool(r.set(f"cg:live:savelock:{_live_shard(cid, path)}", holder, nx=True, px=ms))
     except Exception:  # noqa: BLE001
         return True
+
+
+async def _live_forcesave(cid: str, path: str) -> dict:
+    """Persist the OPEN editor's current state (incl. agent edits) back to the
+    sandbox file, via the DS CommandService `forcesave` → save callback. Requires a
+    live editor (we need its doc key)."""
+    key = _LIVE_DOCKEY.get(_live_shard(cid, path))
+    if not key:
+        return {"saved": False, "reason": "no open editor for shard"}
+    payload = {"c": "forcesave", "key": key}
+    payload["token"] = jwt.encode(payload, _jwt_secret(), algorithm="HS256")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{_ds_internal()}/coauthoring/CommandService.ashx", json=payload
+            )
+            data = resp.json()
+        # error 0 = queued/ok; 4 = no changes to save (already persisted) — both fine
+        err = data.get("error")
+        return {"saved": err in (0, 4), "ds_error": err}
+    except Exception as exc:  # noqa: BLE001
+        return {"saved": False, "reason": str(exc)}
 
 
 def _live_publish_wake(cid: str, path: str) -> None:
@@ -1472,6 +1502,13 @@ async def live_dev_enqueue(cid: str, path: str, op: str = "highlight",
     return res
 
 
+@router.get("/live/dev-save")
+async def live_dev_save(cid: str, path: str):
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="not enabled")
+    return await _live_forcesave(cid, path)
+
+
 @router.get("/live/methods")
 async def live_methods():
     """Observability: the enabled automation-method allow-list (current batch)."""
@@ -1696,6 +1733,7 @@ async def create_token(
     # M1: attach the ID-Live plugin so the agent can drive THIS editor live (pull
     # model). Only when live is enabled and we know the (cid, path) shard to bind.
     if _live_enabled() and body.conversationId and body.filePath:
+        _LIVE_DOCKEY[_live_shard(body.conversationId, body.filePath)] = doc_key  # for forcesave
         config["editorConfig"]["plugins"] = {
             "autostart": [_LIVE_PLUGIN_GUID],
             "pluginsData": [
