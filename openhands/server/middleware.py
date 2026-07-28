@@ -125,7 +125,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
     def is_rate_limited_request(self, request: StarletteRequest) -> bool:
-        if request.url.path.startswith('/assets'):
+        path = request.url.path
+        if path.startswith('/assets'):
+            return False
+        # ONLYOFFICE integration must NOT be throttled: the document server's file
+        # download + save callback and the live-editing poll/stream burst well above
+        # 10 req/s during editor load/save. Throttling them 429s the DS, which breaks
+        # co-authoring establishment and drops save-back callbacks.
+        if path.startswith('/api/onlyoffice'):
             return False
         # Put Other non rate limited checks here
         return True
