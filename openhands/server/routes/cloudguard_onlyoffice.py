@@ -21,6 +21,7 @@ must use host.docker.internal (not localhost) on a single host.
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import logging
@@ -848,6 +849,231 @@ async def live_status(_p=Depends(require_principal)):
     }
 
 
+# ── M1: plugin-pull live bridge (Community-legal "connector" via a DS plugin) ──
+# M0 proved Community DS won't deliver a parent->plugin PUSH, but a custom plugin
+# CAN pull commands from us and drive the editor. The editor loads our ID-Live
+# plugin with ?ctx=<signed>&api=<app-origin>; ctx binds it to a (cid, path) shard.
+# The plugin polls plugin-poll for that shard's queue and plugin-acks results,
+# reusing the SAME _LIVE_QUEUE / _LIVE_ACKS as the agent's office_live tool.
+_LIVE_PLUGIN_GUID = "asc.{1D11FED0-C0DE-4A11-BE57-1EFE9CED0001}"
+
+
+def _live_enabled() -> bool:
+    if os.environ.get("CLOUDGUARD_LIVE_ENABLED", "0").lower() in ("1", "true", "yes", "on"):
+        return True
+    # marker file lets us toggle without recreating the container (ops/testing)
+    return os.path.exists(
+        os.environ.get("CLOUDGUARD_LIVE_FLAG_FILE", "/app/.cloudguard_live_enabled")
+    )
+
+
+def _live_app_origin() -> str:
+    """Browser-facing app origin the plugin polls (localhost:3000 by default)."""
+    return os.environ.get("CLOUDGUARD_LIVE_APP_ORIGIN", "http://localhost:3000").rstrip("/")
+
+
+def _live_ctx_sign(cid: str, path: str, exp: int) -> str:
+    msg = f"live\n{cid}\n{path}\n{exp}".encode()
+    return hmac.new(_jwt_secret().encode(), msg, hashlib.sha256).hexdigest()
+
+
+def _live_ctx(cid: str, path: str, ttl_seconds: int = 8 * 3600) -> str:
+    """Opaque signed token binding an editor to its (cid, path) shard."""
+    exp = int(time.time()) + ttl_seconds
+    b64 = base64.urlsafe_b64encode(f"{cid}|{path}|{exp}".encode()).decode().rstrip("=")
+    return f"{b64}.{_live_ctx_sign(cid, path, exp)}"
+
+
+def _live_ctx_verify(ctx: str) -> tuple[str, str]:
+    """Return (cid, path) for a valid, unexpired ctx, else raise 403."""
+    try:
+        b64, _, sig = (ctx or "").partition(".")
+        pad = "=" * (-len(b64) % 4)
+        cid, path, exp_s = base64.urlsafe_b64decode(b64 + pad).decode().split("|", 2)
+        exp = int(exp_s)
+    except Exception:
+        raise HTTPException(status_code=403, detail="bad live ctx")
+    if not hmac.compare_digest(sig, _live_ctx_sign(cid, path, exp)):
+        raise HTTPException(status_code=403, detail="bad live ctx signature")
+    if time.time() > exp:
+        raise HTTPException(status_code=403, detail="live ctx expired")
+    return cid, path
+
+
+def _live_plugin_config_json(ctx: str) -> dict:
+    """ONLYOFFICE plugin manifest. The plugin is served ENTIRELY by the app (this
+    keeps the plugin's own origin == the poll target, and lets the editor resolve
+    the plugin URL relative to this manifest — an absolute cross-origin URL gets
+    mangled by the editor's `base + url` concatenation). `url` is RELATIVE to the
+    manifest path (/api/onlyoffice/live/) and carries the shard ctx; the trailing
+    `&_=1` keeps ctx clean when the editor appends its own `?lang=...`."""
+    return {
+        "name": "Inference Defense Live",
+        "guid": _LIVE_PLUGIN_GUID,
+        "version": "1.0.0",
+        "variations": [
+            {
+                "description": "Agent live copilot bridge.",
+                "url": f"plugin-index?ctx={quote(ctx)}&_=1",
+                "icons": [],
+                "isViewer": True,
+                "isDisplayedInViewer": True,
+                "EditorsSupport": ["word", "cell", "slide", "pdf"],
+                "isVisual": True,
+                "isModal": False,
+                "isInsideMode": True,
+                "isSystem": False,
+                "initDataType": "none",
+                "initData": "",
+                "size": [300, 180],
+                "buttons": [],
+            }
+        ],
+    }
+
+
+# The plugin, served by the app. It reads its shard ctx from its own URL and polls
+# THIS app (window.location.origin) — no cross-origin api param needed. The
+# ONLYOFFICE plugin SDK is loaded from the DS (absolute), which is where it lives.
+def _id_live_index_html() -> str:
+    sdk = f"{_document_server_url()}/sdkjs-plugins/v1/plugins.js"
+    return (
+        "<!DOCTYPE html><html><head><meta charset='utf-8'/>"
+        "<title>Inference Defense Live</title>"
+        "<style>body{font:12px system-ui;margin:0;padding:8px}"
+        "#s{font-family:monospace;font-size:11px;color:#333;white-space:pre-wrap}</style>"
+        f"<script src='{sdk}'></script>"
+        "<script src='plugin-code'></script>"
+        "</head><body><b>Inference Defense Live</b><div id='s'>loading…</div></body></html>"
+    )
+
+
+_ID_LIVE_CODE_JS = r"""
+(function (w) {
+  "use strict";
+  function qs(n){try{var m=new RegExp("[?&]"+n+"=([^&]+)").exec(w.location.search);return m?decodeURIComponent(m[1]):"";}catch(e){return "";}}
+  var CTX = qs("ctx");
+  var API = w.location.origin;               // plugin is app-served: our origin IS the app
+  var POLL = API + "/api/onlyoffice/live/plugin-poll?ctx=" + encodeURIComponent(CTX);
+  var ACK  = API + "/api/onlyoffice/live/plugin-ack?ctx=" + encodeURIComponent(CTX);
+  function setS(m){try{var e=document.getElementById("s");if(e)e.textContent=String(m);}catch(x){}}
+  function ack(id,ok,err){try{new Image().src=ACK+"&id="+encodeURIComponent(id)+"&ok="+(ok?1:0)+(err?"&error="+encodeURIComponent(err):"")+"&_="+Date.now();}catch(x){}}
+  function highlight(range,rgb,done){rgb=(rgb&&rgb.length===3)?rgb:[244,204,204];w.Asc.scope.__id={range:range,rgb:rgb};
+    w.Asc.plugin.callCommand(function(){var s=Api.GetActiveSheet();var c=Asc.scope.__id;s.GetRange(c.range).SetFillColor(Api.CreateColorFromRGB(c.rgb[0],c.rgb[1],c.rgb[2]));},false,true,function(){done&&done();});}
+  function exec(cmd){setS("executing "+cmd.op);try{
+    if(cmd.op==="highlight"){highlight((cmd.args||{}).range||"A1",(cmd.args||{}).rgb,function(){ack(cmd.id,true);});}
+    else if(cmd.op==="comment"){w.Asc.plugin.executeMethod("AddComment",[{Text:String((cmd.args||{}).text||""),UserName:"Inference Defense"}],function(){ack(cmd.id,true);});}
+    else if(cmd.op==="select"){w.Asc.plugin.executeMethod("SetSelection",[String((cmd.args||{}).cell||"A1")],function(){ack(cmd.id,true);});}
+    else{ack(cmd.id,false,"unknown op");}
+  }catch(e){ack(cmd.id,false,String(e));}}
+  var busy=false;
+  function poll(){if(busy||!CTX)return;busy=true;
+    fetch(POLL+"&_="+Date.now(),{cache:"no-store"}).then(function(r){return r.json();})
+      .then(function(d){((d&&d.commands)||[]).forEach(exec);}).catch(function(){}).then(function(){busy=false;});}
+  w.Asc.plugin.init=function(){if(!CTX){setS("no ctx — idle");return;}setS("ID-Live ready — watching for agent actions");w.setInterval(poll,1000);poll();};
+  w.Asc.plugin.button=function(){};
+})(window);
+"""
+
+
+def _cors_json(payload: str) -> Response:
+    r = Response(content=payload, media_type="application/json")
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@router.get("/live/plugin-config")
+async def live_plugin_config(ctx: str):
+    """Public (ctx-signed): serve the ID-Live plugin manifest to the editor."""
+    import json as _json
+
+    _live_ctx_verify(ctx)  # reject tampered/expired ctx early
+    return _cors_json(_json.dumps(_live_plugin_config_json(ctx)))
+
+
+@router.get("/live/plugin-index")
+async def live_plugin_index(ctx: str = ""):
+    """Public: the plugin's HTML shell (reads ctx from its own URL client-side)."""
+    r = Response(content=_id_live_index_html(), media_type="text/html")
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+@router.get("/live/plugin-code")
+async def live_plugin_code():
+    """Public: the plugin's executor JS."""
+    r = Response(content=_ID_LIVE_CODE_JS, media_type="application/javascript")
+    r.headers["Access-Control-Allow-Origin"] = "*"
+    r.headers["Cache-Control"] = "no-store"
+    return r
+
+
+def _live_verify_shard(cid: str, path: str, sig: str) -> None:
+    """Authorize a plugin request. The plugin reads (cid, path, sig) from the
+    editor's signed documentCallbackUrl; sig is the existing _callback_sig, so a
+    valid one proves the caller is a legitimately-configured editor for that shard."""
+    if not hmac.compare_digest(sig or "", _callback_sig(cid, path)):
+        raise HTTPException(status_code=403, detail="bad shard signature")
+
+
+@router.get("/live/plugin-poll")
+async def live_plugin_poll(cid: str, path: str, sig: str):
+    """Public (shard-signed): the plugin pulls its shard's queued commands and keeps
+    the session marked open so office_live routes live instead of headless."""
+    import json as _json
+
+    _live_verify_shard(cid, path, sig)
+    key = _live_key(cid, path)
+    _LIVE_SESSIONS[key] = {"editor_id": "plugin", "tab": "", "ts": time.time()}
+    cmds = _LIVE_QUEUE.pop(key, [])
+    return _cors_json(_json.dumps({"commands": cmds}))
+
+
+@router.get("/live/plugin-ack")
+async def live_plugin_ack(cid: str, path: str, sig: str, id: str, ok: int = 1, error: str = ""):
+    """Public (shard-signed): the plugin reports a command result; unblocks office_live."""
+    _live_verify_shard(cid, path, sig)
+    _LIVE_ACKS[id] = {"ok": bool(ok), "result": None, "error": (error or None)}
+    return _cors_json('{"received":true}')
+
+
+# ── DEV/TEST helpers (only when the live flag is on) — manual UI testing without
+# running an agent. NOT a production surface; office_live (authed) is the real path.
+@router.get("/live/dev-status")
+async def live_dev_status():
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="not enabled")
+    _live_prune()
+    now = time.time()
+    return {
+        "open": [
+            {"cid": k[0], "path": k[1], "age_s": round(now - s["ts"], 1),
+             "via": s.get("editor_id"), "queued": len(_LIVE_QUEUE.get(k, []))}
+            for k, s in _LIVE_SESSIONS.items()
+        ]
+    }
+
+
+@router.get("/live/dev-enqueue")
+async def live_dev_enqueue(cid: str, path: str, op: str = "highlight",
+                           range: str = "A2:D8", rgb: str = "255,0,0",
+                           text: str = "flagged by agent", cell: str = "A1"):
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="not enabled")
+    if op == "highlight":
+        args = {"range": range, "rgb": [int(x) for x in rgb.split(",")][:3]}
+    elif op == "comment":
+        args = {"text": text}
+    elif op == "select":
+        args = {"cell": cell}
+    else:
+        args = {}
+    res = await live_send(cid, path, op, args, timeout=5.0)
+    return res
+
+
 @router.get("/script")
 async def serve_script(id: str, exp: int, sig: str) -> Response:
     """Serve a docbuilder script to the ONLYOFFICE container (HMAC-signed, no session)."""
@@ -1056,6 +1282,16 @@ async def create_token(
             "customization": _customization(),
         },
     }
+
+    # M1: attach the ID-Live plugin so the agent can drive THIS editor live (pull
+    # model). Only when live is enabled and we know the (cid, path) shard to bind.
+    if _live_enabled() and body.conversationId and body.filePath:
+        config["editorConfig"]["plugins"] = {
+            "autostart": [_LIVE_PLUGIN_GUID],
+            "pluginsData": [
+                f"{_document_server_url()}/sdkjs-plugins/id-live/config.json"
+            ],
+        }
 
     token = jwt.encode(config, _jwt_secret(), algorithm="HS256")
     return {
