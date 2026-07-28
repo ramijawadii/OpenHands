@@ -833,7 +833,7 @@ def _live_savelock_release(cid: str, path: str, holder: str) -> None:
 # OnEncryption, SetCustomFunctions) are intentionally excluded. `kind` read/write is
 # informational; `batch` gates rollout via CLOUDGUARD_LIVE_METHOD_BATCH.
 _LIVE_METHODS: dict[str, dict] = {
-    # Batch 1 — comments & review + selection reads (analyst-facing, low-risk)
+    # Batch 1 — comments & review + selection reads
     "AddComment": {"kind": "write", "batch": 1},
     "GetAllComments": {"kind": "read", "batch": 1},
     "ChangeComment": {"kind": "write", "batch": 1},
@@ -846,13 +846,133 @@ _LIVE_METHODS: dict[str, dict] = {
     "GetSelectionType": {"kind": "read", "batch": 1},
     "GetCurrentWord": {"kind": "read", "batch": 1},
     "GetCurrentSentence": {"kind": "read", "batch": 1},
+    # Batch 2 — text edit / search-replace / insert
+    "SearchAndReplace": {"kind": "write", "batch": 2},
+    "SearchNext": {"kind": "read", "batch": 2},
+    "ReplaceTextSmart": {"kind": "write", "batch": 2},
+    "ReplaceCurrentWord": {"kind": "write", "batch": 2},
+    "ReplaceCurrentSentence": {"kind": "write", "batch": 2},
+    "InputText": {"kind": "write", "batch": 2},
+    "PasteText": {"kind": "write", "batch": 2},
+    "PasteHtml": {"kind": "write", "batch": 2},
+    "ReplacePageContent": {"kind": "write", "batch": 2},
+    # Batch 3 — undo/redo/action batching + navigation
+    "Undo": {"kind": "write", "batch": 3},
+    "Redo": {"kind": "write", "batch": 3},
+    "CanUndo": {"kind": "read", "batch": 3},
+    "CanRedo": {"kind": "read", "batch": 3},
+    "StartAction": {"kind": "write", "batch": 3},
+    "EndAction": {"kind": "write", "batch": 3},
+    "GetCurrentPage": {"kind": "read", "batch": 3},
+    "GoToPage": {"kind": "write", "batch": 3},
+    "GetCurrentBookmark": {"kind": "read", "batch": 3},
+    "MoveCursorToStart": {"kind": "write", "batch": 3},
+    "MoveCursorToEnd": {"kind": "write", "batch": 3},
+    # Batch 4 — content controls
+    "AddContentControl": {"kind": "write", "batch": 4},
+    "AddContentControlCheckBox": {"kind": "write", "batch": 4},
+    "AddContentControlDatePicker": {"kind": "write", "batch": 4},
+    "AddContentControlList": {"kind": "write", "batch": 4},
+    "AddContentControlPicture": {"kind": "write", "batch": 4},
+    "GetAllContentControls": {"kind": "read", "batch": 4},
+    "GetCurrentContentControl": {"kind": "read", "batch": 4},
+    "GetCurrentContentControlPr": {"kind": "read", "batch": 4},
+    "SelectContentControl": {"kind": "write", "batch": 4},
+    "MoveCursorToContentControl": {"kind": "write", "batch": 4},
+    "RemoveContentControl": {"kind": "write", "batch": 4},
+    "RemoveContentControls": {"kind": "write", "batch": 4},
+    "InsertAndReplaceContentControls": {"kind": "write", "batch": 4},
+    # Batch 5 — forms + add-in fields
+    "GetAllForms": {"kind": "read", "batch": 5},
+    "GetFormsByTag": {"kind": "read", "batch": 5},
+    "GetFormValue": {"kind": "read", "batch": 5},
+    "SetFormValue": {"kind": "write", "batch": 5},
+    "IsFillingFormMode": {"kind": "read", "batch": 5},
+    "IsFillingOFormMode": {"kind": "read", "batch": 5},
+    "IsEditingOFormMode": {"kind": "read", "batch": 5},
+    "IsFormSigned": {"kind": "read", "batch": 5},
+    "GetAllAddinFields": {"kind": "read", "batch": 5},
+    "GetCurrentAddinField": {"kind": "read", "batch": 5},
+    "AddAddinField": {"kind": "write", "batch": 5},
+    "RemoveAddinField": {"kind": "write", "batch": 5},
+    "SelectAddinField": {"kind": "write", "batch": 5},
+    "UpdateAddinFields": {"kind": "write", "batch": 5},
+    "GetFields": {"kind": "read", "batch": 5},
+    "MoveCursorToField": {"kind": "write", "batch": 5},
+    "MoveCursorOutsideField": {"kind": "write", "batch": 5},
+    # Batch 6 — OLE objects + images
+    "AddOleObject": {"kind": "write", "batch": 6},
+    "ChangeOleObject": {"kind": "write", "batch": 6},
+    "ChangeOleObjects": {"kind": "write", "batch": 6},
+    "EditOleObject": {"kind": "write", "batch": 6},
+    "GetAllOleObjects": {"kind": "read", "batch": 6},
+    "GetSelectedOleObjects": {"kind": "read", "batch": 6},
+    "InsertOleObject": {"kind": "write", "batch": 6},
+    "RemoveOleObject": {"kind": "write", "batch": 6},
+    "RemoveOleObjects": {"kind": "write", "batch": 6},
+    "SelectOleObject": {"kind": "write", "batch": 6},
+    "GetImageDataFromSelection": {"kind": "read", "batch": 6},
+    "PutImageDataToSelection": {"kind": "write", "batch": 6},
+    "GetPageImage": {"kind": "read", "batch": 6},
+    # Batch 7 — custom UI (menus, windows, helpers)
+    "AddContextMenuItem": {"kind": "write", "batch": 7},
+    "UpdateContextMenuItem": {"kind": "write", "batch": 7},
+    "AddToolbarMenuItem": {"kind": "write", "batch": 7},
+    "UpdateToolbarMenuItem": {"kind": "write", "batch": 7},
+    "ShowButton": {"kind": "write", "batch": 7},
+    "ShowError": {"kind": "write", "batch": 7},
+    "ShowInputHelper": {"kind": "write", "batch": 7},
+    "UnShowInputHelper": {"kind": "write", "batch": 7},
+    "FocusEditor": {"kind": "write", "batch": 7},
+    "ActivateWindow": {"kind": "write", "batch": 7},
+    # Batch 8 — slideshow (Slide)
+    "StartSlideShow": {"kind": "write", "batch": 8},
+    "EndSlideShow": {"kind": "write", "batch": 8},
+    "PauseSlideShow": {"kind": "write", "batch": 8},
+    "ResumeSlideShow": {"kind": "write", "batch": 8},
+    "GoToSlide": {"kind": "write", "batch": 8},
+    "GoToSlideInSlideShow": {"kind": "write", "batch": 8},
+    "GoToNextSlideInSlideShow": {"kind": "write", "batch": 8},
+    "GoToPreviousSlideInSlideShow": {"kind": "write", "batch": 8},
+    # Batch 9 — document reads + misc (safe)
+    "GetDocumentLang": {"kind": "read", "batch": 9},
+    "GetVersion": {"kind": "read", "batch": 9},
+    "GetFontList": {"kind": "read", "batch": 9},
+    "GetSelectedContent": {"kind": "read", "batch": 9},
+    "GetFileHTML": {"kind": "read", "batch": 9},
+    "ConvertDocument": {"kind": "read", "batch": 9},
+    "GetInstalledPlugins": {"kind": "read", "batch": 9},
+    "SetProperties": {"kind": "write", "batch": 9},
+    "SetEditingRestrictions": {"kind": "write", "batch": 9},
+    "SetDisplayModeInReview": {"kind": "write", "batch": 9},
+    "CoAuthoringChatSendMessage": {"kind": "write", "batch": 9},
+    # DELIBERATELY EXCLUDED (dangerous — never allow-listed): InstallPlugin,
+    # RemovePlugin, UpdatePlugin, GetMacros, SetMacros, GetVBAMacros,
+    # GetCustomFunctions, SetCustomFunctions, GetKeychainStorageInfo,
+    # SetKeychainStorageInfo, OnEncryption, OnSignWithKeychain, OpenFile,
+    # GetFileToDownload, getLocalImagePath, SetPluginsOptions, SendToWindow.
 }
-_LIVE_METHOD_MAX_BATCH = int(os.environ.get("CLOUDGUARD_LIVE_METHOD_BATCH", "1"))
+
+
+def _live_method_max_batch() -> int:
+    """Rollout gate for method batches. Env wins; else the marker file's integer
+    (lets us bump batches without recreating the container); else 1."""
+    v = os.environ.get("CLOUDGUARD_LIVE_METHOD_BATCH")
+    if v:
+        try:
+            return int(v)
+        except ValueError:
+            pass
+    try:
+        with open(os.environ.get("CLOUDGUARD_LIVE_METHOD_BATCH_FILE", "/app/.cloudguard_live_method_batch")) as fh:
+            return int(fh.read().strip())
+    except Exception:  # noqa: BLE001
+        return 1
 
 
 def _live_method_allowed(name: str) -> bool:
     m = _LIVE_METHODS.get(name or "")
-    return bool(m) and m["batch"] <= _LIVE_METHOD_MAX_BATCH
+    return bool(m) and m["batch"] <= _live_method_max_batch()
 
 
 def _live_key(cid: str, path: str) -> tuple[str, str]:
@@ -1282,7 +1402,7 @@ async def live_methods():
     if not _live_enabled():
         raise HTTPException(status_code=404, detail="not enabled")
     return {
-        "max_batch": _LIVE_METHOD_MAX_BATCH,
+        "max_batch": _live_method_max_batch(),
         "enabled": sorted(n for n in _LIVE_METHODS if _live_method_allowed(n)),
         "registered": {n: m for n, m in _LIVE_METHODS.items()},
     }
