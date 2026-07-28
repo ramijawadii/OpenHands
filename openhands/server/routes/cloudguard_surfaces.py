@@ -33,8 +33,14 @@ router = APIRouter(prefix="/api/cloudguard/surfaces")
 _GATEWAY_URL = os.environ.get(
     "SURFACE_HEALTH_GATEWAY_URL", "http://host.docker.internal:8087/__gwhealth"
 )
+# Probe the DS at its INTERNAL docker DNS (reachable from the app container), NOT the
+# browser-facing gateway origin. Reuses ONLYOFFICE_INTERNAL_URL so it tracks the same
+# stable service name the onlyoffice route uses (host.docker.internal:80 was the old
+# host-published DS port, which the infra-as-code stack no longer exposes).
 _ONLYOFFICE_URL = os.environ.get(
-    "SURFACE_HEALTH_ONLYOFFICE_URL", "http://host.docker.internal:80/healthcheck"
+    "SURFACE_HEALTH_ONLYOFFICE_URL",
+    os.environ.get("ONLYOFFICE_INTERNAL_URL", "http://onlyoffice-docs").rstrip("/")
+    + "/healthcheck",
 )
 _DRAWIO_URL = os.environ.get(
     "SURFACE_HEALTH_DRAWIO_URL", "http://host.docker.internal:8085/"
