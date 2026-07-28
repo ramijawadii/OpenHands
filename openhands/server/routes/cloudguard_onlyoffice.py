@@ -619,6 +619,128 @@ async def _write_workspace_file(cid: str, path: str, data: bytes) -> str:
                 pass
 
 
+# ── Document checkpoints — agent-driven versioning (save + revert) ────────────
+# A checkpoint is a sha256-integrity-hashed snapshot of a workspace document,
+# stored in the sandbox under .cloudguard/checkpoints/<safe-path>/. The agent can
+# snapshot the current document and later revert to any snapshot. Robustness:
+#   * sha256 recorded at snapshot time + VERIFIED on revert (corruption → 409)
+#   * revert AUTO-snapshots the pre-revert state first, so a revert is itself
+#     undoable (no destructive, unrecoverable action)
+#   * best-effort forcesave before snapshot so live editor edits are captured
+async def _read_workspace_file(cid: str, path: str) -> bytes:
+    norm = os.path.normpath(path)
+    if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
+        raise HTTPException(status_code=400, detail="invalid path")
+    from openhands.server.shared import conversation_manager
+
+    conv = None
+    try:
+        conv = await conversation_manager.attach_to_conversation(cid, None)
+        if conv is None:
+            raise HTTPException(status_code=404, detail="conversation not running")
+        runtime = conv.runtime
+        full = os.path.join(runtime.config.workspace_mount_path_in_sandbox, norm)
+        return _read_sandbox_file(runtime, full)
+    finally:
+        if conv is not None:
+            try:
+                await conversation_manager.detach_from_conversation(conv)
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _ckpt_dir(path: str) -> str:
+    safe = os.path.normpath(path).replace("..", "_").strip("/").replace("/", "__")
+    return f".cloudguard/checkpoints/{safe}"
+
+
+async def _ckpt_index_read(cid: str, path: str) -> list[dict]:
+    import json as _json
+
+    try:
+        raw = await _read_workspace_file(cid, f"{_ckpt_dir(path)}/index.json")
+        return _json.loads(raw or b"[]")
+    except Exception:  # noqa: BLE001 — no index yet
+        return []
+
+
+async def _ckpt_index_write(cid: str, path: str, index: list[dict]) -> None:
+    import json as _json
+
+    await _write_workspace_file(
+        cid, f"{_ckpt_dir(path)}/index.json", _json.dumps(index, indent=2).encode()
+    )
+
+
+async def _ckpt_create(cid: str, path: str, label: str = "", auto: bool = False) -> dict:
+    try:  # best-effort: persist live editor edits so the snapshot is current
+        await _live_forcesave(cid, path)
+    except Exception:  # noqa: BLE001
+        pass
+    data = await _read_workspace_file(cid, path)
+    sha = hashlib.sha256(data).hexdigest()
+    ext = path.rsplit(".", 1)[-1] if "." in path else "bin"
+    ckid = f"{int(time.time() * 1000)}-{secrets.token_hex(4)}"
+    await _write_workspace_file(cid, f"{_ckpt_dir(path)}/{ckid}.{ext}", data)
+    entry = {
+        "id": ckid, "ts": int(time.time()), "label": label or ("auto" if auto else ""),
+        "size": len(data), "sha256": sha, "auto": auto,
+    }
+    index = await _ckpt_index_read(cid, path)
+    index.append(entry)
+    await _ckpt_index_write(cid, path, index)
+    return entry
+
+
+async def _ckpt_revert(cid: str, path: str, checkpoint_id: str) -> dict:
+    index = await _ckpt_index_read(cid, path)
+    entry = next((e for e in index if e["id"] == checkpoint_id), None)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"checkpoint not found: {checkpoint_id}")
+    ext = path.rsplit(".", 1)[-1] if "." in path else "bin"
+    data = await _read_workspace_file(cid, f"{_ckpt_dir(path)}/{checkpoint_id}.{ext}")
+    if hashlib.sha256(data).hexdigest() != entry["sha256"]:
+        raise HTTPException(status_code=409, detail="checkpoint integrity check failed (sha256 mismatch)")
+    # safety: snapshot the CURRENT state before overwriting → revert is undoable
+    safety = await _ckpt_create(cid, path, label=f"pre-revert-to-{checkpoint_id}", auto=True)
+    await _write_workspace_file(cid, path, data)
+    return {
+        "reverted": True, "id": checkpoint_id, "sha256": entry["sha256"],
+        "safety_checkpoint": safety["id"], "reload_required": True,
+    }
+
+
+class CheckpointRequest(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    label: str = Field(default="", max_length=200)
+
+
+class RevertRequest(BaseModel):
+    conversationId: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    id: str = Field(..., max_length=64)
+
+
+@router.post("/office/checkpoint")
+async def office_checkpoint(body: CheckpointRequest, _p=Depends(_principal_or_internal)):
+    """Snapshot the current document (agent versioning). Returns {id, sha256, ...}."""
+    return await _ckpt_create(body.conversationId, body.path, body.label)
+
+
+@router.get("/office/checkpoints")
+async def office_checkpoints(conversation_id: str, path: str, _p=Depends(_principal_or_internal)):
+    """List checkpoints for a document (newest last)."""
+    return {"checkpoints": await _ckpt_index_read(conversation_id, path)}
+
+
+@router.post("/office/revert")
+async def office_revert(body: RevertRequest, _p=Depends(_principal_or_internal)):
+    """Revert a document to a checkpoint (sha256-verified). Auto-snapshots the
+    current state first. The open editor must reopen to show it (reload_required)."""
+    return await _ckpt_revert(body.conversationId, body.path, body.id)
+
+
 class SheetRequest(BaseModel):
     conversationId: str = Field(..., max_length=128)
     path: str = Field(..., max_length=4096)
