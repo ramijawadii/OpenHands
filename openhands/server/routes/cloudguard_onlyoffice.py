@@ -718,6 +718,113 @@ _LIVE_ACKS: dict[str, dict] = {}
 _LIVE_SEQ: dict[tuple[str, str], int] = {}
 _LIVE_PROTO_V = 1
 
+# ── M3: Redis-backed presence + seat accounting + save-lock ───────────────────
+# Presence/seats live in Redis so they survive an app restart and are correct
+# across replicas (the in-process dicts above can't be). EVERYTHING here degrades
+# to a safe local fallback when Redis is unavailable, so M1/M2 never break.
+_REDIS = None
+_REDIS_TRIED = False
+_LIVE_MAX_EDIT = int(os.environ.get("CLOUDGUARD_LIVE_MAX_EDIT", "25"))
+_LIVE_MAX_VIEW = int(os.environ.get("CLOUDGUARD_LIVE_MAX_VIEW", "200"))
+
+
+def _redis():
+    """Lazy Redis client; None if unavailable (→ in-memory fallback). Non-fatal."""
+    global _REDIS, _REDIS_TRIED
+    if _REDIS_TRIED:
+        return _REDIS
+    _REDIS_TRIED = True
+    url = os.environ.get("CLOUDGUARD_REDIS_URL", "redis://cloudguard-redis:6379/0")
+    try:
+        import redis as _r
+
+        c = _r.from_url(url, socket_connect_timeout=0.5, socket_timeout=0.5, decode_responses=True)
+        c.ping()
+        _REDIS = c
+    except Exception:  # noqa: BLE001
+        _REDIS = None
+    return _REDIS
+
+
+def _live_tenant() -> str:
+    """Tenant scope for the live keyspace. Tenancy is off here → 'default'."""
+    return os.environ.get("CLOUDGUARD_TENANT", "default")
+
+
+def _live_shard(cid: str, path: str) -> str:
+    return f"{_live_tenant()}:{cid}:{os.path.normpath(path or '')}"
+
+
+def _live_presence_touch(cid: str, path: str, conn: str, seat: str) -> dict:
+    """Record a live connection (ZSET member=conn, score=now), prune expired, and
+    return {"edit": n, "view": m, "admitted": bool, "cap": int}. Enforces per-shard
+    seat caps atomically-enough (ZADD+ZCARD). Falls back to a permissive local view."""
+    r = _redis()
+    seat = "view" if seat == "view" else "edit"
+    cap = _LIVE_MAX_VIEW if seat == "view" else _LIVE_MAX_EDIT
+    if not r or not conn:
+        return {"edit": 1 if seat == "edit" else 0, "view": 1 if seat == "view" else 0, "admitted": True, "cap": cap}
+    now = time.time()
+    ek = f"cg:live:conn:edit:{_live_shard(cid, path)}"
+    vk = f"cg:live:conn:view:{_live_shard(cid, path)}"
+    key = vk if seat == "view" else ek
+    try:
+        pipe = r.pipeline()
+        pipe.zadd(key, {conn: now})
+        pipe.zremrangebyscore(key, 0, now - _LIVE_TTL)
+        pipe.expire(key, int(_LIVE_TTL * 3))
+        pipe.zcard(ek)
+        pipe.zcard(vk)
+        res = pipe.execute()
+        return {"edit": res[-2], "view": res[-1], "admitted": (res[-2 if seat == "edit" else -1] <= cap), "cap": cap}
+    except Exception:  # noqa: BLE001
+        return {"edit": 0, "view": 0, "admitted": True, "cap": cap}
+
+
+def _live_presence(cid: str, path: str) -> dict:
+    r = _redis()
+    if not r:
+        s = _LIVE_SESSIONS.get(_live_key(cid, path))
+        return {"edit": 1 if s else 0, "view": 0, "conns": []}
+    now = time.time()
+    ek = f"cg:live:conn:edit:{_live_shard(cid, path)}"
+    vk = f"cg:live:conn:view:{_live_shard(cid, path)}"
+    try:
+        for k in (ek, vk):
+            r.zremrangebyscore(k, 0, now - _LIVE_TTL)
+        return {
+            "edit": r.zcard(ek),
+            "view": r.zcard(vk),
+            "conns": r.zrange(ek, 0, -1) + r.zrange(vk, 0, -1),
+        }
+    except Exception:  # noqa: BLE001
+        return {"edit": 0, "view": 0, "conns": []}
+
+
+def _live_savelock_acquire(cid: str, path: str, holder: str, ms: int = 10000) -> bool:
+    """Serialize writes to a shard (a human save vs an agent write). No Redis → the
+    single process is the only writer, so allow."""
+    r = _redis()
+    if not r:
+        return True
+    try:
+        return bool(r.set(f"cg:live:savelock:{_live_shard(cid, path)}", holder, nx=True, px=ms))
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _live_savelock_release(cid: str, path: str, holder: str) -> None:
+    r = _redis()
+    if not r:
+        return
+    try:  # compare-and-delete so we only release our own lock
+        r.eval(
+            "if redis.call('get',KEYS[1])==ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+            1, f"cg:live:savelock:{_live_shard(cid, path)}", holder,
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
 
 def _live_key(cid: str, path: str) -> tuple[str, str]:
     return (cid, os.path.normpath(path or ""))
@@ -1038,19 +1145,21 @@ def _live_verify_shard(cid: str, path: str, sig: str) -> None:
 
 
 @router.get("/live/plugin-poll")
-async def live_plugin_poll(cid: str, path: str, sig: str):
+async def live_plugin_poll(cid: str, path: str, sig: str, conn: str = "", seat: str = "edit"):
     """Public (shard-signed): the plugin pulls its shard's queued commands and keeps
-    the session marked open so office_live routes live instead of headless."""
+    the session marked open so office_live routes live instead of headless. Also
+    records M3 Redis presence/seat for this connection."""
     import json as _json
 
     _live_verify_shard(cid, path, sig)
     key = _live_key(cid, path)
-    _LIVE_SESSIONS[key] = {"editor_id": "plugin", "tab": "", "ts": time.time()}
+    _LIVE_SESSIONS[key] = {"editor_id": conn or "plugin", "tab": "", "ts": time.time()}
+    presence = _live_presence_touch(cid, path, conn, seat)  # M3: Redis presence + seat cap
     # M2: at-least-once — return the queue WITHOUT popping. Commands leave only on
     # ack (below) or send-timeout. The plugin dedups by id, so redelivery after a
     # dropped response is safe.
     cmds = list(_LIVE_QUEUE.get(key, []))
-    return _cors_json(_json.dumps({"commands": cmds}))
+    return _cors_json(_json.dumps({"commands": cmds, "presence": presence}))
 
 
 @router.get("/live/plugin-ack")
@@ -1075,9 +1184,11 @@ async def live_dev_status():
     _live_prune()
     now = time.time()
     return {
+        "redis": _redis() is not None,
         "open": [
             {"cid": k[0], "path": k[1], "age_s": round(now - s["ts"], 1),
-             "via": s.get("editor_id"), "queued": len(_LIVE_QUEUE.get(k, []))}
+             "via": s.get("editor_id"), "queued": len(_LIVE_QUEUE.get(k, [])),
+             "presence": _live_presence(k[0], k[1])}
             for k, s in _LIVE_SESSIONS.items()
         ]
     }
