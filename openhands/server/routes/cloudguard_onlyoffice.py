@@ -35,7 +35,7 @@ from urllib.parse import quote, urlencode
 
 import httpx
 import jwt
-from fastapi import APIRouter, Body, Depends, Header, HTTPException
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -826,6 +826,35 @@ def _live_savelock_release(cid: str, path: str, holder: str) -> None:
         pass
 
 
+# ── Automation-method allow-list (the 133 executeMethod surface, gated) ───────
+# The generic `method` op → Asc.plugin.executeMethod(name, params). We do NOT expose
+# all 133 — this is a curated ALLOW-LIST, grown in tested batches. Dangerous methods
+# (InstallPlugin/RemovePlugin/UpdatePlugin, Get/SetMacros, GetVBAMacros, keychain,
+# OnEncryption, SetCustomFunctions) are intentionally excluded. `kind` read/write is
+# informational; `batch` gates rollout via CLOUDGUARD_LIVE_METHOD_BATCH.
+_LIVE_METHODS: dict[str, dict] = {
+    # Batch 1 — comments & review + selection reads (analyst-facing, low-risk)
+    "AddComment": {"kind": "write", "batch": 1},
+    "GetAllComments": {"kind": "read", "batch": 1},
+    "ChangeComment": {"kind": "write", "batch": 1},
+    "RemoveComments": {"kind": "write", "batch": 1},
+    "MoveToComment": {"kind": "write", "batch": 1},
+    "AcceptReviewChanges": {"kind": "write", "batch": 1},
+    "RejectReviewChanges": {"kind": "write", "batch": 1},
+    "MoveToNextReviewChange": {"kind": "write", "batch": 1},
+    "GetSelectedText": {"kind": "read", "batch": 1},
+    "GetSelectionType": {"kind": "read", "batch": 1},
+    "GetCurrentWord": {"kind": "read", "batch": 1},
+    "GetCurrentSentence": {"kind": "read", "batch": 1},
+}
+_LIVE_METHOD_MAX_BATCH = int(os.environ.get("CLOUDGUARD_LIVE_METHOD_BATCH", "1"))
+
+
+def _live_method_allowed(name: str) -> bool:
+    m = _LIVE_METHODS.get(name or "")
+    return bool(m) and m["batch"] <= _LIVE_METHOD_MAX_BATCH
+
+
 def _live_key(cid: str, path: str) -> tuple[str, str]:
     return (cid, os.path.normpath(path or ""))
 
@@ -922,6 +951,10 @@ async def live_send(
     or {"live": False, "reason": ...} so the caller falls back to Layer 1.
 
     Never raises for the not-live case — falling back is the normal path."""
+    # `method` op → executeMethod(name,…): enforce the allow-list before it can reach
+    # the editor. `macro`/highlight/comment/select are fixed server-defined ops.
+    if op == "method" and not _live_method_allowed((args or {}).get("name", "")):
+        return {"live": False, "reason": f"method not allowed: {(args or {}).get('name')}"}
     if not _live_is_open(cid, path):
         return {"live": False, "reason": "editor not open"}
     key = _live_key(cid, path)
@@ -1162,16 +1195,38 @@ async def live_plugin_poll(cid: str, path: str, sig: str, conn: str = "", seat: 
     return _cors_json(_json.dumps({"commands": cmds, "presence": presence}))
 
 
-@router.get("/live/plugin-ack")
-async def live_plugin_ack(cid: str, path: str, sig: str, id: str, ok: int = 1, error: str = ""):
-    """Public (shard-signed): the plugin reports a command result; removes it from
-    the queue (so it stops redelivering) and unblocks office_live's live_send."""
-    _live_verify_shard(cid, path, sig)
+def _live_record_ack(cid: str, path: str, id: str, ok: bool, result, error: str) -> None:
     key = _live_key(cid, path)
     q = _LIVE_QUEUE.get(key)
     if q:
         _LIVE_QUEUE[key] = [e for e in q if e.get("id") != id]
-    _LIVE_ACKS[id] = {"ok": bool(ok), "result": None, "error": (error or None)}
+    _LIVE_ACKS[id] = {"ok": bool(ok), "result": result, "error": (error or None)}
+
+
+@router.get("/live/plugin-ack")
+async def live_plugin_ack(cid: str, path: str, sig: str, id: str, ok: int = 1, error: str = ""):
+    """Public (shard-signed): simple ack (no result) — removes the command from the
+    queue and unblocks office_live's live_send."""
+    _live_verify_shard(cid, path, sig)
+    _live_record_ack(cid, path, id, bool(ok), None, error)
+    return _cors_json('{"received":true}')
+
+
+@router.post("/live/plugin-ack")
+async def live_plugin_ack_post(cid: str, path: str, sig: str, request: Request):
+    """Public (shard-signed): ack WITH a result payload (for `method` read ops). The
+    plugin POSTs text/plain JSON {id,ok,error,result} (text/plain = no CORS preflight)."""
+    import json as _json
+
+    _live_verify_shard(cid, path, sig)
+    try:
+        data = _json.loads((await request.body()) or b"{}")
+    except Exception:  # noqa: BLE001
+        data = {}
+    _live_record_ack(
+        cid, path, str(data.get("id", "")), bool(data.get("ok", 1)),
+        data.get("result"), str(data.get("error") or ""),
+    )
     return _cors_json('{"received":true}')
 
 
@@ -1197,19 +1252,40 @@ async def live_dev_status():
 @router.get("/live/dev-enqueue")
 async def live_dev_enqueue(cid: str, path: str, op: str = "highlight",
                            range: str = "A2:D8", rgb: str = "255,0,0",
-                           text: str = "flagged by agent", cell: str = "A1"):
+                           text: str = "flagged by agent", cell: str = "A1",
+                           name: str = "", params: str = ""):
     if not _live_enabled():
         raise HTTPException(status_code=404, detail="not enabled")
+    import json as _json
+
     if op == "highlight":
         args = {"range": range, "rgb": [int(x) for x in rgb.split(",")][:3]}
     elif op == "comment":
         args = {"text": text}
     elif op == "select":
         args = {"cell": cell}
+    elif op == "method":
+        try:
+            parsed = _json.loads(params) if params else []
+        except Exception:  # noqa: BLE001
+            parsed = []
+        args = {"name": name, "params": parsed}
     else:
         args = {}
-    res = await live_send(cid, path, op, args, timeout=5.0)
+    res = await live_send(cid, path, op, args, timeout=6.0)
     return res
+
+
+@router.get("/live/methods")
+async def live_methods():
+    """Observability: the enabled automation-method allow-list (current batch)."""
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="not enabled")
+    return {
+        "max_batch": _LIVE_METHOD_MAX_BATCH,
+        "enabled": sorted(n for n in _LIVE_METHODS if _live_method_allowed(n)),
+        "registered": {n: m for n, m in _LIVE_METHODS.items()},
+    }
 
 
 @router.get("/script")
