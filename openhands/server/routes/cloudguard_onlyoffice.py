@@ -31,7 +31,7 @@ import re
 import secrets
 import time
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, urlsplit, urlunsplit
 
 import httpx
 import jwt
@@ -456,6 +456,23 @@ def _ds_internal() -> str:
     """DS origin reachable FROM the app container (same docker network)."""
     return os.environ.get("ONLYOFFICE_INTERNAL_URL", "http://onlyoffice-docs").rstrip(
         "/"
+    )
+
+
+def _ds_internal_download_url(url: str) -> str:
+    """Rewrite a DS callback download URL to the DS-internal origin.
+
+    On save, the DS builds the assembled-file download URL from its PUBLIC base — the
+    same-origin gateway the *browser* loads the editor from (e.g. http://127.0.0.1:3080).
+    That address is unreachable from inside the app container (127.0.0.1 there is the app
+    itself), so the callback download fails with "All connection attempts failed". We keep
+    the DS-provided path + query (they carry the signed md5/expiry) but swap the origin to
+    the internal DS DNS (onlyoffice-docs), which the app can reach over the docker network.
+    """
+    parts = urlsplit(url)
+    internal = urlsplit(_ds_internal())
+    return urlunsplit(
+        (internal.scheme, internal.netloc, parts.path, parts.query, parts.fragment)
     )
 
 
@@ -1906,7 +1923,7 @@ async def create_token(
         config["editorConfig"]["plugins"] = {
             "autostart": [_LIVE_PLUGIN_GUID],
             "pluginsData": [
-                f"{_document_server_url()}/sdkjs-plugins/id-live-v2/config.json"
+                f"{_document_server_url()}/sdkjs-plugins/id-live/config.json"
             ],
         }
 
@@ -2065,18 +2082,33 @@ async def save_callback(
         url,
     )
 
+    # status 3 = save-error, 7 = force-save-error: the DS itself failed to assemble.
+    # Surface it loudly — this must never be a silent drop.
+    if status in (3, 7):
+        logger.error(
+            "onlyoffice callback: DS reported SAVE ERROR status=%s key=%s cid=%s path=%s",
+            status, key, cid, path,
+        )
+
     if status in (2, 6) and url:
+        target_ok = bool(cid and path and sig) and hmac.compare_digest(
+            sig or "", _callback_sig(cid or "", path or "")
+        )
+        # The DS embeds its PUBLIC (browser/gateway) origin in the download URL, which the
+        # app container can't reach — rewrite it to the internal DS DNS before fetching.
+        download_url = _ds_internal_download_url(url)
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.get(url)
+                resp = await client.get(download_url)
                 resp.raise_for_status()
             content = resp.content
 
-            target_ok = bool(cid and path and sig) and hmac.compare_digest(
-                sig or "", _callback_sig(cid or "", path or "")
-            )
             if target_ok:
                 await _save_to_sandbox(cid, path, content)  # type: ignore[arg-type]
+                logger.info(
+                    "onlyoffice callback: saved %d bytes → sandbox %s:%s",
+                    len(content), cid, path,
+                )
             else:
                 # No verified sandbox target — keep a local copy so the edit isn't lost.
                 uploads = _uploads_dir()
@@ -2085,10 +2117,19 @@ async def save_callback(
                 dest.write_bytes(content)
                 logger.info(
                     "onlyoffice callback: no signed target, saved %d bytes → %s",
-                    len(content),
-                    dest,
+                    len(content), dest,
                 )
-        except Exception as exc:  # noqa: BLE001 — never fail the callback on a save error
-            logger.error("onlyoffice callback: download/save-back failed: %s", exc)
+        except Exception as exc:  # noqa: BLE001
+            # DURABILITY: for a VERIFIED sandbox target, do NOT swallow the failure with
+            # error:0 — that tells the DS "saved" and the edit is lost forever. Return
+            # error:1 so the DS retries this callback (it has a bounded retry budget).
+            # Only the log-only path (no verified target) fails open, since a retry there
+            # can't reach a real destination anyway.
+            logger.error(
+                "onlyoffice callback: download/save-back FAILED (target_ok=%s) cid=%s path=%s: %s",
+                target_ok, cid, path, exc,
+            )
+            if target_ok:
+                return {"error": 1}
 
     return {"error": 0}
