@@ -525,6 +525,29 @@ class DockerRuntime(ActionExecutionClient):
         # also update with runtime_startup_env_vars
         environment.update(self.config.sandbox.runtime_startup_env_vars)
 
+        # SB1 zero-trust skill dispatch — when enabled, mint a per-conversation HMAC token
+        # (matches cloudguard_skills.mint_skill_token) and point the kernel at the app so it
+        # fetches skill bodies from the control plane instead of the on-disk catalog / neo4j.
+        # Flag-gated (CLOUDGUARD_SKILL_DISPATCH_ENABLED): off → no vars injected → the kernel
+        # keeps its current disk/graph path. The token is scoped to THIS conversation and only
+        # usable against the allowlisted/rate-limited/audited skill-body endpoint.
+        if os.environ.get('CLOUDGUARD_SKILL_DISPATCH_ENABLED', '').strip().lower() in (
+            '1', 'true', 'yes', 'on',
+        ):
+            import hashlib as _hl
+            import hmac as _hm
+
+            _key = os.environ.get(
+                'CLOUDGUARD_SKILL_HMAC_KEY', os.environ.get('ONLYOFFICE_JWT_SECRET', '')
+            )
+            environment['CLOUDGUARD_SKILL_TOKEN'] = _hm.new(
+                _key.encode(), f'skill\n{self.sid}'.encode(), _hl.sha256
+            ).hexdigest()
+            environment['CLOUDGUARD_SKILL_DISPATCH_URL'] = os.environ.get(
+                'CLOUDGUARD_SKILL_DISPATCH_URL_SANDBOX',
+                'http://host.docker.internal:3000/api/cloudguard/skills/body',
+            )
+
         # CloudGuard multi-tenancy: inject the tenant resolved from the TRUSTED, app-private
         # conversation→tenant map (cloudguard.conversation_tenant) — NEVER a sandbox- or
         # client-supplied value, and applied AFTER runtime_startup_env_vars so a
