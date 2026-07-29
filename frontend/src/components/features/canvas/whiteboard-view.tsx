@@ -73,6 +73,13 @@ export default function WhiteboardView({ conversationId }: Props) {
   const storageKey = `cg-drawio-${conversationId ?? "default"}`;
   const ref = React.useRef<DrawIoEmbedRef>(null);
 
+  // AP1 — durable-save state, surfaced so a diagram is never SILENTLY localStorage-only.
+  // idle→saving→saved on the debounced workspace upload; error if the runtime is unreachable
+  // (localStorage still holds it and the next edit retries).
+  const [saveState, setSaveState] = React.useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+
   // Resolve the initial diagram: instant localStorage cache first, then fall back
   // to the DURABLE workspace copy (backend is the source of truth, so the board
   // survives a cleared cache or a different browser). null = still resolving.
@@ -123,13 +130,17 @@ export default function WhiteboardView({ conversationId }: Props) {
       if (wsSaveTimer.current) window.clearTimeout(wsSaveTimer.current);
       wsSaveTimer.current = window.setTimeout(() => {
         lastSavedXml.current = xml;
+        setSaveState("saving");
         const file = new File([xml], WORKSPACE_PATH, {
           type: "application/xml",
         });
-        ConversationService.uploadFiles(conversationId, [file]).catch(() => {
-          // Runtime not reachable — localStorage still holds it; retry on next edit.
-          lastSavedXml.current = "";
-        });
+        ConversationService.uploadFiles(conversationId, [file])
+          .then(() => setSaveState("saved"))
+          .catch(() => {
+            // Runtime not reachable — localStorage still holds it; retry on next edit.
+            lastSavedXml.current = "";
+            setSaveState("error");
+          });
       }, WORKSPACE_SAVE_DEBOUNCE_MS);
     },
     [conversationId],
@@ -195,6 +206,33 @@ export default function WhiteboardView({ conversationId }: Props) {
         onSave={(e) => persist(e.xml)}
         onAutoSave={(e) => persist(e.xml)}
       />
+      {conversationId && saveState !== "idle" && (
+        <div
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 12,
+            zIndex: 5,
+            padding: "2px 8px",
+            borderRadius: 4,
+            fontSize: 11,
+            fontFamily: "monospace",
+            pointerEvents: "none",
+            background: "rgba(0,0,0,0.55)",
+            color: {
+              idle: "#8b949e",
+              saving: "#8b949e",
+              saved: "#3fb950",
+              error: "#f5a524",
+            }[saveState],
+          }}
+          title="Durable save to the workspace"
+        >
+          {saveState === "saving" && "● Saving…"}
+          {saveState === "saved" && "✓ Saved"}
+          {saveState === "error" && "⚠ Not saved — will retry on next edit"}
+        </div>
+      )}
     </div>
   );
 }
