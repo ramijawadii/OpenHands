@@ -170,6 +170,27 @@ export default function WhiteboardView({ conversationId }: Props) {
     [storageKey, saveToWorkspace],
   );
 
+  // AP1 — drive draw.io's OWN status bar (bottom-left) with the durable-save state, the
+  // same place draw.io shows its native status — like the ONLYOFFICE editor's "All changes
+  // saved". No custom strip. Best-effort: draw.io may re-set its own status on the next edit.
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || saveState === "idle") return;
+    const msg: Record<
+      "saving" | "saved" | "error",
+      { message: string; modified: boolean }
+    > = {
+      saving: { message: "Saving…", modified: true },
+      saved: { message: "All changes saved", modified: false },
+      error: { message: "Not saved — will retry", modified: true },
+    };
+    try {
+      el.status(msg[saveState]);
+    } catch {
+      // status is best-effort chrome; never let it break editing
+    }
+  }, [saveState]);
+
   // Wait until the initial diagram is resolved so DrawIoEmbed mounts once with the
   // correct XML (remounting it with a late xml prop would not reload the canvas).
   if (initialXml === null) {
@@ -180,67 +201,32 @@ export default function WhiteboardView({ conversationId }: Props) {
     );
   }
 
-  // AP1 — save status shown in the whiteboard's own BOTTOM STATUS BAR (mirrors ONLYOFFICE),
-  // theme-matched. Text via a lookup (no nested ternary); color per state.
-  const saveText = !conversationId
-    ? "Local only"
-    : {
-        idle: "Ready",
-        saving: "● Saving…",
-        saved: "✓ Saved",
-        error: "⚠ Not saved — will retry on next edit",
-      }[saveState];
-  const saveColor = {
-    idle: "var(--cg-text-muted)",
-    saving: "var(--cg-text-muted)",
-    saved: "#3fb950",
-    error: "#f5a524",
-  }[saveState];
-
   return (
-    <div
-      style={{
-        height: "100%",
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
-        <DrawIoEmbed
-          key={storageKey}
-          ref={ref}
-          baseUrl={DRAWIO_BASE_URL}
-          xml={initialXml}
-          // Fire onAutoSave on every change so a tab switch never loses work.
-          autosave
-          // Defaults: white (light) mode, grid OFF, page view OFF, de-branded
-          // chrome. grid/dark are URL params; page view + CSS live in the config.
-          configuration={DRAWIO_CONFIGURATION}
-          urlParameters={{
-            ui: "min",
-            spin: false,
-            // Keep it a contained embed: no exit button, no "save & exit" flow —
-            // autosave feeds our persist() and the diagram never leaves the app.
-            saveAndExit: false,
-            noSaveBtn: false,
-            noExitBtn: true,
-            dark: false,
-            grid: false,
-          }}
-          onSave={(e) => persist(e.xml)}
-          onAutoSave={(e) => persist(e.xml)}
-        />
-      </div>
-      {/* Bottom status bar — replaces draw.io's own footer (hidden via CSS), shows the
-          durable-save state like the ONLYOFFICE editor's status bar. */}
-      <div className="flex h-6 shrink-0 items-center justify-end border-t border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-3 text-[11px]">
-        <span
-          style={{ color: saveColor, fontFamily: "ui-monospace, monospace" }}
-        >
-          {saveText}
-        </span>
-      </div>
+    <div style={{ height: "100%", width: "100%", position: "relative" }}>
+      <DrawIoEmbed
+        key={storageKey}
+        ref={ref}
+        baseUrl={DRAWIO_BASE_URL}
+        xml={initialXml}
+        // Fire onAutoSave on every change so a tab switch never loses work.
+        autosave
+        // Defaults: white (light) mode, grid OFF, page view OFF, de-branded
+        // chrome. grid/dark are URL params; page view + CSS live in the config.
+        configuration={DRAWIO_CONFIGURATION}
+        urlParameters={{
+          ui: "min",
+          spin: false,
+          // Keep it a contained embed: no exit button, no "save & exit" flow —
+          // autosave feeds our persist() and the diagram never leaves the app.
+          saveAndExit: false,
+          noSaveBtn: false,
+          noExitBtn: true,
+          dark: false,
+          grid: false,
+        }}
+        onSave={(e) => persist(e.xml)}
+        onAutoSave={(e) => persist(e.xml)}
+      />
     </div>
   );
 }
