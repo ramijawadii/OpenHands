@@ -319,6 +319,26 @@ class DockerRuntime(ActionExecutionClient):
                 f'Mount dir (legacy): {self.config.workspace_mount_path} with mode: {mount_mode}'
             )
 
+        # CloudGuard AP0.1 — DURABLE per-conversation /workspace.
+        # By default OpenHands creates /workspace inside the container layer, so it is
+        # EPHEMERAL: a runtime recreate/restart loses every artifact written there
+        # (notebooks, draw.io diagrams, ONLYOFFICE save-back, Report/Sheet). With
+        # CLOUDGUARD_DURABLE_WORKSPACE=1 we back /workspace with a per-conversation NAMED
+        # VOLUME (cg-ws-<sid>) so artifacts survive recreate. Per-conversation name = no
+        # cross-conversation leakage; additive + flag-gated so default behaviour is unchanged.
+        # (Docker seeds a fresh named volume from the image's /workspace, so first-run content
+        # is preserved.) Volume lifecycle/cleanup is a follow-up reaper.
+        if os.environ.get('CLOUDGUARD_DURABLE_WORKSPACE', '').strip().lower() in (
+            '1', 'true', 'yes', 'on',
+        ):
+            ws_bind = self.config.workspace_mount_path_in_sandbox or '/workspace'
+            if not any(v.get('bind') == ws_bind for v in volumes.values()):
+                vol_name = f'cg-ws-{self.sid}'
+                volumes[vol_name] = {'bind': ws_bind, 'mode': 'rw'}
+                logger.info(
+                    f'[cloudguard] durable workspace: named volume {vol_name} -> {ws_bind}'
+                )
+
         return volumes
 
     def _process_overlay_mounts(self) -> list[Mount]:
