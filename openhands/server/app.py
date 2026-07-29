@@ -420,6 +420,21 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard surfaces routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard SB1 — control-plane skill-dispatch seam (zero-trust sandbox). Flag-gated by
+# CLOUDGUARD_SKILLS_CATALOG_DIR; 404s until enabled, so registering it is a no-op otherwise.
+try:
+    from openhands.server.routes.cloudguard_skills import (
+        router as cloudguard_skills_router,
+    )
+
+    app.include_router(cloudguard_skills_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard skills routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
 try:
     from openhands.server.routes.cloudguard_vfs import router as cloudguard_vfs_router
