@@ -180,59 +180,67 @@ export default function WhiteboardView({ conversationId }: Props) {
     );
   }
 
+  // AP1 — save status shown in the whiteboard's own BOTTOM STATUS BAR (mirrors ONLYOFFICE),
+  // theme-matched. Text via a lookup (no nested ternary); color per state.
+  const saveText = !conversationId
+    ? "Local only"
+    : {
+        idle: "Ready",
+        saving: "● Saving…",
+        saved: "✓ Saved",
+        error: "⚠ Not saved — will retry on next edit",
+      }[saveState];
+  const saveColor = {
+    idle: "var(--cg-text-muted)",
+    saving: "var(--cg-text-muted)",
+    saved: "#3fb950",
+    error: "#f5a524",
+  }[saveState];
+
   return (
-    <div style={{ height: "100%", width: "100%", position: "relative" }}>
-      <DrawIoEmbed
-        key={storageKey}
-        ref={ref}
-        baseUrl={DRAWIO_BASE_URL}
-        xml={initialXml}
-        // Fire onAutoSave on every change so a tab switch never loses work.
-        autosave
-        // Defaults: white (light) mode, grid OFF, page view OFF, de-branded
-        // chrome. grid/dark are URL params; page view + CSS live in the config.
-        configuration={DRAWIO_CONFIGURATION}
-        urlParameters={{
-          ui: "min",
-          spin: false,
-          // Keep it a contained embed: no exit button, no "save & exit" flow —
-          // autosave feeds our persist() and the diagram never leaves the app.
-          saveAndExit: false,
-          noSaveBtn: false,
-          noExitBtn: true,
-          dark: false,
-          grid: false,
-        }}
-        onSave={(e) => persist(e.xml)}
-        onAutoSave={(e) => persist(e.xml)}
-      />
-      {conversationId && saveState !== "idle" && (
-        <div
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 12,
-            zIndex: 5,
-            padding: "2px 8px",
-            borderRadius: 4,
-            fontSize: 11,
-            fontFamily: "monospace",
-            pointerEvents: "none",
-            background: "rgba(0,0,0,0.55)",
-            color: {
-              idle: "#8b949e",
-              saving: "#8b949e",
-              saved: "#3fb950",
-              error: "#f5a524",
-            }[saveState],
+    <div
+      style={{
+        height: "100%",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+        <DrawIoEmbed
+          key={storageKey}
+          ref={ref}
+          baseUrl={DRAWIO_BASE_URL}
+          xml={initialXml}
+          // Fire onAutoSave on every change so a tab switch never loses work.
+          autosave
+          // Defaults: white (light) mode, grid OFF, page view OFF, de-branded
+          // chrome. grid/dark are URL params; page view + CSS live in the config.
+          configuration={DRAWIO_CONFIGURATION}
+          urlParameters={{
+            ui: "min",
+            spin: false,
+            // Keep it a contained embed: no exit button, no "save & exit" flow —
+            // autosave feeds our persist() and the diagram never leaves the app.
+            saveAndExit: false,
+            noSaveBtn: false,
+            noExitBtn: true,
+            dark: false,
+            grid: false,
           }}
-          title="Durable save to the workspace"
+          onSave={(e) => persist(e.xml)}
+          onAutoSave={(e) => persist(e.xml)}
+        />
+      </div>
+      {/* Bottom status bar — replaces draw.io's own footer (hidden via CSS), shows the
+          durable-save state like the ONLYOFFICE editor's status bar. */}
+      <div className="flex h-6 shrink-0 items-center justify-end border-t border-[var(--cg-border-subtle)] bg-[var(--cg-bg-card)] px-3 text-[11px]">
+        <span
+          style={{ color: saveColor, fontFamily: "ui-monospace, monospace" }}
         >
-          {saveState === "saving" && "● Saving…"}
-          {saveState === "saved" && "✓ Saved"}
-          {saveState === "error" && "⚠ Not saved — will retry on next edit"}
-        </div>
-      )}
+          {saveText}
+        </span>
+      </div>
     </div>
   );
 }

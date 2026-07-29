@@ -24,6 +24,9 @@ export const DRAWIO_CONFIGURATION = {
     "a[href*='diagrams.net'],",
     "a[href*='drawio.com'],",
     "a[href*='draw.io'],",
+    // Hide the vendor GitHub link/icon from draw.io's status bar — our own bottom
+    // status bar (whiteboard-view) carries the save state in its place.
+    "a[href*='github'],",
     ".geAboutDialog { display: none !important; }",
     ".geStatus > img, .geMenubarContainer .geLogo { display: none !important; }",
   ].join("\n"),
