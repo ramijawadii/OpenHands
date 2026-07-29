@@ -548,6 +548,28 @@ class DockerRuntime(ActionExecutionClient):
                 'http://host.docker.internal:3000/api/cloudguard/skills/body',
             )
 
+        # SB2 zero-trust report compile — when enabled, mint a per-conversation HMAC token
+        # (matches cloudguard_report.mint_report_token, "report\n"+sid namespace) and point the
+        # sandbox's latex_compile.py at the control-plane compile endpoint, so the CLSI protocol
+        # + address never live in the sandbox. Flag-gated (CLOUDGUARD_REPORT_COMPILE_ENABLED);
+        # off → no vars → the sandbox keeps compiling via its local CLSI path.
+        if os.environ.get('CLOUDGUARD_REPORT_COMPILE_ENABLED', '').strip().lower() in (
+            '1', 'true', 'yes', 'on',
+        ):
+            import hashlib as _hl2
+            import hmac as _hm2
+
+            _rkey = os.environ.get(
+                'CLOUDGUARD_REPORT_HMAC_KEY', os.environ.get('ONLYOFFICE_JWT_SECRET', '')
+            )
+            environment['CLOUDGUARD_REPORT_TOKEN'] = _hm2.new(
+                _rkey.encode(), f'report\n{self.sid}'.encode(), _hl2.sha256
+            ).hexdigest()
+            environment['CLOUDGUARD_REPORT_DISPATCH_URL'] = os.environ.get(
+                'CLOUDGUARD_REPORT_DISPATCH_URL_SANDBOX',
+                'http://host.docker.internal:3000/api/cloudguard/report/compile',
+            )
+
         # CloudGuard multi-tenancy: inject the tenant resolved from the TRUSTED, app-private
         # conversation→tenant map (cloudguard.conversation_tenant) — NEVER a sandbox- or
         # client-supplied value, and applied AFTER runtime_startup_env_vars so a

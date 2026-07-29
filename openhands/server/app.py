@@ -435,6 +435,21 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard skills routes unavailable: %s", _cg_exc
     )
 
+# SB2 — control-plane report-compile seam. Flag-gated (CLOUDGUARD_REPORT_COMPILE_ENABLED);
+# 404s until enabled, so registering it is a no-op otherwise.
+try:
+    from openhands.server.routes.cloudguard_report import (
+        router as cloudguard_report_router,
+    )
+
+    app.include_router(cloudguard_report_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard report routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
 try:
     from openhands.server.routes.cloudguard_vfs import router as cloudguard_vfs_router
