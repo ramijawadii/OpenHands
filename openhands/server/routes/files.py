@@ -380,20 +380,31 @@ async def upload_files(
                             'vfs upload BUFFERED (driver down) → %s (spooled + will drain)',
                             file_path,
                         )
+                    # AP5 observability: same greppable event as ONLYOFFICE save-back, so
+                    # draw.io / Sheet / uploaded-artifact saves get the same OpenSearch alert.
+                    logger.info(
+                        'cg_save_event kind=%s surface=upload durable=%s bytes=%d actor=%s path=%s',
+                        'ok' if entry.durable else 'buffered',
+                        entry.durable, len(file_content), actor, rel_path,
+                    )
                     uploaded_files.append(file_path)
                     continue
                 except (VFSDenied, VFSInvalidPath) as sec:
                     # CISO-1: authoritative VFS rejection (policy/traversal). Do NOT
                     # fall back to the raw FileWriteAction — that legacy path has no
                     # traversal gate and would defeat the VFS decision. Skip it.
+                    logger.warning(
+                        'cg_save_event kind=rejected surface=upload path=%s reason=%s',
+                        rel_path, sec,
+                    )
                     skipped_files.append(
                         {'name': file.filename, 'reason': f'vfs rejected: {sec}'}
                     )
                     continue
                 except Exception as vexc:  # noqa: BLE001 — transport/infra only: degrade, never drop
                     logger.warning(
-                        'vfs upload write failed (%s); falling back to direct write',
-                        vexc,
+                        'cg_save_event kind=failed surface=upload path=%s err=%s; falling back to direct write',
+                        rel_path, vexc,
                     )
             write_action = FileWriteAction(
                 # TODO: DISCUSS UTF8 encoding here
