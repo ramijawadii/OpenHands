@@ -2050,6 +2050,49 @@ async def _save_to_sandbox(cid: str, path: str, content: bytes) -> None:
                 pass
 
 
+# ── P5 observability: save-pipeline metrics ──────────────────────────────────
+# In-process counters for the save-back pipeline. Cheap, dependency-free; scrape via
+# GET /api/onlyoffice/live/save-metrics (Prometheus/Grafana can poll it) and alert on the
+# structured "cg_save_event" log line shipped to OpenSearch. Not persistent — a durable
+# audit of who-saved-what lives in the hash-chained tenant_audit via the VFS writeback seam.
+_SAVE_METRICS: dict[str, object] = {
+    "ok": 0,            # verified-target saves written to the sandbox
+    "failed": 0,        # verified-target download/write failures (DS will retry)
+    "ds_error": 0,      # DS-reported assemble errors (status 3/7)
+    "loglocal": 0,      # saves with no verified target (log-only fallback)
+    "bytes": 0,         # total bytes written to sandboxes
+    "last_ok_ts": None,
+    "last_fail_ts": None,
+    "last_error": None,
+}
+
+
+def _save_metric(kind: str, *, cid: str | None = None, path: str | None = None,
+                 nbytes: int = 0, status: object = None, error: str | None = None) -> None:
+    """Update counters + emit one structured, greppable event line for log-based alerting."""
+    m = _SAVE_METRICS
+    m[kind] = int(m.get(kind, 0)) + 1  # type: ignore[arg-type]
+    now = int(time.time())
+    if kind == "ok":
+        m["bytes"] = int(m["bytes"]) + max(0, nbytes)  # type: ignore[arg-type]
+        m["last_ok_ts"] = now
+    elif kind in ("failed", "ds_error"):
+        m["last_fail_ts"] = now
+        m["last_error"] = error
+    logger.info(
+        "cg_save_event kind=%s ok=%d failed=%d ds_error=%d bytes=%d status=%s cid=%s path=%s err=%s",
+        kind, m["ok"], m["failed"], m["ds_error"], nbytes, status, cid, path, error,
+    )
+
+
+@router.get("/live/save-metrics")
+async def live_save_metrics():
+    """Scrape surface for the save pipeline (P5). Flag-gated with the rest of live editing."""
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="not enabled")
+    return dict(_SAVE_METRICS)
+
+
 @router.post("/callback")
 async def save_callback(
     body: dict = Body(...),
@@ -2089,6 +2132,7 @@ async def save_callback(
             "onlyoffice callback: DS reported SAVE ERROR status=%s key=%s cid=%s path=%s",
             status, key, cid, path,
         )
+        _save_metric("ds_error", cid=cid, path=path, status=status, error="ds-assemble-error")
 
     if status in (2, 6) and url:
         target_ok = bool(cid and path and sig) and hmac.compare_digest(
@@ -2109,6 +2153,7 @@ async def save_callback(
                     "onlyoffice callback: saved %d bytes → sandbox %s:%s",
                     len(content), cid, path,
                 )
+                _save_metric("ok", cid=cid, path=path, nbytes=len(content), status=status)
             else:
                 # No verified sandbox target — keep a local copy so the edit isn't lost.
                 uploads = _uploads_dir()
@@ -2119,6 +2164,7 @@ async def save_callback(
                     "onlyoffice callback: no signed target, saved %d bytes → %s",
                     len(content), dest,
                 )
+                _save_metric("loglocal", cid=cid, path=path, nbytes=len(content), status=status)
         except Exception as exc:  # noqa: BLE001
             # DURABILITY: for a VERIFIED sandbox target, do NOT swallow the failure with
             # error:0 — that tells the DS "saved" and the edit is lost forever. Return
@@ -2130,6 +2176,7 @@ async def save_callback(
                 target_ok, cid, path, exc,
             )
             if target_ok:
+                _save_metric("failed", cid=cid, path=path, status=status, error=str(exc))
                 return {"error": 1}
 
     return {"error": 0}
