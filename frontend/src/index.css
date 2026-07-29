@@ -1,7 +1,21 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Outfit:wght@100..900&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Outfit:wght@100..900&display=swap");
 
 :root {
+  /* ── Sidebar system, modelled on the Cloudflare dashboard nav ──────────────
+     Tokens first so every metric below is derived, not sprinkled. */
+  --sidebar-width: 16.25rem; /* 260px expanded */
+  --sidebar-width-icon: 57px; /* collapsed rail */
+  --sidebar-animation-duration: 250ms;
+  --sidebar-easing: cubic-bezier(0.77, 0, 0.175, 1);
+  --sidebar-header-h: 58px;
+  --sidebar-item-h: 34px; /* min-h-8.5 */
+  --sidebar-radius: 8px; /* rounded-lg */
+
+  /* Height of the global top bar AND of the conversation drawer's tab strip.
+     One token because the two sit side by side at y=0 — their bottom borders
+     must land on the same line, and two hardcoded numbers drift apart. */
+  --cg-topbar-h: 50px;
   /* native form controls (select dropdowns, scrollbars, date pickers) follow the theme */
   color-scheme: dark;
   --bg-dark: #0c0e10;
@@ -32,11 +46,11 @@
   --cg-border-card: #565656;
   --cg-accent: #2d86d4;
   --cg-accent-purple: #8a8680;
-  --cg-accent-bg: rgba(45, 134, 212, 0.10);
+  --cg-accent-bg: rgba(45, 134, 212, 0.1);
   --cg-accent-bg-strong: rgba(45, 134, 212, 0.18);
   --cg-accent-purple-bg: rgba(138, 134, 128, 0.19);
   --cg-workspace-bg: rgba(43, 43, 41, 0.45);
-  --cg-workspace-bg-hover: rgba(43, 43, 41, 0.70);
+  --cg-workspace-bg-hover: rgba(43, 43, 41, 0.7);
   --cg-workspace-dropdown-bg: #1c1c1a;
   --cg-shadow-dropdown: 0 8px 24px rgba(0, 0, 0, 0.4);
   --cg-btn-cta-bg: #f7f7f2;
@@ -107,7 +121,9 @@
 [data-theme="light"] .bg-red-600 .text-white,
 [data-theme="light"] .bg-red-600.text-white,
 [data-theme="light"] .bg-red-500 .text-white,
-[data-theme="light"] .bg-red-500.text-white { color: #ffffff; }
+[data-theme="light"] .bg-red-500.text-white {
+  color: #ffffff;
+}
 
 /* CloudGuard sidebar scrollbar */
 .cg-sidebar-nav::-webkit-scrollbar {
@@ -219,10 +235,16 @@ code {
   line-height: 1.45;
 }
 
-.cg-chat-embedded .markdown-body h1 { font-size: 15px; }
-.cg-chat-embedded .markdown-body h2 { font-size: 14px; }
+.cg-chat-embedded .markdown-body h1 {
+  font-size: 15px;
+}
+.cg-chat-embedded .markdown-body h2 {
+  font-size: 14px;
+}
 .cg-chat-embedded .markdown-body h3,
-.cg-chat-embedded .markdown-body h4 { font-size: 13px; }
+.cg-chat-embedded .markdown-body h4 {
+  font-size: 13px;
+}
 
 .cg-chat-embedded .markdown-body :is(p, ul, ol, pre, table) {
   margin-top: 0.4rem;
@@ -260,10 +282,31 @@ code {
   max-height: 180px !important;
 }
 
+/* chat box: inset from the drawer floor, and flush with the suggestion cards.
+   The shared layout is justify-between, so the composer sat on the panel's
+   bottom edge and read as clipped.
+
+   Width is derived, not guessed. The cards live in an overlay spanning the
+   drawer's full width with px-6 (24px) gutters, and their .max-w-3xl is
+   released to 100% above. The composer's parent (.pr-0.md:pr-4) already
+   carries 12px gutters, so 1.5rem off its content box lands both on the same
+   edges — at any drawer width, which a fixed max-width could not do.
+
+   Targets the testid rather than a Tailwind class so a restyle of the shared
+   component cannot silently detach this. */
+.cg-chat-embedded [data-testid="interactive-chat-box"] {
+  width: calc(100% - 1.5rem);
+  margin-left: auto;
+  margin-right: auto;
+  margin-bottom: 0.75rem;
+}
+
 /* the suggestions overlay is positioned off the input's height — retune it to
-   match the shorter box, otherwise a dead gap opens above the chat box. */
+   match the shorter box, otherwise a dead gap opens above the chat box. The
+   12px here is the composer's new bottom margin: without it the overlay drifts
+   back down onto the box. */
 .cg-chat-embedded .bottom-\[151px\] {
-  bottom: 112px !important;
+  bottom: 124px !important;
 }
 
 /* empty-state header */
@@ -402,4 +445,325 @@ code {
 }
 .cg-chat-embedded [data-testid="user-message"] {
   max-width: 88% !important;
+}
+
+/* ── Sidebar nav — Cloudflare-dashboard visual system ────────────────────────
+   Metrics, type scale, easing and the collapse choreography follow the
+   reference implementation: 34px rows, 14px/500 labels, 8px radii, icons at
+   50% opacity, and a single 250ms cubic-bezier(0.77,0,0.175,1) for every
+   transition so width, padding and rows move as one gesture. */
+
+/* Row — used by domain buttons and any top-level nav entry. */
+.cg-sb-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--sidebar-item-h);
+  padding: 0 10px;
+  margin: 1px 0;
+  border: none;
+  border-radius: var(--sidebar-radius);
+  background: transparent;
+  color: var(--cg-text-primary);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition:
+    color var(--sidebar-animation-duration) var(--sidebar-easing),
+    background-color var(--sidebar-animation-duration) var(--sidebar-easing);
+}
+.cg-sb-item:hover,
+.cg-sb-item:focus-visible {
+  background: var(--cg-bg-hover);
+}
+.cg-sb-item[data-active="true"] {
+  background: var(--cg-bg-active);
+}
+/* Collapsed rail: centre the icon and keep the highlight a tidy inset square
+   instead of a full-bleed bar touching both borders. */
+[data-collapsed="true"] .cg-sb-item {
+  justify-content: center;
+  padding: 0;
+}
+[data-collapsed="true"] .cg-sb-item-inner {
+  flex: 0 0 auto;
+  justify-content: center;
+  /* No slide on the rail: the icon must sit on the exact centre line. */
+  transform: none;
+}
+/* THE fix for "several rows look active at once": when a child is the active
+   route, the child owns the highlight and the open parent goes transparent.
+   Without this an expanded domain, its active sub-tab and whatever the pointer
+   was over were all lit simultaneously. */
+.cg-sb-group:has(.cg-sb-sub-item[data-active="true"])
+  > .cg-sb-item[data-active="true"] {
+  background: transparent;
+}
+.cg-sb-group:has(.cg-sb-sub-item[data-active="true"])
+  > .cg-sb-item[data-active="true"]:hover {
+  background: var(--cg-bg-hover);
+}
+
+/* The icon+label block slides 3px as the rail expands, so icons settle into
+   their final optical position instead of jumping. */
+.cg-sb-item-inner {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  transform: translateX(-3px);
+  transition: transform var(--sidebar-animation-duration) var(--sidebar-easing);
+}
+[data-collapsed="false"] .cg-sb-item-inner {
+  transform: translateX(0);
+}
+.cg-sb-item-icon {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+.cg-sb-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+/* Chevron: one element, rotated — never two swapped icons. */
+.cg-sb-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.4;
+  transition:
+    transform 200ms var(--sidebar-easing),
+    opacity 200ms ease;
+}
+.cg-sb-item:hover .cg-sb-chevron {
+  opacity: 1;
+}
+.cg-sb-chevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+[data-collapsed="true"] .cg-sb-chevron {
+  display: none;
+}
+
+/* Collapsible region — grid 0fr -> 1fr, the only technique that animates to
+   intrinsic height without measuring it in JS. */
+.cg-sb-collapsible {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--sidebar-animation-duration)
+    var(--sidebar-easing);
+}
+.cg-sb-collapsible[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+.cg-sb-collapsible > div {
+  overflow: hidden;
+}
+
+/* Sub-menu + the connecting line that ties children to their parent. */
+.cg-sb-sub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0 0 0 28px;
+  list-style: none;
+  overflow: hidden;
+}
+.cg-sb-sub::before {
+  content: "";
+  position: absolute;
+  left: 19px;
+  top: 1px;
+  bottom: 1px;
+  width: 1px;
+  background: var(--cg-border);
+  z-index: 10;
+}
+.cg-sb-sub-item {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--sidebar-item-h);
+  padding: 0 10px;
+  margin: 1px 0;
+  border: none;
+  border-radius: var(--sidebar-radius);
+  background: transparent;
+  color: var(--cg-text-nav);
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition:
+    color 150ms var(--sidebar-easing),
+    background-color 150ms var(--sidebar-easing);
+}
+.cg-sb-sub-item:hover,
+.cg-sb-sub-item:focus-visible {
+  background: var(--cg-bg-hover);
+  color: var(--cg-text-primary);
+}
+.cg-sb-sub-item[data-active="true"] {
+  background: var(--cg-accent-bg);
+  color: var(--cg-text-primary);
+}
+.cg-sb-sub-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Section label — collapses to a plain divider on the rail rather than
+   disappearing, so the grouping survives the collapse. */
+.cg-sb-group-label {
+  display: grid;
+  grid-template-rows: 1fr;
+  margin: 0;
+  overflow: hidden;
+  border-bottom: 1px solid transparent;
+  transition:
+    grid-template-rows var(--sidebar-animation-duration) var(--sidebar-easing),
+    margin var(--sidebar-animation-duration) var(--sidebar-easing),
+    border-color var(--sidebar-animation-duration) var(--sidebar-easing);
+}
+[data-collapsed="true"] .cg-sb-group-label {
+  grid-template-rows: 0fr;
+  margin: 12px 0;
+  border-bottom-color: var(--cg-border);
+}
+.cg-sb-group-label > div {
+  min-height: 0;
+  min-width: 0;
+}
+.cg-sb-group-label-text {
+  padding: 0 12px;
+  margin: 16px 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--cg-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scroll area: hidden scrollbar + a soft mask so rows fade at both edges
+   instead of being sliced off. */
+/* Gutter so no row highlight ever touches the sidebar border. Cloudflare
+   animates this with the width, so the inset grows as the rail expands. */
+.cg-sidebar-nav {
+  padding-inline: 14px;
+  transition: padding var(--sidebar-animation-duration) var(--sidebar-easing);
+}
+[data-collapsed="true"] .cg-sidebar-nav {
+  padding-inline: 8px;
+}
+
+.cg-sb-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 18px,
+    black calc(100% - 18px),
+    transparent 100%
+  );
+}
+.cg-sb-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Sidebar wordmark ────────────────────────────────────────────────────────
+   The asset is the graph-canvas watermark, which ships with an opaque light
+   background rect and hard-coded grey glyph fills. Inlined into the DOM so
+   both can be overridden: the rect is dropped, the glyphs inherit the theme.
+   Collapsing fades + slides it out and takes its width to zero, so the rail
+   closes on it smoothly instead of clipping it. */
+.cg-sb-brand {
+  display: block;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 172px;
+  overflow: hidden;
+  color: var(--cg-text-primary);
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 140ms ease-out 60ms,
+    max-width var(--sidebar-animation-duration) var(--sidebar-easing),
+    transform var(--sidebar-animation-duration) var(--sidebar-easing);
+}
+.cg-sb-brand[data-hidden="true"] {
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-6px);
+  /* Fade ahead of the width so it is gone before the rail pinches shut. */
+  transition:
+    opacity 90ms ease-out,
+    max-width var(--sidebar-animation-duration) var(--sidebar-easing),
+    transform var(--sidebar-animation-duration) var(--sidebar-easing);
+}
+/* Size by HEIGHT so the lockup always fits the 50px header band; width follows
+   the 2.65:1 aspect. Driving it by width made it fill the header and crop. */
+.cg-sb-brand svg {
+  display: block;
+  height: 26px;
+  width: auto;
+}
+/* The full-bleed background plate — first path in the file. */
+.cg-sb-brand svg > path:first-of-type {
+  display: none;
+}
+/* Ink. */
+.cg-sb-brand svg path[fill="#6D6D6C"] {
+  fill: currentColor;
+}
+/* NOT ink — these are the knockout counters punched through the glyphs and the
+   badge, authored in the artboard's background colour. Painting them with
+   currentColor (as the first pass did) filled the badge solid and produced the
+   white block under the wordmark. They must track the surface behind the mark. */
+.cg-sb-brand svg path[fill="#FEFEFD"] {
+  fill: var(--cg-bg-primary-sidebar);
+}
+
+/* ── Drawer in full view ─────────────────────────────────────────────────────
+   At 100vw the chat column has no natural limit, so the composer and the
+   suggestion cards stretched edge to edge and the messages ran to unreadable
+   line lengths. Cap the reading column and centre it; the panel is full-width,
+   the CONTENT is not. */
+[data-mode="fullscreen"]
+  .cg-chat-embedded
+  [data-testid="interactive-chat-box"] {
+  max-width: 780px;
+}
+/* Suggestion cards: the embedded override releases max-w-3xl to 100%, which is
+   right in a narrow drawer and wrong at full width. */
+[data-mode="fullscreen"] .cg-chat-embedded .max-w-3xl {
+  max-width: 780px !important;
+}
+/* Messages share the same column, otherwise a capped composer sits under
+   full-bleed text and the two read as different pages. */
+[data-mode="fullscreen"] .cg-chat-embedded .custom-scrollbar-always > * {
+  max-width: 780px;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  width: 100%;
 }

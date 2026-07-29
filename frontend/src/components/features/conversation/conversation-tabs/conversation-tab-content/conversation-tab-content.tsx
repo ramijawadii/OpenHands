@@ -1,5 +1,5 @@
 /* eslint-disable i18next/no-literal-string */
-import { lazy } from "react";
+import React, { lazy } from "react";
 import { ConversationLoading } from "../../conversation-loading";
 import { TabWrapper } from "./tab-wrapper";
 import { TabContainer } from "./tab-container";
@@ -33,7 +33,17 @@ const ReportTab = lazy(() => import("#/routes/report-view"));
 const RemediationTab = lazy(() => import("#/routes/remediation-tab"));
 const SandboxHealthTab = lazy(() => import("#/routes/sandbox-health-tab"));
 
-export function ConversationTabContent() {
+/**
+ * `loadingFallback` lets a host substitute its own busy state for the default
+ * OpenHands spinner. The explore drawer passes a skeleton so it shows exactly
+ * one loading treatment; the conversation page passes nothing and keeps the
+ * stock spinner.
+ */
+export function ConversationTabContent({
+  loadingFallback,
+}: {
+  loadingFallback?: React.ReactNode;
+} = {}) {
   const { selectedTab, shouldShownAgentLoading } = useConversationStore();
 
   const isEditorActive = selectedTab === "editor";
@@ -75,7 +85,7 @@ export function ConversationTabContent() {
       </TabContentArea>
       {shouldShownAgentLoading && (
         <div className="absolute inset-0 z-20 bg-[var(--cg-bg-page)]">
-          <ConversationLoading />
+          {loadingFallback ?? <ConversationLoading />}
         </div>
       )}
     </TabContainer>

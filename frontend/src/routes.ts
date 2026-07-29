@@ -129,10 +129,14 @@ export default [
         id: "ws-settings",
       }),
     ]),
-    route("explore/:domainId/:subtabId", "routes/explore-view.tsx"),
-    route("explore/:domainId/:subtabId/:viewId", "routes/explore-view.tsx", {
-      id: "explore-view-item",
-    }),
+    // ONE route with optional segments, not three. Separate route entries get
+    // separate ids, so moving between /d/s and /d/s/c REMOUNTS the page —
+    // which tears down anything long-lived beside it (the conversation drawer
+    // and its WebSocket). Optional params keep a single component instance.
+    route(
+      "explore/:domainId/:subtabId/:capabilityId?/:viewId?",
+      "routes/explore-view.tsx",
+    ),
     route("security-graph", "routes/global-zone.tsx", {
       id: "gz-security-graph",
     }),

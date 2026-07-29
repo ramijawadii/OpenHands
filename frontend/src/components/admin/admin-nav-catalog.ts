@@ -6,7 +6,7 @@
  * deep-link to their exact `?tab=` (or, for Identity, `?group=&tab=`); the pages
  * read those params via `useTabParam` / the Identity group+tab wiring.
  */
-import { NAVIGATION, slugify } from "#/components/features/sidebar/sidebar";
+import { NAVIGATION } from "#/components/features/sidebar/sidebar";
 import { SHORT_LABEL } from "#/routes/explore-view";
 
 export type NavHit = { group: string; label: string; sub: string; to: string };
@@ -297,7 +297,7 @@ const EXPLORE: NavHit[] = NAVIGATION.flatMap((d) =>
       group: `Explore · ${d.label}`,
       label: s.label,
       sub: d.label,
-      to: `/explore/${slugify(d.label)}/${slugify(s.label)}`,
+      to: `/explore/${d.slug}/${s.slug}`,
     },
     // every capability (the explore primary tab) — exact deep link
     ...s.items.map((it) => {
@@ -306,7 +306,7 @@ const EXPLORE: NavHit[] = NAVIGATION.flatMap((d) =>
         group: `Explore · ${d.label}`,
         label: short,
         sub: `${d.label} › ${s.label}`,
-        to: `/explore/${slugify(d.label)}/${slugify(s.label)}/${slugify(short)}`,
+        to: `/explore/${d.slug}/${s.slug}/${it.slug}`,
       };
     }),
   ]),

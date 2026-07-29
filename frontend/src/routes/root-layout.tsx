@@ -32,6 +32,7 @@ import { MaintenanceBanner } from "#/components/features/maintenance/maintenance
 import { cn } from "#/utils/utils";
 import { ThemeProvider } from "#/context/theme-context";
 import MemoryHud from "#/components/features/dev/memory-hud";
+import { ExploreConversationDrawer } from "#/components/features/conversation/explore-conversation-drawer";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -243,6 +244,12 @@ export default function MainApp() {
             </EmailVerificationGuard>
           </div>
         </div>
+
+        {/* Conversation drawer — a sibling of the WHOLE page column, not a child
+            of it, so it runs the full viewport height from y=0 and is NOT capped
+            under the top bar. Mounted at layout level (never inside the view) so
+            moving between capabilities never remounts it or drops its WebSocket. */}
+        <ExploreConversationDrawer />
 
         {renderAuthModal && (
           <AuthModal

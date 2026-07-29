@@ -1180,7 +1180,16 @@ const LANGS: { code: string; label: string }[] = [
   { code: "ja", label: "日本語" },
   { code: "zh", label: "中文" },
 ];
-const SIDEBAR_GLOBALS = ["Dashboard", "Security graph", "Issues", "Findings"];
+// `id` is the persisted hidden-nav key (`global:<id>`) and must NOT change when
+// the display label does. This list had drifted from the sidebar: it offered a
+// toggle for "Issues", which the sidebar no longer renders, and none for
+// Communication, which it does.
+const SIDEBAR_GLOBALS: { id: string; label: string }[] = [
+  { id: "Dashboard", label: "Dashboard" },
+  { id: "Security graph", label: "Global Security Graph" },
+  { id: "Communication", label: "Communication" },
+  { id: "Findings", label: "All Findings" },
+];
 
 function ProfileDrawer({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
@@ -1463,7 +1472,7 @@ function CustomizeSidebarDrawer({ onClose }: { onClose: () => void }) {
     onClose();
   };
   const toggles = [
-    ...SIDEBAR_GLOBALS.map((l) => ({ id: `global:${l}`, label: l })),
+    ...SIDEBAR_GLOBALS.map((g) => ({ id: `global:${g.id}`, label: g.label })),
     ...NAVIGATION.map((d) => ({ id: `domain:${d.id}`, label: d.label })),
   ];
   return (
@@ -1656,7 +1665,7 @@ export function AdminTopBar() {
         alignItems: "center",
         justifyContent: "flex-end",
         gap: 8,
-        height: 50,
+        height: "var(--cg-topbar-h)",
         padding: "0 20px",
         background: "var(--cg-bg-page)",
         borderBottom: `1px solid ${T.border}`,
