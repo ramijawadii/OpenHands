@@ -77,14 +77,18 @@ def _rate_ok(cid: str) -> bool:
 
 def _resolve(catalog: str, skill_id: str) -> str | None:
     """Map skill_id → SKILL.md path, FENCED under the catalog root (realpath). Supports the
-    namespaced layout (aws/ai-agents/foo) and a basename walk fallback. None = not found."""
+    slash-namespaced layout (aws/ai-agents/foo), the colon-namespaced form the kernel uses for
+    internal skills (internal:latex-report → internal/latex-report), and a basename walk
+    fallback. None = not found."""
     root = os.path.realpath(catalog)
-    # direct namespaced path
-    cand = os.path.realpath(os.path.join(root, skill_id, "SKILL.md"))
-    if cand.startswith(root + os.sep) and os.path.isfile(cand):
-        return cand
-    # basename walk (skill_id is a leaf name)
-    leaf = os.path.basename(skill_id.rstrip("/"))
+    # direct namespaced path — try the id verbatim and with ':' mapped to the path separator,
+    # since internal skills are dispatched as "internal:latex-report" but live at internal/latex-report/.
+    for variant in (skill_id, skill_id.replace(":", "/")):
+        cand = os.path.realpath(os.path.join(root, variant, "SKILL.md"))
+        if cand.startswith(root + os.sep) and os.path.isfile(cand):
+            return cand
+    # basename walk (skill_id is a leaf name); normalize ':' so the leaf is the final segment
+    leaf = os.path.basename(skill_id.replace(":", "/").rstrip("/"))
     if leaf and leaf not in ("..", "."):
         for dirpath, _dirs, files in os.walk(root):
             if "SKILL.md" in files and os.path.basename(dirpath) == leaf:
