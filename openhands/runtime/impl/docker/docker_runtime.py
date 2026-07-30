@@ -570,6 +570,28 @@ class DockerRuntime(ActionExecutionClient):
                 'http://host.docker.internal:3000/api/cloudguard/report/compile',
             )
 
+        # SB5 zero-trust LLM broker — when enabled, mint a per-conversation HMAC token (matches
+        # cloudguard_llm_broker.mint_llm_token, "llm\n"+sid) and point the sandbox's QueryEngine at
+        # the control-plane broker, so no provider credential + no model-API egress live in the
+        # sandbox. Flag-gated (CLOUDGUARD_LLM_BROKER_ENABLED); off → no vars → QueryEngine keeps its
+        # legacy direct path. When set, the sandbox transport is mandatory + fail-closed (P6).
+        if os.environ.get('CLOUDGUARD_LLM_BROKER_ENABLED', '').strip().lower() in (
+            '1', 'true', 'yes', 'on',
+        ):
+            import hashlib as _hl3
+            import hmac as _hm3
+
+            _lkey = os.environ.get(
+                'CLOUDGUARD_LLM_HMAC_KEY', os.environ.get('ONLYOFFICE_JWT_SECRET', '')
+            )
+            environment['CLOUDGUARD_LLM_TOKEN'] = _hm3.new(
+                _lkey.encode(), f'llm\n{self.sid}'.encode(), _hl3.sha256
+            ).hexdigest()
+            environment['CLOUDGUARD_LLM_BROKER_URL'] = os.environ.get(
+                'CLOUDGUARD_LLM_BROKER_URL_SANDBOX',
+                'http://host.docker.internal:3000/api/cloudguard/llm/complete',
+            )
+
         # SB5 zero-trust KG query — when enabled, mint a per-conversation HMAC token
         # (matches cloudguard_kg_query.mint_kg_token, "kgquery\n"+sid) and point the kernel's
         # analytics at the control-plane KG-query endpoint, so the neo4j-kg credential never

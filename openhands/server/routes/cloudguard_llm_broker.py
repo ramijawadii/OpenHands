@@ -1,0 +1,200 @@
+"""SB5 — control-plane LLM broker seam.
+
+Zero-trust sandbox: the runtime must NOT hold any model-provider credential nor reach a model API
+directly. The sandbox sends an authenticated inference request here; the control plane forwards it
+through the app's provider-agnostic litellm layer and returns the completion. This is the ONLY
+credentialed, egress-capable inference path.
+
+Controls the sandbox cannot bypass (built out across P0–P7 — see
+docs/architecture/sandbox-zero-trust/sb5-llm-broker/):
+  * AUTH       — per-conversation HMAC token (namespace "llm"), scoped to one cid.
+  * ADMISSION  — tenant-resolved quota + rate-limit + concurrency bulkhead + load-shed (P3).
+  * VALIDATE   — schema, model allowlist, max-tokens + deadline clamps.
+  * SCREEN     — inbound secret redaction; output filter on the completion (P4).
+  * RELIABLE   — deadline/retry-with-idempotency/circuit-breaker/fallback (P3), fail-closed.
+  * AUDIT      — every call (allow/deny/shed/filtered) on the SB7 tamper-evident chain.
+
+Flag-gated: if CLOUDGUARD_LLM_BROKER_ENABLED is off the endpoint 404s and the sandbox keeps using its
+legacy direct path (until cutover). This P0 commit is the contract + auth skeleton; /complete returns
+501 until P2 wires the adapter.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import hmac
+import logging
+import os
+import time
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+logger = logging.getLogger("openhands")
+
+router = APIRouter(prefix="/api/cloudguard/llm")
+
+_RL: dict[str, list[float]] = {}
+_RL_WINDOW = float(os.environ.get("CLOUDGUARD_LLM_RL_WINDOW", "60"))
+_RL_MAX = int(os.environ.get("CLOUDGUARD_LLM_RL_MAX", "60"))
+
+# Clamps — the client's numbers are hints, never authority (see 02-security-model.md §7).
+_MAX_TOKENS_CEIL = int(os.environ.get("CLOUDGUARD_LLM_MAX_TOKENS_CEIL", "8192"))
+_DEADLINE_FLOOR_MS = int(os.environ.get("CLOUDGUARD_LLM_DEADLINE_FLOOR_MS", "1000"))
+_DEADLINE_CEIL_MS = int(os.environ.get("CLOUDGUARD_LLM_DEADLINE_CEIL_MS", "120000"))
+_MSG_BYTES_CAP = int(os.environ.get("CLOUDGUARD_LLM_MSG_BYTES_CAP", str(2 * 1024 * 1024)))
+
+
+def _enabled() -> bool:
+    return os.environ.get("CLOUDGUARD_LLM_BROKER_ENABLED", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
+def _hmac_key() -> str:
+    return os.environ.get(
+        "CLOUDGUARD_LLM_HMAC_KEY",
+        os.environ.get("ONLYOFFICE_JWT_SECRET", "change-me-llm-hmac"),
+    )
+
+
+def mint_llm_token(cid: str) -> str:
+    """Per-conversation token = HMAC(key, "llm\\n"+cid). Injected into the sandbox env at spawn;
+    scoped to one conversation, only usable against this broker seam (distinct namespace from the
+    skill/report/kg tokens)."""
+    return hmac.new(_hmac_key().encode(), f"llm\n{cid}".encode(), hashlib.sha256).hexdigest()
+
+
+def _verify(cid: str, sig: str) -> bool:
+    return bool(cid and sig) and hmac.compare_digest(sig, mint_llm_token(cid))
+
+
+def _rate_ok(cid: str) -> bool:
+    now = time.time()
+    hits = [t for t in _RL.get(cid, []) if now - t < _RL_WINDOW]
+    if len(hits) >= _RL_MAX:
+        _RL[cid] = hits
+        return False
+    hits.append(now)
+    _RL[cid] = hits
+    return True
+
+
+def _seam_audit(cid: str, outcome: str, hits=None) -> None:
+    """SB7 — record this broker call on the control-plane tamper-evident chain. Fail-soft."""
+    try:
+        from cloudguard.observability.security_event import emit_seam_event
+
+        emit_seam_event("llm_broker", cid, outcome, hits=hits)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+class _Message(BaseModel):
+    role: str
+    content: str
+
+
+class _CompleteRequest(BaseModel):
+    cid: str
+    sig: str
+    model: str = "default"  # logical alias — broker maps to a concrete provider model (P1)
+    messages: list[_Message] = Field(default_factory=list)
+    system: str = ""
+    max_tokens: int = 4096
+    temperature: float = 0.2
+    stream: bool = False
+    deadline_ms: int = 60000
+    idempotency_key: str | None = None
+
+
+def _clamp(req: _CompleteRequest) -> None:
+    """Validate + clamp client-supplied numbers in place; raise 422 on hard-invalid input."""
+    if not req.messages:
+        raise HTTPException(status_code=422, detail="messages required")
+    total_bytes = len(req.system.encode()) + sum(len(m.content.encode()) for m in req.messages)
+    if total_bytes > _MSG_BYTES_CAP:
+        raise HTTPException(status_code=422, detail="payload too large")
+    req.max_tokens = max(1, min(int(req.max_tokens), _MAX_TOKENS_CEIL))
+    req.deadline_ms = max(_DEADLINE_FLOOR_MS, min(int(req.deadline_ms), _DEADLINE_CEIL_MS))
+    req.temperature = max(0.0, min(float(req.temperature), 2.0))
+
+
+@router.post("/complete")
+async def complete(req: _CompleteRequest):
+    """Forward an authorized sandbox inference request to the app's provider (P2+). P0: auth +
+    validation skeleton; returns 501 until the adapter is wired."""
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="llm broker seam not enabled")
+    if not _verify(req.cid, req.sig):
+        logger.warning("llm-broker DENY (bad token) cid=%s", req.cid)
+        _seam_audit(req.cid, "deny")
+        raise HTTPException(status_code=403, detail="unauthorized")
+    if not _rate_ok(req.cid):
+        logger.warning("llm-broker RATE-LIMIT cid=%s", req.cid)
+        _seam_audit(req.cid, "rate_limit")
+        raise HTTPException(status_code=429, detail="rate limit")
+    _clamp(req)
+
+    try:
+        from cloudguard.llm_broker import BrokerResult, InvalidModel, ProviderError, complete
+    except Exception as exc:  # noqa: BLE001
+        logger.error("llm-broker adapter import failed: %s", exc)
+        raise HTTPException(status_code=500, detail="broker unavailable") from exc
+
+    t0 = time.time()
+    try:
+        result: BrokerResult = complete(
+            model=req.model,
+            messages=[m.model_dump() for m in req.messages],
+            system=req.system,
+            max_tokens=req.max_tokens,
+            temperature=req.temperature,
+            deadline_s=req.deadline_ms / 1000.0,
+            stream=False,  # streaming lands in P5
+        )
+    except InvalidModel as exc:
+        _seam_audit(req.cid, "deny", hits=["invalid_model"])
+        raise HTTPException(status_code=422, detail="invalid model") from exc
+    except ProviderError as exc:
+        # Typed error the client maps to its existing taxonomy — NOT an HTTP 5xx (that would look like a
+        # broker bug). The sandbox never gets provider error text (redacted to a class).
+        dt = int((time.time() - t0) * 1000)
+        logger.info(
+            "cg_llm_broker cid=%s outcome=%s ms=%d src=control-plane", req.cid, exc.error_class, dt
+        )
+        _seam_audit(req.cid, "allow", hits=[req.model, f"err={exc.error_class}"])
+        return {"ok": False, "error_class": exc.error_class, "retry_after_ms": exc.retry_after_ms}
+
+    dt = int((time.time() - t0) * 1000)
+    logger.info(
+        "cg_llm_broker cid=%s model=%s in=%d out=%d ms=%d src=control-plane",
+        req.cid, result.model_used, result.input_tokens, result.output_tokens, dt,
+    )
+    _seam_audit(
+        req.cid, "allow",
+        hits=[req.model, f"in={result.input_tokens}", f"out={result.output_tokens}"],
+    )
+    try:
+        from cloudguard.observability import ingest_client
+
+        ingest_client.push_one(
+            "inference_record", actor="sandbox", resource=result.model_used,
+            decision="served", category="llm", session_id=req.cid,
+        )
+    except Exception:  # noqa: BLE001 — telemetry must never break the response
+        pass
+
+    return {
+        "ok": True,
+        "content": result.content,
+        "usage": {"input": result.input_tokens, "output": result.output_tokens},
+        "model_used": result.model_used,
+        "finish_reason": result.finish_reason,
+    }
+
+
+@router.get("/healthz")
+async def healthz():
+    """Liveness — the process is up. Readiness (provider/redis/config) arrives with P3."""
+    return {"ok": True, "seam": "llm_broker", "enabled": _enabled()}

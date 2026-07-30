@@ -495,6 +495,20 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard kg-query routes unavailable: %s", _cg_exc
     )
 
+# SB5 — control-plane LLM broker seam. Flag-gated (CLOUDGUARD_LLM_BROKER_ENABLED); 404s until enabled.
+try:
+    from openhands.server.routes.cloudguard_llm_broker import (
+        router as cloudguard_llm_broker_router,
+    )
+
+    app.include_router(cloudguard_llm_broker_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard llm-broker routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
 try:
     from openhands.server.routes.cloudguard_vfs import router as cloudguard_vfs_router
