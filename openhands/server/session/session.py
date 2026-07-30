@@ -16,7 +16,10 @@ from openhands.core.config.condenser_config import (
     ConversationWindowCondenserConfig,
     LLMSummarizingCondenserConfig,
 )
-from openhands.core.config.mcp_config import OpenHandsMCPConfigImpl
+from openhands.core.config.mcp_config import (
+    MCPSHTTPServerConfig,
+    OpenHandsMCPConfigImpl,
+)
 from openhands.core.exceptions import MicroagentValidationError
 from openhands.core.logger import OpenHandsLoggerAdapter
 from openhands.core.schema import AgentState
@@ -233,6 +236,27 @@ class WebSession:
             self.logger.debug('Added default MCP HTTP server to config')
 
             self.config.mcp.stdio_servers.extend(openhands_mcp_stdio_servers)
+
+        # CloudGuard: register the KG MCP server (kg_health, kg_search_commands,
+        # kg_get_command_schema, kg_execute_command, …) as agent tools. The system prompt
+        # instructs the agent to call these, so they must be in the toolset. Streamable-HTTP
+        # endpoint, compose-configurable via CLOUDGUARD_KG_MCP_URL. Empty → not registered
+        # (no-op). A connect failure is non-fatal — the agent proceeds without these tools.
+        import os as _os_kg
+
+        _kg_mcp_url = (_os_kg.environ.get('CLOUDGUARD_KG_MCP_URL') or '').strip()
+        if _kg_mcp_url:
+            _kg_api_key = (_os_kg.environ.get('CLOUDGUARD_KG_MCP_API_KEY') or '').strip() or None
+            already = any(
+                s.url == _kg_mcp_url for s in self.config.mcp.shttp_servers
+            )
+            if not already:
+                self.config.mcp.shttp_servers.append(
+                    MCPSHTTPServerConfig(url=_kg_mcp_url, api_key=_kg_api_key)
+                )
+                self.logger.debug(
+                    f'Added CloudGuard KG MCP server to config: {_kg_mcp_url}'
+                )
 
         self.logger.debug(
             f'MCP configuration after setup - self.config.mcp: {self.config.mcp}'
