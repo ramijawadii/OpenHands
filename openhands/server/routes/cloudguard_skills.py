@@ -98,7 +98,9 @@ def _resolve(catalog: str, skill_id: str) -> str | None:
     return None
 
 
-_VALID_PROVIDERS = ("aws", "azure", "gcp", "shared", "internal")
+# Must stay in lock-step with cloudguard.kernel.analytics._VALID_PROVIDERS — a provider missing
+# here silently drops those skills from the control-plane listing (e.g. 'orchestrator' = 7 skills).
+_VALID_PROVIDERS = ("aws", "azure", "gcp", "shared", "internal", "orchestrator")
 
 
 def _enumerate_catalog(catalog: str) -> list[str]:
