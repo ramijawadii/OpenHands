@@ -42,6 +42,9 @@ import {
   type ContextPressurePayload,
 } from "#/stores/context-pressure-store";
 
+import { reportReliability } from "#/components/features/reliability/reliability";
+import { publishTransportHealth } from "#/components/features/reliability/transport-health";
+
 export type WebSocketStatus = "CONNECTING" | "CONNECTED" | "DISCONNECTED";
 
 const hasValidMessageProperty = (obj: unknown): obj is { message: string } =>
@@ -144,6 +147,8 @@ export function WsClientProvider({
   const sioRef = React.useRef<Socket | null>(null);
   const [webSocketStatus, setWebSocketStatus] =
     React.useState<WebSocketStatus>("DISCONNECTED");
+  /** Distinguishes a first connect from a heal-after-drop. */
+  const droppedRef = React.useRef(false);
   const [events, setEvents] = React.useState<Record<string, unknown>[]>([]);
   const [parsedEvents, setParsedEvents] = React.useState<
     (OpenHandsAction | OpenHandsObservation)[]
@@ -167,6 +172,17 @@ export function WsClientProvider({
   }
 
   function handleConnect() {
+    // A re-connect is the interesting event, not the first connect: it means the
+    // transport dropped and healed itself. Counting it is what makes a flapping
+    // socket visible — socket.io recovers so quietly that a connection cycling
+    // every few seconds otherwise looks like a healthy session.
+    if (droppedRef.current) {
+      droppedRef.current = false;
+      reportReliability("websocket", "reconnect", {
+        detail: conversationId,
+      });
+    }
+    publishTransportHealth({ healthy: true, reason: "connected" });
     setWebSocketStatus("CONNECTED");
     removeErrorMessage();
   }
@@ -302,6 +318,9 @@ export function WsClientProvider({
   }
 
   function handleDisconnect(data: unknown) {
+    droppedRef.current = true;
+    reportReliability("websocket", "degraded", { detail: conversationId });
+    publishTransportHealth({ healthy: false, reason: "disconnected" });
     setWebSocketStatus("DISCONNECTED");
     const sio = sioRef.current;
     if (!sio) {

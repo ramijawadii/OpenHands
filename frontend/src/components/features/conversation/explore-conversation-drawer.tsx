@@ -9,8 +9,11 @@ import {
   RefreshCw,
   Maximize2,
   Minimize2,
+  AlertTriangle,
 } from "lucide-react";
 import { cn } from "#/utils/utils";
+import { safeSetJson } from "#/utils/safe-storage";
+import { reportReliability } from "#/components/features/reliability/reliability";
 import { ResizeHandle } from "#/components/ui/resize-handle";
 import { Conversation } from "#/api/open-hands.types";
 import { ConversationIdProvider } from "#/context/conversation-id-context";
@@ -144,6 +147,40 @@ function DrawerSkeleton() {
   );
 }
 
+/** Visible degraded state for the whole panel. Occupies the rail so the drawer
+ *  never disappears without explanation — a surface that vanishes silently
+ *  reads as a bug the operator cannot report. */
+function DrawerUnavailable({
+  reason,
+  canRetry,
+  onRetry,
+}: {
+  reason: string;
+  canRetry: boolean;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="status"
+      className="hidden md:flex shrink-0 md:-ml-2 w-14 flex-col items-center gap-2 border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] px-1.5 py-2"
+      title={reason}
+    >
+      <AlertTriangle className="h-4 w-4 text-amber-400" aria-hidden />
+      {canRetry && (
+        <button
+          type="button"
+          aria-label={`${reason} Retry.`}
+          title={`${reason} Retry.`}
+          onClick={onRetry}
+          className="rounded p-1.5 text-[var(--cg-text-muted)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)] transition-colors cursor-pointer"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Expands the drawer over the whole view. NOT the browser Fullscreen API:
  *  that is a document-level mode which fights the app shell, drops out on any
  *  navigation, and cannot be entered without a user-gesture chain. This is
@@ -225,11 +262,18 @@ function DrawerBody({
       setStalled(false);
       return undefined;
     }
-    const t = window.setTimeout(() => setStalled(true), LOADING_TIMEOUT_MS);
+    const t = window.setTimeout(() => {
+      setStalled(true);
+      reportReliability("drawer", "stall", {
+        detail: conversation?.status ?? "unfetched",
+        message: `no ready state after ${LOADING_TIMEOUT_MS}ms`,
+      });
+    }, LOADING_TIMEOUT_MS);
     return () => window.clearTimeout(t);
   }, [isWarmingUp, conversation?.status]);
 
   const retry = React.useCallback(() => {
+    reportReliability("drawer", "retry", { detail: "warm-up" });
     setStalled(false);
     refetch();
   }, [refetch]);
@@ -376,13 +420,19 @@ export function ExploreConversationDrawer() {
   React.useEffect(() => {
     if (!onExplore) return;
     setIsRightPanelShown(hasRightPanelToggled);
-    localStorage.setItem(
-      "conversation-right-panel-shown",
-      JSON.stringify(hasRightPanelToggled),
-    );
+    // Via safe-storage: a raw setItem throws in Safari private mode and on
+    // quota exhaustion, and this runs inside an effect — an unhandled throw
+    // here would unwind to the boundary and take the panel down over a
+    // persisted preference.
+    safeSetJson("conversation-right-panel-shown", hasRightPanelToggled);
   }, [onExplore, hasRightPanelToggled, setIsRightPanelShown]);
 
-  const { data } = usePaginatedConversations(20);
+  const {
+    data,
+    isError: listFailed,
+    isFetched: listFetched,
+    refetch: refetchList,
+  } = usePaginatedConversations(20);
   const conversation = React.useMemo(() => {
     const all = data?.pages?.flatMap((p) => p.results) ?? [];
     return pickLastActive(all);
@@ -490,7 +540,28 @@ export function ExploreConversationDrawer() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  if (!onExplore || !conversation) return null;
+  if (!onExplore) return null;
+
+  // A failed conversation list used to `return null`, so the drawer silently
+  // VANISHED — indistinguishable from "no conversations" and with nothing to
+  // act on. Degrade visibly instead: keep the rail, say why, offer a retry.
+  if (!conversation) {
+    if (!listFetched) return null; // first load: absence is not yet failure
+    return (
+      <DrawerUnavailable
+        reason={
+          listFailed
+            ? "Couldn't load your conversations."
+            : "No active conversation yet."
+        }
+        canRetry={listFailed}
+        onRetry={() => {
+          reportReliability("drawer", "retry", { detail: "conversation-list" });
+          refetchList();
+        }}
+      />
+    );
+  }
 
   // Collapsed — a rail so the drawer is always reachable. The conversation page
   // reopens from its chat header; the explore views have no such header.

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { cn } from "#/utils/utils";
 import { ChatInterfaceWrapper } from "./chat-interface-wrapper";
 import { ConversationTabContent } from "../conversation-tabs/conversation-tab-content/conversation-tab-content";
@@ -10,7 +11,7 @@ interface DesktopLayoutProps {
 }
 
 export function DesktopLayout({ isRightPanelShown }: DesktopLayoutProps) {
-  const { leftWidth, rightWidth, isDragging, containerRef, handleMouseDown } =
+  const { leftWidth, rightWidth, isDragging, containerRef, handlePointerDown } =
     useResizablePanels({
       defaultLeftWidth: 50,
       minLeftWidth: 30,
@@ -20,6 +21,22 @@ export function DesktopLayout({ isRightPanelShown }: DesktopLayoutProps) {
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
+      {/* Shield above the cross-origin editor iframes for the duration of the
+          drag. Pointer capture already routes the events; this guarantees it
+          even where capture is unavailable. */}
+      {isDragging &&
+        createPortal(
+          <div
+            aria-hidden
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 2147483000,
+              cursor: "ew-resize",
+            }}
+          />,
+          document.body,
+        )}
       <div
         ref={containerRef}
         className="flex flex-1 transition-all duration-300 ease-in-out overflow-hidden"
@@ -41,7 +58,9 @@ export function DesktopLayout({ isRightPanelShown }: DesktopLayoutProps) {
         </div>
 
         {/* Resize Handle — only meaningful while the panel is expanded */}
-        {isRightPanelShown && <ResizeHandle onMouseDown={handleMouseDown} />}
+        {isRightPanelShown && (
+          <ResizeHandle onPointerDown={handlePointerDown} />
+        )}
 
         {/* Right Panel — unmounted entirely when closed so nothing (not even the
             tab strip) lingers. Reopen via the panel button in the chat header. */}

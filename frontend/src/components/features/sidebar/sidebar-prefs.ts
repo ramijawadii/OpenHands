@@ -4,16 +4,15 @@
  * them) and the Sidebar (which filters by them). Ids: `domain:<id>` and `global:<label>`.
  */
 import React from "react";
+import { safeGetJson, safeSetJson } from "#/utils/safe-storage";
 
 const KEY = "cg_sidebar_hidden";
 const EVT = "cg-sidebar-prefs";
 
 function read(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(KEY) || "[]"));
-  } catch {
-    return new Set();
-  }
+  // safe-storage handles BOTH failure modes: access denied (private mode,
+  // origin policy) and malformed persisted JSON.
+  return new Set(safeGetJson<string[]>(KEY, []));
 }
 
 let cache = read();
@@ -27,11 +26,7 @@ export function toggleHidden(id: string): void {
   if (next.has(id)) next.delete(id);
   else next.add(id);
   cache = next;
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...next]));
-  } catch {
-    /* ignore */
-  }
+  safeSetJson(KEY, [...next]);
   window.dispatchEvent(new Event(EVT));
 }
 
@@ -39,11 +34,7 @@ export function toggleHidden(id: string): void {
 export function setHidden(ids: Iterable<string>): void {
   const next = new Set(ids);
   cache = next;
-  try {
-    localStorage.setItem(KEY, JSON.stringify([...next]));
-  } catch {
-    /* ignore */
-  }
+  safeSetJson(KEY, [...next]);
   window.dispatchEvent(new Event(EVT));
 }
 

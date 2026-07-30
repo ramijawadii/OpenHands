@@ -12,7 +12,40 @@ const handle401Error = (error: AxiosError, queryClient: QueryClient) => {
 };
 
 const shownErrors = new Set<string>();
+
+/** 4xx means the request was wrong, not unlucky: retrying cannot change the
+ *  outcome and only multiplies load on an already-failing path. Retry transport
+ *  faults and 5xx/429 only. */
+function isRetryableError(error: unknown): boolean {
+  const status = (error as AxiosError)?.response?.status;
+  if (status === undefined) return true; // network / timeout / abort
+  if (status === 408 || status === 429) return true; // ask-again-later
+  return status >= 500;
+}
+
 export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Bounded retries with capped exponential backoff + jitter. Uncapped
+      // backoff strands the UI for minutes; no jitter makes every client in a
+      // tab-restore retry in lockstep and re-spike a recovering backend.
+      retry: (failureCount, error) =>
+        failureCount < 3 && isRetryableError(error),
+      retryDelay: (attempt) =>
+        Math.min(8_000, 2 ** attempt * 500) + Math.random() * 250,
+      // A refetch on every window focus multiplies request volume by how often
+      // the operator alt-tabs, for data that is already polled where it matters.
+      refetchOnWindowFocus: false,
+      staleTime: 15_000,
+    },
+    mutations: {
+      // Mutations are NOT idempotent by default — a blind retry can double an
+      // action. Only retry when the request never reached the server.
+      retry: (failureCount, error) =>
+        failureCount < 1 &&
+        (error as AxiosError)?.response?.status === undefined,
+    },
+  },
   queryCache: new QueryCache({
     onError: (error, query) => {
       const isAuthQuery =

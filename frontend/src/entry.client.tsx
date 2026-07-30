@@ -14,6 +14,12 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import OptionService from "./api/option-service/option-service.api";
 import { displayErrorToast } from "./utils/custom-toast-handlers";
 import { queryClient } from "./query-client-config";
+import { installGlobalErrorCapture } from "./components/features/reliability/global-error-capture";
+
+// Installed at the entry, before hydration, so it covers the failures React
+// error boundaries structurally cannot see (event handlers, timers, unhandled
+// promise rejections) from the very first frame.
+installGlobalErrorCapture();
 
 function PosthogInit() {
   const [posthogClientKey, setPosthogClientKey] = React.useState<string | null>(

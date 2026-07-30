@@ -33,6 +33,7 @@ import { cn } from "#/utils/utils";
 import { ThemeProvider } from "#/context/theme-context";
 import MemoryHud from "#/components/features/dev/memory-hud";
 import { ExploreConversationDrawer } from "#/components/features/conversation/explore-conversation-drawer";
+import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
 
 export function ErrorBoundary() {
   const error = useRouteError();
@@ -216,7 +217,11 @@ export default function MainApp() {
             "md:gap-2",
         )}
       >
-        <Sidebar />
+        {/* The sidebar is the app's only means of navigation: if it throws it
+            must degrade to something still clickable, never take the shell. */}
+        <SurfaceErrorBoundary surface="sidebar" name="Navigation" compact>
+          <Sidebar />
+        </SurfaceErrorBoundary>
 
         <div
           className={cn(
@@ -239,9 +244,17 @@ export default function MainApp() {
             id="root-outlet"
             className="flex-1 relative overflow-auto custom-scrollbar"
           >
-            <EmailVerificationGuard>
-              <Outlet />
-            </EmailVerificationGuard>
+            {/* Page surface. Keyed on the pathname so a latched failure clears
+                when the user navigates away from whatever caused it. */}
+            <SurfaceErrorBoundary
+              surface="explore"
+              name="This page"
+              resetKeys={[pathname]}
+            >
+              <EmailVerificationGuard>
+                <Outlet />
+              </EmailVerificationGuard>
+            </SurfaceErrorBoundary>
           </div>
         </div>
 
@@ -249,7 +262,12 @@ export default function MainApp() {
             of it, so it runs the full viewport height from y=0 and is NOT capped
             under the top bar. Mounted at layout level (never inside the view) so
             moving between capabilities never remounts it or drops its WebSocket. */}
-        <ExploreConversationDrawer />
+        {/* The drawer is mounted in the LAYOUT, so without its own boundary a
+            throw here unwinds to the route boundary and replaces the whole
+            shell — sidebar, top bar and page — over one panel's bug. */}
+        <SurfaceErrorBoundary surface="drawer" name="Conversation panel">
+          <ExploreConversationDrawer />
+        </SurfaceErrorBoundary>
 
         {renderAuthModal && (
           <AuthModal
