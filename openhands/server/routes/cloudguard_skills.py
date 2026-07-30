@@ -98,6 +98,62 @@ def _resolve(catalog: str, skill_id: str) -> str | None:
     return None
 
 
+_VALID_PROVIDERS = ("aws", "azure", "gcp", "shared", "internal")
+
+
+def _enumerate_catalog(catalog: str) -> list[str]:
+    """Walk the v3 namespaced tree → colon-qualified skill names, FENCED under the catalog root.
+    Mirrors the kernel's _enumerate_namespaced_skills so the control-plane listing is byte-for-byte
+    the same set the sandbox would have found on disk: provider:slug (2-level) + provider:cat/slug
+    (3-level)."""
+    root = os.path.realpath(catalog)
+    names: list[str] = []
+    try:
+        providers = sorted(os.listdir(root))
+    except OSError:
+        return names
+    for provider in providers:
+        if provider not in _VALID_PROVIDERS:
+            continue
+        pdir = os.path.join(root, provider)
+        if not os.path.isdir(pdir):
+            continue
+        for child in sorted(os.listdir(pdir)):
+            if child.startswith("_"):
+                continue
+            cdir = os.path.join(pdir, child)
+            if not os.path.isdir(cdir):
+                continue
+            if os.path.isfile(os.path.join(cdir, "SKILL.md")):
+                names.append(f"{provider}:{child}")  # 2-level
+            for slug in sorted(os.listdir(cdir)):
+                if slug.startswith("_"):
+                    continue
+                sdir = os.path.join(cdir, slug)
+                if os.path.isdir(sdir) and os.path.isfile(os.path.join(sdir, "SKILL.md")):
+                    names.append(f"{provider}:{child}/{slug}")  # 3-level
+    return names
+
+
+@router.get("/list")
+async def skill_list(cid: str, sig: str):
+    """Return the full catalog inventory (colon-qualified skill names) for an authorized kernel, so
+    the sandbox needn't hold the catalog to *discover* skills (it fetches bodies via /body). Same
+    auth + rate-limit + audit as /body; flag-gated by the catalog-dir env."""
+    catalog = _catalog_dir()
+    if not catalog:
+        raise HTTPException(status_code=404, detail="skill seam not enabled")
+    if not _verify(cid, sig):
+        logger.warning("skill-list DENY (bad token) cid=%s", cid)
+        raise HTTPException(status_code=403, detail="unauthorized")
+    if not _rate_ok(cid):
+        logger.warning("skill-list RATE-LIMIT cid=%s", cid)
+        raise HTTPException(status_code=429, detail="rate limit")
+    names = _enumerate_catalog(catalog)
+    logger.info("cg_skill_list cid=%s count=%d src=control-plane", cid, len(names))
+    return {"skills": names}
+
+
 @router.get("/body")
 async def skill_body(cid: str, skill_id: str, sig: str):
     """Return a single skill's SKILL.md body for an authorized kernel. Flag-gated by the
