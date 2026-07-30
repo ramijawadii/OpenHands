@@ -139,3 +139,39 @@ async def compile_report(req: _CompileRequest):
         "log": result.log,
         "error": result.error,
     }
+
+
+# ── SB2.3b: serve the report scaffold on demand ─────────────────────────────────
+# The scaffold (AGENT_RULES.md methodology + report-style/macros.sty locked framework + section
+# stubs) is control-plane IP. Instead of baking it into every sandbox, the app serves it here,
+# authed with the same per-conversation report token; the agent fetches it per-report and it is
+# stripped from the runtime image.
+import io as _io
+import os as _os
+import tarfile as _tarfile
+
+_SCAFFOLD_DIR = _os.environ.get("CLOUDGUARD_REPORT_SCAFFOLD_DIR", "/app/report-template")
+
+
+@router.get("/scaffold")
+async def report_scaffold(cid: str, sig: str):
+    """Return the report scaffold as a base64 gzip tar for an authorized kernel. Flag-gated by the
+    report seam; auth + rate-limit + audit enforced (same controls as /compile)."""
+    if not _enabled():
+        raise HTTPException(status_code=404, detail="report seam not enabled")
+    if not _verify(cid, sig):
+        logger.warning("report-scaffold DENY (bad token) cid=%s", cid)
+        raise HTTPException(status_code=403, detail="unauthorized")
+    if not _rate_ok(cid):
+        raise HTTPException(status_code=429, detail="rate limit")
+    root = _os.path.realpath(_SCAFFOLD_DIR)
+    if not _os.path.isdir(root):
+        logger.error("report-scaffold MISSING dir %s", root)
+        raise HTTPException(status_code=500, detail="scaffold unavailable")
+    buf = _io.BytesIO()
+    with _tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        # arcname "report-project" so it extracts to the path the workflow expects
+        tar.add(root, arcname="report-project")
+    data = buf.getvalue()
+    logger.info("cg_report_scaffold cid=%s bytes=%d src=control-plane", cid, len(data))
+    return {"ok": True, "tar_b64": base64.b64encode(data).decode()}
