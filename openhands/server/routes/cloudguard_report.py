@@ -72,6 +72,17 @@ def _rate_ok(cid: str) -> bool:
     return True
 
 
+def _seam_audit(seam: str, cid: str, outcome: str, hits=None) -> None:
+    """SB7 — record this seam call on the control-plane tamper-evident chain. Fail-soft: a missing
+    cloudguard import or telemetry error must never break the seam response."""
+    try:
+        from cloudguard.observability.security_event import emit_seam_event
+
+        emit_seam_event(seam, cid, outcome, hits=hits)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class _Resource(BaseModel):
     path: str
     content: str
@@ -94,9 +105,11 @@ async def compile_report(req: _CompileRequest):
         raise HTTPException(status_code=404, detail="report compile seam not enabled")
     if not _verify(req.cid, req.sig):
         logger.warning("report-compile DENY (bad token) cid=%s", req.cid)
+        _seam_audit("report_compile", req.cid, "deny")
         raise HTTPException(status_code=403, detail="unauthorized")
     if not _rate_ok(req.cid):
         logger.warning("report-compile RATE-LIMIT cid=%s", req.cid)
+        _seam_audit("report_compile", req.cid, "rate_limit")
         raise HTTPException(status_code=429, detail="rate limit")
 
     # decode base64 assets to bytes-safe strings the compiler passes straight to CLSI
@@ -123,6 +136,7 @@ async def compile_report(req: _CompileRequest):
         "cg_report_dispatch cid=%s resources=%d status=%s ms=%d src=control-plane",
         req.cid, len(resources), result.status, dt,
     )
+    _seam_audit("report_compile", req.cid, "allow", hits=[f"resources={len(resources)}", result.status])
 
     if result.ok and result.pdf_bytes is not None:
         return {
@@ -161,8 +175,10 @@ async def report_scaffold(cid: str, sig: str):
         raise HTTPException(status_code=404, detail="report seam not enabled")
     if not _verify(cid, sig):
         logger.warning("report-scaffold DENY (bad token) cid=%s", cid)
+        _seam_audit("report_scaffold", cid, "deny")
         raise HTTPException(status_code=403, detail="unauthorized")
     if not _rate_ok(cid):
+        _seam_audit("report_scaffold", cid, "rate_limit")
         raise HTTPException(status_code=429, detail="rate limit")
     root = _os.path.realpath(_SCAFFOLD_DIR)
     if not _os.path.isdir(root):
@@ -174,4 +190,5 @@ async def report_scaffold(cid: str, sig: str):
         tar.add(root, arcname="report-project")
     data = buf.getvalue()
     logger.info("cg_report_scaffold cid=%s bytes=%d src=control-plane", cid, len(data))
+    _seam_audit("report_scaffold", cid, "allow", hits=[f"bytes={len(data)}"])
     return {"ok": True, "tar_b64": base64.b64encode(data).decode()}

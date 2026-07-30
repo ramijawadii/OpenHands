@@ -72,6 +72,16 @@ def _rate_ok(cid: str) -> bool:
     return True
 
 
+def _seam_audit(seam: str, cid: str, outcome: str, hits=None) -> None:
+    """SB7 — record this seam call on the control-plane tamper-evident chain. Fail-soft."""
+    try:
+        from cloudguard.observability.security_event import emit_seam_event
+
+        emit_seam_event(seam, cid, outcome, hits=hits)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 class _KGQueryRequest(BaseModel):
     cid: str
     sig: str
@@ -88,9 +98,11 @@ async def kg_query(req: _KGQueryRequest):
         raise HTTPException(status_code=404, detail="kg query seam not enabled")
     if not _verify(req.cid, req.sig):
         logger.warning("kg-query DENY (bad token) cid=%s", req.cid)
+        _seam_audit("kg_query", req.cid, "deny")
         raise HTTPException(status_code=403, detail="unauthorized")
     if not _rate_ok(req.cid):
         logger.warning("kg-query RATE-LIMIT cid=%s", req.cid)
+        _seam_audit("kg_query", req.cid, "rate_limit")
         raise HTTPException(status_code=429, detail="rate limit")
 
     try:
@@ -112,10 +124,12 @@ async def kg_query(req: _KGQueryRequest):
     except Exception as exc:  # noqa: BLE001 — return error to the kernel, never 500 on a bad query
         dt = int((time.time() - t0) * 1000)
         logger.info("cg_kg_query cid=%s status=error ms=%d src=control-plane", req.cid, dt)
+        _seam_audit("kg_query", req.cid, "allow", hits=["status=error"])
         return {"ok": False, "error": str(exc)[:400], "records": []}
 
     dt = int((time.time() - t0) * 1000)
     logger.info(
         "cg_kg_query cid=%s rows=%d ms=%d src=control-plane", req.cid, len(rows), dt
     )
+    _seam_audit("kg_query", req.cid, "allow", hits=[f"rows={len(rows)}"])
     return {"ok": True, "records": rows, "truncated": len(rows) >= _MAX_ROWS}

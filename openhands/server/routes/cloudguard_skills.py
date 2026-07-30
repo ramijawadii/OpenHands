@@ -75,6 +75,16 @@ def _rate_ok(cid: str) -> bool:
     return True
 
 
+def _seam_audit(seam: str, cid: str, outcome: str, hits=None) -> None:
+    """SB7 — record this seam call on the control-plane tamper-evident chain. Fail-soft."""
+    try:
+        from cloudguard.observability.security_event import emit_seam_event
+
+        emit_seam_event(seam, cid, outcome, hits=hits)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _resolve(catalog: str, skill_id: str) -> str | None:
     """Map skill_id → SKILL.md path, FENCED under the catalog root (realpath). Supports the
     slash-namespaced layout (aws/ai-agents/foo), the colon-namespaced form the kernel uses for
@@ -147,12 +157,15 @@ async def skill_list(cid: str, sig: str):
         raise HTTPException(status_code=404, detail="skill seam not enabled")
     if not _verify(cid, sig):
         logger.warning("skill-list DENY (bad token) cid=%s", cid)
+        _seam_audit("skill_list", cid, "deny")
         raise HTTPException(status_code=403, detail="unauthorized")
     if not _rate_ok(cid):
         logger.warning("skill-list RATE-LIMIT cid=%s", cid)
+        _seam_audit("skill_list", cid, "rate_limit")
         raise HTTPException(status_code=429, detail="rate limit")
     names = _enumerate_catalog(catalog)
     logger.info("cg_skill_list cid=%s count=%d src=control-plane", cid, len(names))
+    _seam_audit("skill_list", cid, "allow", hits=[f"count={len(names)}"])
     return {"skills": names}
 
 
@@ -165,13 +178,16 @@ async def skill_body(cid: str, skill_id: str, sig: str):
         raise HTTPException(status_code=404, detail="skill seam not enabled")
     if not _verify(cid, sig):
         logger.warning("skill-body DENY (bad token) cid=%s skill_id=%s", cid, skill_id)
+        _seam_audit("skill_body", cid, "deny", hits=[str(skill_id)[:80]])
         raise HTTPException(status_code=403, detail="unauthorized")
     if not _rate_ok(cid):
         logger.warning("skill-body RATE-LIMIT cid=%s", cid)
+        _seam_audit("skill_body", cid, "rate_limit")
         raise HTTPException(status_code=429, detail="rate limit")
     path = _resolve(catalog, skill_id)
     if not path:
         logger.info("skill-body MISS cid=%s skill_id=%s", cid, skill_id)
+        _seam_audit("skill_body", cid, "allow", hits=[str(skill_id)[:80], "miss"])
         raise HTTPException(status_code=404, detail="skill not found")
     try:
         body = open(path, encoding="utf-8").read()
@@ -182,4 +198,5 @@ async def skill_body(cid: str, skill_id: str, sig: str):
         "cg_skill_dispatch cid=%s skill_id=%s bytes=%d src=control-plane",
         cid, skill_id, len(body),
     )
+    _seam_audit("skill_body", cid, "allow", hits=[str(skill_id)[:80], f"bytes={len(body)}"])
     return {"skill_id": skill_id, "body": body}
