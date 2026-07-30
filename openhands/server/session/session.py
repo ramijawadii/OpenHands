@@ -237,26 +237,33 @@ class WebSession:
 
             self.config.mcp.stdio_servers.extend(openhands_mcp_stdio_servers)
 
-        # CloudGuard: register the KG MCP server (kg_health, kg_search_commands,
-        # kg_get_command_schema, kg_execute_command, …) as agent tools. The system prompt
-        # instructs the agent to call these, so they must be in the toolset. Streamable-HTTP
-        # endpoint, compose-configurable via CLOUDGUARD_KG_MCP_URL. Empty → not registered
-        # (no-op). A connect failure is non-fatal — the agent proceeds without these tools.
-        import os as _os_kg
+        # CloudGuard: register the control-plane MCP servers as agent tools. The system prompt
+        # instructs the agent to call these, so they must be in the toolset:
+        #   * KG  (kg_health, kg_search_commands, kg_execute_command, env_*): AWS command graph
+        #         + tenant environment model.
+        #   * KB  (kb_health, kb_nist, kb_technique, kb_remediation, kb_map_frameworks, …): the
+        #         shared compliance knowledge base. Wiring it here (control-plane → KB) is the
+        #         zero-trust-correct path — the untrusted sandbox needn't reach the shared KB.
+        # Streamable-HTTP, compose-configurable. Empty → not registered (no-op). A connect
+        # failure is non-fatal — the agent proceeds without those tools.
+        import os as _os_cg
 
-        _kg_mcp_url = (_os_kg.environ.get('CLOUDGUARD_KG_MCP_URL') or '').strip()
-        if _kg_mcp_url:
-            _kg_api_key = (_os_kg.environ.get('CLOUDGUARD_KG_MCP_API_KEY') or '').strip() or None
-            already = any(
-                s.url == _kg_mcp_url for s in self.config.mcp.shttp_servers
+        for _mcp_name, _url_env, _key_env in (
+            ('KG', 'CLOUDGUARD_KG_MCP_URL', 'CLOUDGUARD_KG_MCP_API_KEY'),
+            ('KB', 'CLOUDGUARD_KB_MCP_AGENT_URL', 'CLOUDGUARD_KB_MCP_API_KEY'),
+        ):
+            _mcp_url = (_os_cg.environ.get(_url_env) or '').strip()
+            if not _mcp_url:
+                continue
+            _api_key = (_os_cg.environ.get(_key_env) or '').strip() or None
+            if any(s.url == _mcp_url for s in self.config.mcp.shttp_servers):
+                continue
+            self.config.mcp.shttp_servers.append(
+                MCPSHTTPServerConfig(url=_mcp_url, api_key=_api_key)
             )
-            if not already:
-                self.config.mcp.shttp_servers.append(
-                    MCPSHTTPServerConfig(url=_kg_mcp_url, api_key=_kg_api_key)
-                )
-                self.logger.debug(
-                    f'Added CloudGuard KG MCP server to config: {_kg_mcp_url}'
-                )
+            self.logger.debug(
+                f'Added CloudGuard {_mcp_name} MCP server to config: {_mcp_url}'
+            )
 
         self.logger.debug(
             f'MCP configuration after setup - self.config.mcp: {self.config.mcp}'
