@@ -137,25 +137,37 @@ async def complete(req: _CompleteRequest):
     _clamp(req)
 
     try:
-        from cloudguard.llm_broker import BrokerResult, InvalidModel, ProviderError, complete
+        from cloudguard.llm_broker import (
+            BrokerResult,
+            InvalidModel,
+            ProviderError,
+            ShedError,
+            reliable_complete,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("llm-broker adapter import failed: %s", exc)
         raise HTTPException(status_code=500, detail="broker unavailable") from exc
 
     t0 = time.time()
     try:
-        result: BrokerResult = complete(
+        result: BrokerResult = reliable_complete(
+            key=req.cid,  # fairness/isolation key (tenant when the edge resolves it)
             model=req.model,
             messages=[m.model_dump() for m in req.messages],
             system=req.system,
             max_tokens=req.max_tokens,
             temperature=req.temperature,
             deadline_s=req.deadline_ms / 1000.0,
-            stream=False,  # streaming lands in P5
+            idempotency_key=req.idempotency_key or "",
         )
     except InvalidModel as exc:
         _seam_audit(req.cid, "deny", hits=["invalid_model"])
         raise HTTPException(status_code=422, detail="invalid model") from exc
+    except ShedError as exc:
+        # bulkhead full / over quota — shed early with a typed rate_limit (never queue unboundedly)
+        logger.info("cg_llm_broker cid=%s outcome=shed src=control-plane", req.cid)
+        _seam_audit(req.cid, "rate_limit", hits=["shed"])
+        return {"ok": False, "error_class": "rate_limited", "retry_after_ms": exc.retry_after_ms}
     except ProviderError as exc:
         # Typed error the client maps to its existing taxonomy — NOT an HTTP 5xx (that would look like a
         # broker bug). The sandbox never gets provider error text (redacted to a class).
@@ -196,5 +208,19 @@ async def complete(req: _CompleteRequest):
 
 @router.get("/healthz")
 async def healthz():
-    """Liveness — the process is up. Readiness (provider/redis/config) arrives with P3."""
+    """Liveness — the process is up."""
     return {"ok": True, "seam": "llm_broker", "enabled": _enabled()}
+
+
+@router.get("/readyz")
+async def readyz():
+    """Readiness — not saturated, config present, breaker overview. k8s gates traffic on this."""
+    try:
+        from cloudguard.llm_broker import readiness
+
+        snap = readiness()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=f"not ready: {exc}") from exc
+    if not snap.get("ready"):
+        raise HTTPException(status_code=503, detail="saturated")
+    return {"ok": True, **snap}
