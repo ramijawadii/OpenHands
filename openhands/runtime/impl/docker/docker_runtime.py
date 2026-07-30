@@ -570,6 +570,28 @@ class DockerRuntime(ActionExecutionClient):
                 'http://host.docker.internal:3000/api/cloudguard/report/compile',
             )
 
+        # SB5 zero-trust KG query — when enabled, mint a per-conversation HMAC token
+        # (matches cloudguard_kg_query.mint_kg_token, "kgquery\n"+sid) and point the kernel's
+        # analytics at the control-plane KG-query endpoint, so the neo4j-kg credential never
+        # lives in the sandbox. Flag-gated (CLOUDGUARD_KG_QUERY_ENABLED); off → no vars → the
+        # kernel keeps its current direct-driver path.
+        if os.environ.get('CLOUDGUARD_KG_QUERY_ENABLED', '').strip().lower() in (
+            '1', 'true', 'yes', 'on',
+        ):
+            import hashlib as _hl3
+            import hmac as _hm3
+
+            _kkey = os.environ.get(
+                'CLOUDGUARD_KG_HMAC_KEY', os.environ.get('ONLYOFFICE_JWT_SECRET', '')
+            )
+            environment['CLOUDGUARD_KG_TOKEN'] = _hm3.new(
+                _kkey.encode(), f'kgquery\n{self.sid}'.encode(), _hl3.sha256
+            ).hexdigest()
+            environment['CLOUDGUARD_KG_QUERY_URL'] = os.environ.get(
+                'CLOUDGUARD_KG_QUERY_URL_SANDBOX',
+                'http://host.docker.internal:3000/api/cloudguard/kg/query',
+            )
+
         # CloudGuard multi-tenancy: inject the tenant resolved from the TRUSTED, app-private
         # conversation→tenant map (cloudguard.conversation_tenant) — NEVER a sandbox- or
         # client-supplied value, and applied AFTER runtime_startup_env_vars so a

@@ -140,6 +140,37 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard monitoring routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard metrics exposition: /metrics (operator, scrape-token) and a
+# principal-gated per-tenant view. Both render from one collector registry.
+try:
+    from openhands.server.routes.cloudguard_metrics import (
+        router as cloudguard_metrics_router,
+    )
+
+    app.include_router(cloudguard_metrics_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard metrics routes unavailable: %s", _cg_exc
+    )
+
+# CloudGuard browser reliability telemetry (principal-authenticated; separate
+# store from the tamper-evident audit chain). Off unless
+# CLOUDGUARD_CLIENT_EVENTS_ENABLED is set.
+try:
+    from openhands.server.routes.cloudguard_client_events import (
+        router as cloudguard_client_events_router,
+    )
+
+    app.include_router(cloudguard_client_events_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard client-event routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard log / volume search API (OpenSearch-backed, tenant-scoped).
 try:
     from openhands.server.routes.cloudguard_search import (
@@ -448,6 +479,20 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
 
     _logging.getLogger("openhands").warning(
         "CloudGuard report routes unavailable: %s", _cg_exc
+    )
+
+# SB5 — control-plane KG-query seam. Flag-gated (CLOUDGUARD_KG_QUERY_ENABLED); 404s until enabled.
+try:
+    from openhands.server.routes.cloudguard_kg_query import (
+        router as cloudguard_kg_query_router,
+    )
+
+    app.include_router(cloudguard_kg_query_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard kg-query routes unavailable: %s", _cg_exc
     )
 
 # CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
