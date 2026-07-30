@@ -142,19 +142,27 @@ async def complete(req: _CompleteRequest):
             InvalidModel,
             ProviderError,
             ShedError,
+            filter_output,
             reliable_complete,
+            screen_inbound,
         )
     except Exception as exc:  # noqa: BLE001
         logger.error("llm-broker adapter import failed: %s", exc)
         raise HTTPException(status_code=500, detail="broker unavailable") from exc
+
+    # P4 INBOUND — scrub live secrets from the prompt before it leaves for the provider.
+    msgs, system, in_hits = screen_inbound([m.model_dump() for m in req.messages], req.system)
+    if in_hits:
+        logger.warning("llm-broker INBOUND-REDACT cid=%s hits=%d", req.cid, len(in_hits))
+        _seam_audit(req.cid, "allow", hits=["inbound_redact", f"n={len(in_hits)}"])
 
     t0 = time.time()
     try:
         result: BrokerResult = reliable_complete(
             key=req.cid,  # fairness/isolation key (tenant when the edge resolves it)
             model=req.model,
-            messages=[m.model_dump() for m in req.messages],
-            system=req.system,
+            messages=msgs,
+            system=system,
             max_tokens=req.max_tokens,
             temperature=req.temperature,
             deadline_s=req.deadline_ms / 1000.0,
@@ -179,13 +187,22 @@ async def complete(req: _CompleteRequest):
         return {"ok": False, "error_class": exc.error_class, "retry_after_ms": exc.retry_after_ms}
 
     dt = int((time.time() - t0) * 1000)
+
+    # P4 OUTBOUND — filter the completion (block prompt-echo of protected content / redact secrets).
+    action, content, out_hits = filter_output(result.content, req.system)
+    if action == "block":
+        logger.warning("llm-broker OUTPUT-BLOCK cid=%s hits=%d", req.cid, len(out_hits))
+        _seam_audit(req.cid, "content_filtered", hits=["output_block"])
+        return {"ok": False, "error_class": "content_filtered", "retry_after_ms": None}
+
     logger.info(
         "cg_llm_broker cid=%s model=%s in=%d out=%d ms=%d src=control-plane",
         req.cid, result.model_used, result.input_tokens, result.output_tokens, dt,
     )
     _seam_audit(
         req.cid, "allow",
-        hits=[req.model, f"in={result.input_tokens}", f"out={result.output_tokens}"],
+        hits=[req.model, f"in={result.input_tokens}", f"out={result.output_tokens}"]
+        + (["output_redact"] if action == "redact" else []),
     )
     try:
         from cloudguard.observability import ingest_client
@@ -199,7 +216,7 @@ async def complete(req: _CompleteRequest):
 
     return {
         "ok": True,
-        "content": result.content,
+        "content": content,  # P4-filtered (redacted if action == "redact")
         "usage": {"input": result.input_tokens, "output": result.output_tokens},
         "model_used": result.model_used,
         "finish_reason": result.finish_reason,
