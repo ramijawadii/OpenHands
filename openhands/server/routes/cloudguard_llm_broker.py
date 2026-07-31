@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import logging
 import os
 import time
@@ -92,7 +93,8 @@ def _seam_audit(cid: str, outcome: str, hits=None) -> None:
 
 class _Message(BaseModel):
     role: str
-    content: str
+    # str OR a list of Anthropic content blocks (text / tool_use / tool_result) — P6 function calling
+    content: object = ""
 
 
 class _CompleteRequest(BaseModel):
@@ -106,13 +108,19 @@ class _CompleteRequest(BaseModel):
     stream: bool = False
     deadline_ms: int = 60000
     idempotency_key: str | None = None
+    tools: list = Field(default_factory=list)  # Anthropic tool schemas (P6)
+    tool_choice: str = "auto"  # "auto" | "required" (QueryEngine forces a call mid-loop)
 
 
 def _clamp(req: _CompleteRequest) -> None:
     """Validate + clamp client-supplied numbers in place; raise 422 on hard-invalid input."""
     if not req.messages:
         raise HTTPException(status_code=422, detail="messages required")
-    total_bytes = len(req.system.encode()) + sum(len(m.content.encode()) for m in req.messages)
+
+    def _blen(c) -> int:
+        return len((c if isinstance(c, str) else json.dumps(c)).encode())
+
+    total_bytes = len(req.system.encode()) + sum(_blen(m.content) for m in req.messages)
     if total_bytes > _MSG_BYTES_CAP:
         raise HTTPException(status_code=422, detail="payload too large")
     req.max_tokens = max(1, min(int(req.max_tokens), _MAX_TOKENS_CEIL))
@@ -167,6 +175,8 @@ async def complete(req: _CompleteRequest):
             temperature=req.temperature,
             deadline_s=req.deadline_ms / 1000.0,
             idempotency_key=req.idempotency_key or "",
+            tools=req.tools or None,
+            tool_choice=req.tool_choice,
         )
     except InvalidModel as exc:
         _seam_audit(req.cid, "deny", hits=["invalid_model"])
@@ -188,7 +198,26 @@ async def complete(req: _CompleteRequest):
 
     dt = int((time.time() - t0) * 1000)
 
-    # P4 OUTBOUND — filter the completion (block prompt-echo of protected content / redact secrets).
+    # P6 — a tool_call carries no model prose to leak; return the structured call (still audited).
+    if result.response_type == "tool_call":
+        logger.info(
+            "cg_llm_broker cid=%s model=%s tool=%s in=%d out=%d ms=%d src=control-plane",
+            req.cid, result.model_used, result.tool_name, result.input_tokens, result.output_tokens, dt,
+        )
+        _seam_audit(req.cid, "allow", hits=[req.model, f"tool={result.tool_name}"])
+        return {
+            "ok": True,
+            "response_type": "tool_call",
+            "tool_name": result.tool_name,
+            "tool_input": result.tool_input,
+            "tool_use_id": result.tool_use_id,
+            "content": "",
+            "usage": {"input": result.input_tokens, "output": result.output_tokens},
+            "model_used": result.model_used,
+            "finish_reason": result.finish_reason,
+        }
+
+    # P4 OUTBOUND — filter TEXT completions (block prompt-echo of protected content / redact secrets).
     action, content, out_hits = filter_output(result.content, req.system)
     if action == "block":
         logger.warning("llm-broker OUTPUT-BLOCK cid=%s hits=%d", req.cid, len(out_hits))
