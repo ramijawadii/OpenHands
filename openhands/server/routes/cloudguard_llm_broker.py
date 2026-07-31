@@ -164,6 +164,18 @@ async def complete(req: _CompleteRequest):
         logger.warning("llm-broker INBOUND-REDACT cid=%s hits=%d", req.cid, len(in_hits))
         _seam_audit(req.cid, "allow", hits=["inbound_redact", f"n={len(in_hits)}"])
 
+    # P5 — streaming (SSE). Security-first: the OUTPUT FILTER must see the FULL completion before any
+    # byte reaches the sandbox (a mid-stream prompt-echo/secret leak cannot be retracted), so we run
+    # the full secure+reliable pipeline, then emit the filtered result over the SSE wire contract
+    # (delta events + terminal done/error). Incremental token delivery is a future option behind the
+    # SAME contract, gated on a streaming-safe output filter — see 03-reliability-and-sre.md.
+    if req.stream:
+        from fastapi.responses import StreamingResponse
+
+        return StreamingResponse(
+            _sse_run(req, msgs, system), media_type="text/event-stream"
+        )
+
     t0 = time.time()
     try:
         result: BrokerResult = reliable_complete(
@@ -250,6 +262,70 @@ async def complete(req: _CompleteRequest):
         "model_used": result.model_used,
         "finish_reason": result.finish_reason,
     }
+
+
+def _sse(event: "str | None", data: dict) -> str:
+    prefix = f"event: {event}\n" if event else ""
+    return prefix + "data: " + json.dumps(data) + "\n\n"
+
+
+def _sse_run(req: _CompleteRequest, msgs: list, system: str):
+    """P5 — run the full secure+reliable pipeline, then stream the filtered result as SSE. A terminal
+    `event: done` (usage) or `event: error` (typed) makes mid-stream failure unambiguous; deltas are
+    provisional until `done`. The output filter runs on the COMPLETE text before any delta is sent."""
+    from cloudguard.llm_broker import (
+        InvalidModel,
+        ProviderError,
+        ShedError,
+        filter_output,
+        reliable_complete,
+    )
+
+    try:
+        res = reliable_complete(
+            key=req.cid, model=req.model, messages=msgs, system=system,
+            max_tokens=req.max_tokens, temperature=req.temperature,
+            deadline_s=req.deadline_ms / 1000.0, idempotency_key=req.idempotency_key or "",
+            tools=req.tools or None, tool_choice=req.tool_choice,
+        )
+    except InvalidModel:
+        _seam_audit(req.cid, "deny", hits=["invalid_model"])
+        yield _sse("error", {"error_class": "invalid"})
+        return
+    except ShedError as exc:
+        _seam_audit(req.cid, "rate_limit", hits=["shed"])
+        yield _sse("error", {"error_class": "rate_limited", "retry_after_ms": exc.retry_after_ms})
+        return
+    except ProviderError as exc:
+        _seam_audit(req.cid, "allow", hits=[req.model, f"err={exc.error_class}"])
+        yield _sse("error", {"error_class": exc.error_class, "retry_after_ms": exc.retry_after_ms})
+        return
+
+    if res.response_type == "tool_call":
+        _seam_audit(req.cid, "allow", hits=[req.model, f"tool={res.tool_name}"])
+        yield _sse("tool_call", {
+            "tool_name": res.tool_name, "tool_input": res.tool_input, "tool_use_id": res.tool_use_id,
+        })
+        yield _sse("done", {
+            "response_type": "tool_call", "finish_reason": res.finish_reason,
+            "usage": {"input": res.input_tokens, "output": res.output_tokens},
+        })
+        return
+
+    action, content, _ = filter_output(res.content, req.system)  # FULL text filtered before emit
+    if action == "block":
+        _seam_audit(req.cid, "content_filtered", hits=["output_block"])
+        yield _sse("error", {"error_class": "content_filtered"})
+        return
+
+    _seam_audit(req.cid, "allow", hits=[req.model, f"in={res.input_tokens}", f"out={res.output_tokens}"])
+    chunk = 256
+    for i in range(0, len(content), chunk):
+        yield _sse(None, {"delta": content[i:i + chunk]})
+    yield _sse("done", {
+        "response_type": "text", "finish_reason": res.finish_reason,
+        "usage": {"input": res.input_tokens, "output": res.output_tokens},
+    })
 
 
 @router.get("/healthz")
