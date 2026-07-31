@@ -63,6 +63,7 @@ import {
 } from "lucide-react";
 import { NAVIGATION, slugify } from "#/components/features/sidebar/sidebar";
 import { SubTabSettings } from "#/components/features/explore/subtab-settings";
+import { CloudGuardGrid } from "#/components/features/explore/cloudguard-grid/CloudGuardGrid";
 
 type LucideIcon = React.ComponentType<{ size?: number; color?: string }>;
 
@@ -1059,7 +1060,7 @@ export default function ExploreView() {
   return (
     <div
       style={{
-        padding: "10px 36px 28px",
+        padding: "10px 14px 12px",
         maxWidth: 1760,
         margin: "0 auto",
         width: "100%",
@@ -1130,32 +1131,19 @@ export default function ExploreView() {
           {/* Secondary navigation — view pills */}
           {viewPills}
 
-          {/* Per-view content — empty for now (skeleton placeholder) */}
+          {/* Per-view content — CloudGuard resource grid (AG Grid Community, MIT). */}
           <div
             data-testid="explore-view"
             data-domain={domainId}
             data-subtab={subtabId}
             data-capability={capabilityId}
             data-view={viewId}
-            aria-busy="true"
-            role="status"
-            aria-label={`${spec.views[view] ?? ""} — loading`}
-            style={{ marginTop: 20 }}
+            style={{
+              marginTop: 16,
+              overflow: "hidden",
+            }}
           >
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[0, 1, 2].map((r) => (
-                <div
-                  key={r}
-                  style={{
-                    height: 12,
-                    width: ["62%", "44%", "53%"][r],
-                    borderRadius: 6,
-                    background: "var(--cg-border-card)",
-                    opacity: 0.5,
-                  }}
-                />
-              ))}
-            </div>
+            <CloudGuardGrid />
           </div>
         </div>
       )}
