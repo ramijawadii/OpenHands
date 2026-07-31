@@ -22,8 +22,10 @@ import logging
 import os
 import time
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field
+
+from openhands.server.routes.cloudguard_principal import require_principal
 
 logger = logging.getLogger("openhands")
 router = APIRouter(prefix="/api/cloudguard/diagram")
@@ -37,6 +39,11 @@ _MAX_K = 20
 
 def _enabled() -> bool:
     return os.environ.get("CLOUDGUARD_DIAGRAM_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _live_enabled() -> bool:
+    """Live control is opt-in BEYOND shape-search (highlight/annotate the open editor)."""
+    return os.environ.get("CLOUDGUARD_DIAGRAM_LIVE_ENABLED", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def _hmac_key() -> str:
@@ -113,4 +120,117 @@ async def healthz():
         n = _sh.catalog_size()
     except Exception:  # noqa: BLE001
         semantic, n = False, 0
-    return {"ok": True, "seam": "diagram", "enabled": _enabled(), "semantic": semantic, "catalog": n}
+    return {
+        "ok": True,
+        "seam": "diagram",
+        "enabled": _enabled(),
+        "live": _live_enabled(),
+        "semantic": semantic,
+        "catalog": n,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Live control (opt-in) — drive the analyst's OPEN draw.io editor.
+#
+# Same pull model as the shipped ONLYOFFICE live bridge: the sandbox NEVER reaches
+# the browser. The agent POSTs an allow-listed command (authed HMAC "diagram\n"+cid,
+# rate-limited, SB7-audited) into a per-conversation queue; our own DrawioViewer
+# React wrapper (same-origin, principal-authed) polls /live/poll and applies it via
+# the react-drawio embed API. Annotation text passes the output filter first.
+# ─────────────────────────────────────────────────────────────────────────────
+_LIVE_OPS = ("highlight", "annotate", "reload")
+_LIVE_MAX_QUEUE = 50  # per-conversation backlog cap (drop-oldest)
+_LIVE_MAX_TEXT = 500
+_LIVE_MAX_IDS = 200
+_LIVE_QUEUE: dict[str, list[dict]] = {}
+
+
+def _live_audit(cid: str, outcome: str, op: str = "", hits=None) -> None:
+    try:
+        from cloudguard.observability.security_event import emit_seam_event
+
+        emit_seam_event("diagram_live", cid, outcome, hits=(hits or []) + ([f"op={op}"] if op else []))
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _filter_text(text: str) -> "str | None":
+    """Run agent-authored annotation text through the output filter before it can reach
+    the editor. BLOCK → drop the text (None); REDACT → the scrubbed text; ALLOW → as-is.
+    Fail-open to the raw text on any filter error (matches the other seams)."""
+    text = (text or "")[:_LIVE_MAX_TEXT]
+    if not text:
+        return ""
+    try:
+        from cloudguard.output_filter import Action, scan_output
+
+        v = scan_output(text)
+        if v.action == Action.BLOCK.value:
+            return None
+        if v.action == Action.REDACT.value:
+            return (v.redacted_text or "")[:_LIVE_MAX_TEXT]
+    except Exception:  # noqa: BLE001
+        pass
+    return text
+
+
+class _LiveRequest(BaseModel):
+    cid: str
+    sig: str
+    op: str
+    node_ids: list[str] = Field(default_factory=list)
+    edge_ids: list[str] = Field(default_factory=list)
+    text: str = ""
+    near_node: str = ""
+    color: str = ""  # semantic hint: critical|high|medium|low|info or a #rrggbb
+
+
+@router.post("/live")
+async def live_send(req: _LiveRequest):
+    """Agent → queue a live command for the open editor. Authed + rate-limited + audited + filtered."""
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="diagram live seam not enabled")
+    if not _verify(req.cid, req.sig):
+        logger.warning("diagram-live DENY (bad token) cid=%s", req.cid)
+        _live_audit(req.cid, "deny", req.op)
+        raise HTTPException(status_code=403, detail="unauthorized")
+    if req.op not in _LIVE_OPS:
+        _live_audit(req.cid, "reject", req.op)
+        raise HTTPException(status_code=400, detail=f"op must be one of {_LIVE_OPS}")
+    if not _rate_ok(req.cid):
+        _live_audit(req.cid, "rate_limit", req.op)
+        raise HTTPException(status_code=429, detail="rate limit")
+
+    cmd: dict = {
+        "id": os.urandom(8).hex(),
+        "op": req.op,
+        "node_ids": [str(x) for x in req.node_ids][:_LIVE_MAX_IDS],
+        "edge_ids": [str(x) for x in req.edge_ids][:_LIVE_MAX_IDS],
+        "near_node": str(req.near_node)[:128],
+        "color": str(req.color)[:32],
+        "ts": time.time(),
+    }
+    if req.op == "annotate":
+        text = _filter_text(req.text)
+        if text is None:  # output filter blocked it — never reaches the editor
+            _live_audit(req.cid, "filtered", req.op, hits=["annotation_blocked"])
+            raise HTTPException(status_code=422, detail="annotation blocked by output filter")
+        cmd["text"] = text
+
+    q = _LIVE_QUEUE.setdefault(req.cid, [])
+    q.append(cmd)
+    if len(q) > _LIVE_MAX_QUEUE:  # drop-oldest backpressure
+        del q[: len(q) - _LIVE_MAX_QUEUE]
+    logger.info("cg_diagram_live cid=%s op=%s queued=%d", req.cid, req.op, len(q))
+    _live_audit(req.cid, "allow", req.op, hits=[f"n_nodes={len(cmd['node_ids'])}"])
+    return {"ok": True, "queued": len(q), "id": cmd["id"]}
+
+
+@router.get("/live/poll")
+async def live_poll(conversation_id: str, _p=Depends(require_principal)):
+    """Frontend (same-origin, principal-authed) drains this conversation's pending live commands."""
+    if not _live_enabled():
+        return {"commands": []}
+    cmds = _LIVE_QUEUE.pop(conversation_id, [])
+    return {"commands": cmds}

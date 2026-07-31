@@ -612,6 +612,16 @@ class DockerRuntime(ActionExecutionClient):
                 'CLOUDGUARD_DIAGRAM_SEARCH_URL_SANDBOX',
                 'http://host.docker.internal:3000/api/cloudguard/diagram/shape-search',
             )
+            # Live control (opt-in): point diagram_highlight_path/_add_annotation at the /live
+            # seam so the agent can drive the analyst's OPEN editor. Reuses the same token; the
+            # sandbox never reaches the browser (the app relays; the frontend pulls).
+            if os.environ.get('CLOUDGUARD_DIAGRAM_LIVE_ENABLED', '').strip().lower() in (
+                '1', 'true', 'yes', 'on',
+            ):
+                environment['CLOUDGUARD_DIAGRAM_LIVE_URL'] = os.environ.get(
+                    'CLOUDGUARD_DIAGRAM_LIVE_URL_SANDBOX',
+                    'http://host.docker.internal:3000/api/cloudguard/diagram/live',
+                )
 
         # SB5 zero-trust KG query — when enabled, mint a per-conversation HMAC token
         # (matches cloudguard_kg_query.mint_kg_token, "kgquery\n"+sid) and point the kernel's

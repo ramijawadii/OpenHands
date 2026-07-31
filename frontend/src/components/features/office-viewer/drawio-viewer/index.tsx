@@ -1,8 +1,9 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { DrawIoEmbed } from "react-drawio";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { useDiagramLive } from "./use-diagram-live";
 
 /** Self-hosted draw.io origin the BROWSER loads the embed iframe from (our own
  *  container on :8085, never embed.diagrams.net). Shared by the Whiteboard and
@@ -48,6 +49,19 @@ type State =
  *  Loaded lazily so react-drawio only ships when a diagram is actually opened. */
 export default function DrawioViewer({ conversationId, filePath }: Props) {
   const [state, setState] = React.useState<State>({ status: "loading" });
+  // The embed handle (react-drawio ref: .load({xml})) + the authoritative agent XML.
+  // The live co-pilot mutates this copy and re-loads it into the open editor.
+  const drawioRef =
+    React.useRef<React.ElementRef<typeof DrawIoEmbed>>(null);
+  const xmlRef = React.useRef<string>("");
+
+  // Fetch the diagram file; returns its content (used both for the initial open and
+  // for the live `reload` op, which picks up an agent-regenerated file in place).
+  const fetchDiagram = React.useCallback(async (): Promise<string | null> => {
+    const content = await ConversationService.getFile(conversationId, filePath);
+    if (content && content.trimStart().startsWith("<")) return content;
+    return null;
+  }, [conversationId, filePath]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -65,6 +79,7 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
             message: "This file isn't a diagram.",
           });
         } else {
+          xmlRef.current = content;
           setState({ status: "ready", xml: content });
         }
       })
@@ -76,6 +91,17 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
       cancelled = true;
     };
   }, [conversationId, filePath]);
+
+  // Live co-pilot: pulls the agent's queued highlight/annotate/reload commands and
+  // applies them to THIS open editor (no-ops entirely when the seam is disabled).
+  const { agentWorking } = useDiagramLive(
+    conversationId,
+    drawioRef as unknown as React.MutableRefObject<{
+      load: (d: { xml: string }) => void;
+    } | null>,
+    xmlRef,
+    fetchDiagram,
+  );
 
   if (state.status === "loading") {
     return (
@@ -96,8 +122,18 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
   }
 
   return (
-    <div style={{ height: "100%", width: "100%" }}>
+    <div style={{ height: "100%", width: "100%", position: "relative" }}>
+      {agentWorking && (
+        <div
+          className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-[var(--cg-accent,#4C9AFF)] px-2.5 py-1 text-[11px] font-medium text-white shadow-md"
+          role="status"
+        >
+          <Sparkles className="h-3 w-3 animate-pulse" />
+          Agent is drawing…
+        </div>
+      )}
       <DrawIoEmbed
+        ref={drawioRef}
         baseUrl={DRAWIO_BASE_URL}
         xml={state.xml}
         // Same defaults as the Whiteboard: white (light) mode, grid OFF,
