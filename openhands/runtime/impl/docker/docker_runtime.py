@@ -592,6 +592,27 @@ class DockerRuntime(ActionExecutionClient):
                 'http://host.docker.internal:3000/api/cloudguard/llm/complete',
             )
 
+        # Diagram shape-search seam — when enabled, mint a per-conversation HMAC token (matches
+        # cloudguard_diagram.mint_diagram_token, "diagram\n"+sid) and point diagram_find_shape at the
+        # control-plane semantic search, so the model2vec embedder never lives in the sandbox.
+        # Flag-gated (CLOUDGUARD_DIAGRAM_ENABLED); off → sandbox falls back to local substring match.
+        if os.environ.get('CLOUDGUARD_DIAGRAM_ENABLED', '').strip().lower() in (
+            '1', 'true', 'yes', 'on',
+        ):
+            import hashlib as _hl4
+            import hmac as _hm4
+
+            _dkey = os.environ.get(
+                'CLOUDGUARD_DIAGRAM_HMAC_KEY', os.environ.get('ONLYOFFICE_JWT_SECRET', '')
+            )
+            environment['CLOUDGUARD_DIAGRAM_TOKEN'] = _hm4.new(
+                _dkey.encode(), f'diagram\n{self.sid}'.encode(), _hl4.sha256
+            ).hexdigest()
+            environment['CLOUDGUARD_DIAGRAM_SEARCH_URL'] = os.environ.get(
+                'CLOUDGUARD_DIAGRAM_SEARCH_URL_SANDBOX',
+                'http://host.docker.internal:3000/api/cloudguard/diagram/shape-search',
+            )
+
         # SB5 zero-trust KG query — when enabled, mint a per-conversation HMAC token
         # (matches cloudguard_kg_query.mint_kg_token, "kgquery\n"+sid) and point the kernel's
         # analytics at the control-plane KG-query endpoint, so the neo4j-kg credential never

@@ -509,6 +509,21 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard llm-broker routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard diagram shape-search seam (semantic icon retrieval control-plane-side). Flag-gated
+# (CLOUDGUARD_DIAGRAM_ENABLED); 404s until enabled.
+try:
+    from openhands.server.routes.cloudguard_diagram import (
+        router as cloudguard_diagram_router,
+    )
+
+    app.include_router(cloudguard_diagram_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard diagram routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
 try:
     from openhands.server.routes.cloudguard_vfs import router as cloudguard_vfs_router
