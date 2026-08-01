@@ -1,5 +1,6 @@
 import React from "react";
 import { openHands } from "#/api/open-hands-axios";
+import ConversationService from "#/api/conversation-service/conversation-service.api";
 
 /**
  * Live diagram co-pilot (client side, opt-in). When a diagram is open the agent can
@@ -35,17 +36,25 @@ function resolveColor(c?: string): string {
 
 interface LiveCommand {
   id: string;
-  op: "highlight" | "annotate" | "reload" | string;
+  op: "highlight" | "annotate" | "reload" | "export" | string;
   node_ids?: string[];
   edge_ids?: string[];
   text?: string;
   near_node?: string;
   color?: string;
+  req_id?: string;
+  fmt?: string; // export: png | svg
+  out?: string; // export: output basename
 }
 
 type DrawioRef = {
   load: (data: { xml: string }) => void;
+  exportDiagram: (data: { format: string }) => void;
 } | null;
+
+// The agent's "png"/"svg" → the react-drawio embed export format. The xml* variants embed the
+// source diagram in the image, so the exported figure is also a re-openable .drawio.
+const EXPORT_FORMAT: Record<string, string> = { png: "xmlpng", svg: "xmlsvg" };
 
 function setStyleStroke(style: string, hex: string): string {
   // Drop any existing stroke directives, then pin a bold semantic stroke.
@@ -138,6 +147,61 @@ export function useDiagramLive(
   refetch: () => Promise<string | null>,
 ) {
   const [agentWorking, setAgentWorking] = React.useState(false);
+  // In-flight export: exportDiagram() is async (result arrives on the onExport event), so we stash
+  // the request here and let handleExport (wired to DrawIoEmbed's onExport) finish the round-trip.
+  const pendingExportRef = React.useRef<{
+    reqId: string;
+    fmt: string;
+    out: string;
+  } | null>(null);
+
+  // Ack the seam so the waiting agent-side diagram_export_svg unblocks (success OR failure).
+  const ackExport = React.useCallback(
+    (reqId: string, ok: boolean, path: string, error: string) => {
+      openHands
+        .post("/api/cloudguard/diagram/live/export-result", {
+          cid: conversationId,
+          req_id: reqId,
+          ok,
+          path,
+          error,
+        })
+        .catch(() => {});
+    },
+    [conversationId],
+  );
+
+  // DrawIoEmbed calls this when a render finishes. Upload the image into the sandbox workspace so
+  // the agent can \includegraphics it, then ack the path. Wired via DrawioViewer's onExport prop.
+  const onExport = React.useCallback(
+    async (evt: { data?: string }) => {
+      const pending = pendingExportRef.current;
+      if (!pending) return;
+      pendingExportRef.current = null;
+      try {
+        const dataUri = evt?.data || "";
+        if (!dataUri.startsWith("data:")) throw new Error("empty export");
+        const blob = await (await fetch(dataUri)).blob();
+        const ext = pending.fmt === "svg" ? "svg" : "png";
+        const file = new File([blob], `${pending.out}.${ext}`, {
+          type: blob.type || (ext === "svg" ? "image/svg+xml" : "image/png"),
+        });
+        const res = await ConversationService.uploadFiles(conversationId, [file]);
+        const path = res?.uploaded_files?.[0] || `${pending.out}.${ext}`;
+        ackExport(pending.reqId, true, path, "");
+      } catch (e) {
+        ackExport(
+          pending.reqId,
+          false,
+          "",
+          e instanceof Error ? e.message : "export upload failed",
+        );
+      } finally {
+        setAgentWorking(false);
+      }
+    },
+    [conversationId, ackExport],
+  );
 
   React.useEffect(() => {
     if (!conversationId) return undefined;
@@ -150,6 +214,29 @@ export function useDiagramLive(
         if (fresh && drawioRef.current) {
           xmlRef.current = fresh;
           drawioRef.current.load({ xml: fresh });
+        }
+        return;
+      }
+      if (cmd.op === "export") {
+        // Ask the embed to render itself (it has the applied ELK layout + real icons). The result
+        // lands on the onExport event → uploaded + acked there. If we can't even kick it off, ack a
+        // failure now so the agent doesn't wait out its timeout.
+        if (!drawioRef.current || !cmd.req_id) {
+          if (cmd.req_id) ackExport(cmd.req_id, false, "", "no open editor");
+          return;
+        }
+        pendingExportRef.current = {
+          reqId: cmd.req_id,
+          fmt: cmd.fmt === "svg" ? "svg" : "png",
+          out: cmd.out || "diagram",
+        };
+        try {
+          drawioRef.current.exportDiagram({
+            format: EXPORT_FORMAT[cmd.fmt || "png"] || "xmlpng",
+          });
+        } catch {
+          pendingExportRef.current = null;
+          ackExport(cmd.req_id, false, "", "export call failed");
         }
         return;
       }
@@ -201,7 +288,7 @@ export function useDiagramLive(
       cancelled = true;
       if (timer) window.clearInterval(timer);
     };
-  }, [conversationId, drawioRef, xmlRef, refetch]);
+  }, [conversationId, drawioRef, xmlRef, refetch, ackExport]);
 
-  return { agentWorking };
+  return { agentWorking, onExport };
 }

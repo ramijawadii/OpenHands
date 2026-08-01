@@ -92,12 +92,13 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
     };
   }, [conversationId, filePath]);
 
-  // Live co-pilot: pulls the agent's queued highlight/annotate/reload commands and
+  // Live co-pilot: pulls the agent's queued highlight/annotate/reload/export commands and
   // applies them to THIS open editor (no-ops entirely when the seam is disabled).
-  const { agentWorking } = useDiagramLive(
+  const { agentWorking, onExport } = useDiagramLive(
     conversationId,
     drawioRef as unknown as React.MutableRefObject<{
       load: (d: { xml: string }) => void;
+      exportDiagram: (d: { format: string }) => void;
     } | null>,
     xmlRef,
     fetchDiagram,
@@ -134,6 +135,7 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
       )}
       <DrawIoEmbed
         ref={drawioRef}
+        onExport={onExport}
         baseUrl={DRAWIO_BASE_URL}
         xml={state.xml}
         // Same defaults as the Whiteboard: white (light) mode, grid OFF,

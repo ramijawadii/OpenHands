@@ -139,11 +139,17 @@ async def healthz():
 # React wrapper (same-origin, principal-authed) polls /live/poll and applies it via
 # the react-drawio embed API. Annotation text passes the output filter first.
 # ─────────────────────────────────────────────────────────────────────────────
-_LIVE_OPS = ("highlight", "annotate", "reload")
+_LIVE_OPS = ("highlight", "annotate", "reload", "export")
 _LIVE_MAX_QUEUE = 50  # per-conversation backlog cap (drop-oldest)
 _LIVE_MAX_TEXT = 500
 _LIVE_MAX_IDS = 200
 _LIVE_QUEUE: dict[str, list[dict]] = {}
+# Export round-trip: the agent asks the OPEN editor to render itself (only draw.io-in-the-browser
+# has the ELK-applied layout + real icons). The frontend renders via exportDiagram, uploads the image
+# to the sandbox workspace, and acks the resulting path here keyed by req_id; the agent polls for it.
+_EXPORT_RESULTS: dict[str, dict] = {}
+_EXPORT_MAX = 100  # bound the ack map (drop-oldest)
+_EXPORT_FMTS = ("png", "svg", "xmlpng", "xmlsvg")
 
 
 def _live_audit(cid: str, outcome: str, op: str = "", hits=None) -> None:
@@ -184,6 +190,9 @@ class _LiveRequest(BaseModel):
     text: str = ""
     near_node: str = ""
     color: str = ""  # semantic hint: critical|high|medium|low|info or a #rrggbb
+    req_id: str = ""  # export only: correlates the render request with its ack
+    fmt: str = ""  # export only: png|svg|xmlpng|xmlsvg
+    out: str = ""  # export only: output basename (no path)
 
 
 @router.post("/live")
@@ -217,6 +226,12 @@ async def live_send(req: _LiveRequest):
             _live_audit(req.cid, "filtered", req.op, hits=["annotation_blocked"])
             raise HTTPException(status_code=422, detail="annotation blocked by output filter")
         cmd["text"] = text
+    elif req.op == "export":
+        if not req.req_id:
+            raise HTTPException(status_code=400, detail="export requires req_id")
+        cmd["req_id"] = str(req.req_id)[:64]
+        cmd["fmt"] = req.fmt if req.fmt in _EXPORT_FMTS else "png"
+        cmd["out"] = os.path.basename(str(req.out or "diagram"))[:128]
 
     q = _LIVE_QUEUE.setdefault(req.cid, [])
     q.append(cmd)
@@ -234,3 +249,49 @@ async def live_poll(conversation_id: str, _p=Depends(require_principal)):
         return {"commands": []}
     cmds = _LIVE_QUEUE.pop(conversation_id, [])
     return {"commands": cmds}
+
+
+class _ExportResult(BaseModel):
+    cid: str
+    req_id: str
+    ok: bool = True
+    path: str = ""  # workspace-relative path the frontend uploaded the render to
+    error: str = ""
+
+
+@router.post("/live/export-result")
+async def export_result(body: _ExportResult, _p=Depends(require_principal)):
+    """Frontend reports where it uploaded the rendered figure (or why it couldn't). The waiting
+    agent-side diagram_export_svg polls export-status for this. Principal-authed (same-origin)."""
+    if not _live_enabled():
+        return {"received": False}
+    if len(_EXPORT_RESULTS) > _EXPORT_MAX:  # drop-oldest bound
+        for k in list(_EXPORT_RESULTS)[: len(_EXPORT_RESULTS) - _EXPORT_MAX]:
+            _EXPORT_RESULTS.pop(k, None)
+    _EXPORT_RESULTS[str(body.req_id)[:64]] = {
+        "ok": bool(body.ok),
+        "path": os.path.basename(str(body.path))[:256] if body.path else "",
+        "error": str(body.error)[:200],
+        "ts": time.time(),
+    }
+    _live_audit(body.cid, "export_ok" if body.ok else "export_fail", "export")
+    return {"received": True}
+
+
+class _ExportStatus(BaseModel):
+    cid: str
+    sig: str
+    req_id: str
+
+
+@router.post("/live/export-status")
+async def export_status(req: _ExportStatus):
+    """Agent (HMAC-authed) polls for its export's result. {done:false} until the frontend acks."""
+    if not _live_enabled():
+        raise HTTPException(status_code=404, detail="diagram live seam not enabled")
+    if not _verify(req.cid, req.sig):
+        raise HTTPException(status_code=403, detail="unauthorized")
+    res = _EXPORT_RESULTS.pop(str(req.req_id)[:64], None)
+    if res is None:
+        return {"done": False}
+    return {"done": True, **res}
