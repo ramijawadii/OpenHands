@@ -145,8 +145,12 @@ async def healthz():
 _LIVE_OPS = (
     "highlight", "annotate", "reload", "export",
     "add_node", "add_edge", "edit_cell", "delete_cell", "read",
+    # P9 — pages / layers / import (mxfile + root-layer mutations, applied by the frontend + reload)
+    "add_page", "rename_page", "delete_page", "add_layer", "move_to_layer", "import",
 )
 _LIVE_MUTATION_OPS = ("add_node", "add_edge", "edit_cell", "delete_cell")
+_LIVE_STRUCT_OPS = ("add_page", "rename_page", "delete_page", "add_layer", "move_to_layer", "import")
+_LIVE_MAX_IMPORT = 200_000  # cap imported diagram XML
 _LIVE_MAX_QUEUE = 50  # per-conversation backlog cap (drop-oldest)
 _LIVE_MAX_TEXT = 500
 _LIVE_MAX_IDS = 200
@@ -222,6 +226,18 @@ def _sanitize_cell(p: dict) -> dict:
     return out
 
 
+def _sanitize_struct(op: str, p: dict) -> dict:
+    """Clamp a page/layer/import spec to safe primitives."""
+    out: dict = {}
+    for k in ("id", "page", "layer", "name", "mode"):
+        if p.get(k) is not None:
+            out[k] = str(p[k])[:128]
+    if op == "import" and p.get("xml") is not None:
+        out["xml"] = str(p["xml"])[:_LIVE_MAX_IMPORT]
+        out["mode"] = out.get("mode") if out.get("mode") in ("replace", "add_page") else "replace"
+    return out
+
+
 @router.post("/live")
 async def live_send(req: _LiveRequest):
     """Agent → queue a live command for the open editor. Authed + rate-limited + audited + filtered."""
@@ -277,6 +293,21 @@ async def live_send(req: _LiveRequest):
         if req.op == "add_edge" and not (cell.get("source") and cell.get("target")):
             raise HTTPException(status_code=400, detail="add_edge requires payload.source + payload.target")
         cmd["payload"] = cell
+    elif req.op in _LIVE_STRUCT_OPS:
+        s = _sanitize_struct(req.op, dict(req.payload or {}))
+        if "name" in s:  # page/layer names are agent-authored → output filter first
+            v = _filter_text(s["name"])
+            if v is None:
+                _live_audit(req.cid, "filtered", req.op, hits=["name_blocked"])
+                raise HTTPException(status_code=422, detail="name blocked by output filter")
+            s["name"] = v
+        if req.op in ("rename_page", "delete_page") and not s.get("page"):
+            raise HTTPException(status_code=400, detail=f"{req.op} requires payload.page")
+        if req.op == "move_to_layer" and not (s.get("id") and s.get("layer")):
+            raise HTTPException(status_code=400, detail="move_to_layer requires payload.id + payload.layer")
+        if req.op == "import" and not s.get("xml"):
+            raise HTTPException(status_code=400, detail="import requires payload.xml")
+        cmd["payload"] = s
 
     q = _LIVE_QUEUE.setdefault(req.cid, [])
     q.append(cmd)

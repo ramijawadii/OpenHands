@@ -79,6 +79,103 @@ function parseCells(xml: string): Record<string, unknown>[] {
   }
 }
 
+const BLANK_PAGE_MODEL =
+  '<mxGraphModel dx="800" dy="600" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" ' +
+  'arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">' +
+  '<root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel>';
+
+function uid(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
+
+/** mxfile pages -> [{id, name, index}]. */
+function parsePages(xml: string): Record<string, unknown>[] {
+  try {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    return Array.from(doc.querySelectorAll("mxfile > diagram")).map((d, i) => ({
+      id: d.getAttribute("id") || String(i),
+      name: d.getAttribute("name") || `Page-${i + 1}`,
+      index: i,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** Current-page layers = root's mxCell children with parent="0" -> [{id, name}]. */
+function parseLayers(xml: string): Record<string, unknown>[] {
+  try {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    const root = doc.querySelector("mxGraphModel > root") || doc.querySelector("root");
+    if (!root) return [];
+    return Array.from(root.children)
+      .filter((c) => c.tagName === "mxCell" && c.getAttribute("parent") === "0")
+      .map((c) => ({ id: c.getAttribute("id") || "", name: c.getAttribute("value") || "Background" }));
+  } catch {
+    return [];
+  }
+}
+
+/** Apply a page/layer/import struct op to the full mxfile XML and return the new XML. */
+function applyStructOp(
+  xml: string,
+  op: string,
+  p: Record<string, unknown>,
+): string {
+  try {
+    if (op === "import" && p.mode === "replace") {
+      return typeof p.xml === "string" && p.xml.trimStart().startsWith("<") ? p.xml : xml;
+    }
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    if (doc.querySelector("parsererror")) return xml;
+    const mxfile = doc.querySelector("mxfile");
+    const diagrams = () => Array.from(doc.querySelectorAll("mxfile > diagram"));
+    const pickPage = (sel: string): Element | null => {
+      const ds = diagrams();
+      const byId = ds.find((d) => d.getAttribute("id") === sel);
+      if (byId) return byId;
+      const i = Number(sel);
+      return Number.isInteger(i) && ds[i] ? ds[i] : null;
+    };
+
+    if (op === "add_page" && mxfile) {
+      const d = doc.createElement("diagram");
+      d.setAttribute("id", uid("page"));
+      d.setAttribute("name", String(p.name || "Page"));
+      const model = new DOMParser().parseFromString(BLANK_PAGE_MODEL, "application/xml").documentElement;
+      d.appendChild(doc.importNode(model, true));
+      mxfile.appendChild(d);
+    } else if (op === "rename_page") {
+      pickPage(String(p.page ?? ""))?.setAttribute("name", String(p.name || "Page"));
+    } else if (op === "delete_page") {
+      if (diagrams().length > 1) pickPage(String(p.page ?? ""))?.remove();
+    } else if (op === "add_layer") {
+      const root = doc.querySelector("mxGraphModel > root") || doc.querySelector("root");
+      if (root) {
+        const c = doc.createElement("mxCell");
+        c.setAttribute("id", String(p.id || uid("layer")));
+        c.setAttribute("value", String(p.name || "Layer"));
+        c.setAttribute("parent", "0");
+        root.appendChild(c);
+      }
+    } else if (op === "move_to_layer") {
+      const cell = doc.querySelector(`mxCell[id="${CSS.escape(String(p.id ?? ""))}"]`);
+      if (cell) cell.setAttribute("parent", String(p.layer ?? "1"));
+    } else if (op === "import" && p.mode === "add_page" && mxfile) {
+      const imp = new DOMParser().parseFromString(String(p.xml || ""), "application/xml");
+      imp.querySelectorAll("mxfile > diagram, diagram").forEach((d) => {
+        if (!d.getAttribute("id")) d.setAttribute("id", uid("page"));
+        mxfile.appendChild(doc.importNode(d, true));
+      });
+    } else {
+      return xml;
+    }
+    return new XMLSerializer().serializeToString(doc);
+  } catch {
+    return xml;
+  }
+}
+
 /** Apply an incremental cell/edge op (add/edit/delete) to the XML and return the new XML. */
 function applyCellOp(
   xml: string,
@@ -307,7 +404,14 @@ export function useDiagramLive(
           } else {
             xml = xmlRef.current;
           }
-          ackRpc(pending.reqId, true, { payload: parseCells(xml) });
+          // cells + layers from the (live) exported page; pages from the full loaded mxfile.
+          ackRpc(pending.reqId, true, {
+            payload: {
+              cells: parseCells(xml),
+              layers: parseLayers(xml),
+              pages: parsePages(xmlRef.current),
+            },
+          });
           return;
         }
         if (!dataUri.startsWith("data:")) throw new Error("empty export");
@@ -381,6 +485,15 @@ export function useDiagramLive(
         cmd.op === "delete_cell"
       ) {
         next = applyCellOp(next, cmd.op, cmd.payload || {});
+      } else if (
+        cmd.op === "add_page" ||
+        cmd.op === "rename_page" ||
+        cmd.op === "delete_page" ||
+        cmd.op === "add_layer" ||
+        cmd.op === "move_to_layer" ||
+        cmd.op === "import"
+      ) {
+        next = applyStructOp(next, cmd.op, cmd.payload || {});
       } else {
         return; // unknown op — ignore (server allow-lists, but stay defensive)
       }
