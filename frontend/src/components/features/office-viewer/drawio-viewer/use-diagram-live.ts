@@ -52,7 +52,7 @@ const DEFAULT_EDGE_STYLE =
   "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8592A6;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;";
 
 /** Parse the current diagram XML into a compact cell list the agent can reason over. */
-function parseCells(xml: string): Record<string, unknown>[] {
+export function parseCells(xml: string): Record<string, unknown>[] {
   try {
     const doc = new DOMParser().parseFromString(xml, "application/xml");
     if (doc.querySelector("parsererror")) return [];
@@ -89,7 +89,7 @@ function uid(prefix: string): string {
 }
 
 /** mxfile pages -> [{id, name, index}]. */
-function parsePages(xml: string): Record<string, unknown>[] {
+export function parsePages(xml: string): Record<string, unknown>[] {
   try {
     const doc = new DOMParser().parseFromString(xml, "application/xml");
     return Array.from(doc.querySelectorAll("mxfile > diagram")).map((d, i) => ({
@@ -103,7 +103,7 @@ function parsePages(xml: string): Record<string, unknown>[] {
 }
 
 /** Current-page layers = root's mxCell children with parent="0" -> [{id, name}]. */
-function parseLayers(xml: string): Record<string, unknown>[] {
+export function parseLayers(xml: string): Record<string, unknown>[] {
   try {
     const doc = new DOMParser().parseFromString(xml, "application/xml");
     const root = doc.querySelector("mxGraphModel > root") || doc.querySelector("root");
@@ -117,7 +117,7 @@ function parseLayers(xml: string): Record<string, unknown>[] {
 }
 
 /** Apply a page/layer/import struct op to the full mxfile XML and return the new XML. */
-function applyStructOp(
+export function applyStructOp(
   xml: string,
   op: string,
   p: Record<string, unknown>,
@@ -177,7 +177,7 @@ function applyStructOp(
 }
 
 /** Apply an incremental cell/edge op (add/edit/delete) to the XML and return the new XML. */
-function applyCellOp(
+export function applyCellOp(
   xml: string,
   op: string,
   p: Record<string, unknown>,
