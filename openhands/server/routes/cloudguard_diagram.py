@@ -139,7 +139,14 @@ async def healthz():
 # React wrapper (same-origin, principal-authed) polls /live/poll and applies it via
 # the react-drawio embed API. Annotation text passes the output filter first.
 # ─────────────────────────────────────────────────────────────────────────────
-_LIVE_OPS = ("highlight", "annotate", "reload", "export")
+# highlight/annotate/reload/export = P3/P4. add_node/add_edge/edit_cell/delete_cell = P8 incremental
+# canvas edits (the lgazo-style live ops, built natively into OUR audited seam). read = P8 round-trip
+# that returns the CURRENT canvas cells so the agent can iterate on what the analyst actually drew.
+_LIVE_OPS = (
+    "highlight", "annotate", "reload", "export",
+    "add_node", "add_edge", "edit_cell", "delete_cell", "read",
+)
+_LIVE_MUTATION_OPS = ("add_node", "add_edge", "edit_cell", "delete_cell")
 _LIVE_MAX_QUEUE = 50  # per-conversation backlog cap (drop-oldest)
 _LIVE_MAX_TEXT = 500
 _LIVE_MAX_IDS = 200
@@ -190,9 +197,29 @@ class _LiveRequest(BaseModel):
     text: str = ""
     near_node: str = ""
     color: str = ""  # semantic hint: critical|high|medium|low|info or a #rrggbb
-    req_id: str = ""  # export only: correlates the render request with its ack
+    req_id: str = ""  # export/read: correlates the round-trip request with its ack
     fmt: str = ""  # export only: png|svg|xmlpng|xmlsvg
     out: str = ""  # export only: output basename (no path)
+    payload: dict = Field(default_factory=dict)  # add_node/add_edge/edit_cell/delete_cell: the cell spec
+
+
+def _sanitize_cell(p: dict) -> dict:
+    """Clamp an agent-supplied cell/edge spec to safe primitives before it reaches the editor."""
+    out: dict = {}
+    for k in ("id", "source", "target", "parent"):
+        if p.get(k) is not None:
+            out[k] = str(p[k])[:128]
+    if p.get("value") is not None:
+        out["value"] = str(p["value"])[:_LIVE_MAX_TEXT]
+    if p.get("style") is not None:
+        out["style"] = str(p["style"])[:800]
+    for k in ("x", "y", "w", "h"):
+        if p.get(k) is not None:
+            try:
+                out[k] = float(p[k])
+            except (TypeError, ValueError):
+                pass
+    return out
 
 
 @router.post("/live")
@@ -232,6 +259,24 @@ async def live_send(req: _LiveRequest):
         cmd["req_id"] = str(req.req_id)[:64]
         cmd["fmt"] = req.fmt if req.fmt in _EXPORT_FMTS else "png"
         cmd["out"] = os.path.basename(str(req.out or "diagram"))[:128]
+    elif req.op == "read":
+        # round-trip: the frontend reads the CURRENT canvas XML and returns parsed cells.
+        if not req.req_id:
+            raise HTTPException(status_code=400, detail="read requires req_id")
+        cmd["req_id"] = str(req.req_id)[:64]
+    elif req.op in _LIVE_MUTATION_OPS:
+        cell = _sanitize_cell(dict(req.payload or {}))
+        if "value" in cell:  # any label the agent injects passes the output filter first
+            v = _filter_text(cell["value"])
+            if v is None:
+                _live_audit(req.cid, "filtered", req.op, hits=["value_blocked"])
+                raise HTTPException(status_code=422, detail="cell text blocked by output filter")
+            cell["value"] = v
+        if req.op in ("edit_cell", "delete_cell") and not cell.get("id"):
+            raise HTTPException(status_code=400, detail=f"{req.op} requires payload.id")
+        if req.op == "add_edge" and not (cell.get("source") and cell.get("target")):
+            raise HTTPException(status_code=400, detail="add_edge requires payload.source + payload.target")
+        cmd["payload"] = cell
 
     q = _LIVE_QUEUE.setdefault(req.cid, [])
     q.append(cmd)
@@ -255,14 +300,15 @@ class _ExportResult(BaseModel):
     cid: str
     req_id: str
     ok: bool = True
-    path: str = ""  # workspace-relative path the frontend uploaded the render to
+    path: str = ""  # export: workspace-relative path the frontend uploaded the render to
     error: str = ""
+    payload: object = None  # read: the parsed current-canvas cells (list of dicts)
 
 
 @router.post("/live/export-result")
 async def export_result(body: _ExportResult, _p=Depends(require_principal)):
-    """Frontend reports where it uploaded the rendered figure (or why it couldn't). The waiting
-    agent-side diagram_export_svg polls export-status for this. Principal-authed (same-origin)."""
+    """Frontend reports a round-trip result — an export path OR a read payload (current-canvas cells)
+    — or why it couldn't. The waiting agent-side fn polls export-status for it. Principal-authed."""
     if not _live_enabled():
         return {"received": False}
     if len(_EXPORT_RESULTS) > _EXPORT_MAX:  # drop-oldest bound
@@ -272,9 +318,10 @@ async def export_result(body: _ExportResult, _p=Depends(require_principal)):
         "ok": bool(body.ok),
         "path": os.path.basename(str(body.path))[:256] if body.path else "",
         "error": str(body.error)[:200],
+        "payload": body.payload,  # read op: current-canvas cells
         "ts": time.time(),
     }
-    _live_audit(body.cid, "export_ok" if body.ok else "export_fail", "export")
+    _live_audit(body.cid, "rpc_ok" if body.ok else "rpc_fail", "read/export")
     return {"received": True}
 
 

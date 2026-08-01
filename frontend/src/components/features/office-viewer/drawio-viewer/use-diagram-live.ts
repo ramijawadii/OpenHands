@@ -45,6 +45,113 @@ interface LiveCommand {
   req_id?: string;
   fmt?: string; // export: png | svg
   out?: string; // export: output basename
+  payload?: Record<string, unknown>; // add_node/add_edge/edit_cell/delete_cell: the cell spec
+}
+
+const DEFAULT_EDGE_STYLE =
+  "edgeStyle=orthogonalEdgeStyle;rounded=1;html=1;strokeColor=#8592A6;strokeWidth=1.5;endArrow=block;endFill=1;endSize=6;";
+
+/** Parse the current diagram XML into a compact cell list the agent can reason over. */
+function parseCells(xml: string): Record<string, unknown>[] {
+  try {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    if (doc.querySelector("parsererror")) return [];
+    const cells: Record<string, unknown>[] = [];
+    doc.querySelectorAll("mxCell").forEach((c) => {
+      const id = c.getAttribute("id") || "";
+      if (id === "0" || id === "1") return;
+      const geo = c.querySelector("mxGeometry");
+      cells.push({
+        id,
+        value: c.getAttribute("value") || "",
+        style: (c.getAttribute("style") || "").slice(0, 200),
+        vertex: c.getAttribute("vertex") === "1",
+        edge: c.getAttribute("edge") === "1",
+        source: c.getAttribute("source") || undefined,
+        target: c.getAttribute("target") || undefined,
+        x: geo ? Number(geo.getAttribute("x")) || undefined : undefined,
+        y: geo ? Number(geo.getAttribute("y")) || undefined : undefined,
+      });
+    });
+    return cells;
+  } catch {
+    return [];
+  }
+}
+
+/** Apply an incremental cell/edge op (add/edit/delete) to the XML and return the new XML. */
+function applyCellOp(
+  xml: string,
+  op: string,
+  p: Record<string, unknown>,
+): string {
+  try {
+    const doc = new DOMParser().parseFromString(xml, "application/xml");
+    if (doc.querySelector("parsererror")) return xml;
+    const root = doc.querySelector("mxGraphModel > root") || doc.querySelector("root");
+    if (!root) return xml;
+    const id = String(p.id ?? "");
+    const byId = (cid: string) => doc.querySelector(`mxCell[id="${CSS.escape(cid)}"]`);
+
+    if (op === "delete_cell") {
+      byId(id)?.remove();
+      // drop incident edges
+      doc.querySelectorAll("mxCell[edge='1']").forEach((e) => {
+        if (e.getAttribute("source") === id || e.getAttribute("target") === id) e.remove();
+      });
+      return new XMLSerializer().serializeToString(doc);
+    }
+    if (op === "edit_cell") {
+      const c = byId(id);
+      if (!c) return xml;
+      if (p.value !== undefined) c.setAttribute("value", String(p.value));
+      if (p.style !== undefined) c.setAttribute("style", String(p.style));
+      const geo = c.querySelector("mxGeometry");
+      if (geo) {
+        if (p.x !== undefined) geo.setAttribute("x", String(p.x));
+        if (p.y !== undefined) geo.setAttribute("y", String(p.y));
+      }
+      return new XMLSerializer().serializeToString(doc);
+    }
+    if (op === "add_node") {
+      if (byId(id)) return xml; // id exists — no dup
+      const c = doc.createElement("mxCell");
+      c.setAttribute("id", id);
+      c.setAttribute("value", String(p.value ?? ""));
+      c.setAttribute("style", String(p.style ?? "rounded=1;whiteSpace=wrap;html=1;"));
+      c.setAttribute("vertex", "1");
+      c.setAttribute("parent", "1");
+      const g = doc.createElement("mxGeometry");
+      g.setAttribute("x", String(p.x ?? 40));
+      g.setAttribute("y", String(p.y ?? 40));
+      g.setAttribute("width", String(p.w ?? 60));
+      g.setAttribute("height", String(p.h ?? 60));
+      g.setAttribute("as", "geometry");
+      c.appendChild(g);
+      root.appendChild(c);
+      return new XMLSerializer().serializeToString(doc);
+    }
+    if (op === "add_edge") {
+      if (byId(id)) return xml;
+      const c = doc.createElement("mxCell");
+      c.setAttribute("id", id);
+      c.setAttribute("value", String(p.value ?? ""));
+      c.setAttribute("style", String(p.style ?? DEFAULT_EDGE_STYLE));
+      c.setAttribute("edge", "1");
+      c.setAttribute("parent", "1");
+      c.setAttribute("source", String(p.source ?? ""));
+      c.setAttribute("target", String(p.target ?? ""));
+      const g = doc.createElement("mxGeometry");
+      g.setAttribute("relative", "1");
+      g.setAttribute("as", "geometry");
+      c.appendChild(g);
+      root.appendChild(c);
+      return new XMLSerializer().serializeToString(doc);
+    }
+    return xml;
+  } catch {
+    return xml;
+  }
 }
 
 type DrawioRef = {
@@ -153,26 +260,32 @@ export function useDiagramLive(
     reqId: string;
     fmt: string;
     out: string;
+    mode: "file" | "read";
   } | null>(null);
 
-  // Ack the seam so the waiting agent-side diagram_export_svg unblocks (success OR failure).
-  const ackExport = React.useCallback(
-    (reqId: string, ok: boolean, path: string, error: string) => {
+  // Ack the round-trip so the waiting agent-side fn unblocks. `path` for export, `payload` for read.
+  const ackRpc = React.useCallback(
+    (
+      reqId: string,
+      ok: boolean,
+      opts: { path?: string; payload?: unknown; error?: string },
+    ) => {
       openHands
         .post("/api/cloudguard/diagram/live/export-result", {
           cid: conversationId,
           req_id: reqId,
           ok,
-          path,
-          error,
+          path: opts.path || "",
+          payload: opts.payload ?? null,
+          error: opts.error || "",
         })
         .catch(() => {});
     },
     [conversationId],
   );
 
-  // DrawIoEmbed calls this when a render finishes. Upload the image into the sandbox workspace so
-  // the agent can \includegraphics it, then ack the path. Wired via DrawioViewer's onExport prop.
+  // DrawIoEmbed calls this when an export finishes. For a `read` we parse the CURRENT canvas XML and
+  // return its cells; for a file export we upload the image and return its path. Wired via onExport.
   const onExport = React.useCallback(
     async (evt: { data?: string }) => {
       const pending = pendingExportRef.current;
@@ -180,6 +293,23 @@ export function useDiagramLive(
       pendingExportRef.current = null;
       try {
         const dataUri = evt?.data || "";
+        if (pending.mode === "read") {
+          // format=xmlsvg embeds the source XML; also accept a raw data: xml uri.
+          let xml = "";
+          if (dataUri.startsWith("data:")) {
+            const txt = await (await fetch(dataUri)).text();
+            const m = txt.match(/content="(&lt;mxfile[\s\S]*?&gt;)"/);
+            xml = m
+              ? m[1].replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&")
+              : txt.trimStart().startsWith("<mxfile")
+                ? txt
+                : xmlRef.current;
+          } else {
+            xml = xmlRef.current;
+          }
+          ackRpc(pending.reqId, true, { payload: parseCells(xml) });
+          return;
+        }
         if (!dataUri.startsWith("data:")) throw new Error("empty export");
         const blob = await (await fetch(dataUri)).blob();
         const ext = pending.fmt === "svg" ? "svg" : "png";
@@ -188,19 +318,16 @@ export function useDiagramLive(
         });
         const res = await ConversationService.uploadFiles(conversationId, [file]);
         const path = res?.uploaded_files?.[0] || `${pending.out}.${ext}`;
-        ackExport(pending.reqId, true, path, "");
+        ackRpc(pending.reqId, true, { path });
       } catch (e) {
-        ackExport(
-          pending.reqId,
-          false,
-          "",
-          e instanceof Error ? e.message : "export upload failed",
-        );
+        ackRpc(pending.reqId, false, {
+          error: e instanceof Error ? e.message : "round-trip failed",
+        });
       } finally {
         setAgentWorking(false);
       }
     },
-    [conversationId, ackExport],
+    [conversationId, ackRpc, xmlRef],
   );
 
   React.useEffect(() => {
@@ -217,26 +344,27 @@ export function useDiagramLive(
         }
         return;
       }
-      if (cmd.op === "export") {
-        // Ask the embed to render itself (it has the applied ELK layout + real icons). The result
-        // lands on the onExport event → uploaded + acked there. If we can't even kick it off, ack a
-        // failure now so the agent doesn't wait out its timeout.
+      if (cmd.op === "export" || cmd.op === "read") {
+        // Round-trip: ask the embed to render (export) or hand us its current XML (read). The result
+        // lands on onExport → uploaded/parsed + acked there. If we can't kick it off, ack failure now.
         if (!drawioRef.current || !cmd.req_id) {
-          if (cmd.req_id) ackExport(cmd.req_id, false, "", "no open editor");
+          if (cmd.req_id)
+            ackRpc(cmd.req_id, false, { error: "no open editor" });
           return;
         }
         pendingExportRef.current = {
           reqId: cmd.req_id,
           fmt: cmd.fmt === "svg" ? "svg" : "png",
           out: cmd.out || "diagram",
+          mode: cmd.op === "read" ? "read" : "file",
         };
         try {
           drawioRef.current.exportDiagram({
-            format: EXPORT_FORMAT[cmd.fmt || "png"] || "xmlpng",
+            format: cmd.op === "read" ? "xmlsvg" : EXPORT_FORMAT[cmd.fmt || "png"] || "xmlpng",
           });
         } catch {
           pendingExportRef.current = null;
-          ackExport(cmd.req_id, false, "", "export call failed");
+          ackRpc(cmd.req_id, false, { error: "export call failed" });
         }
         return;
       }
@@ -246,6 +374,13 @@ export function useDiagramLive(
         next = applyHighlight(next, [...(cmd.node_ids || []), ...(cmd.edge_ids || [])], hex);
       } else if (cmd.op === "annotate") {
         next = applyAnnotation(next, String(cmd.text || ""), String(cmd.near_node || ""), hex);
+      } else if (
+        cmd.op === "add_node" ||
+        cmd.op === "add_edge" ||
+        cmd.op === "edit_cell" ||
+        cmd.op === "delete_cell"
+      ) {
+        next = applyCellOp(next, cmd.op, cmd.payload || {});
       } else {
         return; // unknown op — ignore (server allow-lists, but stay defensive)
       }
@@ -288,7 +423,7 @@ export function useDiagramLive(
       cancelled = true;
       if (timer) window.clearInterval(timer);
     };
-  }, [conversationId, drawioRef, xmlRef, refetch, ackExport]);
+  }, [conversationId, drawioRef, xmlRef, refetch, ackRpc]);
 
   return { agentWorking, onExport };
 }
