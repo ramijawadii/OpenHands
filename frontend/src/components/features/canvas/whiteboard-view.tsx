@@ -1,11 +1,14 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { DrawIoEmbed, type DrawIoEmbedRef } from "react-drawio";
+import { LayoutTemplate } from "lucide-react";
 import {
   DRAWIO_BASE_URL,
   DRAWIO_CONFIGURATION,
 } from "#/components/features/office-viewer/drawio-viewer";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+
+const TemplateCatalog = React.lazy(() => import("./template-catalog"));
 
 // Durable copy of the whiteboard in the sandbox workspace (Tier A2: backend is
 // the source of truth so the iframe is disposable). Also makes the whiteboard a
@@ -72,6 +75,21 @@ export default function WhiteboardView({ conversationId }: Props) {
   // fresh key rather than trying to read the previous format.
   const storageKey = `cg-drawio-${conversationId ?? "default"}`;
   const ref = React.useRef<DrawIoEmbedRef>(null);
+  const [catalogOpen, setCatalogOpen] = React.useState(false);
+
+  // Load a chosen template into the canvas. The template is IMMUTABLE — we load its XML into THIS
+  // board (a new document); the debounced persist() then saves the analyst's copy, never the source.
+  const loadTemplate = React.useCallback(
+    (xml: string) => {
+      setCatalogOpen(false);
+      try {
+        ref.current?.load({ xml });
+      } catch {
+        /* embed not ready — ignore */
+      }
+    },
+    [],
+  );
 
   // AP1 — durable-save state, surfaced so a diagram is never SILENTLY localStorage-only.
   // idle→saving→saved on the debounced workspace upload; error if the runtime is unreachable
@@ -203,6 +221,23 @@ export default function WhiteboardView({ conversationId }: Props) {
 
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setCatalogOpen(true)}
+        className="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-md border border-[var(--cg-border,#2a2f3a)] bg-[var(--cg-bg-elev,#12161f)]/90 px-2.5 py-1 text-[11px] font-medium text-[var(--cg-text,#e6e6e6)] shadow-sm hover:border-[var(--cg-accent,#4C9AFF)]"
+        title="Start from an architecture template"
+      >
+        <LayoutTemplate className="h-3.5 w-3.5" />
+        Templates
+      </button>
+      {catalogOpen && (
+        <React.Suspense fallback={null}>
+          <TemplateCatalog
+            onClose={() => setCatalogOpen(false)}
+            onSelect={(xml) => loadTemplate(xml)}
+          />
+        </React.Suspense>
+      )}
       <DrawIoEmbed
         key={storageKey}
         ref={ref}

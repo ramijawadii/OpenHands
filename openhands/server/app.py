@@ -524,6 +524,20 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard diagram routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard diagram Template Library (per-tenant starter architectures; human catalog + agent query).
+try:
+    from openhands.server.routes.cloudguard_templates import (
+        router as cloudguard_templates_router,
+    )
+
+    app.include_router(cloudguard_templates_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard template routes unavailable: %s", _cg_exc
+    )
+
 # CloudGuard VFS engine HTTP surface (additive — the path-addressed seam over HTTP).
 try:
     from openhands.server.routes.cloudguard_vfs import router as cloudguard_vfs_router

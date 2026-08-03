@@ -612,6 +612,11 @@ class DockerRuntime(ActionExecutionClient):
                 'CLOUDGUARD_DIAGRAM_SEARCH_URL_SANDBOX',
                 'http://host.docker.internal:3000/api/cloudguard/diagram/shape-search',
             )
+            # Template library (find/load reference architectures) — same token, control-plane store.
+            environment['CLOUDGUARD_TEMPLATE_URL'] = os.environ.get(
+                'CLOUDGUARD_TEMPLATE_URL_SANDBOX',
+                'http://host.docker.internal:3000/api/cloudguard/templates',
+            )
             # Live control (opt-in): point diagram_highlight_path/_add_annotation at the /live
             # seam so the agent can drive the analyst's OPEN editor. Reuses the same token; the
             # sandbox never reaches the browser (the app relays; the frontend pulls).
