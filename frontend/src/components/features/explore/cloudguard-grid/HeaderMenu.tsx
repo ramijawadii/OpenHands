@@ -38,6 +38,7 @@ interface Props {
   api: GridApi | null;
   onClose: () => void;
   onChooseColumns: () => void;
+  onResetDisplay?: () => void;
 }
 
 const row: React.CSSProperties = {
@@ -60,7 +61,13 @@ const sep: React.CSSProperties = {
   margin: "4px 0",
 };
 
-export function HeaderMenu({ target, api, onClose, onChooseColumns }: Props) {
+export function HeaderMenu({
+  target,
+  api,
+  onClose,
+  onChooseColumns,
+  onResetDisplay,
+}: Props) {
   const ref = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
@@ -176,6 +183,14 @@ export function HeaderMenu({ target, api, onClose, onChooseColumns }: Props) {
       onClick={act(() => api.resetColumnState())}
     >
       <RotateCcw size={14} /> Reset Columns
+    </button>,
+    <button
+      key="resetall"
+      type="button"
+      style={row}
+      onClick={act(() => onResetDisplay?.())}
+    >
+      <RotateCcw size={14} /> Reset All Display
     </button>,
   ];
 

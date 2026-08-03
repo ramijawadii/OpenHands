@@ -25,6 +25,11 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
+import { EventReport } from "#/components/features/explore/cloudguard-grid/EventReport";
+import {
+  clearEventReport,
+  useEventReport,
+} from "#/components/features/explore/cloudguard-grid/event-report";
 
 /** Report — discovery of the conversation's existing artifacts.
  *
@@ -108,6 +113,22 @@ export default function ReportView() {
   const [newestFirst, setNewestFirst] = React.useState(true);
   const [selected, setSelected] = React.useState<Artifact | null>(null);
 
+  /**
+   * A report opened from the Overview's events table, not yet on disk. It
+   * pre-empts the listing so the tab shows what the click asked for, and is
+   * dropped on "back" — nothing was written, so nothing is left behind.
+   */
+  const pendingEvent = useEventReport();
+
+  /*
+   * An artifact may already be open in the viewer when a report is raised.
+   * Dropping it here means "back" from the report lands on the listing rather
+   * than on whatever file happened to be open before.
+   */
+  React.useEffect(() => {
+    if (pendingEvent) setSelected(null);
+  }, [pendingEvent]);
+
   const refresh = React.useCallback(async () => {
     if (!conversationId) return;
     setLoading(true);
@@ -147,6 +168,18 @@ export default function ReportView() {
     visible.forEach((a) => acc[a.kind]?.push(a));
     return acc;
   }, [visible]);
+
+  if (pendingEvent) {
+    return (
+      <EventReport
+        event={pendingEvent}
+        onBack={clearEventReport}
+        // Saving writes a markdown artifact; refresh so it appears in the
+        // listing the moment the user goes back to it.
+        onSaved={refresh}
+      />
+    );
+  }
 
   // ── Viewer ──────────────────────────────────────────────────────────────────
   if (selected) {

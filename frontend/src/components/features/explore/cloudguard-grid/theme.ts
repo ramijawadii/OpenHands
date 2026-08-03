@@ -77,6 +77,32 @@ export function gridThemeFor(theme: "dark" | "light") {
   return theme === "light" ? lightTheme : darkTheme;
 }
 
+/**
+ * The app's body stack, from `index.css`. Shared so canvas text, HTML tooltips
+ * and the grids all resolve to the same typeface — mixing them is immediately
+ * visible when a tooltip sits beside an axis label.
+ */
+export const APP_FONT =
+  '-apple-system, "SF Pro", BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
+
+/**
+ * Grid theme for the Overview's events table: transparent, so it sits on the
+ * chart canvas rather than punching a card-coloured hole in it.
+ */
+export function eventsThemeFor(theme: "dark" | "light") {
+  return gridThemeFor(theme).withParams({
+    backgroundColor: "transparent",
+    headerBackgroundColor: "transparent",
+    oddRowBackgroundColor: "transparent",
+    fontFamily: APP_FONT,
+    wrapperBorder: false,
+    headerRowBorder: true,
+    fontSize: 11,
+    headerFontSize: 11,
+    cellHorizontalPadding: 8,
+  });
+}
+
 export const THEME_NAME = "Balham";
 
 /** Grey used by the grid header; the side rail matches it. */

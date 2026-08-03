@@ -50,6 +50,7 @@
     "cytoscape-undo-redo": "^1.3.3",
     "date-fns": "^4.1.0",
     "downshift": "^9.0.10",
+    "echarts": "^6.1.0",
     "eslint-config-airbnb-typescript": "^18.0.0",
     "fast-formula-parser": "^1.0.19",
     "framer-motion": "^12.23.22",

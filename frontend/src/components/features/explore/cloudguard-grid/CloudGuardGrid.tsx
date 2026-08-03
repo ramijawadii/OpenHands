@@ -12,12 +12,14 @@ import { AgGridReact } from "ag-grid-react";
 import { buildColumns } from "./columns";
 import { branchIds, buildRows, type ResourceRow } from "./data";
 import { gridThemeFor } from "./theme";
+import { GridPalette } from "./palette";
 import { HeaderCell } from "./HeaderCell";
 import { FloatingFilter } from "./FloatingFilter";
 import { HeaderMenu, type MenuTarget } from "./HeaderMenu";
 import { SidePanel, type PanelTab } from "./SidePanel";
 import { CellMenu, type CellTarget } from "./CellMenu";
 import { useTheme } from "#/context/theme-context";
+import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
 
 /**
  * CloudGuard resource grid — AG Grid **Community only** (MIT).
@@ -93,7 +95,17 @@ export function CloudGuardGrid() {
   const [menu, setMenu] = React.useState<MenuTarget | null>(null);
   const [cellMenu, setCellMenu] = React.useState<CellTarget | null>(null);
 
-  const rowData = React.useMemo(() => buildRows(LEAF_COUNT), []);
+  // Generation is pure, but a schema change that throws here would blank the
+  // grid with no explanation. Degrade to an empty table and say so instead.
+  const [dataError, setDataError] = React.useState<string | null>(null);
+  const rowData = React.useMemo(() => {
+    try {
+      return buildRows(LEAF_COUNT);
+    } catch (e) {
+      setDataError(e instanceof Error ? e.message : String(e));
+      return [] as ResourceRow[];
+    }
+  }, []);
 
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   React.useEffect(() => {
@@ -163,6 +175,21 @@ export function CloudGuardGrid() {
     [],
   );
 
+  /** Escape hatch when column or filter state gets into a bad shape. */
+  const resetDisplay = React.useCallback(() => {
+    if (!api) return;
+    try {
+      api.setFilterModel(null);
+      api.resetColumnState();
+      setExpanded(new Set(branchIds(rowData)));
+      setPanelTab(null);
+      setMenu(null);
+      setCellMenu(null);
+    } catch {
+      // Reset is best-effort; the boundary remount below is the backstop.
+    }
+  }, [api, rowData]);
+
   const onGridReady = React.useCallback((e: GridReadyEvent<ResourceRow>) => {
     setApi(e.api);
   }, []);
@@ -178,68 +205,43 @@ export function CloudGuardGrid() {
   }, [api]);
 
   return (
-    // height:100% + overflow:hidden — the page itself must not scroll; only
-    // the grid viewport does.
-    <div
-      ref={rootRef}
-      className="cg-grid-root"
-      style={{
-        height: height ? `${height}px` : "70vh",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        border: "1px solid var(--cg-border-subtle)",
-        borderRadius: 6,
-        background: "var(--cg-bg-card)",
-      }}
+    <SurfaceErrorBoundary
+      surface="explore"
+      name="Resource inventory"
+      resetKeys={[theme, rowData.length]}
     >
-      <style>{`
+      {dataError && (
+        <div
+          role="status"
+          style={{
+            padding: "6px 10px",
+            fontSize: 12,
+            color: "var(--cgx-critical)",
+            borderBottom: "1px solid var(--cg-border-subtle)",
+          }}
+        >
+          Inventory data could not be generated — showing an empty table.{" "}
+          {dataError}
+        </div>
+      )}
+      <div
+        ref={rootRef}
+        className="cg-grid-root"
+        style={{
+          height: height ? `${height}px` : "70vh",
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          border: "1px solid var(--cg-border-subtle)",
+          borderRadius: 6,
+          background: "var(--cg-bg-card)",
+        }}
+      >
+        <GridPalette />
+        <style>{`
         .cg-grp-start { box-shadow: inset 1px 0 0 var(--cg-border); }
         .ag-header-group-cell.cg-grp .ag-header-group-cell-label { gap: 6px; }
-
-        /*
-         * Semantic colours for the grid's icons and status text.
-         *
-         * Declared as variables at :root rather than inline hexes because the
-         * same values are used inside AG Grid's filter popups, which render in
-         * a portal outside this component's DOM — scoping them to the grid
-         * wrapper would leave popup icons uncoloured.
-         *
-         * The dark values are the originals, unchanged. The light overrides are
-         * ~3 shades darker: the pastels were tuned against a #292929 surface
-         * and wash out badly on white.
-         */
-        :root {
-          --cgx-critical: #f87171;
-          --cgx-high:     #fb923c;
-          --cgx-medium:   #fbbf24;
-          --cgx-low:      #4ade80;
-          --cgx-account:  #7dd3fc;
-          --cgx-cluster:  #c4b5fd;
-          --cgx-database: #fca5a5;
-          --cgx-storage:  #fcd34d;
-          --cgx-function: #a5b4fc;
-          --cgx-compute:  #86efac;
-          --cgx-network:  #5eead4;
-          --cgx-scroll-thumb: #4b4b4f;
-          --cgx-scroll-thumb-hover: #63636a;
-        }
-        :root[data-theme="light"] {
-          --cgx-critical: #b91c1c;
-          --cgx-high:     #c2410c;
-          --cgx-medium:   #a16207;
-          --cgx-low:      #15803d;
-          --cgx-account:  #0369a1;
-          --cgx-cluster:  #6d28d9;
-          --cgx-database: #b91c1c;
-          --cgx-storage:  #a16207;
-          --cgx-function: #4338ca;
-          --cgx-compute:  #15803d;
-          --cgx-network:  #0f766e;
-          --cgx-scroll-thumb: #c2c6cc;
-          --cgx-scroll-thumb-hover: #a5aab2;
-        }
 
         .cg-grid-root *::-webkit-scrollbar { width: 10px; height: 10px; }
         .cg-grid-root *::-webkit-scrollbar-track { background: transparent; }
@@ -261,66 +263,68 @@ export function CloudGuardGrid() {
         }
       `}</style>
 
-      <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <AgGridReact<ResourceRow>
-            theme={gridThemeFor(theme)}
-            rowData={rowData}
-            columnDefs={columnDefs}
-            defaultColDef={defaultColDef}
-            getRowId={(p) => p.data.id}
-            onGridReady={onGridReady}
-            onFirstDataRendered={onFirstDataRendered}
-            preventDefaultOnContextMenu
-            onCellContextMenu={(e) => {
-              const ev = e.event as MouseEvent | null;
-              if (!e.data || !ev) return;
-              setCellMenu({ row: e.data, x: ev.clientX, y: ev.clientY });
-            }}
-            isExternalFilterPresent={() => true}
-            doesExternalFilterPass={(node: IRowNode<ResourceRow>) =>
-              node.data ? isVisible(node.data) : true
-            }
-            rowSelection={{ mode: "multiRow" }}
-            selectionColumnDef={{
-              pinned: "left",
-              lockPosition: "left",
-              lockPinned: true,
-              width: 42,
-              maxWidth: 42,
-              resizable: false,
-              suppressMovable: true,
-            }}
-            cellSelection
-            pagination
-            paginationPageSize={50}
-            paginationPageSizeSelector={PAGE_SIZES}
-            animateRows
-            enableCellTextSelection
-            suppressDragLeaveHidesColumns
+        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <AgGridReact<ResourceRow>
+              theme={gridThemeFor(theme)}
+              rowData={rowData}
+              columnDefs={columnDefs}
+              defaultColDef={defaultColDef}
+              getRowId={(p) => p.data.id}
+              onGridReady={onGridReady}
+              onFirstDataRendered={onFirstDataRendered}
+              preventDefaultOnContextMenu
+              onCellContextMenu={(e) => {
+                const ev = e.event as MouseEvent | null;
+                if (!e.data || !ev) return;
+                setCellMenu({ row: e.data, x: ev.clientX, y: ev.clientY });
+              }}
+              isExternalFilterPresent={() => true}
+              doesExternalFilterPass={(node: IRowNode<ResourceRow>) =>
+                node.data ? isVisible(node.data) : true
+              }
+              rowSelection={{ mode: "multiRow" }}
+              selectionColumnDef={{
+                pinned: "left",
+                lockPosition: "left",
+                lockPinned: true,
+                width: 42,
+                maxWidth: 42,
+                resizable: false,
+                suppressMovable: true,
+              }}
+              cellSelection
+              pagination
+              paginationPageSize={50}
+              paginationPageSizeSelector={PAGE_SIZES}
+              animateRows
+              enableCellTextSelection
+              suppressDragLeaveHidesColumns
+            />
+          </div>
+
+          <SidePanel
+            api={api}
+            groups={columnDefs}
+            tab={panelTab}
+            onTab={setPanelTab}
           />
         </div>
 
-        <SidePanel
+        <CellMenu
+          target={cellMenu}
+          rows={rowData}
+          onClose={() => setCellMenu(null)}
+        />
+
+        <HeaderMenu
+          target={menu}
           api={api}
-          groups={columnDefs}
-          tab={panelTab}
-          onTab={setPanelTab}
+          onClose={() => setMenu(null)}
+          onChooseColumns={() => setPanelTab("columns")}
+          onResetDisplay={resetDisplay}
         />
       </div>
-
-      <CellMenu
-        target={cellMenu}
-        rows={rowData}
-        onClose={() => setCellMenu(null)}
-      />
-
-      <HeaderMenu
-        target={menu}
-        api={api}
-        onClose={() => setMenu(null)}
-        onChooseColumns={() => setPanelTab("columns")}
-      />
-    </div>
+    </SurfaceErrorBoundary>
   );
 }

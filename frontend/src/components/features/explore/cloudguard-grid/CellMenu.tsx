@@ -38,8 +38,8 @@ interface Props {
 
 /** Row → plain object, dropping the fields that only drive presentation. */
 function publicFields(r: ResourceRow) {
-  const { level, parentId, hasChildren, trend, lastSeen, ...rest } = r;
-  return { ...rest, lastSeen: lastSeen.toISOString() };
+  const { level, parentId, hasChildren, trend, lastScan, ...rest } = r;
+  return { ...rest, lastScan: lastScan.toISOString() };
 }
 
 /**

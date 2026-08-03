@@ -13,6 +13,7 @@ import * as lbIcon from "thesvg/azure-load-balancers";
 import * as publicIpIcon from "thesvg/azure-public-ip-addresses";
 import * as vnetIcon from "thesvg/azure-virtual-networks";
 import * as privateLinkIcon from "thesvg/azure-private-link";
+import { useTheme } from "#/context/theme-context";
 
 /**
  * Renders an icon from the `thesvg` library.
@@ -60,8 +61,67 @@ const REGISTRY: Record<string, Entry> = {
   azure_private_link: privateLinkIcon as Entry,
 };
 
+/**
+ * Perceived lightness of a hex colour, 0 (black) to 1 (white).
+ *
+ * Rec. 709 coefficients rather than a plain average: the eye reads green as
+ * far brighter than blue, and an average would call AWS's `#232F3E` navy about
+ * as light as a mid grey.
+ */
+function luminance(hex: string): number {
+  const h = hex.replace(/^#/, "");
+  const n = parseInt(
+    h.length === 3
+      ? h
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : h,
+    16,
+  );
+  /* eslint-disable no-bitwise */
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  /* eslint-enable no-bitwise */
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * Below this, a brand colour is too dark to read on the dark surface.
+ *
+ * Several vendor marks are near-black wordmarks — AWS is `#232F3E` — and on a
+ * `#292929` panel they disappear entirely. Only those flip to white, so marks
+ * with real colour (Azure blue, GCP's palette) keep their brand identity.
+ * Light mode is untouched: the same navy is exactly right on white.
+ */
+const DARK_MARK_THRESHOLD = 0.26;
+
 export function hasIcon(slug: string): boolean {
   return Boolean(REGISTRY[slug]?.svg);
+}
+
+/**
+ * The same mark as a data URI, for consumers that draw to a canvas rather than
+ * to the DOM — ECharts symbols take `image://…` and cannot mount a component.
+ *
+ * `fill` is written onto the root element because the library's paths carry no
+ * fill of their own; inside a data URI there is no `currentColor` to inherit,
+ * so an unset fill would render everything black.
+ */
+export function svgDataUri(
+  slug: string,
+  color: string,
+  size = 18,
+): string | null {
+  const raw = REGISTRY[slug]?.svg;
+  if (!raw) return null;
+  const markup = raw
+    .replace(/<title>[\s\S]*?<\/title>/, "")
+    .replace(/\swidth="[^"]*"/, "")
+    .replace(/\sheight="[^"]*"/, "")
+    .replace("<svg", `<svg width="${size}" height="${size}" fill="${color}"`);
+  return `image://data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`;
 }
 
 export function SvgIcon({
@@ -77,6 +137,7 @@ export function SvgIcon({
   /** Use the entry's own brand hex instead of `color`. */
   useBrandColor?: boolean;
 }) {
+  const { theme } = useTheme();
   const entry = REGISTRY[slug];
   const raw = entry?.svg;
 
@@ -95,7 +156,10 @@ export function SvgIcon({
 
   if (!entry?.svg) return null;
 
-  const brand = entry.hex ? `#${entry.hex.replace(/^#/, "")}` : undefined;
+  let brand = entry.hex ? `#${entry.hex.replace(/^#/, "")}` : undefined;
+  if (brand && theme === "dark" && luminance(brand) < DARK_MARK_THRESHOLD) {
+    brand = "#ffffff";
+  }
   const resolved = useBrandColor ? (brand ?? color) : color;
 
   return (

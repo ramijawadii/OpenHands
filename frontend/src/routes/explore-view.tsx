@@ -64,6 +64,7 @@ import {
 import { NAVIGATION, slugify } from "#/components/features/sidebar/sidebar";
 import { SubTabSettings } from "#/components/features/explore/subtab-settings";
 import { CloudGuardGrid } from "#/components/features/explore/cloudguard-grid/CloudGuardGrid";
+import { OverviewView } from "#/components/features/explore/cloudguard-grid/OverviewView";
 
 type LucideIcon = React.ComponentType<{ size?: number; color?: string }>;
 
@@ -1143,7 +1144,7 @@ export default function ExploreView() {
               overflow: "hidden",
             }}
           >
-            <CloudGuardGrid />
+            {view === 0 ? <OverviewView /> : <CloudGuardGrid />}
           </div>
         </div>
       )}

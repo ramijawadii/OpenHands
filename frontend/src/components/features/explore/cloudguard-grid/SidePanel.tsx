@@ -93,6 +93,18 @@ const label: React.CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+/** Splits a group's children into its sub-groups, preserving column order. */
+function subGroupsOf(children: ColDef[]): { name: string; cols: ColDef[] }[] {
+  const out: { name: string; cols: ColDef[] }[] = [];
+  children.forEach((c) => {
+    const name = (c.context?.subGroup as string) ?? "Other";
+    const last = out[out.length - 1];
+    if (last && last.name === name) last.cols.push(c);
+    else out.push({ name, cols: [c] });
+  });
+  return out;
+}
+
 export function SidePanel({ api, groups, tab, onTab }: Props) {
   const { theme } = useTheme();
   const chrome = chromeFor(theme);
@@ -275,35 +287,93 @@ export function SidePanel({ api, groups, tab, onTab }: Props) {
 
                       {!isCollapsed && (
                         <div style={childBlock}>
-                          {kids.map((c) => {
-                            const f = c.field as string;
+                          {subGroupsOf(kids).map((sg) => {
+                            const sgKey = `${gName}/${sg.name}`;
+                            const sgFields = sg.cols.map(
+                              (c) => c.field as string,
+                            );
+                            const sgOn = sgFields.every((f) => !hidden.has(f));
+                            const sgSome = sgFields.some((f) => !hidden.has(f));
+                            const sgCollapsed = collapsed.has(sgKey);
                             return (
-                              <div
-                                key={f}
-                                draggable
-                                onDragStart={() => {
-                                  dragged.current = f;
-                                }}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={() => onDrop(f)}
-                                style={rowStyle(f, 0)}
-                                onMouseEnter={() => setHover(f)}
-                                onMouseLeave={() => setHover(null)}
-                              >
-                                <GridCheckbox
-                                  checked={!hidden.has(f)}
-                                  onChange={() => setCols([f], hidden.has(f))}
-                                  ariaLabel={c.headerName ?? f}
-                                />
-                                <GripVertical
-                                  size={12}
-                                  style={{
-                                    opacity: 0.35,
-                                    flexShrink: 0,
-                                    cursor: "grab",
-                                  }}
-                                />
-                                <span style={label}>{c.headerName ?? f}</span>
+                              <div key={sgKey}>
+                                <div
+                                  style={rowStyle(sgKey, 0)}
+                                  onMouseEnter={() => setHover(sgKey)}
+                                  onMouseLeave={() => setHover(null)}
+                                >
+                                  <button
+                                    type="button"
+                                    style={chevBtn}
+                                    onClick={() => toggleGroup(sgKey)}
+                                    aria-label={`${sgCollapsed ? "Expand" : "Collapse"} ${sg.name}`}
+                                    aria-expanded={!sgCollapsed}
+                                  >
+                                    {sgCollapsed ? (
+                                      <ChevronRight size={12} />
+                                    ) : (
+                                      <ChevronDown size={12} />
+                                    )}
+                                  </button>
+                                  <GridCheckbox
+                                    checked={sgOn}
+                                    indeterminate={!sgOn && sgSome}
+                                    onChange={() => setCols(sgFields, !sgOn)}
+                                    ariaLabel={sg.name}
+                                  />
+                                  <span
+                                    style={{
+                                      ...label,
+                                      fontSize: 11,
+                                      textTransform: "uppercase",
+                                      letterSpacing: 0.4,
+                                      color: "var(--cg-text-muted)",
+                                    }}
+                                  >
+                                    {sg.name}
+                                  </span>
+                                </div>
+
+                                {!sgCollapsed && (
+                                  <div style={childBlock}>
+                                    {sg.cols.map((c) => {
+                                      const f = c.field as string;
+                                      return (
+                                        <div
+                                          key={f}
+                                          draggable
+                                          onDragStart={() => {
+                                            dragged.current = f;
+                                          }}
+                                          onDragOver={(e) => e.preventDefault()}
+                                          onDrop={() => onDrop(f)}
+                                          style={rowStyle(f, 0)}
+                                          onMouseEnter={() => setHover(f)}
+                                          onMouseLeave={() => setHover(null)}
+                                        >
+                                          <GridCheckbox
+                                            checked={!hidden.has(f)}
+                                            onChange={() =>
+                                              setCols([f], hidden.has(f))
+                                            }
+                                            ariaLabel={c.headerName ?? f}
+                                          />
+                                          <GripVertical
+                                            size={12}
+                                            style={{
+                                              opacity: 0.35,
+                                              flexShrink: 0,
+                                              cursor: "grab",
+                                            }}
+                                          />
+                                          <span style={label}>
+                                            {c.headerName ?? f}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}
@@ -350,50 +420,70 @@ export function SidePanel({ api, groups, tab, onTab }: Props) {
 
                     {!isCollapsed && (
                       <div style={childBlock}>
-                        {kids.map((c) => {
-                          const f = c.field as string;
-                          const active = activeFilters.has(f);
-                          return (
-                            <button
-                              key={f}
-                              type="button"
-                              onClick={() => api?.showColumnFilter(f)}
-                              onMouseEnter={() => setHover(`f:${f}`)}
-                              onMouseLeave={() => setHover(null)}
+                        {subGroupsOf(kids).map((sg) => (
+                          <div key={`f:${gName}/${sg.name}`}>
+                            <div
                               style={{
-                                ...rowStyle(`f:${f}`, 0),
-                                width: "100%",
-                                border: "none",
-                                cursor: "pointer",
-                                textAlign: "left",
+                                ...rowBase,
+                                height: 20,
+                                fontSize: 10,
+                                textTransform: "uppercase",
+                                letterSpacing: 0.4,
+                                color: "var(--cg-text-muted)",
                               }}
                             >
-                              <FilterIcon
-                                size={11}
-                                style={{
-                                  opacity: active ? 1 : 0.45,
-                                  color: active
-                                    ? "var(--cg-accent)"
-                                    : "inherit",
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <span style={label}>{c.headerName ?? f}</span>
-                              {active && (
-                                <span
-                                  style={{
-                                    marginLeft: "auto",
-                                    width: 5,
-                                    height: 5,
-                                    borderRadius: "50%",
-                                    background: "var(--cg-accent)",
-                                    flexShrink: 0,
-                                  }}
-                                />
-                              )}
-                            </button>
-                          );
-                        })}
+                              {sg.name}
+                            </div>
+                            <div style={childBlock}>
+                              {sg.cols.map((c) => {
+                                const f = c.field as string;
+                                const active = activeFilters.has(f);
+                                return (
+                                  <button
+                                    key={f}
+                                    type="button"
+                                    onClick={() => api?.showColumnFilter(f)}
+                                    onMouseEnter={() => setHover(`f:${f}`)}
+                                    onMouseLeave={() => setHover(null)}
+                                    style={{
+                                      ...rowStyle(`f:${f}`, 0),
+                                      width: "100%",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      textAlign: "left",
+                                    }}
+                                  >
+                                    <FilterIcon
+                                      size={11}
+                                      style={{
+                                        opacity: active ? 1 : 0.45,
+                                        color: active
+                                          ? "var(--cg-accent)"
+                                          : "inherit",
+                                        flexShrink: 0,
+                                      }}
+                                    />
+                                    <span style={label}>
+                                      {c.headerName ?? f}
+                                    </span>
+                                    {active && (
+                                      <span
+                                        style={{
+                                          marginLeft: "auto",
+                                          width: 5,
+                                          height: 5,
+                                          borderRadius: "50%",
+                                          background: "var(--cg-accent)",
+                                          flexShrink: 0,
+                                        }}
+                                      />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
