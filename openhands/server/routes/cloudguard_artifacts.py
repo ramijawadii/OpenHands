@@ -64,11 +64,19 @@ async def list_artifacts(conversation_id: str):
         client = _docker.from_env()
         container = client.containers.get(container_name)
         # tab-separated: mtime(epoch) \t size(bytes) \t abs-path
+        # SECURITY (SB zero-trust): only surface USER artifacts. Prune the baked SYSTEM/IP dirs — the
+        # runtime skills/skills_graph, build scripts, and report-template scaffold are our IP and must
+        # never appear in the analyst-facing Report tab (a `.md` under any of them is a leak). Dotdirs
+        # (.git/.openhands) are already excluded by the -path filter below.
+        _prune: list[str] = []
+        for _d in ("cloudguard-runtime", "scripts", "templates", ".git", ".openhands", "node_modules"):
+            _prune += ["-path", f"*/{_d}/*", "-o"]
         exit_code, output = container.exec_run(
             [
-                "find", root, "-type", "f",
-                "-not", "-path", "*/.*",
-                "-printf", "%T@\t%s\t%p\n",
+                "find", root,
+                "(", *_prune, "-path", "*/.*", ")", "-prune",
+                "-o",
+                "-type", "f", "-printf", "%T@\t%s\t%p\n",
             ],
             demux=False,
         )
