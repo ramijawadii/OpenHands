@@ -3,8 +3,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { useLocation, useNavigate } from "react-router";
 import {
-  Plus,
-  MessageSquare,
+  ArrowLeft,
   Settings,
   ChevronRight,
   Users,
@@ -45,12 +44,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
+import { ADMIN_NAV } from "#/components/admin/admin-shell";
 import { useGitUser } from "#/hooks/query/use-git-user";
 import { UserActions } from "./user-actions";
 import { SettingsModal } from "#/components/shared/modals/settings/settings-modal";
 import { useSettings } from "#/hooks/query/use-settings";
-import { ConversationPanel } from "../conversation-panel/conversation-panel";
-import { ConversationPanelWrapper } from "../conversation-panel/conversation-panel-wrapper";
 import { useLogout } from "#/hooks/mutation/use-logout";
 import { useConfig } from "#/hooks/query/use-config";
 import { displayErrorToast } from "#/utils/custom-toast-handlers";
@@ -126,6 +124,10 @@ export const NAVIGATION: Domain[] = [
         slug: "cloud-asset-inventory",
         icon: Layers,
         items: [
+          // Overview is a capability, not a view: it summarises the whole
+          // sub-tab rather than offering another lens on one capability's
+          // data, and it is the landing tab because it is what you read first.
+          { label: "Overview", slug: "overview" },
           {
             label: "Multi-cloud resource graph (AWS, Azure, GCP, OCI, Alibaba)",
             slug: "multi-cloud-inventory",
@@ -1138,16 +1140,64 @@ export const NAVIGATION: Domain[] = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Hover fill, written inline for the duration of the hover only.
+ *
+ * `hoverOff` used to *set* a background — active ? bgActive : transparent —
+ * which latched: an inline style outranks the stylesheet and React never
+ * removes one it did not write, so a row hovered while it was active kept the
+ * active fill after the route moved on. Two sections then looked selected at
+ * once. Removing the property instead hands the element back to CSS, where
+ * `[data-active]` is the single source of truth for what is selected.
+ */
 function hoverOn(el: HTMLElement) {
   el.style.background = T.bgHover;
 }
-function hoverOff(el: HTMLElement, active: boolean) {
-  el.style.background = active ? T.bgActive : "transparent";
+function hoverOff(el: HTMLElement) {
+  el.style.removeProperty("background");
 }
 
 // ── Main sidebar ───────────────────────────────────────────────────────────────
 export function Sidebar() {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+
+  /**
+   * The console is a *mode* of this sidebar, not a second one.
+   *
+   * Platform settings used to open a 232px rail beside the app's, so two
+   * navigation columns competed for the same job and ~290px of width was spent
+   * on chrome before any content. Entering /admin now swaps this sidebar's
+   * contents the way a section of an app does, with one way back out.
+   */
+  const inConsole = pathname.startsWith("/admin");
+  const consoleGroup = new URLSearchParams(search).get("group") || "identity";
+
+  /*
+   * The console section you are in is the one that is open.
+   *
+   * Holding the open item in state instead made it stick: it was set on every
+   * click, including on items with no children, so it pointed at whatever was
+   * pressed last rather than at where you actually are. Navigating by URL,
+   * breadcrumb or sub-tab link never updated it, leaving one section expanded
+   * and blocking the real one from opening.
+   *
+   * `/admin` renders the overview route, so it counts as that item.
+   */
+  const consolePath = pathname === "/admin" ? "/admin/overview" : pathname;
+  const activeConsoleItem =
+    ADMIN_NAV.find(
+      (n) => consolePath === n.to || consolePath.startsWith(`${n.to}/`),
+    ) ?? null;
+
+  // Manual collapse of the active section only — cleared the moment you move
+  // to another one, so it can never outlive the section it applied to.
+  const [collapsedConsoleItem, setCollapsedConsoleItem] = React.useState<
+    string | null
+  >(null);
+  const activeConsoleTo = activeConsoleItem?.to ?? null;
+  React.useEffect(() => {
+    setCollapsedConsoleItem(null);
+  }, [activeConsoleTo]);
   const navigate = useNavigate();
   const user = useGitUser();
   const { data: config } = useConfig();
@@ -1162,8 +1212,6 @@ export function Sidebar() {
   const { theme, toggle: toggleTheme } = useTheme();
   const hiddenNav = useHiddenNav();
   const [settingsModalIsOpen, setSettingsModalIsOpen] = React.useState(false);
-  const [conversationPanelIsOpen, setConversationPanelIsOpen] =
-    React.useState(false);
   const [expandedDomain, setExpandedDomain] = React.useState<number | null>(
     null,
   );
@@ -1257,7 +1305,7 @@ export function Sidebar() {
     },
     onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
       setTooltip(null);
-      hoverOff(e.currentTarget as HTMLElement, isActive);
+      hoverOff(e.currentTarget as HTMLElement);
     },
   });
   // Hide tooltip whenever we collapse/expand to avoid stale floating chip
@@ -1598,189 +1646,168 @@ export function Sidebar() {
             }}
             className="cg-sidebar-nav"
           >
-            {/* Top actions */}
-            <div style={{ padding: "4px 0" }}>
-              {/* New Conversation */}
-              <button
-                type="button"
-                aria-label="New Conversation"
-                onClick={() => navigate("/")}
-                className="cg-sb-item"
-                data-active={pathname === "/" ? "true" : "false"}
-                {...railHover("New Conversation", pathname === "/")}
-              >
-                <span
-                  style={{
-                    color: T.textPrimary,
-                    display: "flex",
-                    flexShrink: 0,
-                  }}
+            {inConsole ? (
+              <>
+                <button
+                  type="button"
+                  aria-label="Back to main"
+                  onClick={() => navigate("/")}
+                  className="cg-sb-item"
+                  {...railHover("Back to main", false)}
                 >
-                  <Plus size={15} />
-                </span>
-                {!collapsed && (
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 400,
-                      color: T.textPrimary,
-                      opacity: 1,
-                      transition: labelOpacityTransition,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    New Conversation
-                  </span>
-                )}
-              </button>
-
-              {/* Conversations */}
-              <button
-                type="button"
-                aria-label="Conversations"
-                onClick={() =>
-                  settings?.EMAIL_VERIFIED === false
-                    ? undefined
-                    : setConversationPanelIsOpen((p) => !p)
-                }
-                className="cg-sb-item"
-                data-active={conversationPanelIsOpen ? "true" : "false"}
-                {...railHover("Conversations", conversationPanelIsOpen)}
-              >
-                <span
-                  style={{
-                    color: T.textPrimary,
-                    display: "flex",
-                    flexShrink: 0,
-                  }}
-                >
-                  <MessageSquare size={15} />
-                </span>
-                {!collapsed && (
-                  <span
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 400,
-                      color: T.textPrimary,
-                      opacity: 1,
-                      transition: labelOpacityTransition,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Conversations
-                  </span>
-                )}
-              </button>
-            </div>
-            {/* Divider */}
-            <div
-              style={{ height: 1, background: T.border, margin: "4px 0 6px" }}
-            />
-            {/* GLOBAL zone caption */}
-            {!collapsed && (
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 700,
-                  letterSpacing: "0.06em",
-                  color: T.textMuted,
-                  textTransform: "uppercase",
-                  padding: "8px 14px 4px",
-                }}
-              >
-                Global
-              </div>
-            )}
-            {/* Dashboard */}
-            {!hiddenNav.has("global:Dashboard") && (
-              <button
-                type="button"
-                aria-label="Dashboard"
-                onClick={() => navigate("/")}
-                className="cg-sb-item"
-                {...railHover("Dashboard")}
-              >
-                <LayoutDashboard
-                  size={15}
-                  style={{ color: T.textPrimary, flexShrink: 0 }}
-                />
-                {!collapsed && (
-                  <>
+                  <ArrowLeft
+                    size={15}
+                    style={{ color: T.textPrimary, flexShrink: 0 }}
+                  />
+                  {!collapsed && (
                     <span
                       style={{
                         fontSize: 14,
-                        fontWeight: 400,
                         color: T.textPrimary,
-                        flex: 1,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        opacity: 1,
                         transition: labelOpacityTransition,
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      Dashboard
+                      Back to main
                     </span>
-                    <span
-                      style={{
-                        fontSize: 10,
-                        color: T.textMuted,
-                        fontWeight: 600,
-                        letterSpacing: "0.02em",
-                        marginLeft: 2,
-                      }}
-                    >
-                      0
-                    </span>
-                  </>
-                )}
-              </button>
-            )}
-            {/* Security graph · Issues · Findings (global, with severity badges) */}
-            {(
-              [
-                /* `prefKey` is the ORIGINAL label: hidden-nav preferences are persisted as `global:<label>`, so renaming the display text alone would resurrect items the operator had hidden. */ {
-                  label: "Global Security Graph",
-                  prefKey: "Security graph",
-                  to: "/security-graph",
-                  Icon: Network,
-                },
-                {
-                  label: "Communication",
-                  to: "/communication",
-                  Icon: MessagesSquare,
-                },
-                {
-                  label: "All Findings",
-                  prefKey: "Findings",
-                  to: "/findings",
-                  Icon: Eye,
-                  badge: "148",
-                },
-              ] as {
-                label: string;
-                prefKey?: string;
-                to: string;
-                Icon: typeof Network;
-                badge?: string;
-                badgeColor?: string;
-              }[]
-            )
-              .filter((g) => !hiddenNav.has(`global:${g.prefKey ?? g.label}`))
-              .map((g) => {
-                const active =
-                  pathname === g.to || pathname.startsWith(`${g.to}/`);
-                return (
-                  <button
-                    key={g.to}
-                    type="button"
-                    aria-label={g.label}
-                    onClick={() => navigate(g.to)}
-                    className="cg-sb-item"
-                    data-active={active ? "true" : "false"}
-                    {...railHover(g.label, active)}
+                  )}
+                </button>
+
+                <div className="cg-sb-group-label">
+                  <div>
+                    <div className="cg-sb-group-label-text">
+                      Enterprise Administration
+                    </div>
+                  </div>
+                </div>
+
+                {ADMIN_NAV.map((item) => {
+                  const active = item.to === activeConsoleTo;
+                  const isOpen =
+                    Boolean(item.children) &&
+                    active &&
+                    collapsedConsoleItem !== item.to;
+                  const ItemIcon = item.Icon;
+                  return (
+                    <div key={item.to} className="cg-sb-group">
+                      <button
+                        type="button"
+                        aria-label={item.text}
+                        aria-expanded={item.children ? isOpen : undefined}
+                        data-active={active ? "true" : "false"}
+                        onClick={() => {
+                          // Pressing the section you are already in toggles it
+                          // shut; pressing any other one navigates, and the
+                          // route decides what is open.
+                          if (active && item.children) {
+                            setCollapsedConsoleItem(isOpen ? item.to : null);
+                            return;
+                          }
+                          navigate(item.to);
+                        }}
+                        className="cg-sb-item"
+                        {...railHover(item.text, active)}
+                      >
+                        <span className="cg-sb-item-inner">
+                          <ItemIcon size={16} className="cg-sb-item-icon" />
+                          {!collapsed && (
+                            <span
+                              className="cg-sb-item-label"
+                              style={{ transition: labelOpacityTransition }}
+                            >
+                              {item.text}
+                            </span>
+                          )}
+                          {item.children && (
+                            <ChevronRight
+                              size={12}
+                              className="cg-sb-chevron"
+                              data-open={isOpen ? "true" : "false"}
+                            />
+                          )}
+                        </span>
+                      </button>
+
+                      {item.children && (
+                        <div
+                          className="cg-sb-collapsible"
+                          data-open={!collapsed && isOpen ? "true" : "false"}
+                          role="region"
+                          aria-hidden={!(!collapsed && isOpen)}
+                        >
+                          <div>
+                            <ul className="cg-sb-sub">
+                              {item.children.map((c) => {
+                                const to =
+                                  c.to ?? `${item.to}?group=${c.group}`;
+                                // Route children win by longest prefix so a
+                                // parent path does not also light on a deeper
+                                // sibling; query children match on ?group=.
+                                const on = c.to
+                                  ? (pathname === c.to ||
+                                      pathname.startsWith(`${c.to}/`)) &&
+                                    !item.children!.some(
+                                      (o) =>
+                                        o.to &&
+                                        o.to !== c.to &&
+                                        o.to.length > (c.to as string).length &&
+                                        (pathname === o.to ||
+                                          pathname.startsWith(`${o.to}/`)),
+                                    )
+                                  : item.to === activeConsoleTo &&
+                                    consoleGroup === c.group;
+                                return (
+                                  <li key={c.label}>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate(to)}
+                                      className="cg-sb-sub-item"
+                                      data-active={on ? "true" : "false"}
+                                      tabIndex={!collapsed && isOpen ? 0 : -1}
+                                    >
+                                      <span className="cg-sb-sub-label">
+                                        {c.label}
+                                      </span>
+                                    </button>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div style={{ height: 12 }} />
+              </>
+            ) : (
+              <>
+                {/* GLOBAL zone caption */}
+                {!collapsed && (
+                  <div
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      letterSpacing: "0.06em",
+                      color: T.textMuted,
+                      textTransform: "uppercase",
+                      padding: "8px 14px 4px",
+                    }}
                   >
-                    <g.Icon
+                    Global
+                  </div>
+                )}
+                {/* Dashboard */}
+                {!hiddenNav.has("global:Dashboard") && (
+                  <button
+                    type="button"
+                    aria-label="Dashboard"
+                    onClick={() => navigate("/")}
+                    className="cg-sb-item"
+                    {...railHover("Dashboard")}
+                  >
+                    <LayoutDashboard
                       size={15}
                       style={{ color: T.textPrimary, flexShrink: 0 }}
                     />
@@ -1795,146 +1822,239 @@ export function Sidebar() {
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
+                            opacity: 1,
                             transition: labelOpacityTransition,
                           }}
                         >
-                          {g.label}
+                          Dashboard
                         </span>
-                        {g.badge && (
-                          <span
-                            style={{
-                              fontSize: 10.5,
-                              fontWeight: 700,
-                              color: g.badgeColor ? "#fff" : T.textMuted,
-                              background: g.badgeColor ?? "transparent",
-                              borderRadius: 9,
-                              padding: g.badgeColor ? "1px 7px" : "0",
-                              letterSpacing: "0.02em",
-                            }}
-                          >
-                            {g.badge}
-                          </span>
-                        )}
+                        <span
+                          style={{
+                            fontSize: 10,
+                            color: T.textMuted,
+                            fontWeight: 600,
+                            letterSpacing: "0.02em",
+                            marginLeft: 2,
+                          }}
+                        >
+                          0
+                        </span>
                       </>
                     )}
                   </button>
-                );
-              })}
-            {/* Section label — on the rail it collapses to a plain divider (grid 0fr + border-bottom) rather than vanishing, so the grouping still reads when only icons are visible. */}
-            <div className="cg-sb-group-label">
-              <div>
-                <div className="cg-sb-group-label-text">Domains</div>
-              </div>
-            </div>
-            {/* Domain list */}
-            {NAVIGATION.filter(
-              (domain) => !hiddenNav.has(`domain:${domain.id}`),
-            ).map((domain) => {
-              const isExpanded = expandedDomain === domain.id;
-              const DomainIcon = domain.icon;
-              return (
-                /* `.cg-sb-group` scopes the :has() rule that transfers the highlight from an open domain to its active sub-tab. */ <div
-                  key={domain.id}
-                  className="cg-sb-group"
-                >
-                  {/* Domain header */}
-                  <button
-                    type="button"
-                    aria-label={domain.label}
-                    aria-expanded={isExpanded}
-                    data-active={isExpanded ? "true" : "false"}
-                    onClick={() => handleDomainClick(domain.id)}
-                    className="cg-sb-item"
-                    {...railHover(domain.label, isExpanded)}
-                  >
-                    <span className="cg-sb-item-inner">
-                      <DomainIcon size={16} className="cg-sb-item-icon" />
-                      {!collapsed && (
-                        <span
-                          className="cg-sb-item-label"
-                          style={{ transition: labelOpacityTransition }}
-                        >
-                          {domain.label}
-                        </span>
-                      )}
-                      {/* One chevron, rotated — swapping two icons cannot be animated and reads as a flicker. */}
-                      <ChevronRight
-                        size={12}
-                        className="cg-sb-chevron"
-                        data-open={isExpanded ? "true" : "false"}
-                      />
-                    </span>
-                  </button>
-                  {/* Sub-tabs — grid 0fr->1fr so the group animates to its intrinsic height, with a connecting line (.cg-sb-sub::before) tying the children back to their parent row. */}
-                  <div
-                    className="cg-sb-collapsible"
-                    data-open={!collapsed && isExpanded ? "true" : "false"}
-                    role="region"
-                    aria-hidden={!(!collapsed && isExpanded)}
-                  >
-                    <div>
-                      <ul className="cg-sb-sub">
-                        {domain.subtabs.map((subtab) => {
-                          const path = subtabPath(domain, subtab);
-                          const isActive =
-                            pathname === path ||
-                            pathname.startsWith(`${path}/`);
-                          return (
-                            <li key={subtab.id}>
-                              <button
-                                type="button"
-                                onClick={() => navigate(path)}
-                                className="cg-sb-sub-item"
-                                data-active={isActive ? "true" : "false"}
-                                tabIndex={!collapsed && isExpanded ? 0 : -1}
+                )}
+                {/* Security graph · Issues · Findings (global, with severity badges) */}
+                {(
+                  [
+                    /* `prefKey` is the ORIGINAL label: hidden-nav preferences are persisted as `global:<label>`, so renaming the display text alone would resurrect items the operator had hidden. */ {
+                      label: "Global Security Graph",
+                      prefKey: "Security graph",
+                      to: "/security-graph",
+                      Icon: Network,
+                    },
+                    {
+                      label: "Communication",
+                      to: "/communication",
+                      Icon: MessagesSquare,
+                    },
+                    {
+                      label: "All Findings",
+                      prefKey: "Findings",
+                      to: "/findings",
+                      Icon: Eye,
+                      badge: "148",
+                    },
+                  ] as {
+                    label: string;
+                    prefKey?: string;
+                    to: string;
+                    Icon: typeof Network;
+                    badge?: string;
+                    badgeColor?: string;
+                  }[]
+                )
+                  .filter(
+                    (g) => !hiddenNav.has(`global:${g.prefKey ?? g.label}`),
+                  )
+                  .map((g) => {
+                    const active =
+                      pathname === g.to || pathname.startsWith(`${g.to}/`);
+                    return (
+                      <button
+                        key={g.to}
+                        type="button"
+                        aria-label={g.label}
+                        onClick={() => navigate(g.to)}
+                        className="cg-sb-item"
+                        data-active={active ? "true" : "false"}
+                        {...railHover(g.label, active)}
+                      >
+                        <g.Icon
+                          size={15}
+                          style={{ color: T.textPrimary, flexShrink: 0 }}
+                        />
+                        {!collapsed && (
+                          <>
+                            <span
+                              style={{
+                                fontSize: 14,
+                                fontWeight: 400,
+                                color: T.textPrimary,
+                                flex: 1,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                transition: labelOpacityTransition,
+                              }}
+                            >
+                              {g.label}
+                            </span>
+                            {g.badge && (
+                              <span
+                                style={{
+                                  fontSize: 10.5,
+                                  fontWeight: 700,
+                                  color: g.badgeColor ? "#fff" : T.textMuted,
+                                  background: g.badgeColor ?? "transparent",
+                                  borderRadius: 9,
+                                  padding: g.badgeColor ? "1px 7px" : "0",
+                                  letterSpacing: "0.02em",
+                                }}
                               >
-                                <span className="cg-sb-sub-label">
-                                  {subtab.label}
-                                </span>
-                              </button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    </div>
+                                {g.badge}
+                              </span>
+                            )}
+                          </>
+                        )}
+                      </button>
+                    );
+                  })}
+                {/* Section label — on the rail it collapses to a plain divider (grid 0fr + border-bottom) rather than vanishing, so the grouping still reads when only icons are visible. */}
+                <div className="cg-sb-group-label">
+                  <div>
+                    <div className="cg-sb-group-label-text">Domains</div>
                   </div>
                 </div>
-              );
-            })}
-            {/* Divider before Platform settings */}
-            <div style={{ height: 1, background: T.border, margin: "6px 0" }} />
-            {/* Platform settings — routes to the Enterprise Administration console */}
-            <button
-              type="button"
-              aria-label="Platform settings"
-              onClick={() => {
-                navigate("/admin");
-              }}
-              className="cg-sb-item"
-              data-active={pathname.startsWith("/admin") ? "true" : "false"}
-              {...railHover("Platform settings", pathname.startsWith("/admin"))}
-            >
-              <span
-                style={{ color: T.textPrimary, display: "flex", flexShrink: 0 }}
-              >
-                <Settings size={15} />
-              </span>
-              {!collapsed && (
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 400,
-                    color: T.textPrimary,
-                    opacity: 1,
-                    transition: labelOpacityTransition,
-                    whiteSpace: "nowrap",
+                {/* Domain list */}
+                {NAVIGATION.filter(
+                  (domain) => !hiddenNav.has(`domain:${domain.id}`),
+                ).map((domain) => {
+                  const isExpanded = expandedDomain === domain.id;
+                  const DomainIcon = domain.icon;
+                  return (
+                    /* `.cg-sb-group` scopes the :has() rule that transfers the highlight from an open domain to its active sub-tab. */ <div
+                      key={domain.id}
+                      className="cg-sb-group"
+                    >
+                      {/* Domain header */}
+                      <button
+                        type="button"
+                        aria-label={domain.label}
+                        aria-expanded={isExpanded}
+                        data-active={isExpanded ? "true" : "false"}
+                        onClick={() => handleDomainClick(domain.id)}
+                        className="cg-sb-item"
+                        {...railHover(domain.label, isExpanded)}
+                      >
+                        <span className="cg-sb-item-inner">
+                          <DomainIcon size={16} className="cg-sb-item-icon" />
+                          {!collapsed && (
+                            <span
+                              className="cg-sb-item-label"
+                              style={{ transition: labelOpacityTransition }}
+                            >
+                              {domain.label}
+                            </span>
+                          )}
+                          {/* One chevron, rotated — swapping two icons cannot be animated and reads as a flicker. */}
+                          <ChevronRight
+                            size={12}
+                            className="cg-sb-chevron"
+                            data-open={isExpanded ? "true" : "false"}
+                          />
+                        </span>
+                      </button>
+                      {/* Sub-tabs — grid 0fr->1fr so the group animates to its intrinsic height, with a connecting line (.cg-sb-sub::before) tying the children back to their parent row. */}
+                      <div
+                        className="cg-sb-collapsible"
+                        data-open={!collapsed && isExpanded ? "true" : "false"}
+                        role="region"
+                        aria-hidden={!(!collapsed && isExpanded)}
+                      >
+                        <div>
+                          <ul className="cg-sb-sub">
+                            {domain.subtabs.map((subtab) => {
+                              const path = subtabPath(domain, subtab);
+                              const isActive =
+                                pathname === path ||
+                                pathname.startsWith(`${path}/`);
+                              return (
+                                <li key={subtab.id}>
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(path)}
+                                    className="cg-sb-sub-item"
+                                    data-active={isActive ? "true" : "false"}
+                                    tabIndex={!collapsed && isExpanded ? 0 : -1}
+                                  >
+                                    <span className="cg-sb-sub-label">
+                                      {subtab.label}
+                                    </span>
+                                  </button>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Divider before Platform settings */}
+                <div
+                  style={{ height: 1, background: T.border, margin: "6px 0" }}
+                />
+                {/* Platform settings — routes to the Enterprise Administration console */}
+                <button
+                  type="button"
+                  aria-label="Platform settings"
+                  onClick={() => {
+                    navigate("/admin");
                   }}
+                  className="cg-sb-item"
+                  data-active={pathname.startsWith("/admin") ? "true" : "false"}
+                  {...railHover(
+                    "Platform settings",
+                    pathname.startsWith("/admin"),
+                  )}
                 >
-                  Platform settings
-                </span>
-              )}
-            </button>
-            <div style={{ height: 12 }} />
+                  <span
+                    style={{
+                      color: T.textPrimary,
+                      display: "flex",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Settings size={15} />
+                  </span>
+                  {!collapsed && (
+                    <span
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 400,
+                        color: T.textPrimary,
+                        opacity: 1,
+                        transition: labelOpacityTransition,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Platform settings
+                    </span>
+                  )}
+                </button>
+                <div style={{ height: 12 }} />
+              </>
+            )}
           </nav>
 
           {/* User strip */}
@@ -2078,15 +2198,6 @@ export function Sidebar() {
           </div>,
           document.body,
         )}
-
-      {/* ── Conversation panel flyout ──────────────────────────────────────── */}
-      {conversationPanelIsOpen && (
-        <ConversationPanelWrapper isOpen={conversationPanelIsOpen}>
-          <ConversationPanel
-            onClose={() => setConversationPanelIsOpen(false)}
-          />
-        </ConversationPanelWrapper>
-      )}
 
       {/* ── Settings modal ─────────────────────────────────────────────────── */}
       {settingsModalIsOpen && (

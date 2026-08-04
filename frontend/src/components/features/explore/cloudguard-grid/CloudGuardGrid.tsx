@@ -12,6 +12,7 @@ import { AgGridReact } from "ag-grid-react";
 import { buildColumns } from "./columns";
 import { branchIds, buildRows, type ResourceRow } from "./data";
 import { gridThemeFor } from "./theme";
+import { GridSkeleton } from "./Skeleton";
 import { GridPalette } from "./palette";
 import { HeaderCell } from "./HeaderCell";
 import { FloatingFilter } from "./FloatingFilter";
@@ -198,7 +199,17 @@ export function CloudGuardGrid() {
   // earliest point cell content exists to measure — calling it on gridReady
   // measures empty cells and collapses every column to its header width.
   const autoSized = React.useRef(false);
+  /**
+   * Cleared on the grid's own first paint, not on a timer.
+   *
+   * Column auto-sizing happens in this same callback, so revealing any earlier
+   * would show a grid whose columns then jump — the skeleton is covering real
+   * work, not padding the wait.
+   */
+  const [painted, setPainted] = React.useState(false);
+
   const onFirstDataRendered = React.useCallback(() => {
+    setPainted(true);
     if (autoSized.current || !api) return;
     autoSized.current = true;
     api.autoSizeAllColumns();
@@ -264,7 +275,8 @@ export function CloudGuardGrid() {
       `}</style>
 
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+            {!painted && <GridSkeleton />}
             <AgGridReact<ResourceRow>
               theme={gridThemeFor(theme)}
               rowData={rowData}

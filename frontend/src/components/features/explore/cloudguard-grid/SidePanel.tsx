@@ -110,6 +110,9 @@ export function SidePanel({ api, groups, tab, onTab }: Props) {
   const chrome = chromeFor(theme);
   const [, force] = React.useReducer((n: number) => n + 1, 0);
   const [q, setQ] = React.useState("");
+  // The two tabs list different things, so they search separately: carrying
+  // one query across would silently hide rows on a tab you had not typed in.
+  const [fq, setFq] = React.useState("");
   const [collapsed, setCollapsed] = React.useState<Set<string>>(new Set());
   const [hover, setHover] = React.useState<string | null>(null);
   const dragged = React.useRef<string | null>(null);
@@ -133,6 +136,7 @@ export function SidePanel({ api, groups, tab, onTab }: Props) {
   const allCollapsed = collapsed.size === groups.length;
 
   const match = (s: string) => s.toLowerCase().includes(q.toLowerCase());
+  const matchFilter = (s: string) => s.toLowerCase().includes(fq.toLowerCase());
 
   const toggleGroup = (name: string) =>
     setCollapsed((prev) => {
@@ -387,109 +391,153 @@ export function SidePanel({ api, groups, tab, onTab }: Props) {
           )}
 
           {tab === "filters" && (
-            <div style={{ overflowY: "auto", padding: "4px 6px 8px" }}>
-              {groups.map((g) => {
-                const gName = g.headerName as string;
-                const kids = (g.children as ColDef[]).filter(
-                  (c) => c.filter !== false,
-                );
-                if (kids.length === 0) return null;
-                const isCollapsed = collapsed.has(gName);
-                return (
-                  <div key={gName}>
-                    <div
-                      style={rowStyle(`f:${gName}`, 0)}
-                      onMouseEnter={() => setHover(`f:${gName}`)}
-                      onMouseLeave={() => setHover(null)}
-                    >
-                      <button
-                        type="button"
-                        style={chevBtn}
-                        onClick={() => toggleGroup(gName)}
-                        aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${gName}`}
-                        aria-expanded={!isCollapsed}
-                      >
-                        {isCollapsed ? (
-                          <ChevronRight size={13} />
-                        ) : (
-                          <ChevronDown size={13} />
-                        )}
-                      </button>
-                      <span style={{ ...label, fontWeight: 600 }}>{gName}</span>
-                    </div>
+            <>
+              {/* Same search affordance as the columns tab: 60-odd filterable
+                  fields are no more scannable here than they are there. */}
+              <div style={{ ...rowBase, height: 34, padding: "0 6px" }}>
+                <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
+                  <Search
+                    size={12}
+                    style={{
+                      position: "absolute",
+                      left: 6,
+                      top: 6,
+                      opacity: 0.5,
+                    }}
+                  />
+                  <input
+                    aria-label="Search filters"
+                    placeholder="Search..."
+                    value={fq}
+                    onChange={(e) => setFq(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "3px 6px 3px 22px",
+                      fontSize: 12,
+                      background:
+                        theme === "light"
+                          ? "rgba(0,0,0,0.05)"
+                          : "rgba(0,0,0,0.32)",
+                      color: "var(--cg-text-primary)",
+                      border: "1px solid var(--cg-border)",
+                      borderRadius: 0,
+                      outline: "none",
+                    }}
+                  />
+                </div>
+              </div>
 
-                    {!isCollapsed && (
-                      <div style={childBlock}>
-                        {subGroupsOf(kids).map((sg) => (
-                          <div key={`f:${gName}/${sg.name}`}>
-                            <div
-                              style={{
-                                ...rowBase,
-                                height: 20,
-                                fontSize: 10,
-                                textTransform: "uppercase",
-                                letterSpacing: 0.4,
-                                color: "var(--cg-text-muted)",
-                              }}
-                            >
-                              {sg.name}
-                            </div>
-                            <div style={childBlock}>
-                              {sg.cols.map((c) => {
-                                const f = c.field as string;
-                                const active = activeFilters.has(f);
-                                return (
-                                  <button
-                                    key={f}
-                                    type="button"
-                                    onClick={() => api?.showColumnFilter(f)}
-                                    onMouseEnter={() => setHover(`f:${f}`)}
-                                    onMouseLeave={() => setHover(null)}
-                                    style={{
-                                      ...rowStyle(`f:${f}`, 0),
-                                      width: "100%",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      textAlign: "left",
-                                    }}
-                                  >
-                                    <FilterIcon
-                                      size={11}
+              <div style={{ overflowY: "auto", padding: "4px 6px 8px" }}>
+                {groups.map((g) => {
+                  const gName = g.headerName as string;
+                  const kids = (g.children as ColDef[]).filter(
+                    (c) =>
+                      c.filter !== false &&
+                      // A group name match keeps the whole group, the way the
+                      // columns tab behaves.
+                      (matchFilter(c.headerName ?? (c.field as string)) ||
+                        matchFilter(gName)),
+                  );
+                  if (kids.length === 0) return null;
+                  const isCollapsed = collapsed.has(gName);
+                  return (
+                    <div key={gName}>
+                      <div
+                        style={rowStyle(`f:${gName}`, 0)}
+                        onMouseEnter={() => setHover(`f:${gName}`)}
+                        onMouseLeave={() => setHover(null)}
+                      >
+                        <button
+                          type="button"
+                          style={chevBtn}
+                          onClick={() => toggleGroup(gName)}
+                          aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${gName}`}
+                          aria-expanded={!isCollapsed}
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight size={13} />
+                          ) : (
+                            <ChevronDown size={13} />
+                          )}
+                        </button>
+                        <span style={{ ...label, fontWeight: 600 }}>
+                          {gName}
+                        </span>
+                      </div>
+
+                      {!isCollapsed && (
+                        <div style={childBlock}>
+                          {subGroupsOf(kids).map((sg) => (
+                            <div key={`f:${gName}/${sg.name}`}>
+                              <div
+                                style={{
+                                  ...rowBase,
+                                  height: 20,
+                                  fontSize: 10,
+                                  textTransform: "uppercase",
+                                  letterSpacing: 0.4,
+                                  color: "var(--cg-text-muted)",
+                                }}
+                              >
+                                {sg.name}
+                              </div>
+                              <div style={childBlock}>
+                                {sg.cols.map((c) => {
+                                  const f = c.field as string;
+                                  const active = activeFilters.has(f);
+                                  return (
+                                    <button
+                                      key={f}
+                                      type="button"
+                                      onClick={() => api?.showColumnFilter(f)}
+                                      onMouseEnter={() => setHover(`f:${f}`)}
+                                      onMouseLeave={() => setHover(null)}
                                       style={{
-                                        opacity: active ? 1 : 0.45,
-                                        color: active
-                                          ? "var(--cg-accent)"
-                                          : "inherit",
-                                        flexShrink: 0,
+                                        ...rowStyle(`f:${f}`, 0),
+                                        width: "100%",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        textAlign: "left",
                                       }}
-                                    />
-                                    <span style={label}>
-                                      {c.headerName ?? f}
-                                    </span>
-                                    {active && (
-                                      <span
+                                    >
+                                      <FilterIcon
+                                        size={11}
                                         style={{
-                                          marginLeft: "auto",
-                                          width: 5,
-                                          height: 5,
-                                          borderRadius: "50%",
-                                          background: "var(--cg-accent)",
+                                          opacity: active ? 1 : 0.45,
+                                          color: active
+                                            ? "var(--cg-accent)"
+                                            : "inherit",
                                           flexShrink: 0,
                                         }}
                                       />
-                                    )}
-                                  </button>
-                                );
-                              })}
+                                      <span style={label}>
+                                        {c.headerName ?? f}
+                                      </span>
+                                      {active && (
+                                        <span
+                                          style={{
+                                            marginLeft: "auto",
+                                            width: 5,
+                                            height: 5,
+                                            borderRadius: "50%",
+                                            background: "var(--cg-accent)",
+                                            flexShrink: 0,
+                                          }}
+                                        />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
       )}

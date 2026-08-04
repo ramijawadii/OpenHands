@@ -463,6 +463,7 @@ function Detail({ phase, onClose }: { phase: Phase; onClose: () => void }) {
 
   return (
     <aside
+      className="cg-scroll"
       aria-label={`${phase.name} details`}
       style={{
         minWidth: 0,
@@ -652,12 +653,13 @@ export function AttackTimeline({
     [reconstruction, visible, selected],
   );
 
-  const selectedPhase =
-    visible.find((p) => p.name === selected) ??
-    (selected
-      ? reconstruction.phases.find((p) => p.name === selected)
-      : null) ??
-    null;
+  // Canvas-only, so a selection made before expanding cannot linger as a
+  // details panel the compact view has no room for.
+  const selectedPhase = wide
+    ? (visible.find((p) => p.name === selected) ??
+      reconstruction.phases.find((p) => p.name === selected) ??
+      null)
+    : null;
 
   React.useEffect(() => {
     const dom = hostRef.current;
@@ -679,9 +681,13 @@ export function AttackTimeline({
 
   // Click selects a phase. Registered against the live instance rather than in
   // the option, so re-rendering the option cannot drop the handler.
+  //
+  // Selection belongs to the full canvas, matching the dependency graph: in
+  // the drawer there is nowhere to put the details panel, so a click would dim
+  // most of the chart and show nothing in return.
   React.useEffect(() => {
     const chart = chartRef.current;
-    if (!chart) return undefined;
+    if (!chart || !wide) return undefined;
     const onClick = (p: { seriesName?: string; dataIndex: number }) => {
       if (p.seriesName === "Outlier") return;
       setSelected(visible[p.dataIndex]?.name ?? null);
@@ -690,7 +696,7 @@ export function AttackTimeline({
     return () => {
       chart.off("click", onClick);
     };
-  }, [visible]);
+  }, [visible, wide]);
 
   /** Up / down walk the chain, Escape closes — the spec's keyboard model. */
   const onKeyDown = (e: KeyboardEvent) => {
@@ -711,12 +717,12 @@ export function AttackTimeline({
   keyRef.current = onKeyDown;
   React.useEffect(() => {
     const node = rootRef.current;
-    if (!node) return undefined;
+    if (!node || !wide) return undefined;
     node.tabIndex = 0;
     const handler = (e: KeyboardEvent) => keyRef.current(e);
     node.addEventListener("keydown", handler);
     return () => node.removeEventListener("keydown", handler);
-  }, []);
+  }, [wide]);
 
   const zoom = (factor: number) => {
     const chart = chartRef.current;

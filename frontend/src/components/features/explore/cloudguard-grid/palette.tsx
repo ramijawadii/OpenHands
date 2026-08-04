@@ -17,6 +17,32 @@
  */
 
 export const PALETTE_CSS = `
+/*
+ * Themed scrollbar, opt-in per element via \`className="cg-scroll"\`.
+ *
+ * Lives with the palette because it is the same kind of thing — a token every
+ * surface in the kit resolves — and because the browser default is a light
+ * grey slab that reads as a rendering fault on a #292929 panel.
+ */
+.cg-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+.cg-scroll::-webkit-scrollbar-track { background: transparent; }
+.cg-scroll::-webkit-scrollbar-thumb {
+  background: var(--cgx-scroll-thumb);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.cg-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--cgx-scroll-thumb-hover);
+  background-clip: content-box;
+}
+.cg-scroll::-webkit-scrollbar-corner { background: transparent; }
+/* Firefox has no ::-webkit pseudo-elements. */
+.cg-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cgx-scroll-thumb) transparent;
+}
+
 :root {
   --cgx-critical: #f87171;
   --cgx-high:     #fb923c;

@@ -581,6 +581,7 @@ function Detail({ node, onClose }: { node: GraphNode; onClose: () => void }) {
 
   return (
     <aside
+      className="cg-scroll"
       aria-label={`${node.name} details`}
       style={{
         minWidth: 0,

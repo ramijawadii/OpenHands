@@ -61,11 +61,13 @@ function GraphTabs({
 }) {
   return (
     <div
+      className="cg-scroll"
       style={{
         ...drawerTabStrip,
         gap: 12,
         padding: "0 2px",
         alignItems: "center",
+        overflowY: "hidden",
       }}
     >
       {GRAPH_VIEWS.map((v) => (

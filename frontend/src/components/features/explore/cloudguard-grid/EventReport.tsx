@@ -1140,7 +1140,15 @@ export function EventReport({
         </div>
       </header>
 
-      <nav style={{ ...drawerTabStrip, gap: 16, padding: "4px 16px 0" }}>
+      <nav
+        className="cg-scroll"
+        style={{
+          ...drawerTabStrip,
+          gap: 16,
+          padding: "4px 16px 0",
+          overflowY: "hidden",
+        }}
+      >
         {VIEWS.map((v) => (
           <button
             key={v.id}
@@ -1167,6 +1175,7 @@ export function EventReport({
       </nav>
 
       <div
+        className="cg-scroll"
         style={{
           flex: 1,
           minHeight: 0,

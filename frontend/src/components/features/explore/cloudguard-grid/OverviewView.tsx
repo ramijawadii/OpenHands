@@ -4,6 +4,7 @@ import * as echarts from "echarts";
 import { useTheme } from "#/context/theme-context";
 import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
 import { RecentEvents } from "./RecentEvents";
+import { OverviewSkeleton } from "./Skeleton";
 import { APP_FONT } from "./theme";
 
 /**
@@ -427,12 +428,21 @@ const CHART_HEIGHT = 720;
 export function OverviewView() {
   const { theme } = useTheme();
   const hostRef = React.useRef<HTMLDivElement | null>(null);
+  const [painted, setPainted] = React.useState(false);
 
   React.useEffect(() => {
     const chartDom = hostRef.current;
     if (!chartDom) return undefined;
 
     const myChart = echarts.init(chartDom);
+    /*
+     * `finished` fires when layout and the entry animation have settled, which
+     * is the moment the dashboard is actually readable. The timeout is a
+     * backstop only: if a render is interrupted the event may never arrive,
+     * and a skeleton that never clears is worse than one that clears early.
+     */
+    myChart.on("finished", () => setPainted(true));
+    const settled = window.setTimeout(() => setPainted(true), 2500);
     // `notMerge` so a theme switch replaces the option rather than layering a
     // second set of legends and series on top of the first.
     myChart.setOption(buildOption(theme === "dark"), { notMerge: true });
@@ -443,6 +453,7 @@ export function OverviewView() {
     ro.observe(chartDom);
 
     return () => {
+      window.clearTimeout(settled);
       ro.disconnect();
       myChart.dispose();
     };
@@ -460,6 +471,8 @@ export function OverviewView() {
           }}
         >
           <div ref={hostRef} style={{ width: "100%", height: "100%" }} />
+
+          {!painted && <OverviewSkeleton />}
 
           {/* Sits in the quadrant the chart deliberately leaves blank. */}
           <div

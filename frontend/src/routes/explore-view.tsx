@@ -503,10 +503,11 @@ type Spec = { archetype: "A" | "B" | "C" | "G" | "S"; views: string[] };
 
 // Level-3 view strips per sub-tab, from the navigation IA spec (archetype-driven).
 const VIEW_SPEC: Record<string, Spec> = {
-  "1.1": {
-    archetype: "A",
-    views: ["Overview", "Inventory", "Timeline", "Findings", "Policy"],
-  },
+  // No L4 strip: Overview is a capability tab of its own now, and the other
+  // four pills were lenses this sub-tab never grew — Multi-Cloud Inventory IS
+  // the inventory. A strip whose only working entry duplicates its parent tab
+  // is chrome, not navigation.
+  "1.1": { archetype: "A", views: [] },
   "1.2": {
     archetype: "A",
     views: ["Overview", "Inventory", "Findings", "Policy"],
@@ -610,6 +611,10 @@ const VIEW_SPEC: Record<string, Spec> = {
  */
 // Meaningful icon per capability — first matching keyword wins.
 const ICON_RULES: [RegExp, LucideIcon][] = [
+  // First rule wins, and "Overview" is a whole-sub-tab summary rather than one
+  // of the capabilities below it — it should not inherit whatever keyword
+  // happens to match further down.
+  [/^overview$/i, Gauge],
   [/mfa/i, KeyRound],
   [/pam|privileged session/i, Lock],
   [
@@ -1144,7 +1149,11 @@ export default function ExploreView() {
               overflow: "hidden",
             }}
           >
-            {view === 0 ? <OverviewView /> : <CloudGuardGrid />}
+            {capItem?.slug === "overview" ? (
+              <OverviewView />
+            ) : (
+              <CloudGuardGrid />
+            )}
           </div>
         </div>
       )}

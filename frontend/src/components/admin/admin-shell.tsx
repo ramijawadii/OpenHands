@@ -1,6 +1,6 @@
 /* eslint-disable i18next/no-literal-string -- CloudGuard Enterprise Administration shell */
 import React from "react";
-import { NavLink, useLocation } from "react-router";
+import { useLocation } from "react-router";
 import {
   LayoutDashboard,
   Building2,
@@ -14,36 +14,40 @@ import {
   ScrollText,
   CreditCard,
   LifeBuoy,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
-import {
-  RoleChip,
-  useCurrentRole,
-} from "#/components/features/settings/settings-kit";
 import "#/components/features/settings/settings-polish.css";
 import { T } from "./admin-kit";
 
-type LucideIcon = React.ComponentType<{
+export type LucideIcon = React.ComponentType<{
   size?: number;
   strokeWidth?: number;
   color?: string;
+  // The sidebar styles these through a class rather than inline props, and
+  // lucide accepts it — the narrower type was only ever this file's own view.
+  className?: string;
 }>;
-type NavChild = {
+export type NavChild = {
   label: string;
   group?: string; // ?group= sub-view (Identity console)
   to?: string; // absolute route link (Workspace Administration leaves)
   header?: boolean; // non-clickable section label
 };
-type NavItem = {
+export type NavItem = {
   to: string;
   text: string;
   Icon: LucideIcon;
   children?: NavChild[];
 };
 
-// §40 final navigation model — Enterprise Administration.
-const NAV: NavItem[] = [
+/**
+ * §40 navigation model — Enterprise Administration.
+ *
+ * Exported because the console's navigation lives in the app's own sidebar
+ * rather than in a second one beside it: entering the console swaps the
+ * sidebar's contents, the way a section of an app does, instead of stacking
+ * two rails and spending ~290px of width on chrome before any content.
+ */
+export const ADMIN_NAV: NavItem[] = [
   { to: "/admin/overview", text: "Global Overview", Icon: LayoutDashboard },
   { to: "/admin/organization", text: "Organization", Icon: Building2 },
   {
@@ -82,11 +86,7 @@ const NAV: NavItem[] = [
 ];
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
-  const { pathname, search } = useLocation();
-  const activeGroup = new URLSearchParams(search).get("group") || "identity";
-  const [hovered, setHovered] = React.useState<string | null>(null);
-  const [collapsed, setCollapsed] = React.useState<Record<string, boolean>>({});
-  const role = useCurrentRole();
+  const { pathname } = useLocation();
 
   return (
     <div
@@ -98,206 +98,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         background: "var(--cg-bg-page)",
       }}
     >
-      <nav
-        style={{
-          width: 232,
-          flexShrink: 0,
-          background: "transparent",
-          borderRight: `1px solid ${T.border}`,
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "12px 16px 10px",
-            borderBottom: `1px solid ${T.border}`,
-          }}
-        >
-          <div
-            style={{
-              fontSize: 15,
-              color: T.textPrimary,
-              fontWeight: 600,
-              letterSpacing: "-0.01em",
-              lineHeight: 1.2,
-            }}
-          >
-            Enterprise Administration
-          </div>
-        </div>
-
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px 12px" }}>
-          {NAV.map((item) => {
-            const isActive =
-              pathname === item.to || pathname.startsWith(`${item.to}/`);
-            const lit = isActive || hovered === item.to;
-            return (
-              <React.Fragment key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end
-                  onMouseEnter={() => setHovered(item.to)}
-                  onMouseLeave={() => setHovered(null)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    height: 36,
-                    padding: "0 8px",
-                    borderRadius: 8,
-                    textDecoration: "none",
-                    fontSize: 13,
-                    fontWeight: isActive ? 500 : 400,
-                    color: lit ? T.textPrimary : T.textNav,
-                    background: isActive
-                      ? "var(--cg-bg-active)"
-                      : "transparent",
-                    marginBottom: 1,
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <item.Icon
-                    size={16}
-                    strokeWidth={1.6}
-                    color={lit ? T.textPrimary : T.textMuted}
-                  />
-                  <span
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.text}
-                  </span>
-                  {item.children &&
-                    (() => {
-                      const open = isActive && !collapsed[item.to];
-                      return (
-                        <span
-                          role="button"
-                          tabIndex={-1}
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setCollapsed((p) => ({
-                              ...p,
-                              [item.to]: isActive ? !p[item.to] : false,
-                            }));
-                          }}
-                          style={{
-                            display: "inline-flex",
-                            padding: 4,
-                            margin: -4,
-                            cursor: "pointer",
-                          }}
-                        >
-                          {open ? (
-                            <ChevronUp size={14} color={T.textMuted} />
-                          ) : (
-                            <ChevronDown size={14} color={T.textMuted} />
-                          )}
-                        </span>
-                      );
-                    })()}
-                </NavLink>
-                {/* Expandable sub-navigation (e.g. Identity / Access) — flat
-                    text rows indented under the parent label; the active item
-                    is marked by a thin blue bar attached just left of the word
-                    (M365 style), no background fill. Collapsible via chevron. */}
-                {item.children && isActive && !collapsed[item.to] && (
-                  <div
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      margin: "2px 0 6px 0",
-                    }}
-                  >
-                    {item.children.map((c) => {
-                      // Non-clickable section header (e.g. "Workspace Administration").
-                      if (c.header) {
-                        return (
-                          <div
-                            key={c.label}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              height: 26,
-                              marginLeft: 22,
-                              paddingLeft: 13,
-                              fontSize: 10.5,
-                              fontWeight: 600,
-                              letterSpacing: "0.04em",
-                              textTransform: "uppercase",
-                              color: T.textMuted,
-                            }}
-                          >
-                            {c.label}
-                          </div>
-                        );
-                      }
-                      // Either a ?group= sub-view (Identity) or an absolute route link
-                      // (Workspace sub-sections). For route links use most-specific-wins so a
-                      // parent path (/admin/workspaces) doesn't also light up on a deeper
-                      // sibling (/admin/workspaces/templates).
-                      const matches = (t: string) =>
-                        pathname === t || pathname.startsWith(`${t}/`);
-                      const on = c.to
-                        ? matches(c.to) &&
-                          !item.children!.some(
-                            (o) =>
-                              o.to &&
-                              o.to !== c.to &&
-                              o.to.length > c.to!.length &&
-                              matches(o.to),
-                          )
-                        : activeGroup === c.group;
-                      const to = c.to ?? `${item.to}?group=${c.group}`;
-                      return (
-                        <NavLink
-                          key={c.label}
-                          to={to}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            height: 32,
-                            marginLeft: 22,
-                            paddingLeft: 13,
-                            paddingRight: 8,
-                            textDecoration: "none",
-                            fontSize: 13,
-                            fontWeight: on ? 600 : 400,
-                            color: on ? T.textPrimary : T.textNav,
-                            background: "transparent",
-                            borderLeft: `2px solid ${on ? "var(--cg-accent)" : "transparent"}`,
-                            boxSizing: "border-box",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {c.label}
-                        </NavLink>
-                      );
-                    })}
-                  </div>
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
-
-        <div
-          style={{ padding: "12px 16px", borderTop: `1px solid ${T.border}` }}
-        >
-          <RoleChip role={role} />
-        </div>
-      </nav>
-
+      {/* Navigation lives in the app sidebar — see `ADMIN_NAV`. */}
       <main
         style={{
           flex: 1,
@@ -309,7 +110,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       >
         {/* root path */}
         {(() => {
-          const active = NAV.find(
+          const active = ADMIN_NAV.find(
             (n) => pathname === n.to || pathname.startsWith(`${n.to}/`),
           );
           return (

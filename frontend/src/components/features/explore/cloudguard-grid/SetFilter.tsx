@@ -14,6 +14,13 @@ import { ICON_FIELDS, ValueWithIcon } from "./icons";
  *
  * Distinct values are derived from the grid's own row nodes on open rather
  * than from a static list, so the options always reflect the loaded data.
+ *
+ * **Tree-aware.** The grid holds a hierarchy flattened into rows linked by
+ * `parentId`, and AG Grid evaluates a filter per row in isolation. Testing only
+ * a row's own value therefore drops account and cluster rows whose *children*
+ * match — the matching resources survive but their headings vanish, so the
+ * first account looks truncated away and the tree is left headless. A row here
+ * passes if it matches, or if anything beneath it does.
  */
 
 type Model = string[] | null;
@@ -29,6 +36,62 @@ export function SetFilter({
 
   const field = colDef.field ?? "";
 
+  /**
+   * `id → every value of this field at or below that row`.
+   *
+   * Built once and cached: computing it per row during filtering would be
+   * quadratic over the whole tree, and the data behind a grid instance does
+   * not change under us.
+   */
+  const subtreeValues = React.useRef<Map<string, Set<string>> | null>(null);
+
+  const buildIndex = React.useCallback(() => {
+    const childrenOf = new Map<string, string[]>();
+    const ownValue = new Map<string, string>();
+    const roots: string[] = [];
+
+    api.forEachNode((node: IRowNode) => {
+      const row = node.data as
+        | { id?: string; parentId?: string | null }
+        | undefined;
+      const id = row?.id;
+      if (!id) return;
+      const raw = (row as Record<string, unknown>)[field];
+      ownValue.set(id, raw === undefined || raw === null ? "" : String(raw));
+      const parent = row?.parentId ?? null;
+      if (parent) {
+        const list = childrenOf.get(parent);
+        if (list) list.push(id);
+        else childrenOf.set(parent, [id]);
+      } else {
+        roots.push(id);
+      }
+    });
+
+    const index = new Map<string, Set<string>>();
+    // Iterative post-order: the tree is shallow but a recursive walk over
+    // thousands of rows is an avoidable stack risk.
+    const stack: [string, boolean][] = roots.map((r) => [r, false]);
+    while (stack.length) {
+      const [id, visited] = stack.pop() as [string, boolean];
+      if (visited) {
+        const set = new Set<string>();
+        const own = ownValue.get(id);
+        if (own) set.add(own);
+        (childrenOf.get(id) ?? []).forEach((c) => {
+          index.get(c)?.forEach((v) => set.add(v));
+        });
+        index.set(id, set);
+      } else {
+        stack.push([id, true]);
+        (childrenOf.get(id) ?? []).forEach((c) => stack.push([c, false]));
+      }
+    }
+
+    subtreeValues.current = index;
+    return index;
+  }, [api, field]);
+
   // Recompute distinct values whenever the filter is opened.
   const refreshValues = React.useCallback(() => {
     const seen = new Set<string>();
@@ -42,11 +105,17 @@ export function SetFilter({
   useGridFilter({
     doesFilterPass: ({ node }) => {
       if (!model) return true;
-      const v = node.data?.[field];
-      return model.includes(String(v));
+      const row = node.data as
+        | (Record<string, unknown> & { id?: string })
+        | undefined;
+      if (model.includes(String(row?.[field]))) return true;
+      const index = subtreeValues.current ?? buildIndex();
+      const beneath = row?.id ? index.get(row.id) : undefined;
+      return beneath ? model.some((m) => beneath.has(m)) : false;
     },
     afterGuiAttached: () => {
       refreshValues();
+      buildIndex();
       setSearch("");
     },
   });
