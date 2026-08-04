@@ -105,10 +105,22 @@ def _facet(cands: list[dict], category: "str | None", provider: "str | None") ->
     return out
 
 
+def _thin(t: dict) -> bool:
+    """Whether a template is flattened / non-adaptable.
+
+    Such a template is a single embedded image with almost no cells (the baseline-* set); the agent
+    cannot place/relabel/connect inside it, so it must sink below structured ones in search results.
+    """
+    try:
+        return int(t.get("cells", 999)) <= 8
+    except (TypeError, ValueError):
+        return False
+
+
 def _slim(t: dict) -> dict:
     return {k: t.get(k) for k in ("id", "title", "summary", "category", "also_in", "products", "pages") if k in t} | (
         {"score": t["score"]} if "score" in t else {}
-    )
+    ) | {"quality": "flattened" if _thin(t) else "structured"}
 
 
 # ── HUMAN / frontend (principal) ──
@@ -149,10 +161,11 @@ async def search(req: _Search):
     cands = _facet(_index().get("templates", []), req.category, req.provider)
     q = (req.query or "")[:_MAX_Q].strip()
     k = max(1, min(int(req.k), _MAX_K))
-    hits = (_semantic(q, cands, k) if q else None)
-    if hits is None:  # substring fallback (or no query → facet order)
+    pool = _semantic(q, cands, max(k * 3, k)) if q else None  # over-fetch so down-ranking still fills k
+    if pool is None:  # substring fallback (or no query → facet order)
         ql = q.lower()
-        hits = sorted(cands, key=lambda t: (ql not in _doc(t).lower(), t.get("title", "")))[:k] if q else cands[:k]
+        pool = sorted(cands, key=lambda t: (ql not in _doc(t).lower(), t.get("title", ""))) if q else list(cands)
+    hits = sorted(pool, key=lambda t: _thin(t))[:k]  # stable: flattened templates sink below structured
     return {"ok": True, "results": [_slim(t) for t in hits]}
 
 
