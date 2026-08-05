@@ -11,6 +11,7 @@ import { ConversationCard } from "#/components/features/conversation-panel/conve
 import { ConfirmDeleteModal } from "#/components/features/conversation-panel/confirm-delete-modal";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
 import { useConversationStore } from "#/state/conversation-store";
+import { useConversationIdContext } from "#/context/conversation-id-context";
 import { displaySuccessToast } from "#/utils/custom-toast-handlers";
 import type { ConversationStatus } from "#/types/conversation-status";
 import type { Provider } from "#/types/settings";
@@ -57,7 +58,11 @@ function Section({
 export function ConversationHistory({ onOpened }: { onOpened?: () => void }) {
   const navigate = useNavigate();
   const { conversationId: currentId } = useParams();
-  const { setSelectedTab, setHasRightPanelToggled } = useConversationStore();
+  const { setSelectedTab, setHasRightPanelToggled, setBoundConversationId } =
+    useConversationStore();
+  // Non-null only inside the embedded drawer — the honest signal for whether
+  // there is a panel to rebind rather than a page to navigate to.
+  const embedded = useConversationIdContext() !== null;
 
   const [search, setSearch] = React.useState("");
   // favourites ("marked") persist across reopens/reloads via localStorage
@@ -95,9 +100,18 @@ export function ConversationHistory({ onOpened }: { onOpened?: () => void }) {
   const active = filtered.filter((c) => isLive(c.status));
   const dormant = filtered.filter((c) => !isLive(c.status));
 
-  /** Stay inside the drawer: land on the conversation and show its Chat tab. */
+  /**
+   * Bind the drawer to a conversation, or navigate if we are not in one.
+   *
+   * Embedded, the drawer supplies the conversation id through context and there
+   * is no `:conversationId` in the URL — so navigating to /conversations/:id
+   * would abandon the dashboard the user is working in, which is precisely what
+   * "open" should not do. On the conversation page there is no drawer to bind,
+   * so the route is still the right instrument.
+   */
   const openConversation = (id: string) => {
-    navigate(`/conversations/${id}`);
+    if (embedded) setBoundConversationId(id);
+    else navigate(`/conversations/${id}`);
     setSelectedTab("terminal");
     setHasRightPanelToggled(true);
     onOpened?.();

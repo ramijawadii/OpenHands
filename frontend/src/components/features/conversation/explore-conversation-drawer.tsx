@@ -433,10 +433,24 @@ export function ExploreConversationDrawer() {
     isFetched: listFetched,
     refetch: refetchList,
   } = usePaginatedConversations(20);
+  const boundConversationId = useConversationStore(
+    (st) => st.boundConversationId,
+  );
+  /**
+   * An explicit binding wins; inference is the fallback.
+   *
+   * If the bound conversation is not in the loaded page yet — it was created a
+   * moment ago — inference still supplies something to render rather than
+   * blanking the drawer, and the binding takes effect as soon as the list
+   * catches up.
+   */
   const conversation = React.useMemo(() => {
     const all = data?.pages?.flatMap((p) => p.results) ?? [];
-    return pickLastActive(all);
-  }, [data]);
+    const bound = boundConversationId
+      ? all.find((c) => c.conversation_id === boundConversationId)
+      : null;
+    return bound ?? pickLastActive(all);
+  }, [data, boundConversationId]);
 
   const rootRef = React.useRef<HTMLDivElement | null>(null);
   const active = React.useRef(false);

@@ -13,6 +13,8 @@ import { buildColumns } from "./columns";
 import { branchIds, buildRows, type ResourceRow } from "./data";
 import { gridThemeFor } from "./theme";
 import { GridSkeleton } from "./Skeleton";
+import { GridToolbar } from "./GridToolbar";
+import { openResourceReport } from "./resource-report";
 import { GridPalette } from "./palette";
 import { HeaderCell } from "./HeaderCell";
 import { FloatingFilter } from "./FloatingFilter";
@@ -208,6 +210,25 @@ export function CloudGuardGrid() {
    */
   const [painted, setPainted] = React.useState(false);
 
+  /**
+   * field -> header name, for the toolbar's filter chips.
+   *
+   * Read from the SAME columnDefs the grid renders, so a chip can never label a
+   * filter differently from the column it came from.
+   */
+  const labelFor = React.useCallback(
+    (field: string) => {
+      for (const group of columnDefs) {
+        const hit = (
+          group.children as { field?: string; headerName?: string }[]
+        ).find((c) => c.field === field);
+        if (hit) return hit.headerName ?? field;
+      }
+      return field;
+    },
+    [columnDefs],
+  );
+
   const onFirstDataRendered = React.useCallback(() => {
     setPainted(true);
     if (autoSized.current || !api) return;
@@ -274,6 +295,8 @@ export function CloudGuardGrid() {
         }
       `}</style>
 
+        <GridToolbar api={api} labelFor={labelFor} />
+
         <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
           <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
             {!painted && <GridSkeleton />}
@@ -286,6 +309,19 @@ export function CloudGuardGrid() {
               onGridReady={onGridReady}
               onFirstDataRendered={onFirstDataRendered}
               preventDefaultOnContextMenu
+              onCellClicked={(e) => {
+                // The chevron and the selection checkbox live in cells too;
+                // treating those as "open" would make expanding a tree node or
+                // ticking a row throw the user into a report.
+                const target = e.event?.target as HTMLElement | null;
+                if (
+                  target?.closest(
+                    "[data-cg-tree-toggle], .ag-selection-checkbox",
+                  )
+                )
+                  return;
+                if (e.data) openResourceReport(e.data);
+              }}
               onCellContextMenu={(e) => {
                 const ev = e.event as MouseEvent | null;
                 if (!e.data || !ev) return;

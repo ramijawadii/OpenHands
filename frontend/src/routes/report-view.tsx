@@ -30,6 +30,11 @@ import {
   clearEventReport,
   useEventReport,
 } from "#/components/features/explore/cloudguard-grid/event-report";
+import { ResourceReport } from "#/components/features/explore/cloudguard-grid/ResourceReport";
+import {
+  clearResourceReport,
+  useResourceReport,
+} from "#/components/features/explore/cloudguard-grid/resource-report";
 
 /** Report — discovery of the conversation's existing artifacts.
  *
@@ -119,6 +124,7 @@ export default function ReportView() {
    * dropped on "back" — nothing was written, so nothing is left behind.
    */
   const pendingEvent = useEventReport();
+  const pendingResource = useResourceReport();
 
   /*
    * An artifact may already be open in the viewer when a report is raised.
@@ -126,8 +132,8 @@ export default function ReportView() {
    * than on whatever file happened to be open before.
    */
   React.useEffect(() => {
-    if (pendingEvent) setSelected(null);
-  }, [pendingEvent]);
+    if (pendingEvent || pendingResource) setSelected(null);
+  }, [pendingEvent, pendingResource]);
 
   const refresh = React.useCallback(async () => {
     if (!conversationId) return;
@@ -168,6 +174,16 @@ export default function ReportView() {
     visible.forEach((a) => acc[a.kind]?.push(a));
     return acc;
   }, [visible]);
+
+  if (pendingResource) {
+    return (
+      <ResourceReport
+        resource={pendingResource}
+        onBack={clearResourceReport}
+        onSaved={refresh}
+      />
+    );
+  }
 
   if (pendingEvent) {
     return (

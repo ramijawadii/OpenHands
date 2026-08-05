@@ -13,8 +13,16 @@ import { ConversationHistory } from "#/components/features/conversations/convers
 import CommandsView from "#/routes/commands-tab";
 import { useCreateConversation } from "#/hooks/mutation/use-create-conversation";
 import { useConversationStore } from "#/state/conversation-store";
+import { useConversationIdContext } from "#/context/conversation-id-context";
 
 type ChatView = "chat" | "history" | "commands";
+
+/** The chat view is the default, so it carries no caption of its own. */
+const VIEW_LABEL: Record<ChatView, string> = {
+  chat: "",
+  history: "Conversations",
+  commands: "Commands",
+};
 
 /** Chat — the conversation surface embedded in the right panel, so the panel is
  *  self-sufficient and can later be reused where there is no chat column.
@@ -32,19 +40,38 @@ type ChatView = "chat" | "history" | "commands";
  */
 function ChatTab() {
   const navigate = useNavigate();
-  const { selectedTab, setSelectedTab, setHasRightPanelToggled } =
-    useConversationStore();
+  const {
+    selectedTab,
+    setSelectedTab,
+    setHasRightPanelToggled,
+    setBoundConversationId,
+  } = useConversationStore();
+  // Non-null only inside the embedded drawer — the honest signal for whether
+  // there is a panel to rebind rather than a page to navigate to.
+  const embedded = useConversationIdContext() !== null;
   const [view, setView] = React.useState<ChatView>("chat");
   const { mutate: createConversation, isPending: isCreating } =
     useCreateConversation();
 
-  // Creating stays inside the drawer: land on the new conversation's chat view.
+  /**
+   * Bind the drawer to a conversation, or navigate if we are not in one.
+   *
+   * Embedded, the drawer supplies the conversation id through context and there
+   * is no `:conversationId` in the URL — so navigating to /conversations/:id
+   * would abandon the dashboard the user is working in, which is precisely what
+   * "open" should not do. On the conversation page there is no drawer to bind,
+   * so the route is still the right instrument.
+   */
   const startNewConversation = () =>
     createConversation(
       {},
       {
         onSuccess: (conversation) => {
-          navigate(`/conversations/${conversation.conversation_id}`);
+          if (embedded) {
+            setBoundConversationId(conversation.conversation_id);
+          } else {
+            navigate(`/conversations/${conversation.conversation_id}`);
+          }
           setSelectedTab("terminal");
           setHasRightPanelToggled(true);
           setView("chat");
@@ -58,10 +85,11 @@ function ChatTab() {
   const iconBtn =
     "shrink-0 cursor-pointer rounded p-1 transition-colors hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)]";
   const iconActive = (on: boolean) =>
-    on ? "text-[var(--cg-text-primary)] bg-[var(--cg-bg-hover)]" : "text-[var(--cg-text-muted)]";
+    on
+      ? "text-[var(--cg-text-primary)] bg-[var(--cg-bg-hover)]"
+      : "text-[var(--cg-text-muted)]";
 
-  const label =
-    view === "history" ? "Conversations" : view === "commands" ? "Commands" : "";
+  const label = VIEW_LABEL[view];
 
   return (
     <div className="cg-chat-embedded flex h-full w-full flex-col overflow-hidden">
@@ -109,13 +137,11 @@ function ChatTab() {
       </div>
 
       <div className="min-h-0 flex-1">
-        {view === "history" ? (
+        {view === "history" && (
           <ConversationHistory onOpened={() => setView("chat")} />
-        ) : view === "commands" ? (
-          <CommandsView />
-        ) : (
-          <ChatInterface />
         )}
+        {view === "commands" && <CommandsView />}
+        {view === "chat" && <ChatInterface />}
       </div>
     </div>
   );

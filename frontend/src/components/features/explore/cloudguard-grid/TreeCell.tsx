@@ -81,7 +81,13 @@ export function TreeCell(props: CustomCellRendererProps<ResourceRow>) {
         {data.hasChildren && (
           <button
             type="button"
-            onClick={() => onToggle?.(data.id)}
+            // Marks this as a CONTROL, not content: the grid's row-click opens
+            // a resource report, and expanding a branch must not do that too.
+            data-cg-tree-toggle=""
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggle?.(data.id);
+            }}
             aria-label={
               isOpen ? `Collapse ${data.resource}` : `Expand ${data.resource}`
             }

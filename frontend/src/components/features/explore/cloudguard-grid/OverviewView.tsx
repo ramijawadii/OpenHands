@@ -5,6 +5,7 @@ import { useTheme } from "#/context/theme-context";
 import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
 import { RecentEvents } from "./RecentEvents";
 import { OverviewSkeleton } from "./Skeleton";
+import { AssetStats } from "./AssetStats";
 import { APP_FONT } from "./theme";
 
 /**
@@ -461,6 +462,13 @@ export function OverviewView() {
 
   return (
     <SurfaceErrorBoundary surface="explore" name="Inventory overview">
+      {/*
+       * The enumeration sits ABOVE the chart frame, outside its horizontal
+       * scroller: the frame has a min-width and scrolls sideways on a narrow
+       * view, and a summary that scrolls away is a summary nobody reads.
+       */}
+      <AssetStats />
+
       <div style={{ width: "100%", overflowX: "auto", overflowY: "hidden" }}>
         <div
           style={{

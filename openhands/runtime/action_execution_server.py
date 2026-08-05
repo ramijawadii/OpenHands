@@ -299,7 +299,14 @@ class ActionExecutor:
         logger.debug('Browser initialization started in background')
 
         await wait_all(
-            (self._init_plugin(plugin) for plugin in self.plugins_to_load),
+            (
+                self._init_plugin_guarded(plugin)
+                for plugin in self.plugins_to_load
+                if not (
+                    getattr(plugin, 'name', '') == 'jupyter'
+                    and os.environ.get('CLOUDGUARD_DISABLE_JUPYTER')
+                )
+            ),
             timeout=int(os.environ.get('INIT_PLUGIN_TIMEOUT', '120')),
         )
         logger.debug('All plugins initialized')
@@ -325,6 +332,32 @@ class ActionExecutor:
     @property
     def initialized(self) -> bool:
         return self._initialized
+
+    async def _init_plugin_guarded(self, plugin: Plugin):
+        """Initialize a plugin; never let its failure abort the runtime.
+
+        The Jupyter plugin's first kernel websocket connect is intermittently
+        refused. Unguarded, `initialize()` raises, the exception escapes
+        `wait_all`, and the action server exits with "Application startup
+        failed" — so the conversation never starts even though BASH, the thing
+        the agent actually needs, was healthy the whole time. One optional
+        plugin could veto the entire sandbox.
+
+        A plugin that raises is logged and left out of `self.plugins`, which the
+        rest of the server already treats as "not available": `/jupyter_info`
+        404s, and the Notebook surface degrades honestly instead of the sandbox
+        disappearing.
+
+        Deliberately broad: any plugin failure, of any kind, is less bad than
+        no runtime at all.
+        """
+        try:
+            await self._init_plugin(plugin)
+        except Exception as e:  # noqa: BLE001 - see docstring
+            logger.error(
+                f'Plugin {getattr(plugin, "name", plugin)} failed to initialize; '
+                f'continuing without it: {e}'
+            )
 
     async def _init_plugin(self, plugin: Plugin):
         assert self.bash_session is not None

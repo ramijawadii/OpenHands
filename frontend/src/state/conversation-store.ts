@@ -16,6 +16,20 @@ export interface IMessageToSend {
 }
 
 interface ConversationState {
+  /**
+   * Which conversation the EMBEDDED drawer is bound to.
+   *
+   * The drawer otherwise infers its conversation with `pickLastActive`, which
+   * cannot express "the one I just created" or "the one I picked from
+   * history" — so those actions used to navigate to /conversations/:id, which
+   * threw the user out of the dashboard they were working in. This is the
+   * explicit override; `null` means fall back to inference.
+   *
+   * Deliberately NOT persisted: a binding is about the session in front of
+   * you, and restoring a stale one on a later visit would silently show the
+   * wrong conversation.
+   */
+  boundConversationId: string | null;
   isRightPanelShown: boolean;
   selectedTab: ConversationTab | null;
   images: File[];
@@ -30,6 +44,7 @@ interface ConversationState {
 }
 
 interface ConversationActions {
+  setBoundConversationId: (id: string | null) => void;
   setIsRightPanelShown: (isRightPanelShown: boolean) => void;
   setSelectedTab: (selectedTab: ConversationTab | null) => void;
   setShouldShownAgentLoading: (shouldShownAgentLoading: boolean) => void;
@@ -64,6 +79,7 @@ export const useConversationStore = create<ConversationStore>()(
   devtools(
     (set) => ({
       // Initial state
+      boundConversationId: null,
       isRightPanelShown: getInitialRightPanelState(),
       selectedTab: "editor" as ConversationTab,
       images: [],
@@ -77,6 +93,9 @@ export const useConversationStore = create<ConversationStore>()(
       hasRightPanelToggled: true,
 
       // Actions
+      setBoundConversationId: (boundConversationId) =>
+        set({ boundConversationId }, false, "setBoundConversationId"),
+
       setIsRightPanelShown: (isRightPanelShown) =>
         set({ isRightPanelShown }, false, "setIsRightPanelShown"),
 

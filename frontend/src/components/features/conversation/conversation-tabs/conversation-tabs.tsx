@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import {
   StickyNote,
@@ -17,6 +17,44 @@ import {
 } from "#/state/conversation-store";
 
 export function ConversationTabs() {
+  /**
+   * Shrink to icons rather than overflow.
+   *
+   * The strip lives in a drawer the user can drag to any width, so no
+   * breakpoint can be right: the decision has to come from the element. Below
+   * the width the labelled tabs need, they collapse to icons and the label
+   * moves to the tooltip — which is why every tab is wrapped in
+   * `ChatActionTooltip` even when its label is visible.
+   *
+   * Measured against `scrollWidth` while expanded, so the threshold is the
+   * real content width rather than a guess that rots when a tab is renamed.
+   */
+  const stripRef = useRef<HTMLDivElement | null>(null);
+  const [compact, setCompact] = useState(false);
+  const expandedWidth = useRef(0);
+
+  useLayoutEffect(() => {
+    const el = stripRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+
+    const measure = () => {
+      // Only trust a measurement taken while expanded; in compact mode the
+      // content is narrower and would let it flap back immediately.
+      if (!compact) expandedWidth.current = el.scrollWidth;
+      const needed = expandedWidth.current;
+      // 8px of hysteresis: without it a drag that lands exactly on the
+      // threshold oscillates between the two layouts on every frame.
+      if (!compact && needed > el.clientWidth) setCompact(true);
+      else if (compact && needed > 0 && el.clientWidth > needed + 8)
+        setCompact(false);
+    };
+
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [compact]);
+
   const {
     selectedTab,
     isRightPanelShown,
@@ -111,7 +149,7 @@ export function ConversationTabs() {
       icon: MessagesSquare,
       label: "Chat",
       onClick: () => onTabSelected("terminal"),
-      tooltipContent: "Chat — the conversation, embedded in the panel",
+      tooltipContent: "Chat — talk to the agent about what you are looking at",
       tooltipAriaLabel: "Chat",
     },
     {
@@ -119,7 +157,7 @@ export function ConversationTabs() {
       icon: LayoutGrid,
       label: "Canvas",
       onClick: () => onTabSelected("jupyter"),
-      tooltipContent: "Canvas — Documents, Sheet, Notebook, Whiteboard",
+      tooltipContent: "Canvas — documents, sheets, notebooks and whiteboards",
       tooltipAriaLabel: "Canvas",
     },
     {
@@ -127,7 +165,7 @@ export function ConversationTabs() {
       icon: StickyNote,
       label: "Report",
       onClick: () => onTabSelected("diagrams"),
-      tooltipContent: "Report — generated artifacts and diagrams",
+      tooltipContent: "Report — saved reports, artifacts and diagrams",
       tooltipAriaLabel: "Report",
     },
     {
@@ -136,8 +174,8 @@ export function ConversationTabs() {
       label: "Remediation",
       onClick: () => onTabSelected("remediation"),
       tooltipContent:
-        "Remediation Workflow — propose → blast radius → simulate → approve → apply",
-      tooltipAriaLabel: "Remediation Workflow",
+        "Remediation — propose, check blast radius, simulate, approve, apply",
+      tooltipAriaLabel: "Remediation",
     },
     {
       isActive: isTabActive("sandbox"),
@@ -158,8 +196,9 @@ export function ConversationTabs() {
 
   return (
     <div
+      ref={stripRef}
       className={cn(
-        "relative w-full",
+        "relative w-full min-w-0 overflow-hidden",
         "flex flex-row justify-start lg:justify-end items-center gap-1",
       )}
     >
@@ -178,6 +217,7 @@ export function ConversationTabs() {
               label={label}
               onClick={onClick}
               isActive={isActive}
+              compact={compact}
             />
           </ChatActionTooltip>
         ),
