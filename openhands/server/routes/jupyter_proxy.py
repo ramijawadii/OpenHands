@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import json
 from urllib.parse import urlparse
 
 import httpx
@@ -167,6 +168,50 @@ async def jupyter_settings(
 # 404-ing. Kernel/contents/sessions/terminals stay under /api/*.
 _LAB_APIS = ('settings', 'workspaces', 'translations', 'themes', 'listings')
 
+# SB4.3 (HARD control-plane gate) — the analyst's notebook file browser exposes ONLY user/agent
+# notebooks. The sandbox keeps seam-client code + telemetry under /workspace (cloudguard-runtime/,
+# scripts/) and agent diagrams (pages/) — none of that is the analyst's, and this is enforced HERE, in
+# the trusted control-plane proxy the browser is forced through, NOT by a sandbox-side hide (which a
+# user could toggle off). Any /api/contents request INTO one of these is 404'd; the root listing is
+# filtered to notebooks + user folders. The agent's kernel reaches the server on loopback (not this
+# proxy), so its own access to seam clients / pages is unaffected.
+_CONTENTS_DENY = frozenset({
+    'cloudguard-runtime', 'scripts', 'templates', 'pages', 'node_modules',
+    '.openhands', '.cloudguard', '.git', '.venv', '.ipynb_checkpoints', '.config', '.local', '.cache',
+})
+
+
+def _contents_subpath(path: str) -> "str | None":
+    """The path under /api/contents/ for a contents request, else None. '' for the root listing."""
+    for pfx in ('api/contents/', 'api/contents'):
+        if path == pfx.rstrip('/') or path.startswith(pfx):
+            return path[len('api/contents'):].lstrip('/')
+    return None
+
+
+def _blocked_contents(sub: str) -> bool:
+    """True if this contents subpath points into a system/IP area the analyst must never see."""
+    if not sub:
+        return False
+    top = sub.split('/', 1)[0]
+    return top in _CONTENTS_DENY or top.startswith('.')
+
+
+def _filter_root_listing(raw: bytes) -> "bytes | None":
+    """Filter a root /api/contents directory model to notebooks + non-system user folders only."""
+    try:
+        model = json.loads(raw)
+    except Exception:  # noqa: BLE001
+        return None
+    if model.get('type') != 'directory' or not isinstance(model.get('content'), list):
+        return None
+    model['content'] = [
+        c for c in model['content']
+        if c.get('type') == 'notebook'
+        or (c.get('type') == 'directory' and c.get('name') not in _CONTENTS_DENY and not str(c.get('name', '')).startswith('.'))
+    ]
+    return json.dumps(model).encode()
+
 
 def _upstream_path(path: str) -> str:
     if path.startswith('api/'):
@@ -204,6 +249,12 @@ async def proxy_http(
             'Notebook server not available in this sandbox',
         )
 
+    # HARD GATE: reject any browser request into a system/IP contents path (see _CONTENTS_DENY).
+    _sub = _contents_subpath(path)
+    if _sub is not None and _blocked_contents(_sub):
+        _audit(getattr(request.state, 'user_id', None), conversation_id, f'BLOCKED contents {_sub}')
+        raise HTTPException(status.HTTP_404_NOT_FOUND, 'Not found')
+
     url = f'http://{target["host"]}:{target["port"]}/{_upstream_path(path)}'
     headers = {
         k: v for k, v in request.headers.items() if k.lower() not in _STRIP_REQ
@@ -239,8 +290,17 @@ async def proxy_http(
         for k, v in upstream.headers.items()
         if k.lower() not in _STRIP_RESP
     }
+    # HARD GATE: filter the ROOT contents listing to notebooks + user folders (strip cloudguard-runtime,
+    # scripts, pages, dotdirs, loose non-notebook files) so the browser can't even see them exist.
+    content = upstream.content
+    if _sub == '' and request.method == 'GET' and upstream.status_code == 200:
+        filtered = _filter_root_listing(upstream.content)
+        if filtered is not None:
+            content = filtered
+            resp_headers.pop('content-length', None)
+            resp_headers.pop('Content-Length', None)
     return Response(
-        content=upstream.content,
+        content=content,
         status_code=upstream.status_code,
         headers=resp_headers,
         media_type=upstream.headers.get('content-type'),
