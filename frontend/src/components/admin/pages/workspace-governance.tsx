@@ -53,6 +53,8 @@ import { OrganizationDefaultsView } from "#/components/admin/pages/workspace-gov
 import { WorkspaceOverridesView } from "#/components/admin/pages/workspace-governance/workspace-overrides";
 import { AwsAccountsView } from "#/components/admin/pages/workspace-governance/aws-accounts";
 import { AzureSubscriptionsView } from "#/components/admin/pages/workspace-governance/azure-subscriptions";
+import { GcpProjectsView } from "#/components/admin/pages/workspace-governance/gcp-projects";
+import { KubernetesClustersView } from "#/components/admin/pages/workspace-governance/kubernetes-clusters";
 
 /**
  * Workspace Governance console — the SECOND of the three Workspace Management consoles
@@ -151,8 +153,18 @@ const INHERITANCE_LEAVES: Leaf[] = [
     Icon: Cloud,
     render: () => <AzureSubscriptionsView />,
   },
-  { id: "gcp-projects", label: "GCP Projects", Icon: FolderGit2 },
-  { id: "kubernetes-clusters", label: "Kubernetes Clusters", Icon: Server },
+  {
+    id: "gcp-projects",
+    label: "GCP Projects",
+    Icon: FolderGit2,
+    render: () => <GcpProjectsView />,
+  },
+  {
+    id: "kubernetes-clusters",
+    label: "Kubernetes Clusters",
+    Icon: Server,
+    render: () => <KubernetesClustersView />,
+  },
   { id: "resource-ownership", label: "Resource Ownership", Icon: UserSquare },
   { id: "shared-resources", label: "Shared Resources", Icon: Share2 },
 ];
