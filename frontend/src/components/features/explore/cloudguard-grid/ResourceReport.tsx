@@ -2,25 +2,25 @@
 import React from "react";
 import type { ColDef, ColGroupDef } from "ag-grid-community";
 import {
+  Activity,
   ArrowLeft,
-  Bot,
+  BadgeCheck,
+  Boxes,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
   FileJson,
+  Globe,
+  LifeBuoy,
+  Radar,
   Save,
+  ShieldAlert,
+  Users,
 } from "lucide-react";
-import {
-  CG_ASK_ABOUT_EVENT,
-  type CgAskAboutDetail,
-} from "#/hooks/chat/use-chat-input-logic";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
-import {
-  drawerTabStrip,
-  drawerTab,
-} from "#/components/admin/pages/graph-shell";
+import { SideRailPanel } from "#/components/admin/admin-kit";
 import { APP_FONT } from "./theme";
 import { GridPalette } from "./palette";
 import { buildColumns } from "./columns";
@@ -57,6 +57,18 @@ interface GroupRef {
   fields: FieldRef[];
 }
 
+/** One glyph per column group, so the rail reads at a glance. */
+const GROUP_ICON: Record<string, React.ReactNode> = {
+  Resource: <Boxes size={13} />,
+  Placement: <Globe size={13} />,
+  Ownership: <Users size={13} />,
+  Risk: <ShieldAlert size={13} />,
+  Compliance: <BadgeCheck size={13} />,
+  Resilience: <LifeBuoy size={13} />,
+  Operations: <Activity size={13} />,
+  Discovery: <Radar size={13} />,
+};
+
 /** Walk the grid's own column definitions into report sections. */
 function deriveGroups(): GroupRef[] {
   const defs = buildColumns({
@@ -84,42 +96,25 @@ function scalar(v: unknown): React.ReactNode {
   return String(v);
 }
 
+/**
+ * Metrics copied from `ConversationTabNav` so the report actions and the drawer
+ * tabs are the same control: 28px tall, 10px padding, 12.5px type, 6px gap.
+ * Colour, background, radius and every interactive state come from the
+ * `.cg-report-action` class — inline styles beat a class, so nothing the class
+ * owns may be repeated here.
+ */
 const btn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  height: 24,
-  padding: "0 9px",
-  fontSize: 11.5,
+  height: 28,
+  padding: "0 10px",
+  fontSize: 12.5,
+  lineHeight: 1,
   fontFamily: APP_FONT,
-  background: "transparent",
-  color: "var(--cg-text-primary)",
-  border: "1px solid var(--cg-border)",
-  borderRadius: 3,
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
-
-function Chip({ children }: { children: React.ReactNode }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: 6,
-        padding: "2px 9px",
-        fontSize: 11.5,
-        lineHeight: "18px",
-        borderRadius: 11,
-        border: "1px solid var(--cg-border)",
-        color: "var(--cg-text-primary)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -255,13 +250,6 @@ export function ResourceReport({
     return [...out.entries()];
   }, [active]);
 
-  const askAgent = () => {
-    const detail: CgAskAboutDetail = {
-      text: `${resource.kind} \`${resource.resource}\` (id: \`${resource.id}\`) — `,
-    };
-    window.dispatchEvent(new CustomEvent(CG_ASK_ABOUT_EVENT, { detail }));
-  };
-
   const onSave = async () => {
     if (!conversationId) {
       setSave("error");
@@ -284,120 +272,59 @@ export function ResourceReport({
   };
 
   return (
-    <div
-      style={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        fontFamily: APP_FONT,
-        background: "var(--cg-bg-page)",
-      }}
-    >
+    <div style={{ height: "100%", minHeight: 0, fontFamily: APP_FONT }}>
       <GridPalette />
 
-      <header
-        style={{
-          flexShrink: 0,
-          padding: "12px 16px 8px",
-          borderBottom: "1px solid var(--cg-border-subtle)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 10,
-          }}
-        >
-          <button type="button" style={btn} onClick={onBack}>
-            <ArrowLeft size={12} /> Reports
-          </button>
+      <SideRailPanel
+        title={
           <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              fontSize: 12.5,
-              fontWeight: 700,
-              color: "var(--cg-text-primary)",
-            }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
           >
-            <SeverityGauge severity={resource.severity} size={18} />
-            {resource.severity}
+            <ResourceIcon kind={resource.kind} size={16} />
+            {resource.resource}
           </span>
+        }
+        subtitle={
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 7 }}
+          >
+            <SeverityGauge severity={resource.severity} size={13} />
+            {resource.severity} · {resource.kind} · {resource.provider} ·{" "}
+            {resource.region} · {resource.environment} · {resource.owner}
+          </span>
+        }
+        sections={groups.map((g) => ({
+          id: g.group,
+          label: g.group,
+          icon: GROUP_ICON[g.group],
+        }))}
+        active={view}
+        onSelect={setView}
+        footer={
           <span
             style={{
-              marginLeft: "auto",
-              fontSize: 10.5,
+              marginRight: "auto",
+              alignSelf: "center",
+              fontSize: 11,
               color: "var(--cg-text-muted)",
             }}
           >
             {save === "saved" ? "Saved to reports" : "Unsaved report"}
           </span>
-        </div>
-
-        <h1
-          style={{
-            margin: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 19,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            color: "var(--cg-text-primary)",
-          }}
-        >
-          <ResourceIcon kind={resource.kind} size={18} />
-          {resource.resource}
-        </h1>
-        <div
-          style={{
-            marginTop: 2,
-            fontSize: 12.5,
-            color: "var(--cg-text-muted)",
-          }}
-          title={resource.urn}
-        >
-          {resource.id}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 8,
-            margin: "10px 0 2px",
-          }}
-        >
-          <Chip>{resource.provider}</Chip>
-          <Chip>{resource.region}</Chip>
-          <Chip>{resource.environment}</Chip>
-          <Chip>{resource.serviceType}</Chip>
-          <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            <button type="button" style={btn} onClick={askAgent}>
-              <Bot size={12} /> Ask AI
-            </button>
+        }
+        actions={
+          <>
             <button
               type="button"
+              className="cg-report-action"
               style={btn}
-              onClick={() =>
-                download(
-                  `${resource.id}.json`,
-                  JSON.stringify(
-                    resource,
-                    (_k, v) => (v instanceof Date ? v.toISOString() : v),
-                    2,
-                  ),
-                )
-              }
+              onClick={onBack}
             >
-              <FileJson size={12} /> Export
+              <ArrowLeft size={12} /> Reports
             </button>
             <button
               type="button"
+              className="cg-report-action"
               style={btn}
               onClick={() =>
                 navigator.clipboard?.writeText(
@@ -415,7 +342,29 @@ export function ResourceReport({
             </button>
             <button
               type="button"
-              style={{ ...btn, borderColor: "var(--cg-accent)" }}
+              className="cg-report-action"
+              style={btn}
+              onClick={() =>
+                download(
+                  `${resource.id}.json`,
+                  JSON.stringify(
+                    resource,
+                    (_k, v) => (v instanceof Date ? v.toISOString() : v),
+                    2,
+                  ),
+                )
+              }
+            >
+              <FileJson size={12} /> Export
+            </button>
+            <button
+              type="button"
+              className={`cg-report-action ${
+                save === "error"
+                  ? "cg-report-action-danger"
+                  : "cg-report-action-primary"
+              }`}
+              style={btn}
               disabled={save === "saving"}
               onClick={onSave}
             >
@@ -429,48 +378,8 @@ export function ResourceReport({
                 }[save]
               }
             </button>
-          </span>
-        </div>
-      </header>
-
-      {/*
-       * Wrap rather than scroll. `drawerTabStrip` is nowrap + overflow-x auto,
-       * which put a scrollbar under eight tabs and hid the last of them behind
-       * a gesture; a view the user cannot see is a view they will not use.
-       */}
-      <nav
-        style={{
-          ...drawerTabStrip,
-          flexWrap: "wrap",
-          overflowX: "hidden",
-          overflowY: "hidden",
-          gap: 16,
-          rowGap: 0,
-          padding: "4px 16px 0",
-        }}
-      >
-        {groups.map((g) => (
-          <button
-            key={g.group}
-            type="button"
-            role="tab"
-            aria-selected={view === g.group}
-            style={drawerTab(view === g.group)}
-            onClick={() => setView(g.group)}
-          >
-            {g.group}
-          </button>
-        ))}
-      </nav>
-
-      <div
-        className="cg-scroll"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: "auto",
-          padding: "8px 16px 32px",
-        }}
+          </>
+        }
       >
         {sections.map(([sub, fields], i) => (
           <Section key={sub} title={sub} count={fields.length} open={i === 0}>
@@ -492,7 +401,7 @@ export function ResourceReport({
             ))}
           </Section>
         ))}
-      </div>
+      </SideRailPanel>
     </div>
   );
 }

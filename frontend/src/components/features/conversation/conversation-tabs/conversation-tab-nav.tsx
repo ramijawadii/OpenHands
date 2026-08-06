@@ -17,7 +17,22 @@ export function ConversationTabNav({
   isActive,
   compact,
 }: ConversationTabNavProps) {
-  // Matches the CloudGuard reference: pill tabs, active = card background.
+  /**
+   * Pill tabs on the drawer's header strip.
+   *
+   * **Active and hover are the strip's black, not its card grey.** The strip
+   * sits on `--cg-bg-sidebar` (#1f1f1e), and the active pill used
+   * `--cg-bg-card` (#121212) — a 13-point step that is legible on a large
+   * surface but not on a 24px-tall pill, so the selected tab read as unselected.
+   * Worse, `--cg-bg-hover` (#0d0d0c) is DARKER than that card grey, so merely
+   * hovering an inactive tab made it look more selected than the active one.
+   *
+   * Active now takes `--cg-bg-active`, the darkest token, and hover sits one
+   * step lighter — so the two states are both clearly visible against the strip
+   * AND correctly ordered, with the selected tab always the strongest mark.
+   * Both are tokens, so the light theme inverts to its own greys rather than
+   * being handed a hard-coded black.
+   */
   return (
     <button
       type="button"
@@ -30,8 +45,8 @@ export function ConversationTabNav({
         "text-[12.5px] whitespace-nowrap transition-colors cursor-pointer",
         compact ? "gap-0 px-2" : "gap-1.5 px-2.5",
         isActive
-          ? "bg-[var(--cg-bg-card)] text-[var(--cg-text-primary)]"
-          : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)]",
+          ? "bg-[var(--cg-tab-active-bg)] text-[var(--cg-text-primary)]"
+          : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-tab-hover-bg)] hover:text-[var(--cg-text-primary)]",
       )}
     >
       <Icon className="h-3.5 w-3.5 text-inherit shrink-0" />

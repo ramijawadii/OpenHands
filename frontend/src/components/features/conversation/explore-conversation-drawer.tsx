@@ -27,6 +27,8 @@ import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useStartConversation } from "#/hooks/mutation/use-start-conversation";
 import { useUserProviders } from "#/hooks/use-user-providers";
 import { useConversationStore } from "#/state/conversation-store";
+import { useEventReport } from "#/components/features/explore/cloudguard-grid/event-report";
+import { useResourceReport } from "#/components/features/explore/cloudguard-grid/resource-report";
 import { ConversationTabs } from "./conversation-tabs/conversation-tabs";
 import { ConversationTabContent } from "./conversation-tabs/conversation-tab-content/conversation-tab-content";
 
@@ -46,6 +48,16 @@ const WIDTH_KEY = "explore-drawer-width";
  *   MAX_RATIO    the widest a drag may go (always in overlay by then).
  */
 const DOCK_RATIO = 0.36;
+/**
+ * The share a REPORT needs.
+ *
+ * An event or resource report is a rail plus a two-column body; at the chat's
+ * 0.36 the rail eats most of it and the content column becomes a gutter. When
+ * one opens the drawer widens to this, and it is a FLOOR, not a resize: a user
+ * who has already dragged wider keeps their width, and closing the report does
+ * not snatch it back.
+ */
+const REPORT_RATIO = 0.52;
 const ABSOLUTE_MIN = 460;
 const MAX_RATIO = 0.85;
 /** Extra travel required to ENTER overlay, so a stray pixel of drag does not
@@ -243,6 +255,11 @@ function DrawerBody({
   // fetching initially — passing its undefined id to WsClientProvider trips its
   // "No conversation ID provided" throw.
   const { conversationId } = useConversationId();
+  // Both read unconditionally — `a() || b()` would short-circuit and change
+  // hook order between renders.
+  const eventReport = useEventReport();
+  const resourceReport = useResourceReport();
+  const hasReport = Boolean(eventReport || resourceReport);
   const { data: conversation, isFetched, refetch } = useActiveConversation();
   const { mutate: startConversation, isPending: isStarting } =
     useStartConversation();
@@ -317,8 +334,29 @@ function DrawerBody({
       <ConversationSubscriptionsProvider>
         <EventHandler>
           {/* Fixed to --cg-topbar-h (not padding-derived) so this strip's bottom
-              border lines up exactly with the global top bar's beside it. */}
-          <div className="shrink-0 flex h-[var(--cg-topbar-h)] min-w-0 items-center gap-1 overflow-x-auto border-b border-[var(--cg-border-subtle)] px-3">
+              border lines up exactly with the global top bar's beside it.
+
+              When a report is open the strip adopts the REPORT's surface. The
+              strip has no background of its own — it shows the drawer page
+              colour — so against a report panel it read as a separate darker
+              band sitting on top of the content it belongs to.
+
+              `cg-m365` is deliberately NOT applied: it re-skinned the strip to
+              the Microsoft palette, which in light mode is white-and-blue and
+              made the strip disagree with the rest of the console. The reports
+              no longer carry it either, so `--cg-bg-card` here resolves to the
+              same native surface the report itself now uses. */}
+          <div
+            className={cn(
+              // `--cg-bg-page` — the SAME surface the tab content below renders
+              // on, so the strip and the pane read as one drawer rather than as
+              // a header bar sitting on a different sheet. It matched only by
+              // accident in dark (where sidebar and page resolve to the same
+              // #1f1f1e) and visibly disagreed in light.
+              "shrink-0 flex h-[var(--cg-topbar-h)] min-w-0 items-center gap-1 overflow-x-auto border-b border-[var(--cg-border-subtle)] bg-[var(--cg-bg-page)] px-3",
+              hasReport && "bg-[var(--cg-bg-card)]",
+            )}
+          >
             <ConversationTabs />
             <FullscreenToggle
               isFullscreen={isFullscreen}
@@ -366,6 +404,17 @@ export function ExploreConversationDrawer() {
   const [width, setWidth] = React.useState(() =>
     clampWidth(persistedWidth ?? dockWidth()),
   );
+
+  // Widen for a report, once, on the transition into one. Both hooks are read
+  // unconditionally — `a() || b()` would short-circuit and change hook order.
+  const eventReport = useEventReport();
+  const resourceReport = useResourceReport();
+  const hasReport = Boolean(eventReport || resourceReport);
+  React.useEffect(() => {
+    if (!hasReport) return;
+    const floor = clampWidth(Math.round(viewport() * REPORT_RATIO));
+    setWidth((w) => (w < floor ? floor : w));
+  }, [hasReport]);
   const [isDragging, setIsDragging] = React.useState(false);
   const onExplore = pathname.startsWith("/explore");
 

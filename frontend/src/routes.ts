@@ -18,6 +18,7 @@ export default [
       route("sandbox-compute", "routes/settings-sandbox-compute.tsx"),
       route("audit-log", "routes/settings-audit-log.tsx"),
       route("health", "routes/settings-health.tsx"),
+      route("reliability", "routes/settings-reliability.tsx"),
       route("health/:section", "routes/settings-health.tsx", {
         id: "settings-health-section",
       }),

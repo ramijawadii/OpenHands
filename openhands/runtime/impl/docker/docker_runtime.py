@@ -448,18 +448,7 @@ class DockerRuntime(ActionExecutionClient):
         # attached to, we instead address the runtime by CONTAINER NAME on that network. Container
         # DNS is resolved by the docker embedded resolver, never touching the host, so the whole
         # failure mode disappears along with the per-spawn port allocation.
-        runtime_network = (os.environ.get('CLOUDGUARD_RUNTIME_NETWORK') or '').strip()
-        if runtime_network:
-            self.api_url = f'http://{self.container_name}:{self._container_port}'
-            self.log(
-                'info',
-                f'Container-network mode: reaching runtime at {self.api_url} over '
-                f'"{runtime_network}" (no host port forwarding).',
-            )
-        else:
-            self.api_url = (
-                f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
-            )
+        runtime_network = self._resolve_api_url()
 
         use_host_network = self.config.sandbox.use_host_network
         network_mode: typing.Literal['host'] | None = (
@@ -751,6 +740,37 @@ class DockerRuntime(ActionExecutionClient):
             self.close()
             raise e
 
+    def _resolve_api_url(self) -> str:
+        """Set `self.api_url` and return the runtime network name ('' if unset).
+
+        By default the app reaches the runtime at `local_runtime_url:<host_port>` — over a
+        PUBLISHED PORT on the host. That makes every conversation depend on the Docker host's
+        port-forwarding path, and when that path degrades the symptom is brutal: the TCP
+        connect still succeeds but no bytes ever flow, so the agent hangs in `loading` instead
+        of failing fast. It also costs a host-port allocation per spawn.
+
+        When `CLOUDGUARD_RUNTIME_NETWORK` names a user-defined docker network the APP is also
+        attached to, we address the runtime by CONTAINER NAME on that network instead. Docker's
+        embedded resolver handles it without touching the host, so the failure mode disappears
+        along with the per-spawn port allocation.
+
+        MUST be used by both the create and the attach path. Keeping the two in sync by hand is
+        what caused BUG-RT-2 — see `_attach_to_container`.
+        """
+        runtime_network = (os.environ.get('CLOUDGUARD_RUNTIME_NETWORK') or '').strip()
+        if runtime_network:
+            self.api_url = f'http://{self.container_name}:{self._container_port}'
+            self.log(
+                'info',
+                f'Container-network mode: reaching runtime at {self.api_url} over '
+                f'"{runtime_network}" (no host port forwarding).',
+            )
+        else:
+            self.api_url = (
+                f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
+            )
+        return runtime_network
+
     def _attach_to_container(self) -> None:
         self.container = self.docker_client.containers.get(self.container_name)
         if self.container.status == 'exited':
@@ -775,7 +795,12 @@ class DockerRuntime(ActionExecutionClient):
                 ):
                     self._app_ports.append(exposed_port)
 
-        self.api_url = f'{self.config.sandbox.local_runtime_url}:{self._container_port}'
+        # BUG-RT-2: this used to hardcode `local_runtime_url:<port>`, so container-network
+        # mode applied on CREATE but silently reverted on ATTACH. A runtime created in
+        # container-network mode publishes no host port, so every resume/reconnect dialled
+        # `host.docker.internal:<port>` and died with [Errno 101] after a 127s hang. Both
+        # paths now resolve the URL through the same helper.
+        self._resolve_api_url()
         self.log(
             'debug',
             f'attached to container: {self.container_name} {self._container_port} {self.api_url}',

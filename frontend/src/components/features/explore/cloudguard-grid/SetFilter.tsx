@@ -25,6 +25,32 @@ import { ICON_FIELDS, ValueWithIcon } from "./icons";
 
 type Model = string[] | null;
 
+/**
+ * Coerce whatever is in the filter model into this filter's `string[]`.
+ *
+ * AG Grid hands a filter whatever model was written for its column, and a model
+ * can arrive from outside this component — a drill-through URL, a restored view,
+ * a hand-built deep link. When the shape was wrong every read here
+ * (`model.includes`, `selected.filter`) threw, and because a filter is
+ * re-evaluated on the NEXT filter change, the crash landed an interaction after
+ * the mistake — which is what made it read as "adding a second filter breaks the
+ * grid" rather than "the first filter was malformed".
+ *
+ * A text-filter model carries its value in `filter`, so it converts cleanly
+ * rather than being discarded; anything genuinely unreadable degrades to "no
+ * filter", which shows too many rows instead of destroying the surface.
+ */
+function asValues(model: unknown): string[] | null {
+  if (model === null || model === undefined) return null;
+  if (Array.isArray(model)) return model.map(String);
+  if (typeof model === "object") {
+    const { filter } = model as { filter?: unknown };
+    if (filter !== undefined && filter !== null) return [String(filter)];
+    return null;
+  }
+  return [String(model)];
+}
+
 export function SetFilter({
   model,
   onModelChange,
@@ -104,14 +130,15 @@ export function SetFilter({
 
   useGridFilter({
     doesFilterPass: ({ node }) => {
-      if (!model) return true;
+      const wanted = asValues(model);
+      if (!wanted || wanted.length === 0) return true;
       const row = node.data as
         | (Record<string, unknown> & { id?: string })
         | undefined;
-      if (model.includes(String(row?.[field]))) return true;
+      if (wanted.includes(String(row?.[field]))) return true;
       const index = subtreeValues.current ?? buildIndex();
       const beneath = row?.id ? index.get(row.id) : undefined;
-      return beneath ? model.some((m) => beneath.has(m)) : false;
+      return beneath ? wanted.some((m) => beneath.has(m)) : false;
     },
     afterGuiAttached: () => {
       refreshValues();
@@ -129,7 +156,7 @@ export function SetFilter({
   );
 
   // `null` model means unfiltered, which displays as everything checked.
-  const selected = model ?? values;
+  const selected = asValues(model) ?? values;
   const allChecked =
     visible.length > 0 && visible.every((v) => selected.includes(v));
 
@@ -179,7 +206,12 @@ export function SetFilter({
           marginBottom: 4,
         }}
       >
-        <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+        <input
+          type="checkbox"
+          className="cg-check"
+          checked={allChecked}
+          onChange={toggleAll}
+        />
         <span style={{ fontWeight: 600 }}>(Select all)</span>
       </label>
       <div style={{ maxHeight: 210, overflowY: "auto" }}>
@@ -196,6 +228,7 @@ export function SetFilter({
           >
             <input
               type="checkbox"
+              className="cg-check"
               checked={selected.includes(v)}
               onChange={() => toggle(v)}
             />

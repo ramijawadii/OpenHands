@@ -1,23 +1,52 @@
 /* eslint-disable i18next/no-literal-string */
-import { Workflow } from "lucide-react";
+import React from "react";
+import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
+import { RemediationActionsList } from "#/components/features/remediation/RemediationActionsList";
+import { RemediationActionView } from "#/components/features/remediation/RemediationActionView";
+import {
+  buildActions,
+  type RemediationAction,
+} from "#/components/features/remediation/remediation-data";
 
-/** Remediation Workflow — the gated path a mutating action travels:
- *  propose → blast radius → shadow simulate → approve → apply → verify.
- *  Placeholder; the detailed view is built later. */
+/**
+ * Remediation Workflow — the two halves of the specified structure.
+ *
+ *   Remediation Actions  → the list (search, filters, saved views, bulk, table)
+ *   Remediation Action   → one record, in the event drawer's own shell
+ *
+ * List and record are one surface with two states rather than two routes: the
+ * drawer has no address bar, so a route change here would have no visible
+ * affordance and no Back. The record's own "Actions" button is the way out,
+ * exactly as the event report returns to Reports.
+ */
 function RemediationTab() {
+  const actions = React.useMemo(() => buildActions(48), []);
+  const [openId, setOpenId] = React.useState<string | null>(null);
+
+  // Resolved by id, not held as an object: keeping the selected row itself
+  // would pin a stale copy if the underlying list were ever regenerated.
+  const open: RemediationAction | null = React.useMemo(
+    () => actions.find((a) => a.id === openId) ?? null,
+    [actions, openId],
+  );
+
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--cg-accent-purple-bg)] text-[var(--cg-accent-purple)]">
-        <Workflow className="h-5 w-5" />
+    <SurfaceErrorBoundary
+      surface="explore"
+      name="Remediation workflow"
+      resetKeys={[openId]}
+    >
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        {open ? (
+          <RemediationActionView action={open} onBack={() => setOpenId(null)} />
+        ) : (
+          <RemediationActionsList
+            actions={actions}
+            onOpen={(a) => setOpenId(a.id)}
+          />
+        )}
       </div>
-      <div className="text-[14px] font-medium text-[var(--cg-text-primary)]">
-        Remediation Workflow
-      </div>
-      <p className="max-w-xs text-[12px] leading-relaxed text-[var(--cg-text-muted)]">
-        The gated path every mutating action travels — propose, blast radius,
-        shadow simulation, approval, apply, verify. Not built yet.
-      </p>
-    </div>
+    </SurfaceErrorBoundary>
   );
 }
 

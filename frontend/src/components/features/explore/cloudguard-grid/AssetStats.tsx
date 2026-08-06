@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string -- overview asset enumeration */
 import React from "react";
+import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { buildRows, type ResourceRow } from "./data";
 import { APP_FONT } from "./theme";
 import { GridPalette } from "./palette";
@@ -11,41 +12,56 @@ import { SeverityGauge } from "./SeverityGauge";
  * Asset enumeration strip — the counts an operator reads before anything else.
  *
  * Modelled on the AWS console's service-overview card: a label, a large number,
- * and a vertical rule between each. The number leads because it is what is
- * being read; the label only qualifies it.
+ * and a vertical rule between each.
  *
- * **Sized to the events table below it**, not to the page. The table occupies
- * the canvas's top-left quadrant — 10px in from the left, out to 46% — so the
- * strip takes exactly that box and the two share one left and right edge. A
- * full-width header over a half-width table reads as two unrelated things.
+ * Three things make it operational rather than decorative:
  *
- * **One type colour.** Every label and number is `--cg-text-primary` (white on
- * the dark canvas). Risk is carried by the icon's tint instead, so the strip
- * has no second colour competing with the severity language used everywhere
- * else in the kit.
+ * **Every number is a query.** A count that cannot be opened is a dead end —
+ * seeing "Internet facing 128" and then having to walk to Inventory, find the
+ * Exposure column, open its filter and pick Public is four interactions to
+ * reproduce a number already on screen. Recognition-over-recall, inverted.
+ * Each cell is a button that navigates to Inventory with the filter applied.
+ *
+ * **Every number carries a delta.** "How many" is a question the operator has
+ * already internalised; "how many more than last week" is the one that makes
+ * them act. Change is the whole point of a monitoring surface.
+ *
+ * **The value leads the label.** The value is larger AND heavier; previously
+ * the 10.5px label was `600` against a 19px value at `500`, so the eye landed
+ * on the qualifier and needed a second fixation to reach the number — seven
+ * times over.
+ *
+ * **One type colour.** Every label and number is `--cg-text-primary`. Risk is
+ * carried by the icon's tint, so the strip has no second colour competing with
+ * the severity language used everywhere else in the kit.
  *
  * Counts come from the SAME generator the inventory grid uses, so the strip and
- * the table can never disagree — a summary computed from a second source is a
- * summary that drifts. It is memoised at module scope because the dataset is
- * deterministic and the Overview remounts on every tab switch; regenerating
- * 1,150 rows for a header would be visible.
+ * the table can never disagree.
  */
 
-/** Built once per session, not per mount. */
+/** Built once per session, not per mount — 1,150 rows for a header is visible. */
 let cached: ResourceRow[] | null = null;
 function rows(): ResourceRow[] {
   if (!cached) cached = buildRows(1150);
   return cached;
 }
 
+/** A filter the Inventory grid can apply, expressed as query parameters. */
+export type DrillFilter = Record<string, string>;
+
 interface Stat {
   label: string;
   value: number;
-  /**
-   * Mark rendered beside the label, in the kit's own iconography. Risk is
-   * expressed HERE — the type stays one colour throughout.
-   */
+  /** Small trailing qualifier, as a chart legend's unit slot. */
+  unit: string;
+  /** Previous-period value, when one is meaningful. */
+  previous?: number;
+  /** Risk lives HERE — the type stays one colour throughout. */
   icon?: React.ReactNode;
+  /** Inventory filter this count represents. */
+  filter: DrillFilter;
+  /** Higher is worse — colours the delta. Counts of assets are neutral. */
+  adverse?: boolean;
 }
 
 function computeStats(all: ResourceRow[]): { scope: string; stats: Stat[] } {
@@ -61,37 +77,79 @@ function computeStats(all: ResourceRow[]): { scope: string; stats: Stat[] } {
   const publicFacing = count((r) => r.exposure === "Public");
   const critical = count((r) => r.severity === "Critical");
 
+  /**
+   * Previous-period counts.
+   *
+   * Deterministic from the current value rather than random, so the delta is
+   * stable across reloads — a number that changes every refresh reads as noise
+   * and gets ignored. A connector replaces this with the real prior snapshot.
+   */
+  const prior = (v: number, pct: number) => Math.round(v * (1 - pct));
+
   return {
     scope: `${accounts} accounts · ${providers.size} clouds · ${regions} regions`,
     stats: [
       {
         label: "Instances",
+        unit: "running",
         value: count((r) => r.kind === "Instance"),
+        previous: prior(
+          count((r) => r.kind === "Instance"),
+          0.03,
+        ),
         icon: <ResourceIcon kind="Instance" size={13} />,
+        filter: { kind: "Instance" },
       },
       {
         label: "Buckets",
+        unit: "stores",
         value: count((r) => r.kind === "Bucket"),
+        previous: prior(
+          count((r) => r.kind === "Bucket"),
+          0.01,
+        ),
         icon: <ResourceIcon kind="Bucket" size={13} />,
+        filter: { kind: "Bucket" },
       },
       {
         label: "Databases",
+        unit: "clusters",
         value: count((r) => r.kind === "Database"),
+        previous: prior(
+          count((r) => r.kind === "Database"),
+          0,
+        ),
         icon: <ResourceIcon kind="Database" size={13} />,
+        filter: { kind: "Database" },
       },
       {
         label: "Functions",
+        unit: "deployed",
         value: count((r) => r.kind === "Function"),
+        previous: prior(
+          count((r) => r.kind === "Function"),
+          0.06,
+        ),
         icon: <ResourceIcon kind="Function" size={13} />,
+        filter: { kind: "Function" },
       },
       {
         label: "Load balancers",
+        unit: "endpoints",
         value: count((r) => r.kind === "LoadBalancer"),
+        previous: prior(
+          count((r) => r.kind === "LoadBalancer"),
+          0,
+        ),
         icon: <ResourceIcon kind="LoadBalancer" size={13} />,
+        filter: { kind: "LoadBalancer" },
       },
       {
         label: "Internet facing",
+        unit: "exposed",
         value: publicFacing,
+        previous: prior(publicFacing, 0.04),
+        adverse: true,
         icon: (
           <SvgIcon
             slug="azure_public_ip_addresses"
@@ -99,108 +157,334 @@ function computeStats(all: ResourceRow[]): { scope: string; stats: Stat[] } {
             color="var(--cgx-critical)"
           />
         ),
+        filter: { exposure: "Public" },
       },
       {
         label: "Critical",
+        unit: "findings",
         value: critical,
+        previous: prior(critical, 0.09),
+        adverse: true,
         icon: (
           <SeverityGauge
             severity={critical > 0 ? "Critical" : "Low"}
             size={13}
           />
         ),
+        filter: { severity: "Critical" },
       },
     ],
   };
 }
 
-function StatCell({ stat, first }: { stat: Stat; first: boolean }) {
+/**
+ * The change since the previous period.
+ *
+ * Colour is applied only where direction has a meaning: more exposed or more
+ * critical resources is bad, more functions is just a number. Colouring
+ * everything would make the two that matter invisible among five that do not.
+ */
+function Delta({ stat }: { stat: Stat }) {
+  if (stat.previous === undefined) return null;
+  const diff = stat.value - stat.previous;
+  if (diff === 0)
+    return (
+      <span style={{ fontSize: 10, color: "var(--cg-text-muted)" }}>
+        no change
+      </span>
+    );
+
+  const worse = stat.adverse === true && diff > 0;
+  const better = stat.adverse === true && diff < 0;
+  const Arrow = diff > 0 ? ArrowUpRight : ArrowDownRight;
+  let color = "var(--cg-text-muted)";
+  if (worse) color = "var(--cgx-critical)";
+  else if (better) color = "var(--cgx-low)";
+
   return (
-    <div
+    <span
       style={{
-        // Rules BETWEEN cells, not around them: a border on every cell reads as
-        // a table of boxes rather than one continuous strip.
-        borderLeft: first ? "none" : "1px solid var(--cg-border-subtle)",
-        padding: first ? "0 10px 0 0" : "0 10px",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 2,
+        fontSize: 10,
+        color,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      <Arrow size={10} />
+      {Math.abs(diff).toLocaleString()}
+    </span>
+  );
+}
+
+/**
+ * One legend item, in the shape of a chart legend's large item.
+ *
+ * The pattern: a colour mark and a name on the first line, a large value with a
+ * small trailing unit on the second, and hairline rules BETWEEN items rather
+ * than a border around each — a box per figure reads as a table of cards, a
+ * shared rule reads as one continuous strip.
+ *
+ * The colour mark is the kit's own resource icon rather than a plain swatch. It
+ * carries the same tint a legend dot would, and additionally says WHICH kind of
+ * thing is being counted, which a dot cannot.
+ *
+ * `inactive` dims the item without removing it — the legend convention for "this
+ * series is toggled off", reused here for a count the current scope excludes, so
+ * a figure never silently disappears from the row.
+ */
+function LargeItem({
+  stat,
+  inactive,
+  onDrill,
+}: {
+  stat: Stat;
+  inactive?: boolean;
+  onDrill?: (f: DrillFilter) => void;
+}) {
+  const interactive = Boolean(onDrill) && !inactive;
+  return (
+    <button
+      type="button"
+      disabled={!interactive}
+      onClick={() => onDrill?.(stat.filter)}
+      title={
+        interactive
+          ? `Show ${stat.label.toLowerCase()} in Inventory`
+          : undefined
+      }
+      className={`cg-stat-item cg-stat-sep${interactive ? " cg-stat-cell" : ""}`}
+      style={{
+        padding: "2px 14px",
         minWidth: 0,
-        flex: "1 1 auto",
+        background: "transparent",
+        color: "inherit",
+        font: "inherit",
+        textAlign: "left",
+        cursor: interactive ? "pointer" : "default",
+        // Square corners. The separator IS this element's left border, so any
+        // radius bends its two ends into hooks — seven rules each curving away
+        // from the vertical, which reads as a rendering artefact rather than as
+        // the clean column dividers the strip is meant to have.
+        borderRadius: 0,
+        opacity: inactive ? 0.45 : 1,
       }}
     >
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 5,
-          fontSize: 10.5,
-          fontWeight: 600,
+          gap: 6,
+          fontSize: 11,
+          fontWeight: 500,
+          color: "var(--cg-text-muted)",
           whiteSpace: "nowrap",
+          minWidth: 0,
         }}
       >
-        {stat.icon}
-        {stat.label}
+        <span style={{ display: "inline-flex", flexShrink: 0 }}>
+          {stat.icon}
+        </span>
+        {/* Truncates instead of widening its track — a column that refuses to
+            shrink is what forces the whole strip onto a second row. */}
+        <span
+          style={{
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {stat.label}
+        </span>
       </div>
       <div
         style={{
-          marginTop: 1,
-          fontSize: 19,
-          lineHeight: 1.15,
-          fontWeight: 500,
-          fontVariantNumeric: "tabular-nums",
+          marginTop: 3,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 5,
+          minWidth: 0,
         }}
       >
-        {stat.value.toLocaleString()}
+        <span
+          style={{
+            fontSize: 22,
+            lineHeight: 1.1,
+            fontWeight: 600,
+            fontVariantNumeric: "tabular-nums",
+            color: "var(--cg-text-primary)",
+          }}
+        >
+          {stat.value.toLocaleString()}
+        </span>
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--cg-text-muted)",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {stat.unit}
+        </span>
+        <Delta stat={stat} />
       </div>
+    </button>
+  );
+}
+
+/** Legend loading state — the strip keeps its shape while data regenerates. */
+function LargeItemSkeleton() {
+  return (
+    <div
+      aria-hidden
+      className="cg-stat-item cg-stat-sep"
+      style={{ padding: "2px 14px", minWidth: 0 }}
+    >
+      <div
+        className="cg-stat-pulse"
+        style={{ height: 9, width: "70%", borderRadius: 3 }}
+      />
+      <div
+        className="cg-stat-pulse"
+        style={{ height: 18, width: "45%", borderRadius: 3, marginTop: 6 }}
+      />
     </div>
   );
 }
 
-export function AssetStats() {
+export function AssetStats({
+  onDrill,
+  loading = false,
+}: {
+  /** Omit to render the strip read-only (no Inventory to navigate to). */
+  onDrill?: (f: DrillFilter) => void;
+  loading?: boolean;
+}) {
   const { scope, stats } = React.useMemo(() => computeStats(rows()), []);
 
   return (
     <section
       aria-label="Asset overview"
       style={{
-        // Mirrors EMPTY_QUADRANT (left: 10, right: "54%") so the strip lines up
-        // with the events table beneath it on both edges.
         marginLeft: 10,
-        width: "calc(46% - 10px)",
-        minWidth: 380,
+        marginRight: 10,
         boxSizing: "border-box",
         fontFamily: APP_FONT,
         color: "var(--cg-text-primary)",
-        border: "1px solid var(--cg-border-card)",
-        borderRadius: 4,
+        // No outer box. The separators already group these into one strip, so
+        // a border around them adds a second, redundant enclosure — and it made
+        // the strip read as a card sitting on the page rather than as the page's
+        // own header.
         padding: "9px 12px 11px",
-        marginBottom: 10,
+        marginBottom: 22,
       }}
     >
       <GridPalette />
+      <style>{`
+        /* CSS owns the border: an inline one would outrank .cg-stat-sep. */
+        .cg-stat-item { border: none; }
+        .cg-stat-cell:hover { background: var(--cg-bg-hover); }
+        /*
+         * Separators BETWEEN items only, and deliberately more visible than
+         * --cg-border-subtle: at 7% alpha the rules were invisible on the dark
+         * canvas, so the strip read as loose text rather than as columns. Set
+         * per theme rather than from a token because this element renders
+         * outside the console token scope.
+         */
+        .cg-stat-sep { border-left: 1px solid rgba(255, 255, 255, 0.3); }
+        :root[data-theme="light"] .cg-stat-sep {
+          border-left-color: rgba(0, 0, 0, 0.22);
+        }
+        .cg-stat-pulse {
+          background: var(--cg-border-card);
+          opacity: .35;
+          animation: cg-stat-pulse 1.4s ease-in-out infinite;
+        }
+        @keyframes cg-stat-pulse {
+          0%, 100% { opacity: .2; }
+          50%      { opacity: .45; }
+        }
+        .cg-stat-cell:focus-visible {
+          outline: 2px solid var(--cg-accent);
+          outline-offset: -2px;
+        }
+      `}</style>
 
-      <h2 style={{ margin: 0, fontSize: 12.5, fontWeight: 700 }}>
-        Asset overview
-      </h2>
-      <div style={{ margin: "1px 0 9px", fontSize: 10.5, opacity: 0.72 }}>
-        {scope}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 12.5, fontWeight: 700 }}>
+          Asset overview
+        </h2>
+        <span style={{ fontSize: 10.5, color: "var(--cg-text-muted)" }}>
+          {scope}
+        </span>
       </div>
 
       {/*
        * Wraps rather than scrolls. A horizontal scrollbar on a summary strip
-       * hides the very counts it exists to surface, and the strip sits above a
-       * canvas that already owns the horizontal axis.
+       * hides the very counts it exists to surface.
        */}
-      <div
+      {/*
+       * A GRID, not a wrapping flex row.
+       *
+       * With `flex: 1 1 auto` each figure sized itself from its own content, so
+       * when the drawer opened and the strip wrapped, the second row's items
+       * landed wherever there was space — "Internet facing" and "Critical" sat
+       * under nothing in particular. Equal grid tracks mean a wrapped item
+       * always lands directly beneath a column above it.
+       *
+       * `auto-fit` + `minmax` also makes the strip SHRINK before it wraps: seven
+       * columns compress down to 132px each and only then fold, so opening the
+       * drawer narrows the columns rather than immediately breaking the row.
+       *
+       * The -1px shift clips the leading separator of EVERY row at once. Rows
+       * start at the same x because the tracks are equal, so one offset removes
+       * the row-start rules without needing to know which item begins a row —
+       * which is not knowable with `auto-fit`.
+       */}
+      <div style={{ overflow: "hidden", marginTop: 8 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
+            rowGap: 14,
+            marginLeft: -1,
+            alignItems: "stretch",
+          }}
+        >
+          {loading
+            ? stats.map((st) => <LargeItemSkeleton key={st.label} />)
+            : stats.map((st) => (
+                <LargeItem
+                  key={st.label}
+                  stat={st}
+                  // A count the current scope excludes is dimmed, not dropped —
+                  // a figure that vanishes reads as a rendering bug.
+                  inactive={st.value === 0}
+                  onDrill={onDrill}
+                />
+              ))}
+        </div>
+      </div>
+
+      <p
         style={{
-          display: "flex",
-          flexWrap: "wrap",
-          rowGap: 9,
-          alignItems: "flex-start",
+          margin: "8px 0 0",
+          fontSize: 10,
+          color: "var(--cg-text-muted)",
         }}
       >
-        {stats.map((s, i) => (
-          <StatCell key={s.label} stat={s} first={i === 0} />
-        ))}
-      </div>
+        Change shown against the previous period. Select a figure to open it in
+        Inventory.
+      </p>
     </section>
   );
 }

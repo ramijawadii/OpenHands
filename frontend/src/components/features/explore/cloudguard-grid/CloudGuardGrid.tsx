@@ -1,5 +1,6 @@
 /* eslint-disable i18next/no-literal-string -- explore capability grid */
 import React from "react";
+import { useSearchParams } from "react-router";
 import {
   AllCommunityModule,
   ModuleRegistry,
@@ -9,7 +10,7 @@ import {
   type IRowNode,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { buildColumns } from "./columns";
+import { buildColumns, SET_FILTER_FIELDS } from "./columns";
 import { branchIds, buildRows, type ResourceRow } from "./data";
 import { gridThemeFor } from "./theme";
 import { GridSkeleton } from "./Skeleton";
@@ -69,6 +70,9 @@ const LEAF_COUNT = 1000;
 const BOTTOM_GAP = 22;
 const MIN_HEIGHT = 360;
 const PAGE_SIZES = [25, 50, 100, 500];
+
+/** Query parameters the Overview may drill through with. */
+const DRILL_FIELDS = ["kind", "exposure", "severity", "resource"] as const;
 
 export function CloudGuardGrid() {
   const { theme } = useTheme();
@@ -235,6 +239,68 @@ export function CloudGuardGrid() {
     autoSized.current = true;
     api.autoSizeAllColumns();
   }, [api]);
+
+  /**
+   * Inbound drill-through from the Overview.
+   *
+   * The Overview's asset strip navigates here with the filter in the query
+   * (`?kind=Bucket`, `?exposure=Public`, `?severity=Critical`). Applying it as
+   * a real AG Grid filter model — rather than pre-filtering the row data —
+   * means `GridToolbar` renders it as a removable chip and the user can see,
+   * and undo, exactly what narrowed the list. A silently pre-filtered grid is
+   * the drill-through equivalent of the empty-state trap.
+   *
+   * **The model shape must match the column's filter.** All three drill fields
+   * are `SET_FILTER_FIELDS`, so their model is `SetFilter`'s `string[]` — not
+   * the `{filterType, type, filter}` a text filter takes. Writing the text
+   * shape left the column holding a model its own filter could not read, and
+   * the grid threw on the next filter change (adding a second filter, or
+   * clearing a chip) because that is when every active filter is re-evaluated.
+   * The drill APPEARED to work only because the throw came one interaction
+   * later. Branching on the same set the columns are built from keeps the two
+   * from drifting apart again.
+   *
+   * **The drill is a one-shot command, not persistent state.** The parameters
+   * used to stay in the URL for the rest of the session, and the tab links are
+   * built from the current query — so once anyone had drilled through even
+   * once, every later arrival at Inventory re-applied that filter. Clearing the
+   * chip did not help: it cleared the grid's model but not the URL, so going to
+   * Overview and back brought the filter straight back, with nothing on screen
+   * to explain where it came from. Consuming the parameters — applying them,
+   * then stripping them with a `replace` so no history entry is added — makes
+   * arriving at Inventory without drilling always mean an unfiltered grid,
+   * while a drill link shared with someone else still works on their first load.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const drillKey = DRILL_FIELDS.map(
+    (f) => `${f}=${searchParams.get(f) ?? ""}`,
+  ).join("&");
+  React.useEffect(() => {
+    if (!api) return;
+    const model: Record<string, unknown> = {};
+    const present: string[] = [];
+    DRILL_FIELDS.forEach((field) => {
+      const v = searchParams.get(field);
+      if (!v) return;
+      present.push(field);
+      model[field] = SET_FILTER_FIELDS.has(field)
+        ? [v]
+        : { filterType: "text", type: "equals", filter: v };
+    });
+    if (present.length === 0) return;
+
+    api.setFilterModel(model);
+
+    // Strip what was just consumed. Every other parameter (page scope, view)
+    // is preserved — only the drill fields are one-shot.
+    const next = new URLSearchParams(searchParams);
+    present.forEach((f) => next.delete(f));
+    setSearchParams(next, { replace: true });
+    // `drillKey` rather than `searchParams`: the object identity changes on
+    // every navigation, which would re-apply (and so re-assert) the filter
+    // after the user cleared it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api, drillKey]);
 
   return (
     <SurfaceErrorBoundary

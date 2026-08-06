@@ -38,6 +38,9 @@
   --cg-bg-card: #121212;
   --cg-bg-hover: #0d0d0c;
   --cg-bg-active: #0a0a0a;
+  /* Tab-pill states — see the block above [data-theme="light"]. */
+  --cg-tab-active-bg: #0a0a0a;
+  --cg-tab-hover-bg: #141413;
   --cg-bg-badge: rgba(43, 43, 41, 0.6);
   --cg-text-primary: #f7f7f2;
   --cg-text-nav: #bfbdb4;
@@ -69,6 +72,165 @@
   --cg-code-bg: #1a1a19;
 }
 
+/*
+ * Hover-revealed affordances.
+ *
+ * `visibility` + `opacity` rather than `display: none` — the elements stay in
+ * layout, so revealing one does not reflow the row under the pointer, and they
+ * remain in the accessibility tree for screen readers regardless of hover.
+ * `:focus-within` mirrors every hover rule so keyboard users reach them too.
+ */
+.cg-sec-copy,
+.cg-task-id {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.cg-sec:hover .cg-sec-copy,
+.cg-sec:focus-within .cg-sec-copy,
+.cg-task:hover .cg-task-id,
+.cg-task:focus-within .cg-task-id {
+  opacity: 1;
+}
+/* Never hide a control that currently has focus. */
+.cg-sec-copy:focus-visible {
+  opacity: 1;
+}
+
+/*
+ * Themed checkbox.
+ *
+ * The native control paints from the OS, not the page: on dark it renders a
+ * light box with a blue tick that belongs to neither theme, and it ignores the
+ * accent entirely. `appearance: none` hands the box back to us; the tick is a
+ * masked SVG so it inherits `currentColor` and follows the theme.
+ *
+ * Sized in `em` so a checkbox next to 12.5px text is proportionate to it
+ * without every caller passing a pixel size.
+ */
+.cg-check {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0;
+  border: 1px solid var(--cg-border-strong);
+  border-radius: 3px;
+  background: var(--cg-input-bg);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease,
+    border-color 0.12s ease;
+}
+.cg-check::before {
+  content: "";
+  width: 0.7em;
+  height: 0.7em;
+  transform: scale(0);
+  transition: transform 0.12s ease-in-out;
+  background-color: currentColor;
+  /* Inline mask, not a background-image: the glyph then takes `color`, so it
+     stays legible against whichever accent the active theme resolves to. */
+  clip-path: polygon(
+    14% 44%,
+    0 65%,
+    36% 100%,
+    100% 22%,
+    83% 6%,
+    36% 66%
+  );
+}
+.cg-check:checked {
+  background: var(--cg-accent);
+  border-color: var(--cg-accent);
+  color: #fff;
+}
+.cg-check:checked::before {
+  transform: scale(1);
+}
+.cg-check:hover:not(:disabled) {
+  border-color: var(--cg-accent);
+}
+.cg-check:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: 2px;
+}
+.cg-check:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/*
+ * Report action buttons (`← Reports`, `Ask AI`, `Save to reports`, …).
+ *
+ * Same state language as the tab pills — hover and press are the tab tokens, so
+ * an action in a report header reads as part of the same control system rather
+ * than as a differently-behaved toolbar. A CLASS rather than the inline style
+ * these used, because inline styles cannot express `:hover`, `:active`,
+ * `:disabled` or `:focus-visible` — the buttons previously had no hover state
+ * at all and a disabled one looked identical to an enabled one.
+ */
+.cg-report-action {
+  background: transparent;
+  /* Borderless, like the drawer tabs. A row of outlined buttons beside a row of
+     borderless pills reads as two different control systems on one surface. */
+  border: none;
+  border-radius: 6px;
+  color: var(--cg-text-nav);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+.cg-report-action:hover:not(:disabled) {
+  background: var(--cg-tab-hover-bg);
+  color: var(--cg-text-primary);
+}
+.cg-report-action:active:not(:disabled) {
+  background: var(--cg-tab-active-bg);
+}
+.cg-report-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cg-report-action:focus-visible {
+  outline: 2px solid var(--cg-accent);
+  outline-offset: -2px;
+}
+
+/*
+ * The primary action (Save to reports) carries the SELECTED-tab treatment
+ * rather than an accent outline. Once the row went borderless there was no
+ * outline left to emphasise with, and a filled pill is the emphasis this
+ * surface already uses for "this is the one that matters".
+ */
+.cg-report-action-primary,
+.cg-report-action-primary:hover:not(:disabled) {
+  background: var(--cg-tab-active-bg);
+  color: var(--cg-text-primary);
+}
+/* A failed save must not look like a normal one — colour, since there is no
+   border to redden. */
+.cg-report-action-danger,
+.cg-report-action-danger:hover:not(:disabled) {
+  background: var(--cg-danger-bg);
+  color: var(--cg-danger);
+}
+
+/*
+ * Tab-pill states are their OWN tokens, not borrowed surface tokens.
+ *
+ * The tab strips reused `--cg-bg-card` / `--cg-bg-active`, which works only
+ * while every skin happens to define those as neutrals. `.cg-m365` does not —
+ * its `--cg-bg-active` is a blue accent wash — so the moment the drawer strip
+ * adopted the M365 surface (which it does whenever a report or the inventory
+ * table is open) the selected tab turned blue, and the pill's colour depended
+ * on what was open behind it rather than on the tab being selected.
+ *
+ * Naming the state gives every skin one place to answer "what does a selected
+ * tab look like", and keeps the pill black in dark mode everywhere.
+ */
 [data-theme="light"] {
   color-scheme: light;
   --cg-bg-page: hsl(48deg, 33.3%, 97.1%);
@@ -77,6 +239,8 @@
   --cg-bg-card: #ffffff;
   --cg-bg-hover: hsl(50deg, 20.7%, 91%);
   --cg-bg-active: hsl(50deg, 20.7%, 88.6%);
+  --cg-tab-active-bg: hsl(50deg, 20.7%, 88.6%);
+  --cg-tab-hover-bg: hsl(50deg, 20.7%, 93%);
   --cg-bg-badge: rgba(200, 190, 170, 0.4);
   --cg-text-primary: hsl(0deg, 0%, 7%);
   --cg-text-nav: hsl(60deg, 2.5%, 23.3%);

@@ -2,33 +2,31 @@
 import React from "react";
 import {
   ArrowLeft,
-  Bot,
   Check,
   ChevronDown,
   ChevronRight,
   Copy,
   FileJson,
+  FileSearch,
+  LayoutGrid,
+  LifeBuoy,
   MoreHorizontal,
+  Network,
+  Radar,
   Save,
   Ticket,
   UserPlus,
 } from "lucide-react";
-import {
-  CG_ASK_ABOUT_EVENT,
-  type CgAskAboutDetail,
-} from "#/hooks/chat/use-chat-input-logic";
+
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
-import {
-  drawerTabStrip,
-  drawerTab,
-} from "#/components/admin/pages/graph-shell";
+import { SideRailPanel } from "#/components/admin/admin-kit";
 import { APP_FONT } from "./theme";
 import { GridPalette } from "./palette";
 import { SvgIcon } from "./SvgIcon";
 import { ResourceIcon } from "./icons";
 import { SeverityGauge } from "./SeverityGauge";
-import { SEVERITY_OF, eventAsText, eventAskReference } from "./event-data";
+import { SEVERITY_OF, eventAsText } from "./event-data";
 import type { EventRow, LogLine } from "./event-data";
 import { eventAsJson } from "./EventMenu";
 import { eventReportFilename, eventReportMarkdown } from "./event-report";
@@ -55,20 +53,22 @@ import { SecurityGraph } from "./SecurityGraph";
  *    region, environment and type are told by icon, so that when something on
  *    screen is coloured it always means the same thing.
  *
- * Chrome primitives come from the graph drawer so a finding reads identically
- * wherever it is reached from; severity uses the grid's own `SeverityGauge`,
- * since this is opened from the events table and a severity must not change
- * glyph between a row and its detail.
+ * Chrome is `SideRailPanel` — the same header / left rail / footer the
+ * workspace detail drawer uses in Platform settings, factored out of
+ * `SideRailDrawer` so this is the identical component rather than a lookalike.
+ * Severity still uses the grid's own `SeverityGauge`: this is opened from the
+ * events table, and a severity must not change glyph between a row and its
+ * detail.
  */
 
 type ViewId = "overview" | "finding" | "evidence" | "response" | "graph";
 
-const VIEWS: { id: ViewId; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "finding", label: "Finding" },
-  { id: "evidence", label: "Evidence" },
-  { id: "response", label: "Response" },
-  { id: "graph", label: "Security graph" },
+const VIEWS: { id: ViewId; label: string; icon: React.ReactNode }[] = [
+  { id: "overview", label: "Overview", icon: <LayoutGrid size={13} /> },
+  { id: "finding", label: "Finding", icon: <Radar size={13} /> },
+  { id: "evidence", label: "Evidence", icon: <FileSearch size={13} /> },
+  { id: "response", label: "Response", icon: <LifeBuoy size={13} /> },
+  { id: "graph", label: "Security graph", icon: <Network size={13} /> },
 ];
 
 /* ------------------------------------------------------------------ *
@@ -128,18 +128,22 @@ const clock = (d: Date) =>
  * Primitives
  * ------------------------------------------------------------------ */
 
+/**
+ * Metrics copied from `ConversationTabNav` so the report actions and the drawer
+ * tabs are the same control: 28px tall, 10px padding, 12.5px type, 6px gap.
+ * Colour, background, radius and every interactive state come from the
+ * `.cg-report-action` class — inline styles beat a class, so nothing the class
+ * owns may be repeated here.
+ */
 const btn: React.CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: 6,
-  height: 24,
-  padding: "0 9px",
-  fontSize: 11.5,
+  height: 28,
+  padding: "0 10px",
+  fontSize: 12.5,
+  lineHeight: 1,
   fontFamily: APP_FONT,
-  background: "transparent",
-  color: "var(--cg-text-primary)",
-  border: "1px solid var(--cg-border)",
-  borderRadius: 3,
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
@@ -813,7 +817,6 @@ export function EventReport({
   const severity = SEVERITY_OF[event.type] ?? "Low";
   const sla = untilLabel(event.slaDue);
   const isGraph = view === "graph";
-  const service = SERVICE_SLUG[event.serviceType];
 
   // A different event is a different report — never inherit state from the last.
   React.useEffect(() => {
@@ -847,345 +850,190 @@ export function EventReport({
     }
   };
 
-  const askAgent = () => {
-    const detail: CgAskAboutDetail = { text: eventAskReference(event) };
-    window.dispatchEvent(new CustomEvent(CG_ASK_ABOUT_EVENT, { detail }));
-  };
-
   return (
-    <div
-      style={{
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        fontFamily: APP_FONT,
-        background: "var(--cg-bg-page)",
-      }}
-    >
+    <div style={{ height: "100%", minHeight: 0, fontFamily: APP_FONT }}>
       {/* Icon tints resolve to currentColor without the kit's palette. */}
       <GridPalette />
 
-      {/* ── Header: global, identical on every tab ────────────────────── */}
-      <header
-        style={{
-          flexShrink: 0,
-          padding: `12px 16px ${GAP_CHIP}px`,
-          borderBottom: "1px solid var(--cg-border-subtle)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: GAP_CHIP,
-            marginBottom: 10,
-          }}
-        >
-          <button type="button" style={btn} onClick={onBack}>
-            <ArrowLeft size={12} /> Reports
-          </button>
+      <SideRailPanel
+        title={
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+          >
+            <SeverityGauge severity={severity} size={16} />
+            {event.title}
+          </span>
+        }
+        subtitle={
+          <>
+            {event.resource} · {event.provider} · {event.region} · {event.env} ·{" "}
+            {event.serviceType} · blast radius {event.blastRadius} · owner{" "}
+            {event.owner} · opened {agoLabel(event.at)} ·{" "}
+            <span
+              style={{
+                color: sla.overdue ? "var(--cgx-critical)" : undefined,
+                fontWeight: sla.overdue ? 600 : undefined,
+              }}
+            >
+              SLA {sla.text}
+            </span>
+          </>
+        }
+        sections={VIEWS.map((v) => ({
+          id: v.id,
+          label: v.label,
+          icon: v.icon,
+        }))}
+        active={view}
+        onSelect={(id) => setView(id as ViewId)}
+        footer={
           <span
             style={{
+              marginRight: "auto",
+              alignSelf: "center",
               display: "inline-flex",
               alignItems: "center",
-              gap: 7,
-              fontSize: 12.5,
-              fontWeight: 700,
-              color: "var(--cg-text-primary)",
+              gap: 8,
+              fontSize: 11,
+              color: "var(--cg-text-muted)",
             }}
           >
-            <SeverityGauge severity={severity} size={18} />
-            {severity}
+            {save === "saved" ? "Saved to reports" : "Unsaved report"}
+            {ticket && (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  color: "var(--cg-text-primary)",
+                }}
+              >
+                <Ticket size={11} />
+                {ticket}
+              </span>
+            )}
           </span>
-          <span
-            aria-live="polite"
-            style={{
-              marginLeft: "auto",
-              fontSize: 12,
-              fontWeight: 600,
-              color: sla.overdue
-                ? "var(--cgx-critical)"
-                : "var(--cg-text-muted)",
-            }}
-          >
-            SLA {sla.text}
-          </span>
-        </div>
-
-        <h1
-          style={{
-            margin: 0,
-            fontSize: 19,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            color: "var(--cg-text-primary)",
-          }}
-        >
-          {event.title}
-        </h1>
-        <div
-          style={{
-            marginTop: 2,
-            fontSize: 12.5,
-            color: "var(--cg-text-muted)",
-          }}
-          title={event.resourceId}
-        >
-          {event.resource}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: GAP_CHIP,
-            margin: "10px 0",
-          }}
-        >
-          <Chip
-            icon={
-              PROVIDER_SLUG[event.provider] ? (
-                <SvgIcon
-                  slug={PROVIDER_SLUG[event.provider]}
-                  size={14}
-                  useBrandColor
-                />
-              ) : undefined
-            }
-          >
-            {event.provider}
-          </Chip>
-          <Chip
-            icon={
-              <SvgIcon
-                slug="azure_virtual_networks"
-                size={14}
-                color="var(--cgx-neutral)"
-              />
-            }
-          >
-            {event.region}
-          </Chip>
-          <Chip
-            icon={
-              <SvgIcon
-                slug="azure_management_groups"
-                size={14}
-                color="var(--cgx-neutral)"
-              />
-            }
-          >
-            {event.env}
-          </Chip>
-          {service && (
-            <Chip
-              icon={
-                <SvgIcon slug={service.slug} size={14} color={service.color} />
-              }
-            >
-              {event.serviceType}
-            </Chip>
-          )}
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: `6px ${GAP_SECTION}px`,
-          }}
-        >
-          <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
-            Blast radius{" "}
-            <strong style={{ color: "var(--cg-text-primary)" }}>
-              {event.blastRadius}
-            </strong>{" "}
-            services
-          </span>
-          <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
-            Owner{" "}
-            <strong style={{ color: "var(--cg-text-primary)" }}>
-              {event.owner}
-            </strong>
-          </span>
-          <span style={{ fontSize: 12, color: "var(--cg-text-muted)" }}>
-            Opened{" "}
-            <strong style={{ color: "var(--cg-text-primary)" }}>
-              {agoLabel(event.at)}
-            </strong>
-          </span>
-
-          {/*
-           * Five visible actions, the rest behind the overflow. Past five a
-           * toolbar stops being scannable and becomes a search.
-           */}
-          <span
-            style={{
-              position: "relative",
-              marginLeft: "auto",
-              display: "flex",
-              flexWrap: "wrap",
-              gap: GAP_CHIP,
-            }}
-          >
+        }
+        actions={
+          <>
             <button
               type="button"
+              className="cg-report-action"
+              style={btn}
+              onClick={onBack}
+            >
+              <ArrowLeft size={12} /> Reports
+            </button>
+            <button
+              type="button"
+              className="cg-report-action"
               style={btn}
               disabled={assignee !== "unassigned"}
               onClick={() => setAssignee("me")}
-              title={
-                assignee !== "unassigned"
-                  ? `Assigned to ${assignee}`
-                  : "Assign this event to yourself"
-              }
             >
               <UserPlus size={12} />{" "}
               {assignee === "unassigned" ? "Assign" : assignee}
             </button>
             <button
               type="button"
+              className="cg-report-action"
               style={btn}
               disabled={Boolean(ticket)}
               onClick={() => setTicket(newTicketId(event))}
             >
               <Ticket size={12} /> {ticket ?? "Open ticket"}
             </button>
-            <button type="button" style={btn} onClick={askAgent}>
-              <Bot size={12} /> Ask AI
-            </button>
-            <button
-              type="button"
-              style={btn}
-              onClick={() => download(`${event.id}.json`, eventAsJson(current))}
-            >
-              <FileJson size={12} /> Export
-            </button>
-            <button
-              type="button"
-              aria-label="More actions"
-              aria-expanded={overflow}
-              style={{ ...btn, padding: "0 6px" }}
-              onClick={() => setOverflow((v) => !v)}
-            >
-              <MoreHorizontal size={13} />
-            </button>
-
-            {overflow && (
-              <div
-                role="menu"
-                style={{
-                  position: "absolute",
-                  top: "calc(100% + 4px)",
-                  right: 0,
-                  zIndex: 20,
-                  minWidth: 180,
-                  padding: "4px 0",
-                  background: "var(--cg-bg-card)",
-                  border: "1px solid var(--cg-border)",
-                  borderRadius: 4,
-                  boxShadow:
-                    "var(--cg-shadow-dropdown, 0 8px 24px rgba(0,0,0,.45))",
-                }}
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              <button
+                type="button"
+                aria-label="More actions"
+                aria-expanded={overflow}
+                className="cg-report-action"
+                style={{ ...btn, padding: "0 6px" }}
+                onClick={() => setOverflow((v) => !v)}
               >
-                <button
-                  type="button"
+                <MoreHorizontal size={13} />
+              </button>
+              {overflow && (
+                <div
+                  role="menu"
                   style={{
-                    ...btn,
-                    width: "100%",
-                    justifyContent: "flex-start",
-                    border: "none",
-                    borderRadius: 0,
-                  }}
-                  onClick={() => {
-                    navigator.clipboard?.writeText(eventAsText(current));
-                    setOverflow(false);
+                    position: "absolute",
+                    // Opens DOWNWARD: the bar moved from the panel footer to
+                    // the header, so a menu anchored to the button's top edge
+                    // would open off the top of the drawer.
+                    top: "calc(100% + 4px)",
+                    right: 0,
+                    zIndex: 20,
+                    minWidth: 180,
+                    padding: "4px 0",
+                    background: "var(--cg-bg-card)",
+                    border: "1px solid var(--cg-border)",
+                    borderRadius: 4,
+                    boxShadow:
+                      "var(--cg-shadow-dropdown, 0 8px 24px rgba(0,0,0,.45))",
                   }}
                 >
-                  <Copy size={12} /> Copy details
-                </button>
-                <button
-                  type="button"
-                  style={{
-                    ...btn,
-                    width: "100%",
-                    justifyContent: "flex-start",
-                    border: "none",
-                    borderRadius: 0,
-                    color:
-                      save === "error"
-                        ? "var(--cgx-critical)"
-                        : "var(--cg-text-primary)",
-                  }}
-                  disabled={save === "saving"}
-                  onClick={() => {
-                    onSave();
-                    setOverflow(false);
-                  }}
-                >
-                  {save === "saved" ? <Check size={12} /> : <Save size={12} />}
-                  {
-                    {
-                      idle: "Save to reports",
-                      saving: "Saving…",
-                      saved: "Saved",
-                      error: "Save failed — retry",
-                    }[save]
-                  }
-                </button>
-              </div>
-            )}
-          </span>
-        </div>
-      </header>
-
-      <nav
-        className="cg-scroll"
-        style={{
-          ...drawerTabStrip,
-          gap: 16,
-          padding: "4px 16px 0",
-          overflowY: "hidden",
-        }}
-      >
-        {VIEWS.map((v) => (
-          <button
-            key={v.id}
-            type="button"
-            role="tab"
-            aria-selected={view === v.id}
-            style={drawerTab(view === v.id)}
-            onClick={() => setView(v.id)}
-          >
-            {v.label}
-          </button>
-        ))}
-        <span
-          aria-live="polite"
-          style={{
-            marginLeft: "auto",
-            alignSelf: "center",
-            fontSize: 10.5,
-            color: "var(--cg-text-muted)",
-          }}
-        >
-          {save === "saved" ? "Saved to reports" : "Unsaved report"}
-        </span>
-      </nav>
-
-      <div
-        className="cg-scroll"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          overflowY: isGraph ? "hidden" : "auto",
-          // The graph is a canvas: it takes the pane, so it gets tighter
-          // padding and no reading measure.
-          padding: isGraph ? "10px 12px 12px" : `${GAP_SECTION}px 16px 32px`,
-        }}
+                  <button
+                    type="button"
+                    className="cg-report-action"
+                    style={{
+                      ...btn,
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      border: "none",
+                      borderRadius: 0,
+                    }}
+                    onClick={() => {
+                      download(`${event.id}.json`, eventAsJson(current));
+                      setOverflow(false);
+                    }}
+                  >
+                    <FileJson size={12} /> Export JSON
+                  </button>
+                  <button
+                    type="button"
+                    className="cg-report-action"
+                    style={{
+                      ...btn,
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      border: "none",
+                      borderRadius: 0,
+                    }}
+                    onClick={() => {
+                      navigator.clipboard?.writeText(eventAsText(current));
+                      setOverflow(false);
+                    }}
+                  >
+                    <Copy size={12} /> Copy details
+                  </button>
+                </div>
+              )}
+            </span>
+            <button
+              type="button"
+              className={`cg-report-action ${
+                save === "error"
+                  ? "cg-report-action-danger"
+                  : "cg-report-action-primary"
+              }`}
+              style={btn}
+              disabled={save === "saving"}
+              onClick={onSave}
+            >
+              {save === "saved" ? <Check size={12} /> : <Save size={12} />}
+              {
+                {
+                  idle: "Save to reports",
+                  saving: "Saving…",
+                  saved: "Saved",
+                  error: "Save failed — retry",
+                }[save]
+              }
+            </button>
+          </>
+        }
       >
         {view === "overview" && (
           <OverviewTab
@@ -1206,8 +1054,12 @@ export function EventReport({
             sla={sla}
           />
         )}
-        {isGraph && <SecurityGraph event={event} />}
-      </div>
+        {isGraph && (
+          <div style={{ height: "100%", minHeight: 420 }}>
+            <SecurityGraph event={event} />
+          </div>
+        )}
+      </SideRailPanel>
     </div>
   );
 }

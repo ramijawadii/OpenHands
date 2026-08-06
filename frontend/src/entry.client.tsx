@@ -15,11 +15,16 @@ import OptionService from "./api/option-service/option-service.api";
 import { displayErrorToast } from "./utils/custom-toast-handlers";
 import { queryClient } from "./query-client-config";
 import { installGlobalErrorCapture } from "./components/features/reliability/global-error-capture";
+import { startTelemetry } from "./components/features/reliability/telemetry-transport";
 
 // Installed at the entry, before hydration, so it covers the failures React
 // error boundaries structurally cannot see (event handlers, timers, unhandled
 // promise rejections) from the very first frame.
 installGlobalErrorCapture();
+// Batching sink for the counters the capture and the boundaries produce. Safe to
+// start unconditionally: it no-ops until the backend route is enabled, drops on
+// failure, and disables itself rather than retrying into a failing backend.
+startTelemetry();
 
 function PosthogInit() {
   const [posthogClientKey, setPosthogClientKey] = React.useState<string | null>(

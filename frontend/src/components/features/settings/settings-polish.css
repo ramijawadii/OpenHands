@@ -92,6 +92,12 @@
   --cg-bg-card: #292929;
   --cg-bg-hover: #2d2d2d;
   --cg-bg-active: rgba(0, 120, 212, 0.15);
+  /* Tab pills stay black under this skin too: the drawer strip adopts .cg-m365
+     whenever a report or the inventory table is open, and the selected tab must
+     not change colour because of what is open behind it. Deliberately NOT
+     --cg-bg-active, which is an accent wash here. */
+  --cg-tab-active-bg: #0a0a0a;
+  --cg-tab-hover-bg: #141413;
   --cg-bg-badge: #292929;
   --cg-text-primary: #ffffff;
   --cg-text-nav: #d2d0ce;
@@ -133,6 +139,9 @@
   --cg-bg-card: #ffffff;
   --cg-bg-hover: #f3f2f1;
   --cg-bg-active: rgba(0, 120, 212, 0.1);
+  /* Neutral greys, matching the dark side's "not the accent wash" rule. */
+  --cg-tab-active-bg: #e1dfdd;
+  --cg-tab-hover-bg: #f3f2f1;
   --cg-bg-badge: #f3f2f1;
   --cg-text-primary: #201f1e;
   --cg-text-nav: #323130;

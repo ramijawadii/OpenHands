@@ -106,80 +106,97 @@ export function useOnlyOfficeLive(
   tab: string = "",
 ) {
   const connectorRef = React.useRef<Connector | null>(null);
-  const pollRef = React.useRef<number | undefined>(undefined);
   const [agentWorking, setAgentWorking] = React.useState(false);
-
   const enabled = Boolean(conversationId && filePath);
 
-  const stop = React.useCallback(() => {
-    if (pollRef.current) window.clearInterval(pollRef.current);
-    pollRef.current = undefined;
-    if (enabled) {
-      openHands
-        .post("/api/onlyoffice/live/deregister", { conversationId, filePath })
-        .catch(() => {});
-    }
-    try {
-      connectorRef.current?.disconnect?.();
-    } catch {
-      /* editor already gone */
-    }
-    connectorRef.current = null;
-  }, [enabled, conversationId, filePath]);
-
-  // Called from the editor's onDocumentReady (the ready-gate).
-  const onDocumentReady = React.useCallback(() => {
-    if (!enabled) return;
+  // Acquire the connector on MOUNT by polling for the editor instance — we do NOT
+  // depend on the onDocumentReady event firing (it doesn't, reliably, in this
+  // embed). Once the instance + createConnector exist, register + start polling.
+  //
+  // NOTE: `createConnector` is an ONLYOFFICE *Developer Edition* feature. The
+  // community Document Server exposes the editor instance but NOT createConnector,
+  // so on that build this loop finds the instance, never gets a connector, and
+  // silently gives up after the window — the agent then operates headless (it
+  // writes files, which the user reopens). If a Developer-Edition DS is swapped
+  // in, this same code lights up live editing with no changes.
+  React.useEffect(() => {
+    if (!enabled) return undefined;
     const w = window as unknown as {
       DocEditor?: {
         instances?: Record<string, { createConnector?: () => Connector }>;
       };
     };
-    const inst = w.DocEditor?.instances?.[editorId];
-    if (!inst?.createConnector) return;
-    try {
-      connectorRef.current = inst.createConnector();
-    } catch {
-      return; // no connector → agent stays headless; nothing to do
-    }
+    let cancelled = false;
+    let attempts = 0;
+    let pollTimer: number | undefined;
 
-    openHands
-      .post("/api/onlyoffice/live/register", {
-        conversationId,
-        filePath,
-        editorId,
-        tab,
-      })
-      .catch(() => {});
-
-    const poll = async () => {
-      if (!connectorRef.current) return;
-      let cmds: LiveCommand[] = [];
-      try {
-        const { data } = await openHands.get("/api/onlyoffice/live/poll", {
-          params: { conversation_id: conversationId, path: filePath },
-        });
-        cmds = (data?.commands as LiveCommand[]) ?? [];
-      } catch {
-        return; // transient — next tick retries; backend TTL handles a real outage
-      }
-      if (cmds.length === 0) return;
-      setAgentWorking(true);
-      for (const cmd of cmds) {
-        // eslint-disable-next-line no-await-in-loop
-        const res = await runCommand(connectorRef.current, cmd);
-        // eslint-disable-next-line no-await-in-loop
-        await openHands
-          .post("/api/onlyoffice/live/ack", { id: cmd.id, ...res })
-          .catch(() => {});
-      }
-      setAgentWorking(false);
+    const startPollLoop = () => {
+      const poll = async () => {
+        if (cancelled || !connectorRef.current) return;
+        try {
+          const { data } = await openHands.get("/api/onlyoffice/live/poll", {
+            params: { conversation_id: conversationId, path: filePath },
+          });
+          const cmds = (data?.commands as LiveCommand[]) ?? [];
+          if (cmds.length === 0) return;
+          setAgentWorking(true);
+          for (const cmd of cmds) {
+            // eslint-disable-next-line no-await-in-loop
+            const res = await runCommand(connectorRef.current, cmd);
+            // eslint-disable-next-line no-await-in-loop
+            await openHands
+              .post("/api/onlyoffice/live/ack", { id: cmd.id, ...res })
+              .catch(() => {});
+          }
+          setAgentWorking(false);
+        } catch {
+          /* transient — next tick retries; backend TTL handles a real outage */
+        }
+      };
+      pollTimer = window.setInterval(poll, POLL_MS);
     };
 
-    pollRef.current = window.setInterval(poll, POLL_MS);
+    const tryConnect = () => {
+      if (cancelled) return;
+      const inst = w.DocEditor?.instances?.[editorId];
+      if (inst && typeof inst.createConnector === "function") {
+        try {
+          connectorRef.current = inst.createConnector();
+          openHands
+            .post("/api/onlyoffice/live/register", {
+              conversationId,
+              filePath,
+              editorId,
+              tab,
+            })
+            .catch(() => {});
+          startPollLoop();
+          return;
+        } catch {
+          /* connector unavailable on this DS build — fall through to headless */
+        }
+      }
+      attempts += 1;
+      // Community DS never exposes createConnector; give up quietly after the
+      // window and let the agent operate headless.
+      if (attempts < 30) window.setTimeout(tryConnect, 500);
+    };
+    tryConnect();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) window.clearInterval(pollTimer);
+      openHands
+        .post("/api/onlyoffice/live/deregister", { conversationId, filePath })
+        .catch(() => {});
+      try {
+        connectorRef.current?.disconnect?.();
+      } catch {
+        /* editor already gone */
+      }
+      connectorRef.current = null;
+    };
   }, [enabled, editorId, conversationId, filePath, tab]);
 
-  React.useEffect(() => stop, [stop]);
-
-  return { onDocumentReady, agentWorking };
+  return { onDocumentReady: () => {}, agentWorking };
 }

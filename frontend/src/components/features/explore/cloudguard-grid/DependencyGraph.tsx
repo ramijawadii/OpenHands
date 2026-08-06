@@ -271,6 +271,29 @@ function buildOption(
   const at = new Map(placed.map((n) => [n.id, n]));
   const taxi = layout === "hierarchical";
 
+  /**
+   * Axis extent measured from the nodes, never hard-coded.
+   *
+   * Hierarchical places nodes at `500 ± depth * 230` on a cartesian system whose
+   * axes were pinned to `0…1000`. Anything at depth 3 or beyond therefore landed
+   * OUTSIDE the axis range — x reaches -190 and 1190 — and was clipped to the
+   * edge, which is the misplacement seen after switching layouts: the depth
+   * filter defaults to "all", so a topology deep enough to overflow renders
+   * wrong every time hierarchical is applied.
+   *
+   * Deriving the extent from the data makes the layout correct at ANY depth,
+   * and the padding leaves room for the node symbol and its label, which are
+   * drawn in pixels around the coordinate and would otherwise be cut off.
+   */
+  const xs = placed.map((n) => n.x).filter((v): v is number => v != null);
+  const ys = placed.map((n) => n.y).filter((v): v is number => v != null);
+  const extent = (vals: number[], fallback: [number, number], pad: number) =>
+    vals.length
+      ? ([Math.min(...vals) - pad, Math.max(...vals) + pad] as const)
+      : fallback;
+  const [xMin, xMax] = extent(xs, [0, 1000], 150);
+  const [yMin, yMax] = extent(ys, [0, 640], 90);
+
   const edgeOpacity = (e: { source: string; target: string }) =>
     selected && !(e.source === selected || e.target === selected) ? 0.22 : 1;
 
@@ -377,12 +400,19 @@ function buildOption(
                 .map((e) => {
                   const a = at.get(e.source);
                   const b = at.get(e.target);
-                  if (!a?.x || !b?.x) return null;
+                  // `!= null`, not falsy: a node legitimately sitting at x = 0
+                  // or y = 0 would drop its connector under a truthiness test,
+                  // and a graph missing arbitrary edges reads as bad data
+                  // rather than as a rendering bug.
+                  if (
+                    a?.x == null ||
+                    a.y == null ||
+                    b?.x == null ||
+                    b.y == null
+                  )
+                    return null;
                   return {
-                    coords: elbow(
-                      { x: a.x, y: a.y as number },
-                      { x: b.x, y: b.y as number },
-                    ),
+                    coords: elbow({ x: a.x, y: a.y }, { x: b.x, y: b.y }),
                     lineStyle: {
                       color: "#b9c0ca",
                       width: e.kind === "replication" ? 2.4 : 1.3,
@@ -401,8 +431,8 @@ function buildOption(
     ...(taxi
       ? {
           grid: { left: 0, right: 0, top: 0, bottom: 0, show: false },
-          xAxis: { type: "value" as const, show: false, min: 0, max: 1000 },
-          yAxis: { type: "value" as const, show: false, min: 0, max: 640 },
+          xAxis: { type: "value" as const, show: false, min: xMin, max: xMax },
+          yAxis: { type: "value" as const, show: false, min: yMin, max: yMax },
         }
       : {}),
   };
@@ -789,9 +819,48 @@ export function DependencyGraph({
     };
   }, []);
 
+  /**
+   * Applying an option, with the coordinate-system switch handled explicitly.
+   *
+   * Hierarchical renders on a `cartesian2d` system with a hidden grid and axes;
+   * radial and force render with no coordinate system at all. `notMerge` alone
+   * does not fully retire the axis, grid and roam state built for the previous
+   * system — the leftover pan/zoom transform is re-applied in the new space, so
+   * going hierarchical → orbital → hierarchical came back at the wrong offset
+   * (and, once the axes and the series disagreed about which system was live,
+   * threw outright).
+   *
+   * `clear()` drops every component and the roam transform with them, so each
+   * coordinate-system change starts from a known-empty instance. It is scoped to
+   * an actual system change: clearing on every option would also throw away the
+   * user's pan and zoom each time they select a node or toggle blast radius.
+   */
+  const lastSystemRef = React.useRef<string | null>(null);
   React.useEffect(() => {
-    chartRef.current?.setOption(option, { notMerge: true });
-  }, [option]);
+    const chart = chartRef.current;
+    if (!chart) return;
+    const system = layout === "hierarchical" ? "cartesian" : "free";
+    const changed = lastSystemRef.current !== system;
+    lastSystemRef.current = system;
+
+    const apply = (fresh: boolean) => {
+      if (fresh) chart.clear();
+      chart.setOption(option, { notMerge: true });
+    };
+
+    try {
+      apply(changed);
+    } catch {
+      // Last-resort recovery: a failed apply leaves a blank or half-drawn
+      // canvas, which is worse than a reset one. Rebuilding from empty is the
+      // only state we can reach without knowing what went wrong.
+      try {
+        apply(true);
+      } catch {
+        chart.clear();
+      }
+    }
+  }, [option, layout]);
 
   // Registered against the live instance, so re-rendering the option cannot
   // silently drop the handler.
@@ -839,9 +908,17 @@ export function DependencyGraph({
     return () => node.removeEventListener("keydown", handler);
   }, [wide]);
 
+  /**
+   * Re-centre must discard the roam transform, which is exactly what a user who
+   * has panned into a corner is asking for. `setOption` preserves roam, so on
+   * its own this button cleared the selection and left the view where it was.
+   */
   const centre = () => {
     setSelected(null);
-    chartRef.current?.setOption(option, { notMerge: true });
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.clear();
+    chart.setOption(option, { notMerge: true });
   };
 
   const reset = () => {

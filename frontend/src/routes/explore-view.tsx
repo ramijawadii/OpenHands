@@ -63,6 +63,7 @@ import {
 } from "lucide-react";
 import { NAVIGATION, slugify } from "#/components/features/sidebar/sidebar";
 import { SubTabSettings } from "#/components/features/explore/subtab-settings";
+import { CG_OPEN_INVENTORY } from "#/components/features/remediation/ScopeAssetsView";
 import { CloudGuardGrid } from "#/components/features/explore/cloudguard-grid/CloudGuardGrid";
 import { OverviewView } from "#/components/features/explore/cloudguard-grid/OverviewView";
 
@@ -842,6 +843,31 @@ export default function ExploreView() {
     navigate,
   ]);
 
+  /**
+   * Inbound "open this asset in Inventory" from the remediation drawer.
+   *
+   * An event rather than a direct navigate: the drawer does not know this
+   * page's domain/subtab slugs, and threading them through the conversation
+   * tree would couple a drawer pane to the explore route shape. The page that
+   * OWNS the route performs the navigation.
+   *
+   * Registered ABOVE the not-found early return and dispatched through a ref:
+   * a hook placed after a conditional return runs in a different order on the
+   * two paths. The ref also keeps the subscription stable, so the listener is
+   * not torn down and re-added on every render.
+   */
+  const drillRef = React.useRef<
+    ((f: Record<string, string>) => void) | undefined
+  >(undefined);
+  React.useEffect(() => {
+    const onOpen = (e: Event) => {
+      const { detail } = e as CustomEvent<{ resource?: string }>;
+      if (detail?.resource) drillRef.current?.({ resource: detail.resource });
+    };
+    window.addEventListener(CG_OPEN_INVENTORY, onOpen);
+    return () => window.removeEventListener(CG_OPEN_INVENTORY, onOpen);
+  }, []);
+
   if (!domain || !subtab) {
     return (
       <div
@@ -882,6 +908,44 @@ export default function ExploreView() {
   // user's place for no reason.
   const goCap = (i: number) => navigate(href(i, view));
   const goView = (i: number) => navigate(href(activeCap, i));
+
+  /**
+   * Drill-through from an Overview figure to the Inventory grid.
+   *
+   * A summary count that cannot be opened is a dead end: reading "Internet
+   * facing 128" and then walking to Inventory, finding the Exposure column,
+   * opening its filter and choosing Public is four interactions to reproduce a
+   * number already on screen.
+   *
+   * The filter travels in the QUERY, which is exactly what the query is for
+   * here — taxonomy lives in the path, state lives in the query — so the
+   * destination is also a shareable link, and Back returns to the Overview
+   * with its own scope intact.
+   */
+  const inventoryCap = subtab.items.findIndex((it) => it.slug !== "overview");
+  const drillToInventory =
+    inventoryCap < 0
+      ? undefined
+      : (filter: Record<string, string>) => {
+          const next = new URLSearchParams(searchParams);
+          // Replace any previous drill-through rather than accumulating
+          // filters the user never chose together.
+          ["kind", "exposure", "severity", "resource"].forEach((k) =>
+            next.delete(k),
+          );
+          Object.entries(filter).forEach(([k, v]) => next.set(k, v));
+          const v = view > 0 ? `/${slugify(spec.views[view])}` : "";
+          const qs = next.toString();
+          navigate(
+            `/explore/${domain.slug}/${subtab.slug}/${subtab.items[inventoryCap].slug}` +
+              `${v}${qs ? `?${qs}` : ""}`,
+          );
+        };
+
+  // Fed every render so the listener registered above always calls the
+  // CURRENT drill function without taking it as a dependency.
+  drillRef.current = drillToInventory;
+
   // automatic-activation roving tablist: ←/→ move + activate the sibling tab
   const onTabKey = (
     e: React.KeyboardEvent<HTMLButtonElement>,
@@ -1150,7 +1214,7 @@ export default function ExploreView() {
             }}
           >
             {capItem?.slug === "overview" ? (
-              <OverviewView />
+              <OverviewView onDrill={drillToInventory} />
             ) : (
               <CloudGuardGrid />
             )}

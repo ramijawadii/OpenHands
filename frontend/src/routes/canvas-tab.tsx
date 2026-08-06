@@ -51,7 +51,17 @@ function ViewSwitcher({
   React.useEffect(() => clearHover, []);
 
   return (
-    <div className="flex items-center gap-1 border-b border-[var(--cg-border-subtle)] px-3 py-1.5">
+    /*
+     * Explicitly the drawer strip's colour, not the page's.
+     *
+     * The primary tab strip above (Chat · Canvas · …) has no background of its
+     * own, so it shows the drawer root's `--cg-bg-sidebar`. This bar inherited
+     * the pane's `--cg-bg-page` instead, and under `.cg-m365` those tokens are
+     * NOT the same value — #1b1a19 against #1f1f1f — so the two strips sat as
+     * visibly different bands with a seam between them. Only the bar takes the
+     * strip colour; the pane below keeps the page background it should have.
+     */
+    <div className="flex items-center gap-1 border-b border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] px-3 py-1.5">
       {VIEWS.map(({ id, label, icon: Icon }) => (
         <button
           key={id}
@@ -70,9 +80,11 @@ function ViewSwitcher({
           onFocus={() => onPrewarm(id)}
           className={cn(
             "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] transition-colors",
+            // Same pill tokens as the primary strip above, so the two bars
+            // cannot express "selected" differently.
             view === id
-              ? "bg-[var(--cg-bg-card)] text-[var(--cg-text-primary)]"
-              : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)]",
+              ? "bg-[var(--cg-tab-active-bg)] text-[var(--cg-text-primary)]"
+              : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-tab-hover-bg)] hover:text-[var(--cg-text-primary)]",
           )}
         >
           <Icon className="h-3.5 w-3.5" />

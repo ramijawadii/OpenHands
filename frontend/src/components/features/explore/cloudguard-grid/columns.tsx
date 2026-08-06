@@ -123,8 +123,16 @@ function TagsCell({ value }: { value: string[] }) {
   );
 }
 
-/** Low-cardinality fields get the checkbox set filter. */
-const SET_FILTER_FIELDS = new Set([
+/**
+ * Low-cardinality fields get the checkbox set filter.
+ *
+ * Exported because anything that writes a filter model from OUTSIDE the grid
+ * (the Overview's drill-through, a saved view, a deep link) has to know which
+ * shape a column expects: `SetFilter`'s model is `string[]`, AG Grid's built-in
+ * text filter's is `{filterType, type, filter}`. Writing the wrong one used to
+ * put the grid into a state where the next filter change threw.
+ */
+export const SET_FILTER_FIELDS = new Set([
   "kind",
   "serviceType",
   "providerService",

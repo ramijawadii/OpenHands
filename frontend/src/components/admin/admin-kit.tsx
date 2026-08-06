@@ -1,7 +1,7 @@
 /* eslint-disable react/require-default-props, i18next/no-literal-string, no-nested-ternary, react/jsx-no-useless-fragment, @typescript-eslint/no-use-before-define, jsx-a11y/control-has-associated-label -- CloudGuard admin console kit */
 import React from "react";
 import { Link, useSearchParams } from "react-router";
-import { Lock, ShieldAlert, ArrowUpRight } from "lucide-react";
+import { Lock, ShieldAlert, ArrowUpRight, ChevronDown } from "lucide-react";
 
 /**
  * URL-addressable tab state — backs a page's active tab with `?tab=<id>` so a tab
@@ -2018,6 +2018,25 @@ export interface RailSection {
   id: string;
   label: string;
   icon?: React.ReactNode;
+  /**
+   * Indent level, for rails whose sections are a two-level taxonomy — e.g. the
+   * remediation record's ten Lifecycle stages, which are children of Lifecycle
+   * rather than peers of Approvals and Audit. Flat rails omit it.
+   */
+  depth?: number;
+  /**
+   * Renders as a non-selectable heading rather than a button. A group whose
+   * children are all listed beneath it has nothing of its own to show, and
+   * making it clickable produces a dead pane.
+   */
+  heading?: boolean;
+  /**
+   * Makes a heading collapsible. The caller owns the state and is responsible
+   * for omitting the children while collapsed — the rail renders a list, it
+   * does not own the taxonomy.
+   */
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 export function SideRailDrawer({
   title,
@@ -2060,35 +2079,131 @@ export function SideRailDrawer({
           width,
           maxWidth: "96vw",
           height: "100%",
-          background: T.cardBg,
           borderLeft: `1px solid ${T.borderStrong}`,
-          display: "flex",
-          flexDirection: "column",
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "18px 20px",
-            borderBottom: `1px solid ${T.border}`,
-          }}
+        <SideRailPanel
+          title={title}
+          subtitle={subtitle}
+          sections={sections}
+          active={active}
+          onSelect={onSelect}
+          footer={footer}
+          onClose={onClose}
         >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}
-            >
-              {title}
-            </div>
-            {subtitle && (
-              <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 3 }}>
-                {subtitle}
-              </div>
-            )}
+          {children}
+        </SideRailPanel>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The drawer's INNER panel — header, left rail, scrolling content, footer —
+ * without the fixed overlay.
+ *
+ * Factored out so surfaces that are already inside a panel (the Report tab's
+ * event and resource reports) get the identical chrome instead of a lookalike.
+ * A copied layout drifts the first time one of them is adjusted, and then two
+ * "detail drawers" in the same product disagree about what a detail drawer is.
+ */
+export function SideRailPanel({
+  title,
+  subtitle,
+  sections,
+  active,
+  onSelect,
+  children,
+  footer,
+  actions,
+  onClose,
+  background,
+}: {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  sections: RailSection[];
+  active: string;
+  onSelect: (id: string) => void;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  /**
+   * Primary actions, on the TITLE row rather than in the footer.
+   *
+   * A footer action bar is pinned to the bottom of the panel, which puts the
+   * verbs a long way from the noun they act on and, in a drawer, below a long
+   * scrolling body — so "save this report" sat further from the report's own
+   * title than from whatever section happened to be scrolled into view. On the
+   * title row they are adjacent to what they operate on and visible without
+   * reaching the end of the content.
+   */
+  actions?: React.ReactNode;
+  /** Omit to hide the close affordance — a tab pane has nothing to close. */
+  onClose?: () => void;
+  /**
+   * Surface colour. Defaults to the card background, which is right for a panel
+   * floating on a page. Callers that ARE the page — the conversation drawer's
+   * tabs, which sit flush against the chat surface — pass the page colour so the
+   * panel and its sibling tabs read as one surface rather than a card on top of
+   * one.
+   */
+  background?: string;
+}) {
+  return (
+    <div
+      style={{
+        height: "100%",
+        minHeight: 0,
+        // Token, never a literal — it is #292929 dark / #ffffff light. Callers
+        // that render outside admin-shell must carry `.cg-m365` themselves.
+        background: background ?? T.cardBg,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "18px 20px",
+          borderBottom: `1px solid ${T.border}`,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: T.textPrimary }}>
+            {title}
           </div>
+          {subtitle && (
+            <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 3 }}>
+              {subtitle}
+            </div>
+          )}
+        </div>
+        {actions && (
+          /*
+           * Wraps rather than scrolls or truncates. The drawer is user-resizable
+           * to any width, so at a narrow width these have to fold onto a second
+           * line — a horizontal scroller would hide `Save to reports` behind a
+           * gesture, and truncation would drop it entirely.
+           */
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: 8,
+              marginLeft: "auto",
+              flexShrink: 0,
+            }}
+          >
+            {actions}
+          </div>
+        )}
+        {onClose && (
           <button
             type="button"
             onClick={onClose}
@@ -2104,90 +2219,158 @@ export function SideRailDrawer({
           >
             ✕
           </button>
-        </div>
-        {/* Body = left rail + scrollable content */}
-        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <div
-            className="custom-scrollbar"
-            style={{
-              width: 208,
-              flexShrink: 0,
-              borderRight: `1px solid ${T.border}`,
-              overflowY: "auto",
-              padding: "12px 10px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-            }}
-          >
-            {sections.map((s) => {
-              const on = s.id === active;
+        )}
+      </div>
+
+      {/* Body = left rail + scrollable content */}
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        <div
+          className="custom-scrollbar"
+          style={{
+            width: 208,
+            flexShrink: 0,
+            borderRight: `1px solid ${T.border}`,
+            overflowY: "auto",
+            padding: "12px 10px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+          }}
+        >
+          {sections.map((sec) => {
+            const on = sec.id === active;
+            const indent = 10 + (sec.depth ?? 0) * 12;
+
+            // A group heading labels the items beneath it; it is not a
+            // destination, so selecting it must not open a pane. When it is
+            // collapsible it becomes a disclosure control — still not a
+            // destination, but operable by keyboard like any other twisty.
+            if (sec.heading) {
+              const headingStyle: React.CSSProperties = {
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                width: "100%",
+                padding: `14px ${indent}px 4px`,
+                fontSize: 10.5,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+                color: T.textMuted,
+                background: "none",
+                border: "none",
+                textAlign: "left",
+                fontFamily: "inherit",
+              };
+
+              if (!sec.onToggle)
+                return (
+                  <div key={sec.id} style={headingStyle}>
+                    {sec.icon}
+                    {sec.label}
+                  </div>
+                );
+
               return (
                 <button
-                  key={s.id}
+                  key={sec.id}
                   type="button"
-                  onClick={() => onSelect(s.id)}
-                  // Active bg/text come from the theme-aware `.cg-rail-item-active`
-                  // CSS rule (dark = white on rgb(11,11,11); light = accent on tint),
-                  // so they must NOT be set inline (inline would override the class).
-                  className={on ? "cg-rail-item-active" : undefined}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    width: "100%",
-                    textAlign: "left",
-                    height: 34,
-                    padding: "0 10px",
-                    borderRadius: 7,
-                    border: "none",
-                    background: on ? undefined : "transparent",
-                    color: on ? undefined : T.textNav,
-                    fontSize: 12.5,
-                    fontWeight: on ? 600 : 400,
-                    cursor: "pointer",
-                    flexShrink: 0,
-                  }}
+                  aria-expanded={!sec.collapsed}
+                  onClick={sec.onToggle}
+                  style={{ ...headingStyle, cursor: "pointer" }}
                 >
-                  {s.icon && (
-                    <span
-                      style={{ display: "inline-flex", flexShrink: 0 }}
-                      aria-hidden
-                    >
-                      {s.icon}
-                    </span>
-                  )}
+                  {sec.icon}
+                  {sec.label}
                   <span
+                    aria-hidden
                     style={{
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      marginLeft: "auto",
+                      display: "inline-flex",
+                      // Rotation rather than two icons: the arrow animates
+                      // between states instead of swapping, which is what makes
+                      // it read as the same control opening.
+                      transform: sec.collapsed
+                        ? "rotate(-90deg)"
+                        : "rotate(0deg)",
+                      transition: "transform .15s ease",
                     }}
                   >
-                    {s.label}
+                    <ChevronDown size={12} />
                   </span>
                 </button>
               );
-            })}
-          </div>
-          <div style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}>
-            {children}
-          </div>
+            }
+
+            return (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => onSelect(sec.id)}
+                // Active bg/text come from the theme-aware `.cg-rail-item-active`
+                // CSS rule (dark = white on rgb(11,11,11); light = accent on tint),
+                // so they must NOT be set inline (inline would override the class).
+                className={on ? "cg-rail-item-active" : undefined}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  width: "100%",
+                  textAlign: "left",
+                  height: 34,
+                  padding: `0 10px 0 ${indent}px`,
+                  borderRadius: 7,
+                  border: "none",
+                  background: on ? undefined : "transparent",
+                  color: on ? undefined : T.textNav,
+                  fontSize: 12.5,
+                  fontWeight: on ? 600 : 400,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                {sec.icon && (
+                  <span
+                    style={{ display: "inline-flex", flexShrink: 0 }}
+                    aria-hidden
+                  >
+                    {sec.icon}
+                  </span>
+                )}
+                <span
+                  style={{
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {sec.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
-        {footer && (
-          <div
-            style={{
-              padding: "14px 20px",
-              borderTop: `1px solid ${T.border}`,
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: 10,
-            }}
-          >
-            {footer}
-          </div>
-        )}
+        <div
+          className="custom-scrollbar"
+          style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}
+        >
+          {children}
+        </div>
       </div>
+
+      {footer && (
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: `1px solid ${T.border}`,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

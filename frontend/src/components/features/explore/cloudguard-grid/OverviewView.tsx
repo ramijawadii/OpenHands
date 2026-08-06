@@ -1,159 +1,153 @@
-/* eslint-disable i18next/no-literal-string -- verbatim ECharts example */
+/* eslint-disable i18next/no-literal-string -- overview dashboard */
 import React from "react";
 import * as echarts from "echarts";
 import { useTheme } from "#/context/theme-context";
 import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
-import { RecentEvents } from "./RecentEvents";
+import { RecentEvents, type EventsFilter } from "./RecentEvents";
 import { OverviewSkeleton } from "./Skeleton";
-import { AssetStats } from "./AssetStats";
+import { AssetStats, type DrillFilter } from "./AssetStats";
+import { OverviewScope, type Density } from "./OverviewScope";
 import { APP_FONT } from "./theme";
+import { buildEvents, type EventRow } from "./event-data";
+import { buildRows, type ResourceRow } from "./data";
+import { applyScope, useScope } from "./overview-scope";
+import {
+  bucketBy,
+  describeBuckets,
+  describeDiscovery,
+  discoverySeries,
+  hygieneBuckets,
+  leavesOf,
+  type Bucket,
+  type DiscoveryPoint,
+} from "./overview-metrics";
 
 /**
- * Overview — the ECharts "在线构建 / 各版本下载 / 主题下载" example, verbatim.
+ * Overview — the landing surface for **discovery and inventory**.
  *
- * Data, option, colours and titles are the example's own, created with a bare
- * `echarts.init` exactly as in the source.
+ * **Scope of this capability.** Its siblings are Multi-Cloud Inventory, Shadow
+ * Assets, Tagging & Ownership, Change History and Orphaned Resources. So the
+ * question this page answers is "what does the customer actually have, and how
+ * good is our record of it" — not "what is wrong with it". Findings belong to
+ * the security capabilities; putting them here answered a question the user had
+ * not asked on this page, while duplicating one they can ask properly
+ * elsewhere.
  *
- * Departures from the source:
- *  - The tiled "ECHARTS" watermark background is **removed**; it is branding
- *    for the ECharts docs and has no place in this product.
- *  - **Theme-aware**: text, axes and the filler series follow light/dark. The
- *    example hard-codes `#eee` for the remainder bars, which is invisible on a
- *    light page and glaring on a dark one.
- *  - **Legends added**, one per chart, using explicit `legend.data` so only
- *    the meaningful series are listed — the grey remainder bars are filler and
- *    must not be toggleable. Legends are ECharts' built-in filter: clicking an
- *    entry hides that series. Presentation only for now; wiring comes later.
- *  - `dispose()` on unmount, which a plain script does not need but React
- *    does — without it every visit to this tab leaks a chart and its canvas.
+ * The three charts map one-to-one onto those siblings:
+ *
+ *   line  · resources discovered over time     → Change History
+ *   bar 1 · estate by service type             → Multi-Cloud Inventory
+ *   bar 2 · gaps in the inventory record       → Shadow / Tagging / Orphaned
+ *
+ * Series come from the same `buildRows` the inventory grid uses, so a bar and a
+ * row can never disagree.
+ *
+ * **The events table stays.** It is the one place on this page where something
+ * recent and specific can be opened, and "what changed on my estate" is a
+ * discovery question as much as a security one.
+ *
+ * **Layout.** Events take the whole left column. Height is viewport-relative
+ * with a floor rather than a hard 720px, which was leaving dead space on tall
+ * displays and clipping on short ones.
  */
 
-const builderJson = {
-  all: 10887,
-  charts: {
-    map: 3237,
-    lines: 2164,
-    bar: 7561,
-    line: 7778,
-    pie: 7355,
-    scatter: 2405,
-    candlestick: 1842,
-    radar: 2090,
-    heatmap: 1762,
-    treemap: 1593,
-    graph: 2060,
-    boxplot: 1537,
-    parallel: 1908,
-    gauge: 2107,
-    funnel: 1692,
-    sankey: 1568,
-  } as Record<string, number>,
-  components: {
-    geo: 2788,
-    title: 9575,
-    legend: 9400,
-    tooltip: 9466,
-    grid: 9266,
-    markPoint: 3419,
-    markLine: 2984,
-    timeline: 2739,
-    dataZoom: 2744,
-    visualMap: 2466,
-    toolbox: 3034,
-    polar: 1945,
-  } as Record<string, number>,
-  ie: 9743,
-};
-
-// prettier-ignore
-const gradientData: [string, number][] = [["2000-06-05",116],["2000-06-06",129],["2000-06-07",135],["2000-06-08",86],["2000-06-09",73],["2000-06-10",85],["2000-06-11",73],["2000-06-12",68],["2000-06-13",92],["2000-06-14",130],["2000-06-15",245],["2000-06-16",139],["2000-06-17",115],["2000-06-18",111],["2000-06-19",309],["2000-06-20",206],["2000-06-21",137],["2000-06-22",128],["2000-06-23",85],["2000-06-24",94],["2000-06-25",71],["2000-06-26",106],["2000-06-27",84],["2000-06-28",93],["2000-06-29",85],["2000-06-30",73],["2000-07-01",83],["2000-07-02",125],["2000-07-03",107],["2000-07-04",82],["2000-07-05",44],["2000-07-06",72],["2000-07-07",106],["2000-07-08",107],["2000-07-09",66],["2000-07-10",91],["2000-07-11",92],["2000-07-12",113],["2000-07-13",107],["2000-07-14",131],["2000-07-15",111],["2000-07-16",64],["2000-07-17",69],["2000-07-18",88],["2000-07-19",77],["2000-07-20",83],["2000-07-21",111],["2000-07-22",57],["2000-07-23",55],["2000-07-24",60]];
-const dateList = gradientData.map((item) => item[0]);
-const valueList = gradientData.map((item) => item[1]);
+/** Below this the two columns cannot hold their labels; scroll instead. */
+const MIN_WIDTH = 940;
 
 /**
- * Second series on the same axes: a 7-point trailing mean of the first.
+ * The estate's own blue — the colour the original curve used.
  *
- * A raw signal alone tells you today's number; plotted against its own moving
- * baseline it tells you whether today is unusual — which is the question the
- * spikes in this series actually raise. Derived rather than invented, so the
- * two curves can never disagree.
+ * Pinned rather than palette-assigned: ECharts assigns palette colours by
+ * series order, so adding or reordering a series would silently recolour this
+ * one.
  */
-const baselineList = valueList.map((_, i) => {
-  const window = valueList.slice(Math.max(0, i - 6), i + 1);
-  return Math.round(window.reduce((a, b) => a + b, 0) / window.length);
-});
+const ESTATE_BLUE = "#5470c6";
+const INTAKE_GREEN = "#91cc75";
 
 /**
- * Four charts on one canvas, laid out as a 2×2:
+ * Chart canvas height.
  *
- *   在线构建   |  各版本下载
- *   各组件使用 |  主题下载
- *
- * Each quadrant gets the same vertical rhythm — title, then a **horizontal**
- * legend, then the plot. Legends were vertical and right-anchored before,
- * which truncated the longer entries ("echarts.common.min") against the canvas
- * edge; horizontal legends have the full half-width and cannot clip.
+ * Viewport-relative with a floor and a ceiling: a fixed height wastes a tall
+ * display and clips a short one, while an unbounded one makes the charts
+ * absurd on a 4K monitor.
  */
-/**
- * Width reserved for every y-axis label block.
- *
- * `containLabel: true` sizes the space before a plot from whatever that
- * chart's labels happen to need — words on the bar charts, short numbers on
- * the line chart — so plots in the same column start at different x positions.
- * Pinning the label box makes the reserved space identical for every grid, so
- * the plots in a column share one left edge.
- *
- * 58px holds the longest label in either bar chart ("candlestick") at 10px, so
- * nothing truncates in practice; the box exists to make the gutter
- * deterministic, not to clip.
- */
-export const AXIS_LABEL_WIDTH = 58;
+function frameHeight(): number {
+  if (typeof window === "undefined") return 620;
+  return Math.max(520, Math.min(860, window.innerHeight - 300));
+}
+
+/** The events column takes the left 46%; the charts stack in the right 54%. */
+const LEFT_COLUMN = { left: 0, width: "46%" } as const;
 
 /**
- * The top-left quadrant. The chart leaves it empty and the events table is
- * overlaid on exactly these bounds — one definition, so a layout change moves
- * both together instead of silently misaligning them.
+ * Vertical layout of the three stacked charts, in PIXELS.
+ *
+ * Each chart is a title block sitting above a plot. The title block is a fixed
+ * height — 13px title + ECharts' 10px item gap + 10.5px subtext — but the grid
+ * tops were percentages, so the gap under the subtitle scaled with the canvas
+ * while the thing it had to clear did not. At the default height that left
+ * roughly 6px under each subtitle, and the plot's top gridline read as
+ * underlining the caption rather than opening the chart.
+ *
+ * Deriving both the title top and the plot top from one row origin makes the
+ * gap a constant at every viewport height, and means the two can never drift
+ * apart when a row is moved.
  */
-export const EMPTY_QUADRANT = {
-  left: 10,
-  right: "54%",
-  // The table starts where that quadrant's title used to sit.
-  top: 12,
-  bottom: "56%",
-} as const;
+const TITLE_BLOCK = 38;
+const TITLE_GAP = 20;
+/** Row origins as a fraction of canvas height — where each title starts. */
+const ROW_TOP = [0, 0.35, 0.68] as const;
 
-function buildOption(dark: boolean): echarts.EChartsOption {
-  const fg = dark ? "#cbd5e1" : "#0f141a";
-  const muted = dark ? "#94a3b8" : "#5f6b7a";
+function buildOption(
+  dark: boolean,
+  h: number,
+  discovery: DiscoveryPoint[],
+  services: Bucket[],
+  hygiene: Bucket[],
+): echarts.EChartsOption {
+  const titleTop = (i: number) => Math.round(ROW_TOP[i] * h);
+  const plotTop = (i: number) => titleTop(i) + TITLE_BLOCK + TITLE_GAP;
+  /**
+   * Chart type.
+   *
+   * `fg` is pure white on dark rather than the slate the ECharts example used:
+   * titles, axis labels and bar values are DATA, and reading them at reduced
+   * contrast on a dark canvas costs a fixation each time. Only the subtitles
+   * stay muted — they qualify a label rather than carrying a value.
+   */
+  const fg = dark ? "#ffffff" : "#0f141a";
+  const muted = dark ? "#a9b2bf" : "#5f6b7a";
   const line = dark ? "#3f3f46" : "#dedee3";
-  // The example's `#eee` filler is invisible on light and glaring on dark.
-  const filler = dark ? "#3a3a40" : "#eee";
 
   const titleStyle = {
-    textAlign: "center" as const,
-    textStyle: { color: fg, fontSize: 15, fontFamily: APP_FONT },
-    subtextStyle: { color: muted, fontSize: 11, fontFamily: APP_FONT },
+    textAlign: "left" as const,
+    textStyle: {
+      color: fg,
+      fontSize: 13,
+      fontWeight: 600,
+      fontFamily: APP_FONT,
+    },
+    subtextStyle: { color: muted, fontSize: 10.5, fontFamily: APP_FONT },
   };
 
-  const legendStyle = {
-    orient: "horizontal" as const,
-    itemWidth: 10,
-    itemHeight: 10,
-    itemGap: 14,
-    textStyle: { color: muted, fontSize: 11, fontFamily: APP_FONT },
-  };
-
-  const catAxis = (data: string[], gridIndex?: number) => ({
-    ...(gridIndex === undefined ? {} : { gridIndex }),
+  /**
+   * Category axis for the two bar charts.
+   *
+   * A fixed label box keeps the plots in this column sharing one left edge —
+   * `containLabel` alone sizes the gutter from whatever each chart's labels
+   * happen to need, so two stacked charts start at different x positions.
+   */
+  const catAxis = (data: string[], gridIndex: number) => ({
+    gridIndex,
     type: "category" as const,
     data,
+    inverse: true,
     axisLabel: {
       interval: 0,
-      // Fixed box, unrotated: the gutter has to be predictable to align.
-      width: AXIS_LABEL_WIDTH,
+      width: 92,
       overflow: "truncate" as const,
       align: "right" as const,
-      color: muted,
+      color: fg,
       fontSize: 10,
       fontFamily: APP_FONT,
     },
@@ -162,35 +156,18 @@ function buildOption(dark: boolean): echarts.EChartsOption {
     splitLine: { show: false },
   });
 
-  const valAxis = (gridIndex?: number) => ({
-    ...(gridIndex === undefined ? {} : { gridIndex }),
-    type: "value" as const,
-    max: builderJson.all,
-    splitLine: { show: false },
-    axisLabel: { color: muted, fontSize: 10, fontFamily: APP_FONT },
-    axisLine: { lineStyle: { color: line } },
-  });
-
-  /**
-   * Entry animation. Bars grow from the axis and are staggered by row, so the
-   * chart resolves into place rather than appearing fully formed.
-   *
-   * `animationDelay` applies on first render only; `animationDelayUpdate` is
-   * deliberately 0 so a legend toggle or theme switch re-renders immediately
-   * — staggering an interaction makes the UI feel laggy, not polished.
-   */
-  const stagger = (idx: number) => idx * 30;
+  const barLabel = {
+    show: true,
+    position: "right" as const,
+    color: fg,
+    fontSize: 10,
+    fontFamily: APP_FONT,
+  };
 
   return {
     backgroundColor: "transparent",
     textStyle: { color: fg, fontFamily: APP_FONT },
 
-    /**
-     * `trigger: "axis"` gives the cartesian charts a crosshair that reads every
-     * series at the hovered category — which is what was missing on the
-     * gradient line. Pie series are not on an axis, so they fall back to item
-     * trigger automatically.
-     */
     tooltip: {
       trigger: "axis",
       axisPointer: {
@@ -211,245 +188,305 @@ function buildOption(dark: boolean): echarts.EChartsOption {
       extraCssText: "box-shadow: 0 4px 14px rgba(0,0,0,.28);",
     },
 
-    visualMap: [
-      {
-        show: false,
-        type: "continuous",
-        seriesIndex: 4,
-        min: 0,
-        max: 400,
-      },
-    ],
-
     animation: true,
-    animationDuration: 900,
+    animationDuration: 700,
     animationEasing: "cubicOut",
     animationDurationUpdate: 300,
-    animationEasingUpdate: "cubicOut",
 
     title: [
       {
-        text: "在线构建",
-        subtext: `总计 ${builderJson.all}`,
-        left: "25%",
-        top: "50%",
+        text: "Resources discovered",
+        subtext: "estate size, and what was added",
+        left: "48%",
+        top: titleTop(0),
         ...titleStyle,
       },
       {
-        text: "各组件使用",
-        subtext: `总计 ${builderJson.ie}`,
-        left: "75%",
-        top: "50%",
+        text: "Estate by service",
+        subtext: "largest first",
+        left: "48%",
+        top: titleTop(1),
         ...titleStyle,
       },
       {
-        text: "Gradient along the y axis",
-        subtext: `${gradientData.length} days`,
-        left: "75%",
-        top: 4,
+        text: "Inventory gaps",
+        subtext: "where the record is incomplete",
+        left: "48%",
+        top: titleTop(2),
         ...titleStyle,
       },
     ],
 
-    // `legend.data` is explicit so the grey remainder series stay out — they
-    // are arithmetic filler, and hiding them would make the bars look wrong.
     legend: [
-      { ...legendStyle, data: ["Charts"], left: "12%", top: "56%" },
-      { ...legendStyle, data: ["Components"], left: "56%", top: "56%" },
+      {
+        orient: "horizontal",
+        itemWidth: 10,
+        itemHeight: 10,
+        itemGap: 14,
+        textStyle: { color: fg, fontSize: 10.5, fontFamily: APP_FONT },
+        data: ["Estate size", "Newly discovered"],
+        right: "3%",
+        top: 2,
+      },
     ],
 
-    // Two separate grids with a real gap between them, mirroring the vertical
-    // separation of the two pies.
     /**
-     * Top-left is intentionally blank and keeps its original footprint — the
-     * other three quadrants stay exactly where they were, so nothing reflows
-     * to fill the gap.
-     *
-     *   (empty)  |  gradient line
-     *   charts   |  components
+     * Three stacked grids in the right column. The left column is left empty
+     * by the chart and the events table is overlaid on exactly those bounds —
+     * one definition, so a layout change moves both together.
      */
     grid: [
-      // 0 · bottom-left — was top-left
-      { left: 10, right: "54%", top: "63%", bottom: 16, containLabel: true },
-      // 1 · bottom-right — was bottom-left
-      { left: "56%", right: "4%", top: "63%", bottom: 16, containLabel: true },
-      // 2 · top-right — unchanged
       {
-        left: "56%",
-        right: "4%",
-        top: EMPTY_QUADRANT.top,
-        bottom: EMPTY_QUADRANT.bottom,
+        left: "52%",
+        right: "3%",
+        top: plotTop(0),
+        bottom: "70%",
+        containLabel: true,
+      },
+      {
+        left: "52%",
+        right: "3%",
+        top: plotTop(1),
+        bottom: "36%",
+        containLabel: true,
+      },
+      {
+        left: "52%",
+        right: "3%",
+        top: plotTop(2),
+        bottom: 24,
         containLabel: true,
       },
     ],
 
     xAxis: [
-      valAxis(),
-      valAxis(1),
       {
-        gridIndex: 2,
+        gridIndex: 0,
         type: "category",
-        data: dateList,
+        data: discovery.map((p) => p.label),
         axisLabel: {
-          color: muted,
-          fontSize: 10,
+          color: fg,
+          fontSize: 9.5,
           hideOverlap: true,
           fontFamily: APP_FONT,
         },
         axisLine: { lineStyle: { color: line } },
         axisTick: { show: false },
       },
-    ],
-    yAxis: [
-      catAxis(Object.keys(builderJson.charts)),
-      catAxis(Object.keys(builderJson.components), 1),
+      {
+        gridIndex: 1,
+        type: "value",
+        axisLabel: { color: fg, fontSize: 9.5, fontFamily: APP_FONT },
+        splitLine: { lineStyle: { color: line, type: "dashed" } },
+      },
       {
         gridIndex: 2,
         type: "value",
-        // Same reserved width as the bar charts, so this plot's left edge
-        // lands exactly where the one below it does.
-        axisLabel: {
-          width: AXIS_LABEL_WIDTH,
-          overflow: "truncate" as const,
-          align: "right" as const,
-          color: muted,
-          fontSize: 10,
-          fontFamily: APP_FONT,
-        },
-        axisLine: { show: false },
-        splitLine: { lineStyle: { color: line } },
+        axisLabel: { color: fg, fontSize: 9.5, fontFamily: APP_FONT },
+        splitLine: { lineStyle: { color: line, type: "dashed" } },
       },
+    ],
+
+    yAxis: [
+      {
+        gridIndex: 0,
+        type: "value",
+        // The cumulative estate does not start at zero, and forcing it to
+        // would flatten the whole curve against the top of the plot.
+        scale: true,
+        axisLabel: { color: fg, fontSize: 9.5, fontFamily: APP_FONT },
+        axisLine: { show: false },
+        splitLine: { lineStyle: { color: line, type: "dashed" } },
+      },
+      catAxis(
+        services.map((b) => b.key),
+        1,
+      ),
+      catAxis(
+        hygiene.map((b) => b.key),
+        2,
+      ),
     ],
 
     series: [
       {
-        name: "Charts",
-        type: "bar",
-        stack: "chart",
-        z: 3,
-        // Pinned, not palette-assigned: the palette follows series order, so
-        // moving a chart would otherwise silently recolour it.
-        itemStyle: { color: "#5470c6" },
-        label: {
-          position: "right",
-          show: true,
-          color: fg,
-          fontSize: 10,
-          fontFamily: APP_FONT,
-        },
-        animationDelay: stagger,
-        animationDelayUpdate: 0,
-        data: Object.keys(builderJson.charts).map((k) => builderJson.charts[k]),
-      },
-      {
-        name: "Charts remainder",
-        type: "bar",
-        stack: "chart",
-        silent: true,
-        itemStyle: { color: filler },
-        animationDelay: stagger,
-        animationDelayUpdate: 0,
-        data: Object.keys(builderJson.charts).map(
-          (k) => builderJson.all - builderJson.charts[k],
-        ),
-      },
-      {
-        name: "Components",
-        type: "bar",
-        stack: "component",
-        xAxisIndex: 1,
-        yAxisIndex: 1,
-        z: 3,
-        itemStyle: { color: "#91cc75" },
-        label: {
-          position: "right",
-          show: true,
-          color: fg,
-          fontSize: 10,
-          fontFamily: APP_FONT,
-        },
-        animationDelay: stagger,
-        animationDelayUpdate: 0,
-        data: Object.keys(builderJson.components).map(
-          (k) => builderJson.components[k],
-        ),
-      },
-      {
-        name: "Components remainder",
-        type: "bar",
-        stack: "component",
-        silent: true,
-        xAxisIndex: 1,
-        yAxisIndex: 1,
-        itemStyle: { color: filler },
-        animationDelay: stagger,
-        animationDelayUpdate: 0,
-        data: Object.keys(builderJson.components).map(
-          (k) => builderJson.all - builderJson.components[k],
-        ),
-      },
-      {
-        name: "Trend",
-        type: "line",
-        showSymbol: false,
-        emphasis: { focus: "series" },
-        lineStyle: { width: 2 },
-        xAxisIndex: 2,
-        yAxisIndex: 2,
-        animationDelay: 120,
-        data: valueList,
-      },
-      {
-        name: "Baseline",
+        name: "Estate size",
         type: "line",
         showSymbol: false,
         smooth: true,
-        emphasis: { focus: "series" },
-        // Pinned green, matching the components chart. The `visualMap` above
-        // is scoped to `seriesIndex: 4`, so this line keeps its own colour
-        // instead of being repainted by the gradient.
-        lineStyle: { width: 1.5, color: "#91cc75", type: "dashed" },
-        itemStyle: { color: "#91cc75" },
+        // The original blue, with its gradient fill under the curve.
+        lineStyle: { width: 2, color: ESTATE_BLUE },
+        itemStyle: { color: ESTATE_BLUE },
+        areaStyle: {
+          opacity: dark ? 0.22 : 0.12,
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: ESTATE_BLUE },
+            { offset: 1, color: "rgba(84,112,198,0)" },
+          ]),
+        },
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: discovery.map((p) => p.total),
+      },
+      {
+        name: "Newly discovered",
+        type: "line",
+        showSymbol: false,
+        lineStyle: { width: 1.5, color: INTAKE_GREEN, type: "dashed" },
+        itemStyle: { color: INTAKE_GREEN },
+        xAxisIndex: 0,
+        yAxisIndex: 0,
+        data: discovery.map((p) => p.discovered),
+      },
+      {
+        name: "Resources",
+        type: "bar",
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        barMaxWidth: 13,
+        itemStyle: { color: ESTATE_BLUE, borderRadius: [0, 2, 2, 0] },
+        label: barLabel,
+        data: services.map((b) => b.count),
+      },
+      {
+        name: "Resources ",
+        type: "bar",
         xAxisIndex: 2,
         yAxisIndex: 2,
-        animationDelay: 220,
-        data: baselineList,
+        barMaxWidth: 13,
+        itemStyle: { color: INTAKE_GREEN, borderRadius: [0, 2, 2, 0] },
+        label: barLabel,
+        data: hygiene.map((b) => b.count),
       },
     ],
   };
 }
 
-/**
- * Below this width the four quadrants cannot hold their labels, so the frame
- * scrolls horizontally rather than compressing into an unreadable mess.
- */
-const MIN_WIDTH = 940;
-const CHART_HEIGHT = 720;
-
-export function OverviewView() {
+export function OverviewView({
+  onDrill,
+}: {
+  /** Navigate to Inventory with a filter applied. Omitted ⇒ strip is inert. */
+  onDrill?: (f: DrillFilter) => void;
+}) {
   const { theme } = useTheme();
+  const scope = useScope();
   const hostRef = React.useRef<HTMLDivElement | null>(null);
   const [painted, setPainted] = React.useState(false);
+  const [density, setDensity] = React.useState<Density>("comfortable");
+  const [filter, setFilter] = React.useState<EventsFilter>({
+    type: "All",
+    kind: "All",
+    service: "All",
+  });
+  const [height, setHeight] = React.useState(frameHeight);
+
+  /**
+   * `refreshedAt` doubles as the regeneration key.
+   *
+   * Bumping it rebuilds the datasets, so Refresh is a real action rather than a
+   * label — and the timestamp beside it can never claim a freshness the data
+   * does not have.
+   */
+  const [refreshedAt, setRefreshedAt] = React.useState(() => new Date());
+
+  const allEvents = React.useMemo<EventRow[]>(
+    () => buildEvents(160),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh regenerates
+    [refreshedAt],
+  );
+  const allResources = React.useMemo<ResourceRow[]>(
+    () => buildRows(1150),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh regenerates
+    [refreshedAt],
+  );
+
+  const scopedEvents = React.useMemo(
+    () => applyScope(allEvents, scope),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allEvents, scope.range, scope.env, scope.account],
+  );
+
+  /**
+   * The estate under the current scope.
+   *
+   * Resources carry `environment`, not `env`, and have no single event time —
+   * so the page scope is applied to the fields they DO have rather than
+   * pretending the two shapes match.
+   */
+  const scopedResources = React.useMemo(
+    () =>
+      leavesOf(allResources).filter(
+        (r) =>
+          (scope.env === "All" || r.environment === scope.env) &&
+          (scope.account === "All" || r.account === scope.account),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allResources, scope.env, scope.account],
+  );
+
+  const accounts = React.useMemo(
+    () => [...new Set(allEvents.map((e) => e.account))].sort(),
+    [allEvents],
+  );
+
+  const discovery = React.useMemo(
+    () =>
+      discoverySeries(
+        scopedResources,
+        Number.isFinite(scope.hours)
+          ? Math.max(7, Math.round(scope.hours / 24))
+          : 30,
+      ),
+    [scopedResources, scope.hours],
+  );
+  const services = React.useMemo(
+    () =>
+      bucketBy(
+        scopedResources,
+        (r) => r.serviceType || "Other",
+        (r) => r.internetReachable,
+        6,
+      ),
+    [scopedResources],
+  );
+  const hygiene = React.useMemo(
+    () => hygieneBuckets(scopedResources),
+    [scopedResources],
+  );
+
+  React.useEffect(() => {
+    const onResize = () => setHeight(frameHeight());
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   React.useEffect(() => {
     const chartDom = hostRef.current;
     if (!chartDom) return undefined;
 
     const myChart = echarts.init(chartDom);
-    /*
-     * `finished` fires when layout and the entry animation have settled, which
-     * is the moment the dashboard is actually readable. The timeout is a
-     * backstop only: if a render is interrupted the event may never arrive,
-     * and a skeleton that never clears is worse than one that clears early.
-     */
     myChart.on("finished", () => setPainted(true));
     const settled = window.setTimeout(() => setPainted(true), 2500);
-    // `notMerge` so a theme switch replaces the option rather than layering a
-    // second set of legends and series on top of the first.
-    myChart.setOption(buildOption(theme === "dark"), { notMerge: true });
+    myChart.setOption(
+      buildOption(theme === "dark", height, discovery, services, hygiene),
+      { notMerge: true },
+    );
 
-    // The panel can resize without the window doing so — the drawer, the
-    // sidebar and the tab strip all change our width on their own.
+    /**
+     * Cross-filtering — the step from dashboard to investigation surface.
+     *
+     * Clicking a service bar filters the events table to that service, so "the
+     * Storage bar is tall" and "show me what happened there" are one
+     * interaction instead of a mental note plus a filter hunt.
+     */
+    myChart.on("click", (p: { seriesIndex?: number; name?: string }) => {
+      if (p.seriesIndex === 2 && p.name)
+        setFilter((f) => ({
+          ...f,
+          service: f.service === p.name ? "All" : (p.name as string),
+        }));
+    });
+
     const ro = new ResizeObserver(() => myChart.resize());
     ro.observe(chartDom);
 
@@ -458,16 +495,23 @@ export function OverviewView() {
       ro.disconnect();
       myChart.dispose();
     };
-  }, [theme]);
+    // `height` is a dependency because the layout is now computed in pixels
+    // from it. `frameHeight` clamps to a whole number, so a drag that does not
+    // change the clamped value bails out of setState and never re-inits.
+  }, [theme, height, discovery, services, hygiene]);
 
   return (
     <SurfaceErrorBoundary surface="explore" name="Inventory overview">
-      {/*
-       * The enumeration sits ABOVE the chart frame, outside its horizontal
-       * scroller: the frame has a min-width and scrolls sideways on a narrow
-       * view, and a summary that scrolls away is a summary nobody reads.
-       */}
-      <AssetStats />
+      <OverviewScope
+        scope={scope}
+        accounts={accounts}
+        refreshedAt={refreshedAt}
+        onRefresh={() => setRefreshedAt(new Date())}
+        density={density}
+        onDensity={setDensity}
+      />
+
+      <AssetStats onDrill={onDrill} />
 
       <div style={{ width: "100%", overflowX: "auto", overflowY: "hidden" }}>
         <div
@@ -475,31 +519,52 @@ export function OverviewView() {
             position: "relative",
             width: "100%",
             minWidth: MIN_WIDTH,
-            height: CHART_HEIGHT,
+            height,
           }}
         >
           <div ref={hostRef} style={{ width: "100%", height: "100%" }} />
 
+          {/*
+           * Text equivalent of the canvas. An ECharts canvas is one opaque
+           * element to assistive technology; this states the finding each
+           * chart exists to communicate rather than describing the drawing.
+           */}
+          <p className="cg-sr-only">
+            {describeDiscovery(discovery)}{" "}
+            {describeBuckets("Estate by service", services)}{" "}
+            {describeBuckets("Inventory gaps", hygiene)}
+          </p>
+
           {!painted && <OverviewSkeleton />}
 
-          {/* Sits in the quadrant the chart deliberately leaves blank. */}
           <div
             style={{
               position: "absolute",
-              // Flush with the quadrant edge — the same vertical the bar
-              // charts' axis labels start on, so the whole left column shares
-              // one outer edge. Insetting to the *plot* left instead pushed
-              // the table well right of everything below it.
-              left: EMPTY_QUADRANT.left,
-              right: EMPTY_QUADRANT.right,
-              top: EMPTY_QUADRANT.top,
-              bottom: EMPTY_QUADRANT.bottom,
+              left: LEFT_COLUMN.left,
+              width: LEFT_COLUMN.width,
+              top: 0,
+              bottom: 8,
             }}
           >
-            <RecentEvents />
+            <RecentEvents
+              rows={scopedEvents}
+              density={density}
+              filter={filter}
+              onFilter={setFilter}
+              scopeNarrowed={scope.narrowed}
+              onResetScope={scope.clear}
+            />
           </div>
         </div>
       </div>
+
+      <style>{`
+        .cg-sr-only {
+          position: absolute; width: 1px; height: 1px;
+          padding: 0; margin: -1px; overflow: hidden;
+          clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+        }
+      `}</style>
     </SurfaceErrorBoundary>
   );
 }
