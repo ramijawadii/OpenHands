@@ -56,6 +56,13 @@ import { AwsAccountsView } from "#/components/admin/pages/workspace-governance/a
 import { AzureSubscriptionsView } from "#/components/admin/pages/workspace-governance/azure-subscriptions";
 import { GcpProjectsView } from "#/components/admin/pages/workspace-governance/gcp-projects";
 import { KubernetesClustersView } from "#/components/admin/pages/workspace-governance/kubernetes-clusters";
+import { InheritanceTreeView } from "#/components/admin/pages/workspace-governance/inheritance-tree";
+import { EffectiveConfigurationView } from "#/components/admin/pages/workspace-governance/effective-configuration";
+import { LockedConfigurationView } from "#/components/admin/pages/workspace-governance/locked-configuration";
+import { ConfigurationDriftView } from "#/components/admin/pages/workspace-governance/configuration-drift";
+import { AllowedResourceTypesView } from "#/components/admin/pages/workspace-governance/allowed-resource-types";
+import { ResourceOwnershipView } from "#/components/admin/pages/workspace-governance/resource-ownership";
+import { SharedResourcesView } from "#/components/admin/pages/workspace-governance/shared-resources";
 
 /**
  * Workspace Governance console — the SECOND of the three Workspace Management consoles
@@ -134,18 +141,35 @@ const INHERITANCE_LEAVES: Leaf[] = [
     Icon: SlidersHorizontal,
     render: () => <WorkspaceOverridesView />,
   },
-  { id: "inheritance-tree", label: "Inheritance Tree", Icon: Network },
+  {
+    id: "inheritance-tree",
+    label: "Inheritance Tree",
+    Icon: Network,
+    render: () => <InheritanceTreeView />,
+  },
   {
     id: "effective-configuration",
     label: "Effective Configuration",
     Icon: Layers,
+    render: () => <EffectiveConfigurationView />,
   },
-  { id: "locked-configuration", label: "Locked Configuration", Icon: Lock },
-  { id: "configuration-drift", label: "Configuration Drift", Icon: Waypoints },
+  {
+    id: "locked-configuration",
+    label: "Locked Configuration",
+    Icon: Lock,
+    render: () => <LockedConfigurationView />,
+  },
+  {
+    id: "configuration-drift",
+    label: "Configuration Drift",
+    Icon: Waypoints,
+    render: () => <ConfigurationDriftView />,
+  },
   {
     id: "allowed-resource-types",
     label: "Allowed Resource Types",
     Icon: Boxes,
+    render: () => <AllowedResourceTypesView />,
   },
   {
     id: "aws-accounts",
@@ -171,8 +195,18 @@ const INHERITANCE_LEAVES: Leaf[] = [
     Icon: Server,
     render: () => <KubernetesClustersView />,
   },
-  { id: "resource-ownership", label: "Resource Ownership", Icon: UserSquare },
-  { id: "shared-resources", label: "Shared Resources", Icon: Share2 },
+  {
+    id: "resource-ownership",
+    label: "Resource Ownership",
+    Icon: UserSquare,
+    render: () => <ResourceOwnershipView />,
+  },
+  {
+    id: "shared-resources",
+    label: "Shared Resources",
+    Icon: Share2,
+    render: () => <SharedResourcesView />,
+  },
 ];
 
 // ── 04 · Cross-Workspace Governance ──────────────────────────────────────────────────────────────
