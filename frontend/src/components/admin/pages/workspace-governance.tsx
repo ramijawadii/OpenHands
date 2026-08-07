@@ -63,6 +63,13 @@ import { ConfigurationDriftView } from "#/components/admin/pages/workspace-gover
 import { AllowedResourceTypesView } from "#/components/admin/pages/workspace-governance/allowed-resource-types";
 import { ResourceOwnershipView } from "#/components/admin/pages/workspace-governance/resource-ownership";
 import { SharedResourcesView } from "#/components/admin/pages/workspace-governance/shared-resources";
+import { TrustRelationshipsView } from "#/components/admin/pages/workspace-governance/trust-relationships";
+import { CrossWorkspaceAccessView } from "#/components/admin/pages/workspace-governance/cross-workspace-access";
+import { SharedResourcePoliciesView } from "#/components/admin/pages/workspace-governance/shared-resource-policies";
+import { DependencyGraphView } from "#/components/admin/pages/workspace-governance/dependency-graph";
+import { WorkspaceIsolationView } from "#/components/admin/pages/workspace-governance/workspace-isolation";
+import { CrossWorkspaceRequestsView } from "#/components/admin/pages/workspace-governance/cross-workspace-requests";
+import { SharedAssetsView } from "#/components/admin/pages/workspace-governance/shared-assets";
 
 /**
  * Workspace Governance console — the SECOND of the three Workspace Management consoles
@@ -211,25 +218,48 @@ const INHERITANCE_LEAVES: Leaf[] = [
 
 // ── 04 · Cross-Workspace Governance ──────────────────────────────────────────────────────────────
 const CROSS_LEAVES: Leaf[] = [
-  { id: "trust-relationships", label: "Trust Relationships", Icon: Shield },
+  {
+    id: "trust-relationships",
+    label: "Trust Relationships",
+    Icon: Shield,
+    render: () => <TrustRelationshipsView />,
+  },
   {
     id: "cross-workspace-access",
     label: "Cross-Workspace Access",
     Icon: KeyRound,
+    render: () => <CrossWorkspaceAccessView />,
   },
   {
     id: "shared-resource-policies",
     label: "Shared Resource Policies",
     Icon: FileCheck2,
+    render: () => <SharedResourcePoliciesView />,
   },
-  { id: "dependency-graph", label: "Dependency Graph", Icon: GitGraph },
-  { id: "workspace-isolation", label: "Workspace Isolation", Icon: ShieldOff },
+  {
+    id: "dependency-graph",
+    label: "Dependency Graph",
+    Icon: GitGraph,
+    render: () => <DependencyGraphView />,
+  },
+  {
+    id: "workspace-isolation",
+    label: "Workspace Isolation",
+    Icon: ShieldOff,
+    render: () => <WorkspaceIsolationView />,
+  },
   {
     id: "cross-workspace-requests",
     label: "Cross-Workspace Requests",
     Icon: Inbox,
+    render: () => <CrossWorkspaceRequestsView />,
   },
-  { id: "shared-assets", label: "Shared Assets", Icon: Package },
+  {
+    id: "shared-assets",
+    label: "Shared Assets",
+    Icon: Package,
+    render: () => <SharedAssetsView />,
+  },
 ];
 
 // ── 05 · Capacity & Quotas ───────────────────────────────────────────────────────────────────────
