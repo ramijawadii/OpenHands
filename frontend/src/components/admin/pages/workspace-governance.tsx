@@ -70,6 +70,13 @@ import { DependencyGraphView } from "#/components/admin/pages/workspace-governan
 import { WorkspaceIsolationView } from "#/components/admin/pages/workspace-governance/workspace-isolation";
 import { CrossWorkspaceRequestsView } from "#/components/admin/pages/workspace-governance/cross-workspace-requests";
 import { SharedAssetsView } from "#/components/admin/pages/workspace-governance/shared-assets";
+import { WorkspaceQuotasView } from "#/components/admin/pages/workspace-governance/workspace-quotas";
+import { ResourceLimitsView } from "#/components/admin/pages/workspace-governance/resource-limits";
+import { QuotaPoliciesView } from "#/components/admin/pages/workspace-governance/quota-policies";
+import { CapacityReservationsView } from "#/components/admin/pages/workspace-governance/capacity-reservations";
+import { UtilizationView } from "#/components/admin/pages/workspace-governance/utilization";
+import { ConsumptionView } from "#/components/admin/pages/workspace-governance/consumption";
+import { GrowthForecastingView } from "#/components/admin/pages/workspace-governance/growth-forecasting";
 
 /**
  * Workspace Governance console — the SECOND of the three Workspace Management consoles
@@ -264,17 +271,48 @@ const CROSS_LEAVES: Leaf[] = [
 
 // ── 05 · Capacity & Quotas ───────────────────────────────────────────────────────────────────────
 const CAPACITY_LEAVES: Leaf[] = [
-  { id: "workspace-quotas", label: "Workspace Quotas", Icon: Gauge },
-  { id: "resource-limits", label: "Resource Limits", Icon: SlidersVertical },
-  { id: "quota-policies", label: "Quota Policies", Icon: Scale },
+  {
+    id: "workspace-quotas",
+    label: "Workspace Quotas",
+    Icon: Gauge,
+    render: () => <WorkspaceQuotasView />,
+  },
+  {
+    id: "resource-limits",
+    label: "Resource Limits",
+    Icon: SlidersVertical,
+    render: () => <ResourceLimitsView />,
+  },
+  {
+    id: "quota-policies",
+    label: "Quota Policies",
+    Icon: Scale,
+    render: () => <QuotaPoliciesView />,
+  },
   {
     id: "capacity-reservations",
     label: "Capacity Reservations",
     Icon: CalendarClock,
+    render: () => <CapacityReservationsView />,
   },
-  { id: "utilization", label: "Utilization", Icon: BarChart3 },
-  { id: "consumption", label: "Consumption", Icon: Receipt },
-  { id: "growth-forecasting", label: "Growth Forecasting", Icon: TrendingUp },
+  {
+    id: "utilization",
+    label: "Utilization",
+    Icon: BarChart3,
+    render: () => <UtilizationView />,
+  },
+  {
+    id: "consumption",
+    label: "Consumption",
+    Icon: Receipt,
+    render: () => <ConsumptionView />,
+  },
+  {
+    id: "growth-forecasting",
+    label: "Growth Forecasting",
+    Icon: TrendingUp,
+    render: () => <GrowthForecastingView />,
+  },
 ];
 
 function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
