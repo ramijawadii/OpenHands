@@ -73,6 +73,52 @@
 }
 
 /*
+ * Custom scrollbars.
+ *
+ * The OS scrollbar is drawn by the platform, not the page: on Windows it is a
+ * wide light-grey bar that ignores the theme entirely, which on a dark terminal
+ * transcript or a dark grid reads as a rendering fault. Applied by class rather
+ * than globally so it lands on the surfaces that own their own chrome.
+ */
+.cg-cmd-scroll::-webkit-scrollbar,
+.cg-scroll::-webkit-scrollbar,
+.cg-scroll *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.cg-cmd-scroll::-webkit-scrollbar-track,
+.cg-scroll::-webkit-scrollbar-track,
+.cg-scroll *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cg-cmd-scroll::-webkit-scrollbar-thumb,
+.cg-scroll::-webkit-scrollbar-thumb,
+.cg-scroll *::-webkit-scrollbar-thumb {
+  background: var(--cgx-scroll-thumb, rgba(255, 255, 255, 0.22));
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.cg-cmd-scroll::-webkit-scrollbar-thumb:hover,
+.cg-scroll::-webkit-scrollbar-thumb:hover,
+.cg-scroll *::-webkit-scrollbar-thumb:hover {
+  background: var(--cgx-scroll-thumb-hover, rgba(255, 255, 255, 0.34));
+  background-clip: content-box;
+}
+.cg-cmd-scroll::-webkit-scrollbar-corner,
+.cg-scroll *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Firefox has no ::-webkit pseudo-elements. */
+.cg-cmd-scroll,
+.cg-scroll,
+.cg-scroll * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cgx-scroll-thumb, rgba(255, 255, 255, 0.22))
+    transparent;
+}
+
+/*
  * Hover-revealed affordances.
  *
  * `visibility` + `opacity` rather than `display: none` — the elements stay in
@@ -81,14 +127,23 @@
  * `:focus-within` mirrors every hover rule so keyboard users reach them too.
  */
 .cg-sec-copy,
-.cg-task-id {
+.cg-task-id,
+.cg-asset-open {
   opacity: 0;
   transition: opacity 0.12s ease;
 }
 .cg-sec:hover .cg-sec-copy,
 .cg-sec:focus-within .cg-sec-copy,
 .cg-task:hover .cg-task-id,
-.cg-task:focus-within .cg-task-id {
+.cg-task:focus-within .cg-task-id,
+.cg-asset:hover .cg-asset-open,
+.cg-asset:focus-within .cg-asset-open,
+/* AG Grid marks the hovered row, so the arrow appears anywhere on the row
+   rather than only over the first cell's own box. */
+.ag-row-hover .cg-asset-open {
+  opacity: 1;
+}
+.cg-asset-open:focus-visible {
   opacity: 1;
 }
 /* Never hide a control that currently has focus. */

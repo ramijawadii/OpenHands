@@ -3,6 +3,8 @@ import React from "react";
 import {
   ArrowLeft,
   Brain,
+  ChevronDown,
+  CircleCheck,
   Check,
   ChevronRight,
   Copy,
@@ -13,6 +15,7 @@ import {
 } from "lucide-react";
 import { APP_FONT } from "#/components/features/explore/cloudguard-grid/theme";
 import { type RemediationAction } from "./remediation-data";
+import { TimelineDot, TimelineItem } from "./RemediationPanes";
 import {
   buildCheckpoint,
   buildThoughts,
@@ -114,81 +117,102 @@ function DiffWidget({ diff }: { diff: CodeDiff }) {
 }
 
 /**
- * Terminal block, matching the chat's command styling.
+ * One executed step, as a notebook cell.
  *
- * `--cg-code-bg` is deliberately theme-independent (it stays dark in both
- * themes) — a terminal that inverts to white in light mode stops reading as a
- * terminal, and this content IS a shell transcript.
+ * `In [n]` / `Out [n]` rather than IN/OUT badges: the operator is reading a
+ * transcript of things that ran in order, and the notebook convention already
+ * encodes that — the number ties an output to the input that produced it, which
+ * a pair of coloured labels does not.
+ *
+ * `--cg-code-bg` stays dark in both themes on purpose. This content IS a shell
+ * transcript, and a terminal that inverts to white in light mode stops reading
+ * as one.
  */
-function CmdBlock({ step }: { step: TraceStep }) {
+const MAX_LINES = 12;
+
+function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
   const [copied, setCopied] = React.useState(false);
-  const isIn = step.kind === "in";
-  const failed = (step.exit ?? 0) !== 0;
+  const [expanded, setExpanded] = React.useState(false);
+
+  const outLines = output ? output.text.split("\n") : [];
+  const truncated = !expanded && outLines.length > MAX_LINES;
+  const shown = truncated ? outLines.slice(0, MAX_LINES) : outLines;
+  const failed = (output?.exit ?? 0) !== 0;
 
   return (
     <div
       style={{
         border: `1px solid ${failed ? "var(--cg-danger-border)" : "var(--cg-border-subtle)"}`,
-        borderRadius: 5,
+        borderRadius: 6,
         overflow: "hidden",
-        marginBottom: 8,
+        marginBottom: 10,
+        background: "var(--cg-code-bg)",
       }}
     >
+      {/* Header: prompt, the command inline, language and run status. */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 7,
-          padding: "5px 9px",
-          background: "var(--cg-bg-badge)",
+          gap: 8,
+          padding: "5px 10px",
           borderBottom: "1px solid var(--cg-border-subtle)",
-          fontSize: 10.5,
-          fontFamily: APP_FONT,
+          fontFamily: MONO,
+          fontSize: 11,
+          minWidth: 0,
         }}
       >
-        <SquareTerminal
-          size={12}
-          style={{
-            color: isIn ? "var(--cg-accent)" : "var(--cg-text-muted)",
-            flexShrink: 0,
-          }}
-        />
+        <span style={{ color: "var(--cg-accent)", flexShrink: 0 }}>
+          In [{step.seq}]:
+        </span>
         <span
           style={{
-            fontWeight: 700,
-            letterSpacing: 0.4,
-            color: isIn ? "var(--cg-accent)" : "var(--cg-text-muted)",
+            color: "#e6edf3",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            minWidth: 0,
+            flex: 1,
           }}
         >
-          {isIn ? "IN" : "OUT"}
+          {step.text}
         </span>
-        <span style={{ color: "var(--cg-text-muted)" }}>#{step.seq}</span>
-        {failed && (
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 4,
-              color: "var(--cg-danger)",
-            }}
-          >
-            <TriangleAlert size={10} /> exit {step.exit}
-          </span>
-        )}
         <span
           style={{
-            marginLeft: "auto",
-            display: "flex",
+            display: "inline-flex",
             alignItems: "center",
             gap: 8,
+            flexShrink: 0,
+            color: "var(--cg-text-muted)",
           }}
         >
-          <span style={{ color: "var(--cg-text-muted)" }}>
-            {step.at.toISOString().slice(11, 19)}
-          </span>
+          <span>bash</span>
+          {failed ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 3,
+                color: "var(--cg-danger)",
+              }}
+            >
+              <TriangleAlert size={10} /> exit {output?.exit}
+            </span>
+          ) : (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 3,
+                color: "var(--cgx-low)",
+              }}
+            >
+              <CircleCheck size={10} /> ok
+            </span>
+          )}
           <button
             type="button"
-            aria-label={`Copy ${isIn ? "command" : "output"}`}
+            aria-label="Copy command"
             onClick={() => {
               navigator.clipboard?.writeText(step.text);
               setCopied(true);
@@ -197,39 +221,107 @@ function CmdBlock({ step }: { step: TraceStep }) {
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 4,
               background: "none",
               border: "none",
               padding: 0,
               cursor: "pointer",
               color: copied ? "var(--cgx-low)" : "var(--cg-text-muted)",
-              fontSize: 10.5,
-              fontFamily: APP_FONT,
             }}
           >
             {copied ? <Check size={11} /> : <Copy size={11} />}
-            {copied ? "Copied" : "Copy"}
           </button>
         </span>
       </div>
 
+      {/* The command again, unwrapped and selectable. */}
       <pre
         style={{
           margin: 0,
           padding: "8px 10px",
-          background: "var(--cg-code-bg)",
-          color: isIn ? "#e6edf3" : "#b9c0ca",
+          color: "#e6edf3",
           fontFamily: MONO,
           fontSize: 11.5,
           lineHeight: 1.55,
           overflowX: "auto",
           whiteSpace: "pre",
         }}
+        className="cg-cmd-scroll"
       >
-        {isIn ? `$ ${step.text}` : step.text}
+        {step.text}
       </pre>
 
-      {step.diff && <DiffWidget diff={step.diff} />}
+      {output && (
+        <div style={{ borderTop: "1px solid var(--cg-border-subtle)" }}>
+          <div style={{ display: "flex", minWidth: 0 }}>
+            <span
+              style={{
+                flexShrink: 0,
+                padding: "8px 0 8px 10px",
+                fontFamily: MONO,
+                fontSize: 11,
+                color: "var(--cgx-critical)",
+              }}
+            >
+              Out[{output.seq}]:
+            </span>
+            <pre
+              className="cg-cmd-scroll"
+              style={{
+                margin: 0,
+                padding: "8px 10px",
+                color: "#b9c0ca",
+                fontFamily: MONO,
+                fontSize: 11.5,
+                lineHeight: 1.55,
+                overflowX: "auto",
+                whiteSpace: "pre",
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              {shown.join("\n")}
+              {truncated && (
+                <span style={{ color: "var(--cg-text-muted)" }}>
+                  {"\n… output truncated"}
+                </span>
+              )}
+            </pre>
+          </div>
+
+          {outLines.length > MAX_LINES && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 5,
+                width: "100%",
+                padding: "4px 0",
+                background: "none",
+                border: "none",
+                borderTop: "1px solid var(--cg-border-subtle)",
+                color: "var(--cg-text-muted)",
+                fontFamily: APP_FONT,
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              <ChevronDown
+                size={12}
+                style={{
+                  transform: expanded ? "rotate(180deg)" : "none",
+                  transition: "transform .15s ease",
+                }}
+              />
+              {expanded ? "collapse" : "expand"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {output?.diff && <DiffWidget diff={output.diff} />}
     </div>
   );
 }
@@ -277,7 +369,10 @@ export function RemediationTaskView({
   ];
 
   return (
-    <div>
+    // Explicit colour: the notebook cells inside set their own light-on-dark
+    // type, and without a colour here the surrounding pane inherited it in
+    // light mode — white text on a white surface.
+    <div style={{ color: "var(--cg-text-primary)" }}>
       {/* Breadcrumb back to the plan — the task is a drill-down, not a route. */}
       <div
         style={{
@@ -334,15 +429,15 @@ export function RemediationTaskView({
         </span>
       </div>
 
+      {/*
+       * The drawer's own tab pills, not an underline strip — this sits inside
+       * the drawer and a second tab idiom two levels down reads as a different
+       * product. Tokens are shared with `ConversationTabNav`.
+       */}
       <div
         role="tablist"
         aria-label="Task detail"
-        style={{
-          display: "flex",
-          gap: 4,
-          marginBottom: 12,
-          borderBottom: "1px solid var(--cg-border-subtle)",
-        }}
+        style={{ display: "flex", gap: 4, marginBottom: 12 }}
       >
         {tabs.map((t) => {
           const on = tab === t.id;
@@ -353,20 +448,23 @@ export function RemediationTaskView({
               role="tab"
               aria-selected={on}
               onClick={() => setTab(t.id)}
+              className={
+                on
+                  ? "cg-report-action cg-report-action-primary"
+                  : "cg-report-action"
+              }
               style={{
                 display: "inline-flex",
                 alignItems: "center",
                 gap: 6,
-                padding: "7px 10px",
-                background: "none",
-                border: "none",
-                borderBottom: `2px solid ${on ? "var(--cg-accent)" : "transparent"}`,
-                color: on ? "var(--cg-text-primary)" : "var(--cg-text-nav)",
+                height: 28,
+                padding: "0 10px",
                 fontFamily: APP_FONT,
                 fontSize: 12.5,
+                lineHeight: 1,
                 fontWeight: on ? 600 : 400,
                 cursor: "pointer",
-                marginBottom: -1,
+                whiteSpace: "nowrap",
               }}
             >
               {t.icon}
@@ -390,17 +488,25 @@ export function RemediationTaskView({
             issued, <strong>OUT</strong> what came back. A step that produced a
             code change carries its diff.
           </p>
-          {trace.map((s) => (
-            <CmdBlock key={`${s.kind}${s.seq}`} step={s} />
-          ))}
+          {trace
+            .filter((t) => t.kind === "in")
+            .map((t) => (
+              <CmdCell
+                key={`in${t.seq}`}
+                step={t}
+                // Output is the step immediately after its command; pairing them
+                // in one cell is what makes the In/Out numbering meaningful.
+                output={trace[trace.indexOf(t) + 1]}
+              />
+            ))}
         </div>
       )}
 
       {tab === "reasoning" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column" }}>
           <p
             style={{
-              margin: 0,
+              margin: "0 0 10px",
               fontSize: 11.5,
               color: "var(--cg-text-muted)",
             }}
@@ -409,34 +515,43 @@ export function RemediationTaskView({
             <strong>rejected</strong> — reasoning that records only the chosen
             path cannot be audited.
           </p>
-          {thoughts.map((t) => (
-            <div
+          {thoughts.map((t, i) => (
+            <TimelineItem
               key={t.seq}
-              style={{
-                display: "flex",
-                gap: 10,
-                padding: "9px 11px",
-                border: "1px solid var(--cg-border-subtle)",
-                borderLeft: `3px solid ${THOUGHT_TONE[t.kind]}`,
-                borderRadius: 5,
-              }}
+              mark={
+                <TimelineDot
+                  tone={THOUGHT_TONE[t.kind]}
+                  filled={t.kind === "decision"}
+                />
+              }
+              last={i === thoughts.length - 1}
             >
-              <span
-                style={{
-                  fontSize: 9.5,
-                  textTransform: "uppercase",
-                  letterSpacing: 0.4,
-                  fontWeight: 700,
-                  color: THOUGHT_TONE[t.kind],
-                  minWidth: 74,
-                  flexShrink: 0,
-                  paddingTop: 2,
-                }}
-              >
-                {t.kind}
-              </span>
-              <span style={{ fontSize: 12.5, lineHeight: 1.6 }}>{t.text}</span>
-            </div>
+              <div style={{ display: "flex", gap: 10, paddingTop: 2 }}>
+                <span
+                  style={{
+                    fontSize: 9.5,
+                    textTransform: "uppercase",
+                    letterSpacing: 0.4,
+                    fontWeight: 700,
+                    color: THOUGHT_TONE[t.kind],
+                    minWidth: 74,
+                    flexShrink: 0,
+                    paddingTop: 2,
+                  }}
+                >
+                  {t.kind}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12.5,
+                    lineHeight: 1.6,
+                    color: "var(--cg-text-primary)",
+                  }}
+                >
+                  {t.text}
+                </span>
+              </div>
+            </TimelineItem>
           ))}
         </div>
       )}
@@ -457,13 +572,7 @@ export function RemediationTaskView({
               checkpoint is created and verified before every write action.
             </div>
           ) : (
-            <div
-              style={{
-                border: "1px solid var(--cg-border-subtle)",
-                borderRadius: 6,
-                padding: "12px 14px",
-              }}
-            >
+            <div style={{ color: "var(--cg-text-primary)" }}>
               <div
                 style={{
                   display: "flex",
@@ -560,13 +669,28 @@ export function RemediationTaskView({
               >
                 Captured
               </div>
-              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12 }}>
-                {checkpoint.captured.map((c) => (
-                  <li key={c} style={{ padding: "2px 0" }}>
-                    {c}
-                  </li>
+              {/* Same timeline as everywhere else — a capture is a sequence
+                  of things the snapshot took, in the order it took them. */}
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {checkpoint.captured.map((c, i) => (
+                  <TimelineItem
+                    key={c}
+                    mark={<TimelineDot tone="var(--cgx-low)" filled />}
+                    last={i === checkpoint.captured.length - 1}
+                    done
+                  >
+                    <div
+                      style={{
+                        fontSize: 12,
+                        paddingTop: 3,
+                        color: "var(--cg-text-primary)",
+                      }}
+                    >
+                      {c}
+                    </div>
+                  </TimelineItem>
                 ))}
-              </ul>
+              </div>
 
               <div
                 style={{

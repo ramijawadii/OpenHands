@@ -30,10 +30,10 @@ import { SeverityGauge } from "#/components/features/explore/cloudguard-grid/Sev
 import { CountryFlag } from "#/components/features/explore/cloudguard-grid/flags";
 import { REGION_COUNTRY } from "#/components/features/explore/cloudguard-grid/data";
 import {
-  EnvBadge,
-  ProviderBadge,
+  ENV_COLOR,
   ResourceIcon,
 } from "#/components/features/explore/cloudguard-grid/icons";
+import { SvgIcon } from "#/components/features/explore/cloudguard-grid/SvgIcon";
 import { REMEDIATION_VIEWS } from "./remediation-structure";
 import { FilterSelect } from "#/components/features/explore/cloudguard-grid/FilterSelect";
 import {
@@ -47,13 +47,14 @@ import {
   type RemediationAction,
 } from "./remediation-data";
 import { exportAction } from "./remediation-export";
-import { CATEGORY_TONE, strategiesIn } from "./remediation-strategy";
 import {
-  phaseId,
-  policyFor,
-  strategyFor,
-  taskId,
-} from "./remediation-task-data";
+  buildAttack,
+  buildControls,
+  buildDefend,
+  buildFrameworks,
+} from "./remediation-detail-data";
+import { CATEGORY_TONE, strategiesIn } from "./remediation-strategy";
+import { phaseId, strategyFor, taskId } from "./remediation-task-data";
 import { RemediationTaskView } from "./RemediationTaskView";
 import { ScopeAssetsView } from "./ScopeAssetsView";
 import {
@@ -62,6 +63,8 @@ import {
   EvidencePane,
   LifecyclePane,
   RelatedFindingsPane,
+  TimelineDot,
+  TimelineItem,
 } from "./RemediationPanes";
 
 /**
@@ -79,6 +82,13 @@ import {
  * in the header rather than a rail click, so the two navigation models do not
  * compete.
  */
+
+/** Vendor logo slugs, matching the inventory's own provider marks. */
+const PROVIDER_SLUG: Record<string, string> = {
+  AWS: "aws",
+  Azure: "microsoft_azure",
+  GCP: "google_cloud",
+};
 
 const VIEW_ICON: Record<string, React.ReactNode> = {
   overview: <LayoutGrid size={13} />,
@@ -318,13 +328,24 @@ function PlanList({
   const isDone = (id: string, fallback: boolean) => checked[id] ?? fallback;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      {phases.map((p) => {
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {phases.map((p, i) => {
         const total = p.tasks.length;
         const done = p.tasks.filter((t) => isDone(t.id, t.done)).length;
         const pid = phaseId(action.id, p.id);
+        const complete = done === total;
         return (
-          <div key={p.id}>
+          <TimelineItem
+            key={p.id}
+            mark={
+              <TimelineDot
+                tone={complete ? "var(--cgx-low)" : "var(--cg-border-strong)"}
+                filled={complete}
+              />
+            }
+            last={i === phases.length - 1}
+            done={complete}
+          >
             <div
               style={{
                 display: "flex",
@@ -461,7 +482,7 @@ function PlanList({
                 {p.reason}
               </span>
             </div>
-          </div>
+          </TimelineItem>
         );
       })}
     </div>
@@ -489,6 +510,14 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
     </div>
   );
 }
+
+/** One tone per approval state, shared by the tag and the timeline marker. */
+const STATE_TONE: Record<ApprovalState, string> = {
+  Approved: "var(--cgx-low)",
+  "Awaiting approval": "var(--cgx-high)",
+  Escalated: "var(--cgx-critical)",
+  "Not required": "var(--cg-text-muted)",
+};
 
 function StateTag({ value }: { value: ApprovalState }) {
   const tone: Record<ApprovalState, [string, string]> = {
@@ -659,7 +688,7 @@ function ApprovalsPane({ action }: { action: RemediationAction }) {
         </div>
       )}
 
-      {rows.map((r) => {
+      {rows.map((r, idx) => {
         const s = slaLabel(r.slaHoursRemaining);
         const decided = decisions[r.id];
         // Demo staleness signal: a real build compares the approval's recorded
@@ -673,311 +702,319 @@ function ApprovalsPane({ action }: { action: RemediationAction }) {
           !decided &&
           (r.state === "Awaiting approval" || r.state === "Escalated");
         return (
-          <div
+          <TimelineItem
             key={r.id}
-            style={{
-              border: "1px solid var(--cg-border-subtle)",
-              borderRadius: 6,
-              padding: "12px 14px",
-            }}
+            mark={
+              <TimelineDot
+                tone={STATE_TONE[r.state]}
+                filled={r.state === "Approved"}
+              />
+            }
+            last={idx === rows.length - 1}
+            done={r.state === "Approved"}
           >
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 10,
-              }}
-            >
-              {/* The join to the plan is the FIRST thing on the card. */}
-              <span
+            <div>
+              <div
                 style={{
-                  fontSize: 12.5,
-                  fontWeight: 600,
-                  color: "var(--cg-text-primary)",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 10,
                 }}
               >
-                {r.phaseLabel}
-              </span>
-              <AccessTag value={r.access} />
-              <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                {/* The join to the plan is the FIRST thing on the card. */}
                 <span
                   style={{
-                    fontSize: 11,
-                    color: s.overdue
-                      ? "var(--cgx-critical)"
-                      : "var(--cg-text-muted)",
-                    fontWeight: s.overdue ? 600 : 400,
-                    alignSelf: "center",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    color: "var(--cg-text-primary)",
                   }}
                 >
-                  SLA {s.text}
+                  {r.phaseLabel}
                 </span>
-                <StateTag value={r.state} />
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))",
-                gap: 12,
-              }}
-            >
-              <Fact
-                label="Target resource"
-                value={
+                <AccessTag value={r.access} />
+                <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                   <span
                     style={{
-                      fontFamily: "var(--font-mono, ui-monospace, monospace)",
                       fontSize: 11,
-                      wordBreak: "break-all",
+                      color: s.overdue
+                        ? "var(--cgx-critical)"
+                        : "var(--cg-text-muted)",
+                      fontWeight: s.overdue ? 600 : 400,
+                      alignSelf: "center",
                     }}
                   >
-                    {r.targetPath}
+                    SLA {s.text}
                   </span>
-                }
-              />
-              <Fact
-                label="Blast radius"
-                value={
-                  <>
-                    {r.blastRadius.rating} — {r.blastRadius.resources}{" "}
-                    resource(s), {r.blastRadius.identities} identity(ies),{" "}
-                    {r.blastRadius.services} service(s)
-                    <div
-                      style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
-                    >
-                      {r.blastRadius.reachability}
-                    </div>
-                  </>
-                }
-              />
-              <Fact
-                label="Rollback"
-                value={
-                  <>
-                    {r.rollback.method}
-                    <div
-                      style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
-                    >
-                      {r.rollback.window} · {r.rollback.confidence}
-                    </div>
-                  </>
-                }
-              />
-              <Fact
-                label="Approver"
-                value={
-                  <>
-                    {r.approver.name}
-                    <div
-                      style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
-                    >
-                      {r.approver.email} · {r.approver.role}
-                    </div>
-                  </>
-                }
-              />
-              {r.escalatedTo && (
+                  <StateTag value={r.state} />
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(168px, 1fr))",
+                  gap: 12,
+                }}
+              >
                 <Fact
-                  label="Escalated to"
+                  label="Target resource"
+                  value={
+                    <span
+                      style={{
+                        fontFamily: "var(--font-mono, ui-monospace, monospace)",
+                        fontSize: 11,
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {r.targetPath}
+                    </span>
+                  }
+                />
+                <Fact
+                  label="Blast radius"
                   value={
                     <>
-                      {r.escalatedTo.name}
+                      {r.blastRadius.rating} — {r.blastRadius.resources}{" "}
+                      resource(s), {r.blastRadius.identities} identity(ies),{" "}
+                      {r.blastRadius.services} service(s)
                       <div
                         style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
                       >
-                        {r.escalatedTo.email}
+                        {r.blastRadius.reachability}
                       </div>
                     </>
                   }
                 />
-              )}
-              <Fact
-                label={r.decidedAt ? "Decided" : "Due"}
-                value={(r.decidedAt ?? r.slaDueAt)
-                  .toISOString()
-                  .replace("T", " ")
-                  .slice(0, 16)}
-              />
-              <Fact
-                label="Policy"
-                value={
-                  <>
-                    {r.access === "Write"
-                      ? `gate-${action.environment}@2.4`
-                      : "read-auto@1.1"}
-                    <div
-                      style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
-                    >
-                      Quorum {action.approvals}
-                    </div>
-                  </>
-                }
-              />
-            </div>
-
-            {/*
-             * Decision controls.
-             *
-             * Plan §6. Everything that makes the gate real is enforced here:
-             * a stale simulation cannot be consumed, an author cannot approve
-             * their own work, and an Elevated-or-worse blast radius demands a
-             * written justification before Approve becomes available.
-             */}
-            {needsDecision && (
-              <div
-                style={{
-                  marginTop: 12,
-                  paddingTop: 10,
-                  borderTop: "1px solid var(--cg-border-subtle)",
-                }}
-              >
-                {stale && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      marginBottom: 8,
-                      fontSize: 11.5,
-                      color: "var(--cgx-critical)",
-                    }}
-                  >
-                    <TriangleAlert size={12} />
-                    Stale — the target changed since this simulation ran.
-                    Re-simulate before approving.
-                  </div>
-                )}
-                {blocked && !stale && (
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      marginBottom: 8,
-                      fontSize: 11.5,
-                      color: "var(--cgx-high)",
-                    }}
-                  >
-                    <Lock size={12} />
-                    You raised this change — separation of duties requires a
-                    different approver.
-                  </div>
-                )}
-
-                {needsWhy && drafting === r.id && (
-                  <textarea
-                    value={why}
-                    onChange={(e) => setWhy(e.target.value)}
-                    placeholder="Justification required — blast radius is Elevated or higher"
-                    rows={2}
-                    style={{
-                      width: "100%",
-                      marginBottom: 8,
-                      padding: "6px 8px",
-                      fontSize: 12,
-                      fontFamily: APP_FONT,
-                      background: "var(--cg-input-bg)",
-                      color: "var(--cg-text-primary)",
-                      border: "1px solid var(--cg-input-border)",
-                      borderRadius: 4,
-                      resize: "vertical",
-                    }}
+                <Fact
+                  label="Rollback"
+                  value={
+                    <>
+                      {r.rollback.method}
+                      <div
+                        style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
+                      >
+                        {r.rollback.window} · {r.rollback.confidence}
+                      </div>
+                    </>
+                  }
+                />
+                <Fact
+                  label="Approver"
+                  value={
+                    <>
+                      {r.approver.name}
+                      <div
+                        style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
+                      >
+                        {r.approver.email} · {r.approver.role}
+                      </div>
+                    </>
+                  }
+                />
+                {r.escalatedTo && (
+                  <Fact
+                    label="Escalated to"
+                    value={
+                      <>
+                        {r.escalatedTo.name}
+                        <div
+                          style={{
+                            color: "var(--cg-text-muted)",
+                            fontSize: 11,
+                          }}
+                        >
+                          {r.escalatedTo.email}
+                        </div>
+                      </>
+                    }
                   />
                 )}
+                <Fact
+                  label={r.decidedAt ? "Decided" : "Due"}
+                  value={(r.decidedAt ?? r.slaDueAt)
+                    .toISOString()
+                    .replace("T", " ")
+                    .slice(0, 16)}
+                />
+                <Fact
+                  label="Policy"
+                  value={
+                    <>
+                      {r.access === "Write"
+                        ? `gate-${action.environment}@2.4`
+                        : "read-auto@1.1"}
+                      <div
+                        style={{ color: "var(--cg-text-muted)", fontSize: 11 }}
+                      >
+                        Quorum {action.approvals}
+                      </div>
+                    </>
+                  }
+                />
+              </div>
 
+              {/*
+               * Decision controls.
+               *
+               * Plan §6. Everything that makes the gate real is enforced here:
+               * a stale simulation cannot be consumed, an author cannot approve
+               * their own work, and an Elevated-or-worse blast radius demands a
+               * written justification before Approve becomes available.
+               */}
+              {needsDecision && (
                 <div
                   style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                    gap: 8,
+                    marginTop: 12,
+                    paddingTop: 10,
+                    borderTop: "1px solid var(--cg-border-subtle)",
                   }}
                 >
-                  <button
-                    type="button"
-                    className="cg-report-action cg-report-action-primary"
-                    style={btn}
-                    disabled={stale || blocked || (needsWhy && !why.trim())}
-                    onClick={() => {
-                      if (needsWhy && drafting !== r.id) {
-                        setDrafting(r.id);
-                        return;
-                      }
-                      setDecisions((d) => ({
-                        ...d,
-                        [r.id]: { verdict: "Approved", why: why.trim() },
-                      }));
-                      setDrafting(null);
-                      setWhy("");
-                    }}
-                  >
-                    <Check size={12} /> Approve
-                  </button>
-                  <button
-                    type="button"
-                    className="cg-report-action"
-                    style={btn}
-                    disabled={blocked}
-                    onClick={() =>
-                      setDecisions((d) => ({
-                        ...d,
-                        [r.id]: { verdict: "Rejected", why: why.trim() },
-                      }))
-                    }
-                  >
-                    Reject
-                  </button>
-                  <button
-                    type="button"
-                    className="cg-report-action"
-                    style={btn}
-                  >
-                    Request changes
-                  </button>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: "var(--cg-text-muted)",
-                      marginLeft: "auto",
-                    }}
-                  >
-                    Acting as {actingUser}
-                    {needsWhy ? " · justification required" : ""}
-                  </span>
-                </div>
-              </div>
-            )}
+                  {stale && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 8,
+                        fontSize: 11.5,
+                        color: "var(--cgx-critical)",
+                      }}
+                    >
+                      <TriangleAlert size={12} />
+                      Stale — the target changed since this simulation ran.
+                      Re-simulate before approving.
+                    </div>
+                  )}
+                  {blocked && !stale && (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 8,
+                        fontSize: 11.5,
+                        color: "var(--cgx-high)",
+                      }}
+                    >
+                      <Lock size={12} />
+                      You raised this change — separation of duties requires a
+                      different approver.
+                    </div>
+                  )}
 
-            {decided && (
-              <div
-                style={{
-                  marginTop: 10,
-                  paddingTop: 9,
-                  borderTop: "1px solid var(--cg-border-subtle)",
-                  fontSize: 11.5,
-                  color: "var(--cg-text-muted)",
-                }}
-              >
-                <strong
+                  {needsWhy && drafting === r.id && (
+                    <textarea
+                      value={why}
+                      onChange={(e) => setWhy(e.target.value)}
+                      placeholder="Justification required — blast radius is Elevated or higher"
+                      rows={2}
+                      style={{
+                        width: "100%",
+                        marginBottom: 8,
+                        padding: "6px 8px",
+                        fontSize: 12,
+                        fontFamily: APP_FONT,
+                        background: "var(--cg-input-bg)",
+                        color: "var(--cg-text-primary)",
+                        border: "1px solid var(--cg-input-border)",
+                        borderRadius: 4,
+                        resize: "vertical",
+                      }}
+                    />
+                  )}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="cg-report-action cg-report-action-primary"
+                      style={btn}
+                      disabled={stale || blocked || (needsWhy && !why.trim())}
+                      onClick={() => {
+                        if (needsWhy && drafting !== r.id) {
+                          setDrafting(r.id);
+                          return;
+                        }
+                        setDecisions((d) => ({
+                          ...d,
+                          [r.id]: { verdict: "Approved", why: why.trim() },
+                        }));
+                        setDrafting(null);
+                        setWhy("");
+                      }}
+                    >
+                      <Check size={12} /> Approve
+                    </button>
+                    <button
+                      type="button"
+                      className="cg-report-action"
+                      style={btn}
+                      disabled={blocked}
+                      onClick={() =>
+                        setDecisions((d) => ({
+                          ...d,
+                          [r.id]: { verdict: "Rejected", why: why.trim() },
+                        }))
+                      }
+                    >
+                      Reject
+                    </button>
+                    <button
+                      type="button"
+                      className="cg-report-action"
+                      style={btn}
+                    >
+                      Request changes
+                    </button>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "var(--cg-text-muted)",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      Acting as {actingUser}
+                      {needsWhy ? " · justification required" : ""}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {decided && (
+                <div
                   style={{
-                    color:
-                      decided.verdict === "Approved"
-                        ? "var(--cgx-low)"
-                        : "var(--cgx-critical)",
+                    marginTop: 10,
+                    paddingTop: 9,
+                    borderTop: "1px solid var(--cg-border-subtle)",
+                    fontSize: 11.5,
+                    color: "var(--cg-text-muted)",
                   }}
                 >
-                  {decided.verdict}
-                </strong>{" "}
-                by {actingUser} in this session — not persisted (no decision
-                endpoint yet).
-                {decided.why && <div>Justification: {decided.why}</div>}
-              </div>
-            )}
-          </div>
+                  <strong
+                    style={{
+                      color:
+                        decided.verdict === "Approved"
+                          ? "var(--cgx-low)"
+                          : "var(--cgx-critical)",
+                    }}
+                  >
+                    {decided.verdict}
+                  </strong>{" "}
+                  by {actingUser} in this session — not persisted (no decision
+                  endpoint yet).
+                  {decided.why && <div>Justification: {decided.why}</div>}
+                </div>
+              )}
+            </div>
+          </TimelineItem>
         );
       })}
     </div>
@@ -993,13 +1030,56 @@ function ApprovalsPane({ action }: { action: RemediationAction }) {
  * cannot produce without pretending prose is a field value.
  */
 /**
- * A value preceded by its own mark.
+ * A control reference: framework first, then the identifier.
  *
- * The icon sits in a FIXED-WIDTH slot. Letting each mark size itself put every
- * value at a different x — an Azure logo, a flag and a building glyph are all
- * different widths — so the value column zig-zagged down the summary and the
- * eye had to re-find the start of each line. One slot width means every value
- * shares a left edge whether or not its row has an icon at all.
+ * `SC-7` alone is ambiguous — it means nothing without knowing it is NIST — and
+ * an operator scanning ten tags cannot hold four numbering schemes in their
+ * head. Naming the framework makes each tag self-describing.
+ *
+ * Type stays neutral, matching the strategy chip. Colour on this surface means
+ * severity; spending it on taxonomy would make a routine ISO reference look as
+ * urgent as a Critical finding. The frameworks are already distinguished by the
+ * words in front of the number.
+ */
+function ControlTag({
+  framework,
+  ref: reference,
+  title,
+}: {
+  framework: string;
+  ref: string;
+  title: string;
+}) {
+  return (
+    <span
+      title={title}
+      style={{
+        display: "inline-flex",
+        alignItems: "baseline",
+        gap: 4,
+        padding: "0 6px",
+        fontSize: 10,
+        lineHeight: "16px",
+        borderRadius: 3,
+        border: "1px solid var(--cg-border)",
+        color: "var(--cg-text-primary)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span style={{ color: "var(--cg-text-muted)" }}>{framework}</span>
+      <span style={{ fontFamily: MONO }}>{reference}</span>
+    </span>
+  );
+}
+
+/**
+ * A value, optionally preceded by its own mark.
+ *
+ * Every row starts at the SAME left edge whether or not it has an icon — a
+ * reserved-but-empty slot indented the text-only rows away from the icon rows
+ * and broke the column's left edge, which is the line the eye actually tracks
+ * down a summary. Rows that do carry a mark size it identically, so the marks
+ * form their own column without pushing their text out of line with each other.
  */
 const ICON_SLOT = 18;
 
@@ -1017,18 +1097,20 @@ function IconRow({
       label={label}
       value={
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <span
-            aria-hidden
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: ICON_SLOT,
-              flexShrink: 0,
-            }}
-          >
-            {icon}
-          </span>
+          {icon && (
+            <span
+              aria-hidden
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: ICON_SLOT,
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </span>
+          )}
           {children}
         </span>
       }
@@ -1118,17 +1200,24 @@ function OverviewPane({
   action,
   onOpenScope,
   onOpenTask,
+  onOpenApprovals,
 }: {
   action: RemediationAction;
   onOpenScope: () => void;
   onOpenTask: (phase: string, phaseLabel: string, label: string) => void;
+  onOpenApprovals: () => void;
 }) {
   const loc = locationOf(action);
   const paragraphs = describeAction(action);
-  const policy = policyFor(action);
   const strategy = strategyFor(action);
   const country = REGION_COUNTRY[action.region];
   const plan = React.useMemo(() => buildPlan(action), [action]);
+  const attack = React.useMemo(() => buildAttack(action), [action]);
+  const defend = React.useMemo(() => buildDefend(action), [action]);
+  const controls = React.useMemo(() => buildControls(action), [action]);
+  const frameworks = React.useMemo(() => buildFrameworks(action), [action]);
+  /** Phases the policy gates — the count the Approvals pane will show. */
+  const gatedCount = plan.filter((ph) => ph.access === "Write").length;
 
   /** Plain-text renderings for the copy control — never scraped from the DOM. */
   const summaryText = () =>
@@ -1136,10 +1225,9 @@ function OverviewPane({
       `${action.id} — ${action.title}`,
       `Summary: ${fieldValue(action, "Summary")}`,
       `Scope: ${fieldValue(action, "Scope")}`,
-      `Risk reduction: ${fieldValue(action, "Risk Reduction")}`,
       `Lifecycle: ${fieldValue(action, "Lifecycle")}`,
       `Execution: ${strategy.category} → ${strategy.id}`,
-      `Policy: ${policy.id}@${policy.version} — ${policy.effect}`,
+      `Controls: ${[...attack.map((t) => t.technique), ...defend.map((d) => d.id), ...controls.map((c) => c.id), ...frameworks.map((f) => f.id)].join(", ")}`,
       `Provider: ${loc.provider}`,
       `Account: ${loc.account}`,
       `Region: ${loc.region}${country ? ` (${country})` : ""}`,
@@ -1194,51 +1282,113 @@ function OverviewPane({
           </button>
         </IconRow>
 
-        <IconRow label="Risk Reduction">
-          {fieldValue(action, "Risk Reduction")}
-        </IconRow>
         <IconRow label="Lifecycle">{fieldValue(action, "Lifecycle")}</IconRow>
 
         <IconRow label="Execution">
           <ExecutionChips action={action} />
         </IconRow>
-        <IconRow label="Policy invoked">
+
+        {/*
+         * Approvals required, as a link rather than a count.
+         *
+         * The number alone raises the question it cannot answer — WHICH
+         * approvals, and who owes them. Sending the reader to the pane that
+         * holds the requests is the only useful thing a count can do here.
+         */}
+        <IconRow label="Approvals required">
+          <button
+            type="button"
+            onClick={onOpenApprovals}
+            title="Open the Approvals pane"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              background: "none",
+              border: "none",
+              padding: 0,
+              fontFamily: APP_FONT,
+              fontSize: 12.5,
+              color: "var(--cg-accent)",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            {gatedCount} of {plan.length} phase
+            {plan.length === 1 ? "" : "s"} gated · {action.approvals} approved
+            <ChevronRight size={12} />
+          </button>
+        </IconRow>
+
+        {/*
+         * Control coverage, not the internal gate name.
+         *
+         * "standard-change@2.6" is a platform implementation detail; the
+         * control IDs are what an auditor, a ticket and a compliance report all
+         * ask for. ATT&CK and D3FEND stay visibly distinct — one is the
+         * technique the weakness exposes, the other the countermeasure this fix
+         * implements, and collapsing them is the usual way products overstate
+         * their MITRE coverage.
+         */}
+        <IconRow label="Controls">
           <span
             style={{
               display: "inline-flex",
               alignItems: "center",
               flexWrap: "wrap",
-              gap: 7,
+              gap: 5,
             }}
           >
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "1px 8px",
-                fontSize: 10.5,
-                lineHeight: "17px",
-                borderRadius: 3,
-                border: "1px solid var(--cg-accent)",
-                color: "var(--cg-accent)",
-                fontFamily: MONO,
-                whiteSpace: "nowrap",
-              }}
-            >
-              <ShieldCheck size={9} />
-              {policy.id}@{policy.version}
-            </span>
-            <span style={{ fontSize: 11, color: "var(--cg-text-muted)" }}>
-              {policy.effect}
-            </span>
+            {attack.map((t) => (
+              <ControlTag
+                key={t.technique}
+                framework="MITRE ATT&CK"
+                ref={t.technique}
+                title={`${t.techniqueName} — ${t.tactic}`}
+              />
+            ))}
+            {defend.map((d) => (
+              <ControlTag
+                key={d.id}
+                framework="MITRE D3FEND"
+                ref={d.id}
+                title={`${d.name} — counters ${d.counters}`}
+              />
+            ))}
+            {controls.map((c) => (
+              <ControlTag
+                key={c.id}
+                framework="NIST SP 800-53"
+                ref={c.id}
+                title={`${c.title} — CSF ${c.csf}`}
+              />
+            ))}
+            {frameworks.map((f) => (
+              <ControlTag
+                key={f.id}
+                framework={f.short}
+                ref={f.ref}
+                title={`${f.name} — ${f.requirement}`}
+              />
+            ))}
           </span>
         </IconRow>
 
         {/* Location — each part with its own mark. Provider and region are
             recognised far faster by logo and flag than by reading a slug. */}
-        <IconRow label="Provider" icon={<span style={{ width: 14 }} />}>
-          <ProviderBadge provider={loc.provider} />
+        <IconRow
+          label="Provider"
+          icon={
+            PROVIDER_SLUG[loc.provider] ? (
+              <SvgIcon
+                slug={PROVIDER_SLUG[loc.provider]}
+                size={14}
+                useBrandColor
+              />
+            ) : undefined
+          }
+        >
+          {loc.provider}
         </IconRow>
         <IconRow label="Account" icon={<Building2 size={13} />}>
           {loc.account}
@@ -1252,8 +1402,11 @@ function OverviewPane({
             <span style={{ color: "var(--cg-text-muted)" }}>· {country}</span>
           )}
         </IconRow>
-        <IconRow label="Environment">
-          <EnvBadge value={loc.environment} />
+        <IconRow
+          label="Environment"
+          icon={<GitBranch size={13} color={ENV_COLOR[loc.environment]} />}
+        >
+          {loc.environment}
         </IconRow>
         <IconRow
           label="Target resource"
@@ -1540,6 +1693,7 @@ export function RemediationActionView({
             onOpenTask={(phase, phaseLabel, label) =>
               setSub({ kind: "task", phase, phaseLabel, label })
             }
+            onOpenApprovals={() => setView("approvals")}
           />
         )}
         {view === "related-findings" && <RelatedFindingsPane action={action} />}

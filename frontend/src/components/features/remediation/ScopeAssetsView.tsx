@@ -6,7 +6,7 @@ import {
   type ColDef,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { useTheme } from "#/context/theme-context";
 import {
   APP_FONT,
@@ -53,42 +53,61 @@ export function openInventory(resource: string) {
   );
 }
 
+/**
+ * Asset name, with the hand-off on the row itself.
+ *
+ * The arrow replaces a dedicated "Inventory" button column: a column that
+ * exists only to hold one button costs width on every row to advertise an
+ * action most rows will never be used for. Revealed on hover, but always in the
+ * DOM so it stays reachable by keyboard and to assistive tech.
+ */
 function AssetCell({ data }: { data?: LinkedAsset }) {
   if (!data) return null;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-      <ResourceIcon kind={data.kind} size={12} />
-      {data.name}
-    </span>
-  );
-}
-
-/**
- * Hands off rather than duplicating. The inventory grid already answers every
- * question about an asset; rebuilding a slice of it here would create a second
- * answer that can disagree with the first.
- */
-function OpenCell({ data }: { data?: LinkedAsset }) {
-  if (!data) return null;
-  return (
-    <button
-      type="button"
-      className="cg-report-action"
-      title={`Open ${data.name} in Inventory`}
-      onClick={() => openInventory(data.name)}
+    <span
+      className="cg-asset"
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 5,
-        height: 20,
-        padding: "0 7px",
-        fontSize: 11,
-        fontFamily: APP_FONT,
-        cursor: "pointer",
+        gap: 7,
+        width: "100%",
+        minWidth: 0,
       }}
     >
-      Inventory <ExternalLink size={10} />
-    </button>
+      <ResourceIcon kind={data.kind} size={12} />
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {data.name}
+      </span>
+      <button
+        type="button"
+        className="cg-asset-open"
+        title={`Open ${data.name} in Inventory`}
+        aria-label={`Open ${data.name} in Inventory`}
+        onClick={(e) => {
+          e.stopPropagation();
+          openInventory(data.name);
+        }}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          marginLeft: "auto",
+          padding: 0,
+          background: "none",
+          border: "none",
+          color: "var(--cg-accent)",
+          cursor: "pointer",
+          flexShrink: 0,
+        }}
+      >
+        <ArrowUpRight size={13} />
+      </button>
+    </span>
   );
 }
 
@@ -116,13 +135,6 @@ export function ScopeAssetsView({
       { field: "criticality", headerName: "Criticality", width: 110 },
       { field: "dataClass", headerName: "Data class", width: 124 },
       { field: "exposure", headerName: "Exposure", width: 136 },
-      {
-        colId: "open",
-        headerName: "",
-        width: 108,
-        sortable: false,
-        cellRenderer: OpenCell,
-      },
     ],
     [],
   );
@@ -179,7 +191,10 @@ export function ScopeAssetsView({
 
       {/* Sized to content up to a ceiling: a fixed height leaves dead space for
           three assets and clips at thirty. */}
-      <div style={{ height: Math.min(420, 40 + assets.length * 28) }}>
+      <div
+        className="cg-scroll"
+        style={{ height: Math.min(420, 40 + assets.length * 28) }}
+      >
         <AgGridReact<LinkedAsset>
           theme={eventsThemeFor(theme)}
           rowData={assets}

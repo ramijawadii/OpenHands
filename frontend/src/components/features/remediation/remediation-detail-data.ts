@@ -64,6 +64,10 @@ export interface LinkedControl {
 export interface LinkedFramework {
   id: string;
   name: string;
+  /** Framework name as it belongs in front of the id — "CIS AWS", "PCI DSS". */
+  short: string;
+  /** The id without its framework prefix, so the tag does not say it twice. */
+  ref: string;
   requirement: string;
   coverageBefore: number;
   coverageAfter: number;
@@ -133,19 +137,36 @@ const CONTROLS: [string, string, string, string][] = [
   ["CM-2", "Configuration Management", "Baseline Configuration", "PR.IP"],
 ];
 
-const FRAMEWORKS: [string, string, string][] = [
+/** `[id, full name, short name, bare reference, requirement]`. */
+const FRAMEWORKS: [string, string, string, string, string][] = [
   [
     "CIS-AWS-5.2",
-    "CIS AWS Foundations",
+    "CIS AWS Foundations Benchmark",
+    "CIS AWS",
+    "5.2",
     "No security group allows ingress from 0.0.0.0/0",
   ],
   [
     "PCI-1.3",
     "PCI DSS v4.0",
+    "PCI DSS",
+    "1.3",
     "Restrict inbound traffic from untrusted networks",
   ],
-  ["SOC2-CC6.6", "SOC 2", "Logical access — external threat mitigation"],
-  ["ISO-A.13.1", "ISO 27001", "Network security management"],
+  [
+    "SOC2-CC6.6",
+    "SOC 2 Trust Services Criteria",
+    "SOC 2",
+    "CC6.6",
+    "Logical access — external threat mitigation",
+  ],
+  [
+    "ISO-A.13.1",
+    "ISO/IEC 27001:2022",
+    "ISO 27001",
+    "A.13.1",
+    "Network security management",
+  ],
 ];
 
 const PROVENANCES: Provenance[] = ["scan", "agent"];
@@ -204,11 +225,13 @@ export function buildControls(a: RemediationAction): LinkedControl[] {
 
 export function buildFrameworks(a: RemediationAction): LinkedFramework[] {
   return FRAMEWORKS.slice(0, 2 + (hash(`${a.id}fw`) % 3)).map(
-    ([id, name, requirement]) => {
+    ([id, name, short, ref, requirement]) => {
       const before = num(`${a.id}${id}`, 42, 78);
       return {
         id,
         name,
+        short,
+        ref,
         requirement,
         coverageBefore: before,
         coverageAfter: Math.min(100, before + num(`${a.id}${id}d`, 8, 22)),

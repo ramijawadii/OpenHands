@@ -213,6 +213,86 @@ const ACTOR_ICON: Record<ActorType, React.ReactNode> = {
 };
 
 /* ------------------------------------------------------------------ *
+ * Timeline
+ * ------------------------------------------------------------------ */
+
+/**
+ * One row of a vertical timeline: marker, connector, content.
+ *
+ * ONE implementation, used by the lifecycle stages, the remediation plan, the
+ * approval queue, the agent's reasoning and the checkpoint. All five are
+ * sequences, and each previously drew its own — a coloured left border here, a
+ * bordered card there — so five things of the same shape looked like five
+ * different components.
+ *
+ * The connector is omitted on the last row rather than drawn and hidden, so the
+ * line ends at the final marker instead of trailing into empty space.
+ */
+export function TimelineItem({
+  mark,
+  last,
+  done,
+  children,
+}: {
+  mark: React.ReactNode;
+  last?: boolean;
+  /** Draws the connector in the "passed" tone rather than the neutral rule. */
+  done?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 10 }}>
+      <div
+        aria-hidden
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          flexShrink: 0,
+          paddingTop: 10,
+        }}
+      >
+        {mark}
+        {!last && (
+          <div
+            style={{
+              flex: 1,
+              width: 1,
+              minHeight: 18,
+              background: done ? "var(--cgx-low)" : "var(--cg-border-subtle)",
+              opacity: done ? 0.5 : 1,
+            }}
+          />
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: 10 }}>{children}</div>
+    </div>
+  );
+}
+
+/** Marker: filled when complete, ringed when still pending. */
+export function TimelineDot({
+  tone,
+  filled,
+}: {
+  tone: string;
+  filled?: boolean;
+}) {
+  return (
+    <span
+      style={{
+        width: 11,
+        height: 11,
+        borderRadius: "50%",
+        flexShrink: 0,
+        border: `1.5px solid ${tone}`,
+        background: filled ? tone : "transparent",
+      }}
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ *
  * Related Findings
  * ------------------------------------------------------------------ */
 
@@ -549,39 +629,13 @@ export function LifecyclePane({
           const on = isOpen(stage.id, i);
           const last = i === LIFECYCLE_STAGES.length - 1;
           return (
-            <div
+            <TimelineItem
               key={stage.id}
-              id={`stage-${stage.id}`}
-              style={{ display: "flex", gap: 10 }}
+              mark={<StageMark gate={d.gate} />}
+              last={last}
+              done={d.gate === "Passed"}
             >
-              {/* Spine — the thing that makes it read as a sequence. */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  flexShrink: 0,
-                  paddingTop: 10,
-                }}
-              >
-                <StageMark gate={d.gate} />
-                {!last && (
-                  <div
-                    style={{
-                      flex: 1,
-                      width: 1,
-                      minHeight: 18,
-                      background:
-                        d.gate === "Passed"
-                          ? GATE_TONE.Passed
-                          : "var(--cg-border-subtle)",
-                      opacity: d.gate === "Passed" ? 0.5 : 1,
-                    }}
-                  />
-                )}
-              </div>
-
-              <div style={{ flex: 1, minWidth: 0, paddingBottom: 6 }}>
+              <div id={`stage-${stage.id}`}>
                 <button
                   type="button"
                   aria-expanded={on}
@@ -711,7 +765,7 @@ export function LifecyclePane({
                   </div>
                 )}
               </div>
-            </div>
+            </TimelineItem>
           );
         })}
       </div>

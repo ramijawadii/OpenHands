@@ -228,40 +228,40 @@ export function RemediationActionsList({
 
   const columnDefs = React.useMemo<ColDef<RemediationAction>[]>(
     () => [
-      { field: "id", headerName: "Action", width: 118 },
-      { field: "title", headerName: "Remediation", flex: 1, minWidth: 220 },
+      { field: "id", headerName: "Action", width: 96 },
+      { field: "title", headerName: "Remediation", flex: 1, minWidth: 190 },
       {
         field: "severity",
         headerName: "Severity",
-        width: 118,
+        width: 96,
         cellRenderer: SeverityCell,
       },
       {
         field: "status",
         headerName: "Status",
-        width: 148,
+        width: 116,
         cellRenderer: StatusCell,
       },
       {
         field: "stage",
         headerName: "Lifecycle",
-        width: 190,
+        width: 152,
         cellRenderer: StageCell,
       },
       {
         field: "origin",
         headerName: "Origin",
-        width: 112,
+        width: 94,
         cellRenderer: OriginCell,
       },
-      { field: "resource", headerName: "Resource", width: 140 },
-      { field: "team", headerName: "Team", width: 116 },
-      { field: "owner", headerName: "Owner", width: 116 },
-      { field: "approvals", headerName: "Approvals", width: 110 },
+      { field: "resource", headerName: "Resource", width: 120 },
+      { field: "team", headerName: "Team", width: 92 },
+      { field: "owner", headerName: "Owner", width: 96 },
+      { field: "approvals", headerName: "Approvals", width: 92 },
       {
         field: "blockedSince",
         headerName: "Blocked",
-        width: 118,
+        width: 88,
         cellRenderer: BlockedCell,
         // Breach-first: the point of the column is that long waits surface
         // themselves. Ascending on the date puts the oldest block on top.
@@ -271,7 +271,7 @@ export function RemediationActionsList({
       {
         field: "dueAt",
         headerName: "SLA",
-        width: 132,
+        width: 104,
         cellRenderer: SlaCell,
       },
     ],
@@ -444,9 +444,11 @@ export function RemediationActionsList({
         </span>
       </div>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div className="cg-scroll" style={{ flex: 1, minHeight: 0 }}>
         <AgGridReact<RemediationAction>
-          theme={eventsThemeFor(theme)}
+          theme={eventsThemeFor(theme).withParams({
+            cellHorizontalPadding: 6,
+          })}
           rowData={rows}
           columnDefs={columnDefs}
           getRowId={(p) => p.data.id}
