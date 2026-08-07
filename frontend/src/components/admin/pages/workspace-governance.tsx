@@ -44,6 +44,7 @@ import {
   type StripIcon,
   useTabParam,
 } from "#/components/admin/admin-kit";
+import { CreationPoliciesView } from "#/components/admin/pages/workspace-governance/creation-policies";
 import { OperationalPoliciesView } from "#/components/admin/pages/workspace-governance/operational-policies";
 import { MetadataPoliciesView } from "#/components/admin/pages/workspace-governance/metadata-policies";
 import { PolicyAssignmentsView } from "#/components/admin/pages/workspace-governance/policy-assignments";
@@ -81,7 +82,12 @@ interface Leaf {
 
 // ── 01 · Workspace Policies ──────────────────────────────────────────────────────────────────────
 const POLICY_LEAVES: Leaf[] = [
-  { id: "creation", label: "Creation Policies", Icon: FilePlus2 },
+  {
+    id: "creation",
+    label: "Creation Policies",
+    Icon: FilePlus2,
+    render: () => <CreationPoliciesView />,
+  },
   {
     id: "operational",
     label: "Operational Policies",
