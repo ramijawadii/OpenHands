@@ -522,7 +522,7 @@ export function DiscoveryListView<R extends { id: string }>({
               style={{
                 position: "relative",
                 flex: "0 1 300px",
-                marginLeft: presets?.length ? "auto" : 0,
+                marginLeft: "auto",
               }}
             >
               <span

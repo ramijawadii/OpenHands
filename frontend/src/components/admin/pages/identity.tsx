@@ -72,7 +72,6 @@ import {
   Crosshair,
   Frame,
   ChevronDown,
-  Circle,
   ArrowDown,
 } from "lucide-react";
 import cytoscape from "cytoscape";
@@ -133,14 +132,11 @@ import {
 } from "#/hooks/query/use-cloudguard";
 import type { CGCollectionItem } from "#/api/cloudguard-service";
 import {
-  Card,
   KVGrid,
   HeaderButton,
   ConfirmButton,
   RowMenu,
   ScopeBadge,
-  DirectoryTable,
-  CommandBar,
   SampleTag,
   SampleBanner,
   EmptyState,
@@ -1057,7 +1053,7 @@ function ColumnChooser({
   hidden,
   onToggle,
 }: {
-  cols: Column<UserRow>[];
+  cols: readonly { key: string; header: string }[];
   hidden: Set<string>;
   onToggle: (k: string) => void;
 }) {
@@ -4119,6 +4115,10 @@ function Drawer({
   footer,
   onClose,
   width = 520,
+  sections,
+  sectionIcons,
+  active = 0,
+  onSection,
 }: {
   title: string;
   subtitle?: string;
@@ -4126,7 +4126,16 @@ function Drawer({
   footer?: React.ReactNode;
   onClose: () => void;
   width?: number;
+  /** Rail items. Defaults to a single section (the title) so every flow still
+   *  shows the uniform sidebar even when it has no sub-navigation. */
+  sections?: readonly string[];
+  sectionIcons?: readonly React.ReactNode[];
+  active?: number;
+  onSection?: (i: number) => void;
 }) {
+  const rail = sections && sections.length ? sections : [title];
+  // Rail needs room, so a flow drawer is at least wide enough for rail + content.
+  const panelW = Math.max(width, 660);
   return (
     <div
       onClick={onClose}
@@ -4137,15 +4146,22 @@ function Drawer({
         onClick={(e) => e.stopPropagation()}
         className="cg-drawer-anim"
         style={{
-          width,
+          width: panelW,
           maxWidth: "96vw",
           height: "100%",
-          background: T.cardBg,
-          borderLeft: `1px solid ${T.borderStrong}`,
+          background: "var(--cg-bg-page)",
+          borderLeft: "1px solid var(--cg-border-strong)",
           display: "flex",
           flexDirection: "column",
+          fontFamily: APP_FONT,
         }}
       >
+        <style>{`
+          .cg-drawer-anim button, .cg-drawer-anim input,
+          .cg-drawer-anim select, .cg-drawer-anim textarea { font-family: ${APP_FONT}; }
+          .cg-rail-tab { transition: background-color .12s, color .12s; }
+          .cg-rail-tab:hover { background: var(--cg-bg-hover); color: var(--cg-text-primary); }
+        `}</style>
         <div
           style={{
             display: "flex",
@@ -4181,8 +4197,73 @@ function Drawer({
             <X size={18} />
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-          {children}
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          {/* Left rail — same structure as the entity drawer, so every flow reads
+              as the same kind of surface. Single default section when the flow
+              has no sub-navigation. */}
+          <div
+            className="custom-scrollbar"
+            style={{
+              width: 208,
+              flexShrink: 0,
+              borderRight: `1px solid ${T.border}`,
+              padding: "12px 10px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {rail.map((label, i) => {
+              const on = i === active;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onSection?.(i)}
+                  className={on ? "cg-rail-tab cg-rail-item-active" : "cg-rail-tab"}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    height: 34,
+                    padding: "0 10px",
+                    borderRadius: 7,
+                    border: "none",
+                    background: on ? undefined : "transparent",
+                    color: on ? undefined : "var(--cg-text-nav)",
+                    fontSize: 12.5,
+                    fontWeight: on ? 600 : 400,
+                    fontFamily: APP_FONT,
+                    cursor: onSection ? "pointer" : "default",
+                    textAlign: "left",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 16,
+                      height: 16,
+                      flexShrink: 0,
+                      opacity: on ? 1 : 0.5,
+                    }}
+                  >
+                    {sectionIcons?.[i] ?? railIcon(label)}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+          <div
+            className="custom-scrollbar"
+            style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}
+          >
+            {children}
+          </div>
         </div>
         {footer && (
           <div
@@ -4191,6 +4272,7 @@ function Drawer({
               borderTop: `1px solid ${T.border}`,
               display: "flex",
               justifyContent: "flex-end",
+              gap: 10,
             }}
           >
             {footer}
@@ -4364,6 +4446,85 @@ const SEED_TEMPLATES: UserTemplate[] = [
   },
 ];
 
+// Facet options for a ListView/DiscoveryListView filter pill: a leading "All"
+// then unique, sorted values from a column.
+const facetOf = (vals: string[]): { value: string; label: string }[] => [
+  { value: "", label: "All" },
+  ...Array.from(new Set(vals.filter(Boolean)))
+    .sort()
+    .map((v) => ({ value: v, label: v })),
+];
+
+// Meaningful SVG icon for a drawer rail tab, chosen from the section label.
+// Keyword-matched so every drawer's rail shows a real icon (not a generic dot)
+// without each caller wiring one up. Uses only lucide icons already imported.
+function railIcon(label: string): React.ReactNode {
+  const l = label.toLowerCase();
+  const has = (...ks: string[]) => ks.some((k) => l.includes(k));
+  const sz = 16;
+  // Ordered specific → generic. Keep distinct concepts on distinct icons so tabs
+  // in the same drawer never share a mark; the Boxes default is a last resort.
+  if (has("mail", "email", "message", "comment", "note", "tip"))
+    return <Mail size={sz} />;
+  if (has("detection", "detect", "signal", "indicator")) return <Eye size={sz} />;
+  if (has("evidence", "artifact", "attachment", "collected"))
+    return <Inbox size={sz} />;
+  if (has("response", "respond", "remediat", "contain", "mitigat", "action", "resolve", "resolution"))
+    return <Wrench size={sz} />;
+  if (has("risk", "threat", "attack", "alert", "violation", "suspicious", "anomal"))
+    return <ShieldAlert size={sz} />;
+  if (has("review", "certification", "attestation", "approval", "approve", "approver", "certif"))
+    return <BadgeCheck size={sz} />;
+  if (has("assign", "delegation", "delegate", "grant")) return <GitBranch size={sz} />;
+  if (has("workflow", "chain", "pipeline", "escalat")) return <GitBranch size={sz} />;
+  if (has("integration", "connector", "provider", "federation", "sync"))
+    return <Plug size={sz} />;
+  if (has("session")) return <Activity size={sz} />;
+  if (has("credential", "mfa", "password", "passkey", "token", "secret", "key"))
+    return <KeyRound size={sz} />;
+  if (has("identity", "sign-in", "signin", "authentication", "auth", "method"))
+    return <Fingerprint size={sz} />;
+  if (has("role")) return <Shield size={sz} />;
+  if (has("permission", "access", "scope", "entitle", "allowed", "capabilit"))
+    return <Lock size={sz} />;
+  if (has("group", "member", "team", "owner", "analyst", "reviewer", "assignee", "people"))
+    return <Users size={sz} />;
+  if (has("policy", "policies", "rule", "governance", "requirement", "justification", "sod", "segregation"))
+    return <ScrollText size={sz} />;
+  if (has("config", "setting", "attribute", "mapping", "parameter"))
+    return <SlidersHorizontal size={sz} />;
+  if (has("network", "connection", "endpoint", "architecture", "topology", "path", "graph"))
+    return <Network size={sz} />;
+  if (has("lifecycle", "provision", "recovery", "schedule", "expir", "age", "date", "time"))
+    return <Clock size={sz} />;
+  if (has("activity", "history", "log", "audit", "event", "timeline", "change"))
+    return <History size={sz} />;
+  if (has("service", "machine", "workload", "server", "agent", "application", "app", "api"))
+    return <Server size={sz} />;
+  if (has("category", "type", "tag", "label", "classification")) return <Tag size={sz} />;
+  if (has("profile", "basic", "overview", "general", "about", "person", "contact"))
+    return <User size={sz} />;
+  if (has("employ", "organization", "org", "company", "department", "workspace", "tenant"))
+    return <Boxes size={sz} />;
+  if (has("statistic", "metric", "impact", "inventory", "summary", "information", "metadata", "detail", "adoption"))
+    return <Info size={sz} />;
+  if (has("notification", "notify")) return <Bell size={sz} />;
+  return <Boxes size={sz} />;
+}
+
+// Column-visibility state for a list's "Choose columns" control.
+function useHiddenCols() {
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
+  return { hidden, toggleCol };
+}
+
 function UsersArea() {
   const [view, setView] = React.useState<UsersView>("active");
   const [deleted, setDeleted] = React.useState<DeletedUser[]>(SEED_DELETED);
@@ -4477,11 +4638,16 @@ function GuestUsersView({
   const [search, setSearch] = React.useState("");
   const [inviting, setInviting] = React.useState(false);
   const [sel, setSel] = React.useState<GuestUser | null>(null);
+  const [statusF, setStatusF] = React.useState("");
+  const [sourceF, setSourceF] = React.useState("");
+  const { hidden, toggleCol } = useHiddenCols();
   const rows = guests.filter(
     (g) =>
-      !search ||
-      g.email.toLowerCase().includes(search.toLowerCase()) ||
-      g.name.toLowerCase().includes(search.toLowerCase()),
+      (!search ||
+        g.email.toLowerCase().includes(search.toLowerCase()) ||
+        g.name.toLowerCase().includes(search.toLowerCase())) &&
+      (!statusF || g.status === statusF) &&
+      (!sourceF || g.source === sourceF),
   );
   const cols: Column<GuestUser>[] = [
     {
@@ -4513,18 +4679,26 @@ function GuestUsersView({
       ),
     },
   ];
+  const acceptedN = guests.filter((g) => g.status === "accepted").length;
+  const pendingN = guests.filter((g) => g.status === "invited").length;
+  const sourcesN = new Set(guests.map((g) => g.source)).size;
   return (
-    <Card
-      title="Guest users — external collaborators"
-      desc="People from outside your organization (auditors, partners, red-team) invited into specific workspaces. Guests inherit no enterprise role until explicitly assigned and are subject to the mandatory security floor."
-    >
-      <SampleBanner what="guest directory (binds to B2B / SCIM guest provisioning when the IdP connector lands)" />
-      <CommandBar
-        items={[
+    <>
+      <div className="cg-stat-row">
+        <MetricTile label="Total guests" value={String(guests.length)} />
+        <MetricTile label="Accepted" value={String(acceptedN)} />
+        <MetricTile label="Pending" value={String(pendingN)} tone="warn" />
+        <MetricTile label="Sources" value={String(sourcesN)} />
+      </div>
+      <ListView<GuestUser>
+        title="Guest users — external collaborators"
+        sampleWhat="guest directory (binds to B2B / SCIM guest provisioning when the IdP connector lands)"
+        commands={[
           {
             key: "invite",
             label: "Invite a guest",
             icon: <UserPlus size={15} />,
+            primary: true,
             disabled: !canEdit,
             onClick: () => setInviting(true),
           },
@@ -4535,18 +4709,46 @@ function GuestUsersView({
             onClick: () => {},
           },
         ]}
-      />
-      <SearchRow
-        value={search}
-        onChange={setSearch}
+        pills={[
+          {
+            key: "status",
+            label: "Status",
+            value: statusF,
+            onChange: setStatusF,
+            options: facetOf(guests.map((g) => g.status)),
+          },
+          {
+            key: "source",
+            label: "Source",
+            value: sourceF,
+            onChange: setSourceF,
+            options: facetOf(guests.map((g) => g.source)),
+          },
+        ]}
+        presets={[
+          {
+            label: "All guests",
+            onApply: () => {
+              setSearch("");
+              setStatusF("");
+              setSourceF("");
+            },
+          },
+          { label: "Accepted", onApply: () => setStatusF("accepted") },
+          { label: "Pending", onApply: () => setStatusF("invited") },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search guest users list"
         count={rows.length}
-        placeholder="Search guest users list"
-      />
-      <DirectoryTable
-        columns={cols}
+        columns={cols.filter((c) => !hidden.has(c.key))}
         rows={rows}
         pageSize={15}
         onRowClick={(r) => setSel(r)}
+        selectable
         rowActions={
           canEdit
             ? (r) => (
@@ -4623,7 +4825,7 @@ function GuestUsersView({
           }}
         />
       )}
-    </Card>
+    </>
   );
 }
 
@@ -4794,8 +4996,14 @@ function DeletedUsersView({
     const gone = Math.floor((Date.now() - new Date(on).getTime()) / 86400000);
     return Math.max(0, RETENTION_DAYS - gone);
   };
+  const [roleF, setRoleF] = React.useState("");
+  const [expiringOnly, setExpiringOnly] = React.useState(false);
+  const { hidden, toggleCol } = useHiddenCols();
   const rows = deleted.filter(
-    (d) => !search || d.email.toLowerCase().includes(search.toLowerCase()),
+    (d) =>
+      (!search || d.email.toLowerCase().includes(search.toLowerCase())) &&
+      (!roleF || d.role === roleF) &&
+      (!expiringOnly || daysLeft(d.deletedOn) <= 7),
   );
   const cols: Column<DeletedUser>[] = [
     {
@@ -4826,13 +5034,24 @@ function DeletedUsersView({
       },
     },
   ];
+  const expiringN = deleted.filter((d) => daysLeft(d.deletedOn) <= 7).length;
   return (
-    <Card
-      title="Deleted users — recoverable for 30 days"
-      desc="Deprovisioned identities are soft-deleted and held for a 30-day recovery window before permanent erasure. Restore re-provisions the user with their prior role; permanent deletion triggers cryptographic erasure of any per-user keys."
-    >
-      <CommandBar
-        items={[
+    <>
+      <div className="cg-stat-row">
+        <MetricTile label="Deleted users" value={String(deleted.length)} />
+        <MetricTile
+          label="Expiring ≤7 days"
+          value={String(expiringN)}
+          tone="danger"
+        />
+        <MetricTile
+          label="Recoverable"
+          value={String(deleted.length - expiringN)}
+        />
+      </div>
+      <ListView<DeletedUser>
+        title="Deleted users — recoverable for 30 days"
+        commands={[
           {
             key: "refresh",
             label: "Refresh",
@@ -4840,18 +5059,38 @@ function DeletedUsersView({
             onClick: () => {},
           },
         ]}
-      />
-      <SearchRow
-        value={search}
-        onChange={setSearch}
+        pills={[
+          {
+            key: "role",
+            label: "Last role",
+            value: roleF,
+            onChange: setRoleF,
+            options: facetOf(deleted.map((d) => d.role)),
+          },
+        ]}
+        presets={[
+          {
+            label: "All deleted",
+            onApply: () => {
+              setSearch("");
+              setRoleF("");
+              setExpiringOnly(false);
+            },
+          },
+          { label: "Expiring ≤7 days", onApply: () => setExpiringOnly(true) },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search deleted users list"
         count={rows.length}
-        placeholder="Search deleted users list"
-      />
-      <DirectoryTable
-        columns={cols}
+        columns={cols.filter((c) => !hidden.has(c.key))}
         rows={rows}
         pageSize={15}
         onRowClick={(r) => setSel(r)}
+        selectable
         rowActions={
           canEdit
             ? (r) => (
@@ -4915,7 +5154,7 @@ function DeletedUsersView({
           }}
         />
       )}
-    </Card>
+    </>
   );
 }
 
@@ -5023,11 +5262,16 @@ function ContactsView({
   const [search, setSearch] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<ContactRow | null>(null);
+  const [companyF, setCompanyF] = React.useState("");
+  const [titledOnly, setTitledOnly] = React.useState(false);
+  const { hidden, toggleCol } = useHiddenCols();
   const rows = contacts.filter(
     (c) =>
-      !search ||
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.email.toLowerCase().includes(search.toLowerCase()),
+      (!search ||
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.email.toLowerCase().includes(search.toLowerCase())) &&
+      (!companyF || c.company === companyF) &&
+      (!titledOnly || !!c.title),
   );
   const cols: Column<ContactRow>[] = [
     {
@@ -5045,18 +5289,24 @@ function ContactsView({
     { key: "company", header: "Company", render: (r) => r.company },
     { key: "title", header: "Job title", render: (r) => r.title || "—" },
   ];
+  const companiesN = new Set(contacts.map((c) => c.company)).size;
+  const withTitleN = contacts.filter((c) => c.title).length;
   return (
-    <Card
-      title="Contacts — external directory entries"
-      desc="People outside your organization that should be discoverable in the org directory (vendor TAMs, regulators, partner contacts). Contacts have no sign-in and no access — they are address-book entries only."
-    >
-      <SampleBanner what="external contacts (binds to the directory / address-book service)" />
-      <CommandBar
-        items={[
+    <>
+      <div className="cg-stat-row">
+        <MetricTile label="Contacts" value={String(contacts.length)} />
+        <MetricTile label="Companies" value={String(companiesN)} />
+        <MetricTile label="With job title" value={String(withTitleN)} />
+      </div>
+      <ListView<ContactRow>
+        title="Contacts — external directory entries"
+        sampleWhat="external contacts (binds to the directory / address-book service)"
+        commands={[
           {
             key: "add",
             label: "Add a contact",
             icon: <UserPlus size={15} />,
+            primary: true,
             disabled: !canEdit,
             onClick: () => setAdding(true),
           },
@@ -5080,18 +5330,38 @@ function ContactsView({
             onClick: () => {},
           },
         ]}
-      />
-      <SearchRow
-        value={search}
-        onChange={setSearch}
+        pills={[
+          {
+            key: "company",
+            label: "Company",
+            value: companyF,
+            onChange: setCompanyF,
+            options: facetOf(contacts.map((c) => c.company)),
+          },
+        ]}
+        presets={[
+          {
+            label: "All contacts",
+            onApply: () => {
+              setSearch("");
+              setCompanyF("");
+              setTitledOnly(false);
+            },
+          },
+          { label: "With job title", onApply: () => setTitledOnly(true) },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search contacts list"
         count={rows.length}
-        placeholder="Search contacts list"
-      />
-      <DirectoryTable
-        columns={cols}
+        columns={cols.filter((c) => !hidden.has(c.key))}
         rows={rows}
         pageSize={15}
         onRowClick={(r) => setEditing(r)}
+        selectable
         rowActions={
           canEdit
             ? (r) => (
@@ -5136,7 +5406,7 @@ function ContactsView({
           }}
         />
       )}
-    </Card>
+    </>
   );
 }
 
@@ -5192,56 +5462,61 @@ function ManageTemplatesView({
     },
   ];
   return (
-    <Card>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 5,
-          background: "transparent",
-          border: "none",
-          color: T.textMuted,
-          fontSize: 12.5,
-          cursor: "pointer",
-          padding: 0,
-          marginBottom: 10,
-        }}
-      >
-        <ChevronLeft size={14} /> Active users
-      </button>
-      <div
-        style={{
-          fontSize: 18,
-          fontWeight: 700,
-          color: T.textPrimary,
-          marginBottom: 6,
-        }}
-      >
-        Manage user templates
+    <>
+      <div style={{ margin: "0 10px" }}>
+        <button
+          type="button"
+          onClick={onBack}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            background: "transparent",
+            border: "none",
+            color: T.textMuted,
+            fontSize: 12.5,
+            cursor: "pointer",
+            padding: 0,
+            marginBottom: 10,
+            fontFamily: APP_FONT,
+          }}
+        >
+          <ChevronLeft size={14} /> Active users
+        </button>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            color: T.textPrimary,
+            marginBottom: 6,
+          }}
+        >
+          Manage user templates
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            color: T.textMuted,
+            marginBottom: 16,
+            lineHeight: 1.5,
+            maxWidth: 720,
+          }}
+        >
+          User templates let you add new users from a saved configuration — role,
+          location, residency and security settings. Create one here, or save a
+          user’s settings as a template when adding them from{" "}
+          <span style={{ color: T.accent }}>Active users</span>.
+        </div>
       </div>
-      <div
-        style={{
-          fontSize: 13,
-          color: T.textMuted,
-          marginBottom: 16,
-          lineHeight: 1.5,
-          maxWidth: 720,
-        }}
-      >
-        User templates let you add new users from a saved configuration — role,
-        location, residency and security settings. Create one here, or save a
-        user’s settings as a template when adding them from{" "}
-        <span style={{ color: T.accent }}>Active users</span>.
-      </div>
-      <SampleBanner what="template store (binds to the provisioning service)" />
-      <CommandBar
-        items={[
+      <ListView<UserTemplate>
+        title="Manage user templates"
+        sampleWhat="template store (binds to the provisioning service)"
+        commands={[
           {
             key: "add",
             label: "Add template",
             icon: <Plus size={15} />,
+            primary: true,
             disabled: !canEdit,
             onClick: () => setAdding(true),
           },
@@ -5252,31 +5527,15 @@ function ManageTemplatesView({
             onClick: () => {},
           },
         ]}
-        farItems={
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              color: T.textMuted,
-              fontSize: 13,
-            }}
-          >
-            <Filter size={14} /> Filter
-          </span>
-        }
-      />
-      <SearchRow
-        value={search}
-        onChange={setSearch}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search templates"
         count={rows.length}
-        placeholder="Search templates"
-      />
-      <DirectoryTable
         columns={cols}
         rows={rows}
         pageSize={15}
         onRowClick={(r) => setEditing(r)}
+        selectable
         rowActions={
           canEdit
             ? (r) => (
@@ -5331,7 +5590,7 @@ function ManageTemplatesView({
           }}
         />
       )}
-    </Card>
+    </>
   );
 }
 
@@ -5424,64 +5683,6 @@ function ListView<R extends { id: string }>({
         />
       )}
     </>
-  );
-}
-
-function SearchRow({
-  value,
-  onChange,
-  count,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  count: number;
-  placeholder: string;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-        marginBottom: 10,
-      }}
-    >
-      <span style={{ position: "relative", flex: "0 1 360px" }}>
-        <span
-          style={{
-            position: "absolute",
-            left: 10,
-            top: 8,
-            color: T.textMuted,
-            fontSize: 13,
-          }}
-        >
-          ⌕
-        </span>
-        <input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          style={{
-            height: 34,
-            width: "100%",
-            padding: "0 10px 0 28px",
-            background: "var(--cg-input-bg)",
-            border: `1px solid ${T.border}`,
-            borderRadius: 6,
-            color: T.textPrimary,
-            fontSize: 13,
-            outline: "none",
-          }}
-        />
-      </span>
-      <span style={{ fontSize: 12, color: T.textMuted, whiteSpace: "nowrap" }}>
-        {count} results
-      </span>
-    </div>
   );
 }
 
@@ -6873,8 +7074,8 @@ function DetailDrawer({
                 >
                   {/* Icon rendered like the app sidebar: a 16px SVG in currentColor,
                       grayed via opacity 0.5 when inactive (full on the active tab).
-                      Falls back to a grayed Circle SVG — replacing the old dot —
-                      when a section supplies no icon. */}
+                      Falls back to a keyword-matched icon (railIcon) from the section
+                      label when a section supplies no explicit icon. */}
                   <span
                     style={{
                       display: "inline-flex",
@@ -6886,7 +7087,7 @@ function DetailDrawer({
                       opacity: on ? 1 : 0.5,
                     }}
                   >
-                    {sectionIcons?.[i] ?? <Circle size={14} strokeWidth={2} />}
+                    {sectionIcons?.[i] ?? railIcon(label)}
                   </span>
                   {label}
                 </button>
@@ -7997,15 +8198,22 @@ function ContactDetailsDrawer({
         onClick={(e) => e.stopPropagation()}
         className="cg-drawer-anim"
         style={{
-          width: 620,
+          width: 720,
           maxWidth: "98vw",
           height: "100%",
-          background: T.cardBg,
+          background: "var(--cg-bg-page)",
           borderLeft: `1px solid ${T.borderStrong}`,
           display: "flex",
           flexDirection: "column",
+          fontFamily: APP_FONT,
         }}
       >
+        <style>{`
+          .cg-drawer-anim button, .cg-drawer-anim input,
+          .cg-drawer-anim select, .cg-drawer-anim textarea { font-family: ${APP_FONT}; }
+          .cg-rail-tab { transition: background-color .12s, color .12s; }
+          .cg-rail-tab:hover { background: var(--cg-bg-hover); color: var(--cg-text-primary); }
+        `}</style>
         {/* Header */}
         <div
           style={{
@@ -8059,45 +8267,73 @@ function ContactDetailsDrawer({
           </button>
         </div>
 
-        {/* Sub-tab strip (no left rail) */}
-        <div
-          className="custom-scrollbar"
-          style={{
-            display: "flex",
-            gap: 2,
-            padding: "0 24px",
-            borderBottom: `1px solid ${T.border}`,
-            overflowX: "auto",
-            flexShrink: 0,
-          }}
-        >
-          {CONTACT_SUBS.map((label, i) => {
-            const on = i === sub;
-            return (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setSub(i)}
-                style={{
-                  padding: "12px 12px 10px",
-                  background: "transparent",
-                  border: "none",
-                  borderBottom: `2px solid ${on ? T.accent : "transparent"}`,
-                  color: on ? T.textPrimary : T.textNav,
-                  fontSize: 13,
-                  fontWeight: on ? 600 : 400,
-                  whiteSpace: "nowrap",
-                  cursor: "pointer",
-                }}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        {/* Body — left rail (sub-views) + content, matching the entity drawer. */}
+        <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+          <div
+            className="custom-scrollbar"
+            style={{
+              width: 208,
+              flexShrink: 0,
+              borderRight: `1px solid ${T.border}`,
+              padding: "12px 10px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+            }}
+          >
+            {CONTACT_SUBS.map((label, i) => {
+              const on = i === sub;
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setSub(i)}
+                  className={
+                    on ? "cg-rail-tab cg-rail-item-active" : "cg-rail-tab"
+                  }
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    width: "100%",
+                    height: 34,
+                    padding: "0 10px",
+                    borderRadius: 7,
+                    border: "none",
+                    background: on ? undefined : "transparent",
+                    color: on ? undefined : "var(--cg-text-nav)",
+                    fontSize: 12.5,
+                    fontWeight: on ? 600 : 400,
+                    fontFamily: APP_FONT,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 16,
+                      height: 16,
+                      flexShrink: 0,
+                      opacity: on ? 1 : 0.5,
+                    }}
+                  >
+                    {railIcon(label)}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
 
-        {/* Sub-view content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "22px 24px" }}>
+          {/* Sub-view content */}
+          <div
+            className="custom-scrollbar"
+            style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}
+          >
           {sub === 0 && (
             <>
               <div
@@ -8298,6 +8534,7 @@ function ContactDetailsDrawer({
               />
             </Field>
           )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -21321,6 +21558,14 @@ function AuthCollection({
   const [search, setSearch] = React.useState("");
   const [filters, setFilters] = React.useState<Record<string, string>>({});
   const [sel, setSel] = React.useState<ARow | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
   const facet = (key: string) => [
     { value: "", label: "All" },
     ...Array.from(new Set(rows.map((r) => r[key]).filter(Boolean)))
@@ -21337,9 +21582,36 @@ function AuthCollection({
         (fd) => !filters[fd.key] || r[fd.key] === filters[fd.key],
       ),
   );
+  // Every sub-view gets a stat section, like Active users. When the caller does
+  // not supply one, derive it from the data: a Total plus a breakdown by the
+  // first filter dimension (top values, capped), so it is meaningful and exact.
+  const autoKpi = React.useMemo(() => {
+    const tiles: { label: string; value: number }[] = [
+      { label: "Total", value: rows.length },
+    ];
+    const fd = filterDefs[0];
+    if (fd) {
+      const counts = new Map<string, number>();
+      rows.forEach((r) => {
+        const v = String(r[fd.key] ?? "").trim();
+        if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+      });
+      [...counts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .forEach(([k, n]) => tiles.push({ label: k, value: n }));
+    }
+    return tiles;
+  }, [rows, filterDefs]);
   return (
     <>
-      {kpi}
+      {kpi ?? (
+        <div className="cg-stat-row">
+          {autoKpi.map((t) => (
+            <MetricTile key={t.label} label={t.label} value={String(t.value)} />
+          ))}
+        </div>
+      )}
       <ListView<ARow>
         title={title}
         desc={desc}
@@ -21360,15 +21632,18 @@ function AuthCollection({
           onChange: (v: string) => setFilters((f) => ({ ...f, [fd.key]: v })),
           options: facet(fd.key),
         }))}
+        filterRightSlot={
+          <ColumnChooser cols={columns} hidden={hidden} onToggle={toggleCol} />
+        }
         search={search}
         onSearch={setSearch}
         searchPlaceholder={searchPlaceholder}
         count={filtered.length}
-        columns={columns}
+        columns={columns.filter((c) => !hidden.has(c.key))}
         rows={filtered}
         pageSize={12}
         onRowClick={(r) => setSel(r)}
-        selectable={!!bulk}
+        selectable
         bulkActions={bulk}
         rowActions={
           rowMenu

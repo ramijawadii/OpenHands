@@ -72,5 +72,30 @@
         "project": ["**/tsconfig.json"],
       },
     },
+    {
+      // Platform Settings framework guard: settings/admin pages must build tables
+      // and drawers through the sanctioned kit (components/admin/settings-kit +
+      // discovery-kit), never a raw AG-Grid or a bespoke grid — so every tab
+      // stays on one uniform layout/styling. See
+      // docs/design/platform-settings-ui-patterns-kit.md.
+      "files": ["src/components/admin/pages/**/*.tsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "ag-grid-react",
+                "message": "Do not use AG-Grid directly in an admin page. Build the table via SettingsTab / DiscoveryListView from the settings kit (components/admin/settings-kit).",
+              },
+              {
+                "name": "ag-grid-community",
+                "message": "Do not use AG-Grid directly in an admin page. Build the table via SettingsTab / DiscoveryListView from the settings kit (components/admin/settings-kit).",
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
 }
