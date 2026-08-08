@@ -47,6 +47,7 @@ export function FilterSelect({
   onChange,
   variant = "input",
   searchable,
+  placeholderIsName = true,
 }: {
   label: string;
   icon?: React.ReactNode;
@@ -56,6 +57,18 @@ export function FilterSelect({
   variant?: FilterVariant;
   /** Force the search field on or off. Defaults to option count. */
   searchable?: boolean;
+  /**
+   * When at the default ("All"), show the filter's NAME (`label`) on the
+   * trigger instead of the "All" option's label — so a pill reads "Role" /
+   * "Status" until a value is chosen.
+   *
+   * On by default. A row of pills all reading "All" names the filters' shared
+   * *state* and never their *function*, so the reader has to open each one to
+   * learn what it filters. The dimension name costs the same space and says
+   * what the control does; the "All" option is still there in the list, and a
+   * chosen value still replaces the name, so nothing is hidden.
+   */
+  placeholderIsName?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -211,7 +224,7 @@ export function FilterSelect({
             textOverflow: "ellipsis",
           }}
         >
-          {current?.label ?? label}
+          {placeholderIsName && isDefault ? label : (current?.label ?? label)}
         </span>
         <ChevronDown
           size={variant === "tab" ? 12 : 11}

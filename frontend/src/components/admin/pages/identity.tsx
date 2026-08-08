@@ -6,6 +6,7 @@ import {
   Trash2,
   ShieldCheck,
   Clock,
+  User,
   Plug,
   X,
   KeyRound,
@@ -71,6 +72,7 @@ import {
   Crosshair,
   Frame,
   ChevronDown,
+  Circle,
   ArrowDown,
 } from "lucide-react";
 import cytoscape from "cytoscape";
@@ -131,29 +133,32 @@ import {
 } from "#/hooks/query/use-cloudguard";
 import type { CGCollectionItem } from "#/api/cloudguard-service";
 import {
-  Page,
-  PageHeader,
-  Tabs,
   Card,
   KVGrid,
-  DirectoryTable,
-  CommandBar,
-  FilterSet,
   HeaderButton,
   ConfirmButton,
   RowMenu,
   ScopeBadge,
+  DirectoryTable,
+  CommandBar,
   SampleTag,
   SampleBanner,
   EmptyState,
   LiveCardSkeleton,
-  StatTile,
   T,
   type Column,
   type CommandItem,
   type FilterPillDef,
   type FilterPreset,
 } from "#/components/admin/admin-kit";
+import { KVRows } from "#/components/admin/drawer-kit";
+import {
+  DiscoveryPage,
+  DiscoveryTabs,
+  DiscoveryPills,
+} from "#/components/admin/discovery-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { APP_FONT } from "#/components/features/explore/cloudguard-grid/theme";
 
 /**
  * Identity & Enterprise Access (§7) — every sub-area built to the IAM use-cases an enterprise
@@ -241,25 +246,64 @@ export function IdentityPage({ scope }: { scope: "workspace" | "enterprise" }) {
     setParams(next);
   };
   return (
-    <Page>
-      <PageHeader
-        title={`Identity & Access · ${groupId}`}
-        subtitle={
-          groupId === "Identity"
-            ? "Users, service identities, providers, credentials and sessions."
-            : groupId === "Access"
-              ? "Groups, roles, assignments, privileged access and certification."
-              : groupId === "Alerts"
-                ? "Identity-security monitoring: threats, privilege & authentication risks, governance and approval violations."
-                : "Explore the identity graph — principals, groups, roles, assignments and resource access paths."
+    <DiscoveryPage>
+      {/* display:contents = no layout box, so Page's child layout is unchanged;
+          the class only scopes the overview font to this page's form controls
+          (buttons/inputs/selects don't inherit font-family otherwise). */}
+      <div className="cg-identity" style={{ display: "contents" }}>
+      <style>{`
+        .cg-identity button, .cg-identity input,
+        .cg-identity select, .cg-identity textarea { font-family: ${APP_FONT}; }
+        /* Focus is a :focus state, which an inline style object cannot carry —
+           so the accent ring the overview controls use is declared here. */
+        .cg-identity input:focus, .cg-identity select:focus,
+        .cg-identity textarea:focus {
+          border-color: var(--cg-accent);
+          box-shadow: 0 0 0 2px var(--cg-accent-bg);
         }
-        actions={
-          <ScopeBadge
-            scope={scope === "workspace" ? "This workspace" : "Organization"}
-          />
+        /* Nav pills: suppress the blue mouse-click ring (keeps the keyboard
+           focus ring) so an active sub-nav tab reads the same as the Sessions
+           tabs. */
+        .cg-identity .cg-subnav-tab:focus:not(:focus-visible),
+        .cg-identity .cg-subtab:focus:not(:focus-visible) { outline: none; }
+        /* Stat row — ONE common pattern on every tab: aligned with the table
+           (10px inset) and vertical hairline separators between the figures. */
+        .cg-identity .cg-stat-row {
+          display: flex;
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          gap: 0;
+          margin: 0 10px 16px;
         }
+        .cg-identity .cg-stat-tile {
+          border-left: 1px solid var(--cg-border);
+          padding: 0 16px;
+        }
+        .cg-identity .cg-stat-tile:first-child {
+          border-left: none;
+          padding-left: 0;
+        }
+      `}</style>
+      {/* The admin shell already renders the breadcrumb (Enterprise
+          Administration › Identity & Access), so a second crumb here was a
+          duplicate — dropped. Keep only the scope badge, right-aligned. */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          margin: "0 10px 8px",
+        }}
+      >
+        <ScopeBadge
+          scope={scope === "workspace" ? "This workspace" : "Organization"}
+        />
+      </div>
+      <DiscoveryTabs
+        tabs={groupDef.tabs}
+        active={tab}
+        onChange={setTab}
+        label={`${groupId} views`}
       />
-      <Tabs tabs={groupDef.tabs} active={tab} onChange={setTab} />
       {tab === "users" && <UsersArea />}
       {tab === "service" && <ServiceTab />}
       {tab === "providers" && <ProvidersTab />}
@@ -281,7 +325,8 @@ export function IdentityPage({ scope }: { scope: "workspace" | "enterprise" }) {
       {tab === "graph-trees" && <GraphMultipleTrees />}
       {tab === "graph-heatmap" && <GraphHeatmapCartesian />}
       {tab === "graph-sankey" && <GraphSankeyNodeAlignRight />}
-    </Page>
+      </div>
+    </DiscoveryPage>
   );
 }
 
@@ -445,12 +490,30 @@ function UsersTab({
     URL.revokeObjectURL(url);
   };
 
+  // Plain KPI tiles — same chrome as every other Identity tab (no strip
+  // title / separators / scope / note).
+  const countIf = (fn: (u: UserRow) => boolean) => all.filter(fn).length;
+  const privileged = countIf((u) => u.role === "Admin" || u.role === "Owner");
+  const mfaGaps = countIf(
+    (u) => u.mfaStatus === "Disabled" || u.mfaStatus === "At Risk",
+  );
+  const suspended = countIf((u) => u.status === "suspended");
+  const activeUsers = countIf((u) => u.status === "active");
+  const invited = countIf((u) => u.status === "invited");
+
   return (
     <>
-      <ListView<UserRow>
+      <div className="cg-stat-row">
+        <MetricTile label="Total users" value={String(all.length)} />
+        <MetricTile label="Active" value={String(activeUsers)} />
+        <MetricTile label="Invited" value={String(invited)} />
+        <MetricTile label="Privileged" value={String(privileged)} tone="warn" />
+        <MetricTile label="MFA gaps" value={String(mfaGaps)} tone="danger" />
+        <MetricTile label="Suspended" value={String(suspended)} />
+      </div>
+      <DiscoveryListView<UserRow>
         title="Users — joiner / mover / leaver"
         desc="Provision, re-role, suspend and deprovision identities. Click a user for full detail and lifecycle actions."
-        loading={q.isLoading}
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search active users list"
@@ -460,6 +523,7 @@ function UsersTab({
             key: "add",
             label: "Add a user",
             icon: <Plus size={15} />,
+            primary: true,
             disabled: !canEdit,
             onClick: () => setInviting(true),
           },
@@ -578,6 +642,7 @@ function UsersTab({
           {
             key: "status",
             label: "Status",
+            icon: <ShieldCheck size={13} />,
             value: statusF,
             onChange: setStatusF,
             options: facet(all.map((u) => u.status)),
@@ -585,6 +650,7 @@ function UsersTab({
           {
             key: "role",
             label: "Role",
+            icon: <KeyRound size={13} />,
             value: roleF,
             onChange: setRoleF,
             options: facet(all.map((u) => u.role)),
@@ -592,6 +658,7 @@ function UsersTab({
           {
             key: "mfa",
             label: "MFA",
+            icon: <ShieldAlert size={13} />,
             value: mfaF,
             onChange: setMfaF,
             options: [
@@ -602,6 +669,7 @@ function UsersTab({
           {
             key: "idp",
             label: "Identity provider",
+            icon: <Mail size={13} />,
             value: idpF,
             onChange: setIdpF,
             options: facet(all.map((u) => u.idp)),
@@ -1686,11 +1754,17 @@ function Req({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 6,
-        padding: "8px 0",
+        gap: 5,
+        padding: "7px 0",
       }}
     >
-      <span style={{ fontSize: 12.5, color: T.textPrimary, fontWeight: 500 }}>
+      <span
+        style={{
+          fontSize: 11.5,
+          color: "var(--cg-text-primary)",
+          fontWeight: 600,
+        }}
+      >
         {label} <span style={{ color: T.danger }}>*</span>
       </span>
       {children}
@@ -1923,15 +1997,7 @@ function ActiveSessions() {
         desc="View and manage active authenticated sessions across users, service identities and federated identities."
         searchPlaceholder="Search active sessions"
         kpi={
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "nowrap",
-              overflowX: "auto",
-              gap: 10,
-              marginBottom: 16,
-            }}
-          >
+          <div className="cg-stat-row">
             <MetricTile label="Active sessions" value={String(rows.length)} />
             <MetricTile label="Unique users" value="2" />
             <MetricTile label="Privileged sessions" value="1" tone="warn" />
@@ -4030,15 +4096,19 @@ const ovl: React.CSSProperties = {
   zIndex: 1100,
   display: "flex",
 };
+// Sized to the drawer's row scale (12.5px on a 32px control), not the console's
+// 13px/34px form scale — an editable Profile pane and a read-only Identity pane
+// sit one sub-tab apart, and at different type sizes they read as two different
+// screens rather than two views of one record.
 const inp: React.CSSProperties = {
-  height: 34,
+  height: 32,
   width: "100%",
-  padding: "0 11px",
+  padding: "0 10px",
   background: "var(--cg-input-bg)",
-  border: `1px solid ${T.border}`,
+  border: "1px solid var(--cg-border-subtle)",
   borderRadius: 6,
-  color: T.textPrimary,
-  fontSize: 13,
+  color: "var(--cg-text-primary)",
+  fontSize: 12.5,
   outline: "none",
 };
 
@@ -4143,11 +4213,13 @@ function Field({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 6,
-        padding: "8px 0",
+        gap: 5,
+        padding: "7px 0",
       }}
     >
-      <span style={{ fontSize: 12, color: T.textMuted }}>{label}</span>
+      <span style={{ fontSize: 11.5, color: "var(--cg-text-muted)" }}>
+        {label}
+      </span>
       {children}
     </div>
   );
@@ -4372,43 +4444,19 @@ function UsersSubNav({
   onChange: (v: UsersView) => void;
 }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 4,
-        marginBottom: 14,
-        flexWrap: "wrap",
-      }}
-    >
-      {USERS_SUBNAV.map((s) => {
-        const on =
-          active === s.id || (active === "templates" && s.id === "active");
-        return (
-          <button
-            key={s.id}
-            type="button"
-            onClick={() => onChange(s.id)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              height: 32,
-              padding: "0 12px",
-              borderRadius: 4,
-              border: `1px solid ${on ? T.accent : "var(--cg-border-card)"}`,
-              background: on ? "var(--cg-accent-bg)" : "transparent",
-              color: on ? T.textPrimary : T.textNav,
-              fontSize: 13,
-              fontWeight: on ? 600 : 400,
-              cursor: "pointer",
-            }}
-          >
-            <s.Icon size={14} color={on ? T.accent : T.textMuted} /> {s.label}
-          </button>
-        );
-      })}
-    </div>
+    <DiscoveryPills
+      label="User views"
+      items={USERS_SUBNAV.map((x) => ({
+        id: x.id,
+        label: x.label,
+        icon: <x.Icon size={14} />,
+      }))}
+      // Templates is reached FROM Active and returns to it, so it has no pill
+      // of its own; it keeps Active lit rather than leaving the strip with
+      // nothing selected while you are still inside the Users view.
+      active={active === "templates" ? "active" : active}
+      onChange={(id) => onChange(id as UsersView)}
+    />
   );
 }
 
@@ -5338,27 +5386,33 @@ function ListView<R extends { id: string }>({
   empty?: React.ReactNode;
   loading?: boolean;
 }) {
+  // Convergence: ListView now renders the SAME overview surface as the Users tab
+  // (DiscoveryListView → real AssetStatStrip filters + eventsThemeFor grid), so
+  // every tab that used ListView adopts the Discovery/overview look at once.
   return (
-    <Card title={title} desc={desc}>
-      {sampleWhat && <SampleBanner what={sampleWhat} />}
-      {commands && <CommandBar items={commands} farItems={commandFarItems} />}
-      {pills && (
-        <FilterSet
+    <>
+      {sampleWhat && (
+        <div style={{ margin: "0 10px" }}>
+          <SampleBanner what={sampleWhat} />
+        </div>
+      )}
+      {loading ? (
+        <div style={{ margin: "0 10px 22px" }}>
+          <LiveCardSkeleton lines={4} />
+        </div>
+      ) : (
+        <DiscoveryListView<R>
+          title={title}
+          desc={desc}
+          commands={commands}
+          commandFarItems={commandFarItems}
           presets={presets}
           pills={pills}
-          rightSlot={filterRightSlot}
-        />
-      )}
-      <SearchRow
-        value={search}
-        onChange={onSearch}
-        count={count}
-        placeholder={searchPlaceholder}
-      />
-      {loading ? (
-        <LiveCardSkeleton lines={4} />
-      ) : (
-        <DirectoryTable
+          filterRightSlot={filterRightSlot}
+          search={search}
+          onSearch={onSearch}
+          searchPlaceholder={searchPlaceholder}
+          count={count}
           columns={columns}
           rows={rows}
           pageSize={pageSize}
@@ -5369,7 +5423,7 @@ function ListView<R extends { id: string }>({
           empty={empty}
         />
       )}
-    </Card>
+    </>
   );
 }
 
@@ -5478,10 +5532,13 @@ function WizardShell({
           width,
           maxWidth: "98vw",
           height: "100%",
-          background: T.cardBg,
-          borderLeft: `1px solid ${T.borderStrong}`,
+          // ui-system layout.sideRailPanel: drawer surface = var(--cg-bg-page)
+          // (≈#1f1f1e dark / m365) with a strong left rule; theme-aware by token.
+          background: "var(--cg-bg-page)",
+          borderLeft: "1px solid var(--cg-border-strong)",
           display: "flex",
           flexDirection: "column",
+          fontFamily: APP_FONT,
         }}
       >
         <div
@@ -6649,6 +6706,7 @@ function DetailDrawer({
   meta,
   actions,
   sections,
+  sectionIcons,
   sectionIndex,
   onSection,
   subs,
@@ -6664,6 +6722,8 @@ function DetailDrawer({
   meta?: React.ReactNode;
   actions?: React.ReactNode;
   sections: readonly string[];
+  /** Optional per-section icon (discovery rail look). Falls back to the dot indicator when omitted. */
+  sectionIcons?: readonly React.ReactNode[];
   sectionIndex: number;
   onSection: (i: number) => void;
   subs: readonly string[];
@@ -6687,30 +6747,42 @@ function DetailDrawer({
           width,
           maxWidth: "98vw",
           height: "100%",
-          background: T.cardBg,
-          borderLeft: `1px solid ${T.borderStrong}`,
+          // ui-system layout.sideRailPanel: drawer surface = var(--cg-bg-page)
+          // (≈#1f1f1e dark / m365) with a strong left rule; theme-aware by token.
+          background: "var(--cg-bg-page)",
+          borderLeft: "1px solid var(--cg-border-strong)",
           display: "flex",
           flexDirection: "column",
+          fontFamily: APP_FONT,
         }}
       >
-        {/* Header */}
+        <style>{`
+          .cg-rail-tab { transition: background-color .12s, color .12s; }
+          .cg-rail-tab:hover { background: var(--cg-bg-hover); color: var(--cg-text-primary); }
+          /* Form controls don't inherit font-family — force the overview font on
+             every button/input/select in the drawer so it matches the overview. */
+          .cg-drawer-anim button, .cg-drawer-anim input,
+          .cg-drawer-anim select, .cg-drawer-anim textarea { font-family: ${APP_FONT}; }
+        `}</style>
+        {/* Header — compact overview chrome: 18/20 padding, 15px title, actions on
+            the title row, plain close. */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 16,
-            padding: "20px 24px 18px",
+            gap: 12,
+            padding: "18px 20px",
             borderBottom: `1px solid ${T.border}`,
           }}
         >
           <span
             style={{
-              width: 54,
-              height: 54,
+              width: 40,
+              height: 40,
               borderRadius: "50%",
               background: T.accent,
               color: "#fff",
-              fontSize: 20,
+              fontSize: 15,
               fontWeight: 600,
               display: "inline-flex",
               alignItems: "center",
@@ -6723,15 +6795,15 @@ function DetailDrawer({
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
-                fontSize: 20,
-                fontWeight: 700,
+                fontSize: 15,
+                fontWeight: 600,
                 color: T.textPrimary,
-                lineHeight: 1.2,
+                lineHeight: 1.3,
               }}
             >
               {title}
             </div>
-            {meta && <div style={{ marginTop: 6 }}>{meta}</div>}
+            {meta && <div style={{ marginTop: 3 }}>{meta}</div>}
           </div>
           {actions && (
             <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
@@ -6755,14 +6827,19 @@ function DetailDrawer({
         </div>
 
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          {/* Left rail — principal sections */}
+          {/* Left rail — principal sections. Metrics mirror the settings drawer's
+              SideRailPanel rail: 208 wide, 12/10 padding, flex column gap 2. */}
           <div
+            className="custom-scrollbar"
             style={{
-              width: 224,
+              width: 208,
               flexShrink: 0,
               borderRight: `1px solid ${T.border}`,
-              padding: "16px 12px",
+              padding: "12px 10px",
               overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
             }}
           >
             {sections.map((label, i) => {
@@ -6772,34 +6849,45 @@ function DetailDrawer({
                   key={label}
                   type="button"
                   onClick={() => onSection(i)}
+                  // Active tab = the app's near-black rail treatment (#0b0b0b, white
+                  // text) via `.cg-rail-item-active`; it must stay out of inline style
+                  // so the class wins (it also handles light mode: accent on tint).
+                  className={on ? "cg-rail-tab cg-rail-item-active" : "cg-rail-tab"}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 10,
                     width: "100%",
-                    height: 36,
+                    height: 34,
                     padding: "0 10px",
-                    marginBottom: 2,
-                    borderRadius: 6,
+                    borderRadius: 7,
                     border: "none",
-                    background: on ? "var(--cg-accent-bg)" : "transparent",
-                    color: on ? T.textPrimary : T.textNav,
-                    fontSize: 13,
+                    background: on ? undefined : "transparent",
+                    color: on ? undefined : "var(--cg-text-nav)",
+                    fontSize: 12.5,
                     fontWeight: on ? 600 : 400,
+                    fontFamily: APP_FONT,
                     cursor: "pointer",
                     textAlign: "left",
                   }}
                 >
+                  {/* Icon rendered like the app sidebar: a 16px SVG in currentColor,
+                      grayed via opacity 0.5 when inactive (full on the active tab).
+                      Falls back to a grayed Circle SVG — replacing the old dot —
+                      when a section supplies no icon. */}
                   <span
                     style={{
-                      width: 9,
-                      height: 9,
-                      borderRadius: "50%",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: 16,
+                      height: 16,
                       flexShrink: 0,
-                      background: on ? T.accent : "transparent",
-                      border: on ? "none" : `1.5px solid ${T.borderStrong}`,
+                      opacity: on ? 1 : 0.5,
                     }}
-                  />
+                  >
+                    {sectionIcons?.[i] ?? <Circle size={14} strokeWidth={2} />}
+                  </span>
                   {label}
                 </button>
               );
@@ -6820,7 +6908,7 @@ function DetailDrawer({
               style={{
                 display: "flex",
                 gap: 2,
-                padding: "0 24px",
+                padding: "0 20px",
                 borderBottom: `1px solid ${T.border}`,
                 overflowX: "auto",
                 flexShrink: 0,
@@ -6850,7 +6938,10 @@ function DetailDrawer({
                 );
               })}
             </div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "22px 24px" }}>
+            <div
+              className="custom-scrollbar"
+              style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}
+            >
               {children}
             </div>
           </div>
@@ -6863,7 +6954,7 @@ function DetailDrawer({
             alignItems: "center",
             justifyContent: "flex-end",
             gap: 10,
-            padding: "14px 24px",
+            padding: "14px 20px",
             borderTop: `1px solid ${T.border}`,
           }}
         >
@@ -6949,6 +7040,13 @@ function UserDetailsDrawer({
         </button>
       }
       sections={UD_SECTIONS.map((s) => s.label)}
+      sectionIcons={[
+        <User size={16} />,
+        <ShieldCheck size={16} />,
+        <Users size={16} />,
+        <KeyRound size={16} />,
+        <Clock size={16} />,
+      ]}
       sectionIndex={sectionIndex}
       onSection={(i) => {
         setSection(UD_SECTIONS[i].id);
@@ -7007,7 +7105,7 @@ function UDHead({
         alignItems: "center",
         justifyContent: "space-between",
         gap: 12,
-        marginBottom: 14,
+        marginBottom: 10,
       }}
     >
       <div
@@ -7015,9 +7113,13 @@ function UDHead({
           display: "flex",
           alignItems: "center",
           gap: 8,
-          fontSize: 15,
-          fontWeight: 700,
-          color: T.textPrimary,
+          // Drawer pane-title scale (13.5/600), not a page H1. The rail already
+          // says which section you are in, so a 15/700 heading repeated at the
+          // top of every sub-tab competes with the record's own name in the
+          // header rather than labelling the pane under it.
+          fontSize: 13.5,
+          fontWeight: 600,
+          color: "var(--cg-text-primary)",
         }}
       >
         {children}
@@ -7040,13 +7142,19 @@ function UDRows({
   return (
     <div
       style={{
-        border: `1px solid ${T.border}`,
+        border: "1px solid var(--cg-border-subtle)",
         borderRadius: 6,
         overflow: "hidden",
       }}
     >
       {items.length === 0 ? (
-        <div style={{ padding: 16, fontSize: 12.5, color: T.textMuted }}>
+        <div
+          style={{
+            padding: 16,
+            fontSize: 12.5,
+            color: "var(--cg-text-muted)",
+          }}
+        >
           Nothing to show.
         </div>
       ) : (
@@ -7060,25 +7168,37 @@ function UDRows({
               alignItems: "center",
               justifyContent: "space-between",
               gap: 12,
-              padding: "10px 14px",
+              padding: "9px 12px",
               borderBottom:
-                i < items.length - 1 ? `1px solid ${T.border}` : "none",
+                i < items.length - 1
+                  ? "1px solid var(--cg-border-subtle)"
+                  : "none",
             }}
           >
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, color: T.textPrimary }}>
+              <div style={{ fontSize: 12.5, color: "var(--cg-text-primary)" }}>
                 {it.primary}
               </div>
               {it.secondary && (
                 <div
-                  style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}
+                  style={{
+                    fontSize: 11,
+                    color: "var(--cg-text-muted)",
+                    marginTop: 2,
+                  }}
                 >
                   {it.secondary}
                 </div>
               )}
             </div>
             {it.right && (
-              <div style={{ flexShrink: 0, fontSize: 12.5, color: T.textNav }}>
+              <div
+                style={{
+                  flexShrink: 0,
+                  fontSize: 11.5,
+                  color: "var(--cg-text-muted)",
+                }}
+              >
                 {it.right}
               </div>
             )}
@@ -7238,8 +7358,7 @@ function UDContent({
       return (
         <>
           <UDHead sample>Identity Information</UDHead>
-          <KVGrid
-            cols={2}
+          <KVRows
             items={[
               { k: "Identity provider", v: user.idp },
               { k: "User principal name", v: user.email },
@@ -7266,8 +7385,7 @@ function UDContent({
       return (
         <>
           <UDHead>Lifecycle</UDHead>
-          <KVGrid
-            cols={2}
+          <KVRows
             items={[
               { k: "Status", v: <StatusPill status={user.status} /> },
               { k: "Created on", v: "2025-01-06", sample: true },
@@ -7544,8 +7662,7 @@ function UDContent({
       return (
         <>
           <UDHead>Password</UDHead>
-          <KVGrid
-            cols={2}
+          <KVRows
             items={[
               { k: "Last changed", v: "2026-04-18", sample: true },
               { k: "Force change on next sign-in", v: "No" },
@@ -7573,8 +7690,7 @@ function UDContent({
       return (
         <>
           <UDHead>Multi-factor Authentication</UDHead>
-          <KVGrid
-            cols={2}
+          <KVRows
             items={[
               { k: "MFA", v: <MfaBadge status={user.mfaStatus} /> },
               {
@@ -7654,8 +7770,7 @@ function UDContent({
     return (
       <>
         <UDHead sample>Security Status</UDHead>
-        <KVGrid
-          cols={2}
+        <KVRows
           items={[
             {
               k: "Sign-in risk",
@@ -8298,11 +8413,15 @@ function SubTabStrip({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 5,
+        gap: 4,
         flexWrap: "wrap",
         marginBottom: 16,
       }}
     >
+      <style>{`
+        .cg-subtab { transition: background-color .12s ease, color .12s ease; }
+        .cg-subtab:hover { background: var(--cg-tab-hover-bg); color: var(--cg-text-primary); }
+      `}</style>
       {subs.map((label, i) => {
         const on = i === active;
         const Icon = SUBTAB_ICONS[label];
@@ -8311,24 +8430,34 @@ function SubTabStrip({
             key={label}
             type="button"
             onClick={() => onChange(i)}
+            // ui-system tabPill: active = darkest token (--cg-tab-active-bg);
+            // idle = text-nav; hover = --cg-tab-hover-bg.
+            className="cg-subtab"
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: 5,
+              gap: 6,
               height: 28,
-              padding: "0 9px",
+              padding: "0 10px",
               borderRadius: 6,
-              border: `1px solid ${on ? "var(--cg-accent)" : "var(--cg-border-card)"}`,
-              background: on ? "var(--cg-accent-bg)" : "transparent",
-              color: on ? T.textPrimary : T.textNav,
+              border: "none",
+              background: on ? "var(--cg-tab-active-bg)" : "transparent",
+              color: on ? "var(--cg-text-primary)" : "var(--cg-text-nav)",
               fontSize: 12.5,
               fontWeight: on ? 600 : 400,
+              fontFamily: APP_FONT,
+              lineHeight: 1,
               whiteSpace: "nowrap",
               cursor: "pointer",
               flexShrink: 0,
             }}
           >
-            {Icon && <Icon size={13} color={on ? T.accent : T.textMuted} />}
+            {Icon && (
+              <Icon
+                size={14}
+                color={on ? "var(--cg-text-primary)" : "var(--cg-text-muted)"}
+              />
+            )}
             {label}
           </button>
         );
@@ -17847,15 +17976,7 @@ function ReviewsArea() {
 // ── global metrics ──────────────────────────────────────────────────────────
 function ReviewMetricsBar() {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "nowrap",
-        overflowX: "auto",
-        gap: 10,
-        marginBottom: 16,
-      }}
-    >
+    <div className="cg-stat-row">
       <MetricTile label="Open reviews" value="18" />
       <MetricTile label="Overdue reviews" value="3" tone="danger" />
       <MetricTile label="Certification coverage" value="91%" />
@@ -21066,7 +21187,9 @@ function ActRow({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-// Thin wrapper over the canonical StatTile so every identity KPI matches the shared stat-card look.
+// Overview KPI cell — mirrors the AssetStatStrip legend item's typography (small
+// muted label over a large 600-weight value, APP_FONT, borderless). Risk is a
+// value tint here because these KPIs carry no icon to hold it (unlike the strip).
 function MetricTile({
   label,
   value,
@@ -21076,9 +21199,47 @@ function MetricTile({
   value: string;
   tone?: StatusTone;
 }) {
-  const t =
-    tone === "ok" || tone === "warn" || tone === "danger" ? tone : "none";
-  return <StatTile label={label} value={value} tone={t} />;
+  const valueColor =
+    tone === "danger"
+      ? "var(--cgx-critical)"
+      : tone === "warn"
+        ? "#e09a2d"
+        : "var(--cg-text-primary)";
+  return (
+    <div
+      className="cg-stat-tile"
+      style={{
+        minWidth: 120,
+        flexShrink: 0,
+        fontFamily: APP_FONT,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 11,
+          fontWeight: 500,
+          color: "var(--cg-text-muted)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          marginTop: 2,
+          fontSize: 20,
+          lineHeight: 1.15,
+          fontWeight: 600,
+          fontVariantNumeric: "tabular-nums",
+          color: valueColor,
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
 }
 
 // Config-driven entity drawer on the shared DetailDrawer shell.
@@ -23425,15 +23586,7 @@ function PasskeyCollection() {
         desc="Passwordless, phishing-resistant credentials (FIDO2 / WebAuthn) and their adoption."
         searchPlaceholder="Search passkeys"
         kpi={
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "nowrap",
-              overflowX: "auto",
-              gap: 12,
-              marginBottom: 14,
-            }}
-          >
+          <div className="cg-stat-row">
             <MetricTile label="Users registered" value="61" />
             <MetricTile label="Passkeys registered" value="73" />
             <MetricTile label="Adoption rate" value="24%" tone="warn" />
@@ -24817,14 +24970,7 @@ function ActiveAlerts() {
     <>
       {flow}
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4,1fr)",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
+      <div className="cg-stat-row">
         <MetricTile
           label="Open alerts"
           value={String(rows.filter((r) => r.status !== "Closed").length)}

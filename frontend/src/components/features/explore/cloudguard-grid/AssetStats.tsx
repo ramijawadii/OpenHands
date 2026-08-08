@@ -49,7 +49,7 @@ function rows(): ResourceRow[] {
 /** A filter the Inventory grid can apply, expressed as query parameters. */
 export type DrillFilter = Record<string, string>;
 
-interface Stat {
+export interface Stat {
   label: string;
   value: number;
   /** Small trailing qualifier, as a chart legend's unit slot. */
@@ -58,8 +58,8 @@ interface Stat {
   previous?: number;
   /** Risk lives HERE — the type stays one colour throughout. */
   icon?: React.ReactNode;
-  /** Inventory filter this count represents. */
-  filter: DrillFilter;
+  /** Inventory filter this count represents. Optional — omit on read-only strips. */
+  filter?: DrillFilter;
   /** Higher is worse — colours the delta. Counts of assets are neutral. */
   adverse?: boolean;
 }
@@ -248,7 +248,7 @@ function LargeItem({
     <button
       type="button"
       disabled={!interactive}
-      onClick={() => onDrill?.(stat.filter)}
+      onClick={() => stat.filter && onDrill?.(stat.filter)}
       title={
         interactive
           ? `Show ${stat.label.toLowerCase()} in Inventory`
@@ -363,10 +363,40 @@ export function AssetStats({
   loading?: boolean;
 }) {
   const { scope, stats } = React.useMemo(() => computeStats(rows()), []);
+  return (
+    <AssetStatStrip
+      scope={scope}
+      stats={stats}
+      onDrill={onDrill}
+      loading={loading}
+      note="Change shown against the previous period. Select a figure to open it in Inventory."
+    />
+  );
+}
 
+/**
+ * Presentational asset-overview strip — the exact markup above, parameterised so any surface can render
+ * the identical legend-strip look with its own figures (used by the Overview and by the admin
+ * discovery-kit). `onDrill` omitted ⇒ read-only.
+ */
+export function AssetStatStrip({
+  title = "Asset overview",
+  scope,
+  stats,
+  onDrill,
+  loading = false,
+  note,
+}: {
+  title?: string;
+  scope?: string;
+  stats: Stat[];
+  onDrill?: (f: DrillFilter) => void;
+  loading?: boolean;
+  note?: React.ReactNode;
+}) {
   return (
     <section
-      aria-label="Asset overview"
+      aria-label={title}
       style={{
         marginLeft: 10,
         marginRight: 10,
@@ -420,9 +450,7 @@ export function AssetStats({
           gap: 10,
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 12.5, fontWeight: 700 }}>
-          Asset overview
-        </h2>
+        <h2 style={{ margin: 0, fontSize: 12.5, fontWeight: 700 }}>{title}</h2>
         <span style={{ fontSize: 10.5, color: "var(--cg-text-muted)" }}>
           {scope}
         </span>
@@ -475,16 +503,11 @@ export function AssetStats({
         </div>
       </div>
 
-      <p
-        style={{
-          margin: "8px 0 0",
-          fontSize: 10,
-          color: "var(--cg-text-muted)",
-        }}
-      >
-        Change shown against the previous period. Select a figure to open it in
-        Inventory.
-      </p>
+      {note && (
+        <p style={{ margin: "8px 0 0", fontSize: 10, color: "var(--cg-text-muted)" }}>
+          {note}
+        </p>
+      )}
     </section>
   );
 }

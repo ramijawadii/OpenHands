@@ -1557,6 +1557,8 @@ export interface CommandItem {
   icon?: React.ReactNode;
   onClick?: (e?: React.MouseEvent) => void;
   disabled?: boolean;
+  /** Give this action higher visual emphasis (filled primary button). */
+  primary?: boolean;
 }
 export function CommandBar({
   items,
