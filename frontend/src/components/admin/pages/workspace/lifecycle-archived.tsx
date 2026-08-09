@@ -31,8 +31,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -47,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Lifecycle → Archived — the STATE view for workspaces that are no longer actively used but must be
@@ -346,6 +346,14 @@ export function LifecycleArchivedView() {
   const [fRestorable, setFRestorable] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_ARCHIVES;
 
@@ -379,17 +387,6 @@ export function LifecycleArchivedView() {
     );
   });
 
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fPolicy ||
-    fBu ||
-    fOwner ||
-    fDate ||
-    fHold ||
-    fCompliance ||
-    fRestorable
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -650,121 +647,124 @@ export function LifecycleArchivedView() {
         </PostureGrid>
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Archived workspaces"
         desc="Manage archived workspaces retained for historical reference, regulatory compliance, legal obligations, disaster recovery, and future restoration. Workspaces are preserved but inaccessible: users cannot access them, agents cannot execute, automation and integrations are disabled."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search archived workspaces — workspace, ID, business unit, owner, tags, archive reason…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Archive Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.archiveType))}
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search archived workspaces — workspace, ID, business unit, owner, tags, archive reason…"
+        count={rows.length}
+        pills={[
+          {
+            key: "archiveType",
+            label: "Archive Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.archiveType)),
+          },
+          {
+            key: "retentionPolicy",
+            label: "Retention Policy",
+            value: fPolicy,
+            onChange: setFPolicy,
+            options: facet(records.map((r) => r.retentionPolicy)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "archivedDate",
+            label: "Archive Date",
+            value: fDate,
+            onChange: setFDate,
+            options: facet(records.map((r) => r.archivedDate)),
+          },
+          {
+            key: "legalHold",
+            label: "Legal Hold",
+            value: fHold,
+            onChange: setFHold,
+            options: yesNo,
+          },
+          {
+            key: "complianceProgram",
+            label: "Compliance Program",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.complianceProgram)),
+          },
+          {
+            key: "restorable",
+            label: "Restorable",
+            value: fRestorable,
+            onChange: setFRestorable,
+            options: yesNo,
+          },
+        ]}
+        presets={[{ label: "All archived workspaces", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={14}
+        initialSort={{ key: "archivedDate", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<ArchiveRestore size={13} />} onClick={clear}>
+              Restore ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
+              Extend Retention
+            </HeaderButton>
+            <HeaderButton icon={<Gavel size={13} />} onClick={clear}>
+              Apply Legal Hold
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Restore", onClick: () => setSelId(r.id) },
+              { label: "Extend Retention", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              { label: "Legal Hold", onClick: () => setSelId(r.id) },
+              {
+                label: "Move to Deletion",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+            ]}
           />
-          <Select
-            label="Retention Policy"
-            value={fPolicy}
-            onChange={setFPolicy}
-            options={facet(records.map((r) => r.retentionPolicy))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Archive size={20} />}
+            title="No archived workspaces found."
+            hint="Adjust filters, or view the active workspaces to archive one."
+            cta="View Active Workspaces"
+            onCta={() => navigate("/admin/workspaces")}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Archive Date"
-            value={fDate}
-            onChange={setFDate}
-            options={facet(records.map((r) => r.archivedDate))}
-          />
-          <Select
-            label="Legal Hold"
-            value={fHold}
-            onChange={setFHold}
-            options={yesNo}
-          />
-          <Select
-            label="Compliance Program"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.complianceProgram))}
-          />
-          <Select
-            label="Restorable"
-            value={fRestorable}
-            onChange={setFRestorable}
-            options={yesNo}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={14}
-          initialSort={{ key: "archivedDate", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<ArchiveRestore size={13} />} onClick={clear}>
-                Restore ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
-                Extend Retention
-              </HeaderButton>
-              <HeaderButton icon={<Gavel size={13} />} onClick={clear}>
-                Apply Legal Hold
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Restore", onClick: () => setSelId(r.id) },
-                { label: "Extend Retention", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                { label: "Legal Hold", onClick: () => setSelId(r.id) },
-                {
-                  label: "Move to Deletion",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Archive size={20} />}
-              title="No archived workspaces found."
-              hint="Adjust filters, or view the active workspaces to archive one."
-              cta="View Active Workspaces"
-              onCta={() => navigate("/admin/workspaces")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* Lifecycle & restoration reference flows + policy catalogs (spec §Lifecycle Flow, §Restoration
           Workflow, §Archive Types, §Retention Policies, §Archive Behavior, §Archive vs Suspension,

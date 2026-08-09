@@ -35,8 +35,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -51,6 +49,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Provisioning — the Workspace Administration → Lifecycle state for workspaces that have passed
@@ -335,6 +335,14 @@ export function LifecycleProvisioningView() {
   const [fStarted, setFStarted] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_JOBS;
   const viewStates = VIEW_STATES[view];
@@ -360,17 +368,6 @@ export function LifecycleProvisioningView() {
       (!fStarted || r.startedDate === fStarted)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fEnv ||
-    fType ||
-    fPriority ||
-    fBu ||
-    fStage ||
-    fEngine ||
-    fStarted
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -638,127 +635,129 @@ export function LifecycleProvisioningView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Provisioning jobs"
-        desc="Monitor and manage workspace deployments as they progress through automated provisioning, validation, configuration, and readiness checks."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search provisioning jobs — workspace, provisioning ID, requester, template, business unit, stage…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Provisioning Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "status",
+            label: "Provisioning Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "type",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.workspaceType)),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "stage",
+            label: "Current Stage",
+            value: fStage,
+            onChange: setFStage,
+            options: facet(records.map((r) => r.currentStage)),
+          },
+          {
+            key: "engine",
+            label: "Provisioning Engine",
+            value: fEngine,
+            onChange: setFEngine,
+            options: facet(records.map((r) => r.engine)),
+          },
+          {
+            key: "started",
+            label: "Started Date",
+            value: fStarted,
+            onChange: setFStarted,
+            options: facet(records.map((r) => r.startedDate)),
+          },
+        ]}
+        presets={[{ label: "All jobs", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search provisioning jobs — workspace, provisioning ID, requester, template, business unit, stage…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "started", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Pause size={13} />} onClick={clear}>
+              Pause ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Play size={13} />} onClick={clear}>
+              Resume
+            </HeaderButton>
+            <HeaderButton icon={<RotateCcw size={13} />} onClick={clear}>
+              Retry
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Pause", onClick: () => setSelId(r.id) },
+              { label: "Resume", onClick: () => setSelId(r.id) },
+              { label: "Retry", onClick: () => setSelId(r.id) },
+              {
+                label: "Rollback",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "View Logs", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              {
+                label: "Cancel",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+            ]}
           />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Inbox size={20} />}
+            title="No workspaces are currently being provisioned."
+            hint="Approved workspace requests appear here as provisioning jobs. Adjust filters, or review pending requests."
+            cta="View Workspace Requests"
+            onCta={() => navigate("/admin/workspaces?tab=requests")}
           />
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.workspaceType))}
-          />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Current Stage"
-            value={fStage}
-            onChange={setFStage}
-            options={facet(records.map((r) => r.currentStage))}
-          />
-          <Select
-            label="Provisioning Engine"
-            value={fEngine}
-            onChange={setFEngine}
-            options={facet(records.map((r) => r.engine))}
-          />
-          <Select
-            label="Started Date"
-            value={fStarted}
-            onChange={setFStarted}
-            options={facet(records.map((r) => r.startedDate))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "started", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Pause size={13} />} onClick={clear}>
-                Pause ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Play size={13} />} onClick={clear}>
-                Resume
-              </HeaderButton>
-              <HeaderButton icon={<RotateCcw size={13} />} onClick={clear}>
-                Retry
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Pause", onClick: () => setSelId(r.id) },
-                { label: "Resume", onClick: () => setSelId(r.id) },
-                { label: "Retry", onClick: () => setSelId(r.id) },
-                {
-                  label: "Rollback",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "View Logs", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                {
-                  label: "Cancel",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Inbox size={20} />}
-              title="No workspaces are currently being provisioned."
-              hint="Approved workspace requests appear here as provisioning jobs. Adjust filters, or review pending requests."
-              cta="View Workspace Requests"
-              onCta={() => navigate("/admin/workspaces?tab=requests")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && (
         <ProvisioningDetailDrawer rec={sel} onClose={() => setSelId(null)} />

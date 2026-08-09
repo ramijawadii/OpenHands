@@ -68,15 +68,16 @@ import { LifecycleMaintenanceView } from "#/components/admin/pages/workspace/lif
 import { LifecycleArchivedView } from "#/components/admin/pages/workspace/lifecycle-archived";
 import { LifecycleDecommissionedView } from "#/components/admin/pages/workspace/lifecycle-decommissioned";
 import {
-  Page,
-  PageHeader,
-  Tabs,
-  SubTabStrip,
   HeaderButton,
   ScopeBadge,
   type StripIcon,
   useTabParam,
 } from "#/components/admin/admin-kit";
+import {
+  DiscoveryPage,
+  DiscoveryTabs,
+  DiscoveryPills,
+} from "#/components/admin/discovery-kit";
 
 /**
  * Workspace Administration console — the first of the three Workspace Management consoles
@@ -311,8 +312,13 @@ function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
   const cur = leaves.find((l) => l.id === leaf) ?? leaves[0];
   return (
     <>
-      <SubTabStrip
-        tabs={leaves.map(({ id, label, Icon }) => ({ id, label, Icon }))}
+      <DiscoveryPills
+        label="Views"
+        items={leaves.map(({ id, label, Icon }) => ({
+          id,
+          label,
+          icon: <Icon size={14} />,
+        }))}
         active={cur.id}
         onChange={setLeaf}
       />
@@ -330,34 +336,51 @@ const SUBSECTIONS = [
   { id: "lifecycle", label: "Lifecycle" },
 ];
 
+const SUB_ICONS: Record<string, React.ReactNode> = {
+  workspaces: <LayoutGrid size={14} />,
+  templates: <Layers size={14} />,
+  ownership: <UserCog size={14} />,
+  hierarchy: <Network size={14} />,
+  lifecycle: <Waypoints size={14} />,
+};
+
 export function WorkspaceManagementPage() {
   const [tab, setTab] = useTabParam("workspaces");
   const navigate = useNavigate();
 
   return (
-    <Page>
-      <PageHeader
-        title="Workspace Administration"
-        subtitle="Create, classify and govern the isolated workspaces, their templates, ownership, hierarchy and lifecycle across the organization."
-        actions={
-          <>
-            <ScopeBadge scope="Organization" />
-            <HeaderButton
-              variant="primary"
-              icon={<Plus size={14} />}
-              onClick={() => navigate("/admin/workspaces?tab=workspaces")}
-            >
-              New Workspace Request
-            </HeaderButton>
-          </>
-        }
+    <DiscoveryPage>
+      {/* Framework chrome: scope badge + primary action on one row (no heading),
+          then the icon tab strip — matching the Identity & Access console. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 10,
+          margin: "0 10px 8px",
+        }}
+      >
+        <ScopeBadge scope="Organization" />
+        <HeaderButton
+          variant="primary"
+          icon={<Plus size={14} />}
+          onClick={() => navigate("/admin/workspaces?tab=workspaces")}
+        >
+          New Workspace Request
+        </HeaderButton>
+      </div>
+      <DiscoveryTabs
+        tabs={SUBSECTIONS.map((s) => ({ ...s, icon: SUB_ICONS[s.id] }))}
+        active={tab}
+        onChange={setTab}
+        label="Workspace Administration views"
       />
-      <Tabs tabs={SUBSECTIONS} active={tab} onChange={setTab} />
       {tab === "workspaces" && <LeafSubsection leaves={WORKSPACE_LEAVES} />}
       {tab === "templates" && <LeafSubsection leaves={TEMPLATE_LEAVES} />}
       {tab === "ownership" && <LeafSubsection leaves={OWNERSHIP_LEAVES} />}
       {tab === "hierarchy" && <LeafSubsection leaves={HIERARCHY_LEAVES} />}
       {tab === "lifecycle" && <LeafSubsection leaves={LIFECYCLE_LEAVES} />}
-    </Page>
+    </DiscoveryPage>
   );
 }

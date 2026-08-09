@@ -38,8 +38,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -53,6 +51,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Shared Service Workspaces — centralized enterprise workspaces that PROVIDE reusable platform,
@@ -445,6 +445,14 @@ export function SharedServiceWorkspacesView() {
   const [fBu, setFBu] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_SERVICES;
   const viewStatus = VIEW_STATUS[view];
@@ -472,16 +480,6 @@ export function SharedServiceWorkspacesView() {
       (!fBu || r.businessUnit === fBu)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fCategory ||
-    fOwner ||
-    fConsumers ||
-    fAvailability ||
-    fTier ||
-    fStatus ||
-    fBu
-  );
   const clearFilters = () => {
     setSearch("");
     setFCategory("");
@@ -680,119 +678,120 @@ export function SharedServiceWorkspacesView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Shared service catalog"
-        desc="Centralized enterprise workspaces that provide reusable platform, security, compliance, AI, infrastructure and operational services to other workspaces. Providers, not owners — governed and isolated."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search shared service workspaces — workspace, service, owner, consumer, category, business unit…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Service Category"
-            value={fCategory}
-            onChange={setFCategory}
-            options={facet(records.map((r) => r.category))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Consumer Count"
-            value={fConsumers}
-            onChange={setFConsumers}
-            options={[
+        commands={toolbar}
+        pills={[
+          {
+            key: "category",
+            label: "Service Category",
+            value: fCategory,
+            onChange: setFCategory,
+            options: facet(records.map((r) => r.category)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "consumers",
+            label: "Consumer Count",
+            value: fConsumers,
+            onChange: setFConsumers,
+            options: [
               { value: "", label: "All" },
               { value: "0–9", label: "0–9" },
               { value: "10–49", label: "10–49" },
               { value: "50–99", label: "50–99" },
               { value: "100+", label: "100+" },
+            ],
+          },
+          {
+            key: "availability",
+            label: "Availability",
+            value: fAvailability,
+            onChange: setFAvailability,
+            options: facet(records.map((r) => r.availability)),
+          },
+          {
+            key: "tier",
+            label: "Service Tier",
+            value: fTier,
+            onChange: setFTier,
+            options: facet(records.map((r) => r.serviceTier)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+        ]}
+        presets={[{ label: "All services", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search shared service workspaces — workspace, service, owner, consumer, category, business unit…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "consumers", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Users size={13} />} onClick={clear}>
+              Assign Consumers ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<PauseCircle size={13} />} onClick={clear}>
+              Suspend
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Manage Consumers", onClick: () => setSelId(r.id) },
+              { label: "View Dependencies", onClick: () => setSelId(r.id) },
+              { label: "Suspend", onClick: () => setSelId(r.id) },
+              {
+                label: "Retire",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Export", onClick: () => {} },
             ]}
           />
-          <Select
-            label="Availability"
-            value={fAvailability}
-            onChange={setFAvailability}
-            options={facet(records.map((r) => r.availability))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Plus size={20} />}
+            title="No shared service workspaces configured."
+            hint="Create a shared service workspace to centralize reusable enterprise capabilities."
+            cta="Create Shared Service Workspace"
+            onCta={() => navigate("/admin/workspaces?tab=shared-services")}
           />
-          <Select
-            label="Service Tier"
-            value={fTier}
-            onChange={setFTier}
-            options={facet(records.map((r) => r.serviceTier))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "consumers", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Users size={13} />} onClick={clear}>
-                Assign Consumers ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<PauseCircle size={13} />} onClick={clear}>
-                Suspend
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Manage Consumers", onClick: () => setSelId(r.id) },
-                { label: "View Dependencies", onClick: () => setSelId(r.id) },
-                { label: "Suspend", onClick: () => setSelId(r.id) },
-                {
-                  label: "Retire",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Plus size={20} />}
-              title="No shared service workspaces configured."
-              hint="Create a shared service workspace to centralize reusable enterprise capabilities."
-              cta="Create Shared Service Workspace"
-              onCta={() => navigate("/admin/workspaces?tab=shared-services")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* Service Dependency Graph (spec §Service Dependency Graph — interactive; ASCII flow here) */}
       <Card

@@ -33,9 +33,6 @@ import {
   Card,
   StatRow,
   KVGrid,
-  DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -49,6 +46,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Escalation Contacts — the individuals, teams, and on-call groups notified or engaged when workspace
@@ -408,6 +407,14 @@ export function EscalationContactsView() {
   const [fStatus, setFStatus] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_CONTACTS;
   const viewPred = VIEW_PREDICATE[tab] ?? (() => true);
@@ -433,17 +440,6 @@ export function EscalationContactsView() {
       (!fStatus || r.status === fStatus)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fWorkspace ||
-    fCategory ||
-    fRole ||
-    fType ||
-    fPriority ||
-    fBu ||
-    fOnCall ||
-    fStatus
-  );
   const clearFilters = () => {
     setSearch("");
     setFWorkspace("");
@@ -719,121 +715,123 @@ export function EscalationContactsView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Escalation contacts"
-        desc="Manage workspace escalation contacts, notification routing, emergency responders, and operational escalation policies."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search escalation contacts — person, team, workspace, category, email, phone…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
-          />
-          <Select
-            label="Category"
-            value={fCategory}
-            onChange={setFCategory}
-            options={facet(records.map((r) => r.category))}
-          />
-          <Select
-            label="Role"
-            value={fRole}
-            onChange={setFRole}
-            options={facet(records.map((r) => r.role))}
-          />
-          <Select
-            label="Contact Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.contactType))}
-          />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="On-Call"
-            value={fOnCall}
-            onChange={setFOnCall}
-            options={[
+        commands={toolbar}
+        pills={[
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "category",
+            label: "Category",
+            value: fCategory,
+            onChange: setFCategory,
+            options: facet(records.map((r) => r.category)),
+          },
+          {
+            key: "role",
+            label: "Role",
+            value: fRole,
+            onChange: setFRole,
+            options: facet(records.map((r) => r.role)),
+          },
+          {
+            key: "type",
+            label: "Contact Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.contactType)),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "oncall",
+            label: "On-Call",
+            value: fOnCall,
+            onChange: setFOnCall,
+            options: [
               { value: "", label: "All" },
               { value: "On-Call", label: "On-Call" },
               { value: "Not On-Call", label: "Not On-Call" },
+            ],
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+        ]}
+        presets={[{ label: "All contacts", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search escalation contacts — person, team, workspace, category, email, phone…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "priority", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Check size={13} />} onClick={clear}>
+              Enable ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Ban size={13} />} onClick={clear}>
+              Disable
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Test Notification", onClick: () => setSelId(r.id) },
+              {
+                label: "Disable",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Export", onClick: () => {} },
             ]}
           />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Bell size={20} />}
+            title="No escalation contacts configured."
+            hint="Add an escalation contact or import contacts so critical events are routed to the right stakeholders."
+            cta="Add Escalation Contact"
+            onCta={() => navigate("/admin/workspaces?tab=escalation")}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "priority", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Check size={13} />} onClick={clear}>
-                Enable ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Ban size={13} />} onClick={clear}>
-                Disable
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Test Notification", onClick: () => setSelId(r.id) },
-                {
-                  label: "Disable",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Bell size={20} />}
-              title="No escalation contacts configured."
-              hint="Add an escalation contact or import contacts so critical events are routed to the right stakeholders."
-              cta="Add Escalation Contact"
-              onCta={() => navigate("/admin/workspaces?tab=escalation")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <ContactDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

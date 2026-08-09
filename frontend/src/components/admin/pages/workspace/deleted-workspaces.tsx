@@ -28,12 +28,8 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
-  DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -45,6 +41,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Deleted Workspaces — the terminal forensic record of workspaces that have completed the
@@ -353,6 +351,14 @@ export function DeletedWorkspacesView() {
   const [fDate, setFDate] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_DELETED;
 
@@ -400,18 +406,6 @@ export function DeletedWorkspacesView() {
       (!fDate || r.deletedDate === fDate)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fReason ||
-    fBu ||
-    fType ||
-    fDeletedBy ||
-    fRetention ||
-    fLegal ||
-    fCompliance ||
-    fPurge ||
-    fDate
-  );
   const clearFilters = () => {
     setSearch("");
     setFReason("");
@@ -631,118 +625,121 @@ export function DeletedWorkspacesView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Deleted workspace register"
-        desc="View permanently deleted workspaces, deletion evidence, retention status, and audit records. Deletion cannot be reversed — restore is not supported. Records persist until the dual-authorized permanent purge is executed."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search deleted workspaces — name, ID, business unit, owner, deleted by, deletion ticket…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Deletion Reason"
-            value={fReason}
-            onChange={setFReason}
-            options={facet(records.map((r) => r.deletionReason))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "reason",
+            label: "Deletion Reason",
+            value: fReason,
+            onChange: setFReason,
+            options: facet(records.map((r) => r.deletionReason)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "type",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.workspaceType)),
+          },
+          {
+            key: "deletedBy",
+            label: "Deleted By",
+            value: fDeletedBy,
+            onChange: setFDeletedBy,
+            options: facet(records.map((r) => r.deletedBy)),
+          },
+          {
+            key: "retention",
+            label: "Retention Status",
+            value: fRetention,
+            onChange: setFRetention,
+            options: facet(records.map((r) => r.retentionStatus)),
+          },
+          {
+            key: "legal",
+            label: "Legal Hold",
+            value: fLegal,
+            onChange: setFLegal,
+            options: holdFacet,
+          },
+          {
+            key: "compliance",
+            label: "Compliance Hold",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: holdFacet,
+          },
+          {
+            key: "purge",
+            label: "Purge Status",
+            value: fPurge,
+            onChange: setFPurge,
+            options: facet(records.map((r) => r.purgeStatus)),
+          },
+          {
+            key: "date",
+            label: "Deleted Date",
+            value: fDate,
+            onChange: setFDate,
+            options: facet(records.map((r) => r.deletedDate)),
+          },
+        ]}
+        presets={[{ label: "All deleted", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search deleted workspaces — name, ID, business unit, owner, deleted by, deletion ticket…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "deletedDate", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<ShieldAlert size={13} />} onClick={clear}>
+              Apply Hold
+            </HeaderButton>
+            <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
+              Extend Retention
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "View Evidence", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              { label: "View Audit History", onClick: () => setSelId(r.id) },
+            ]}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Trash2 size={20} />}
+            title="No deleted workspaces found."
+            hint="Deleted workspaces originate from the archival lifecycle. Review archived workspaces to see candidates awaiting deletion."
+            cta="View Archived Workspaces"
+            onCta={() => navigate("/admin/workspaces?tab=archived")}
           />
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.workspaceType))}
-          />
-          <Select
-            label="Deleted By"
-            value={fDeletedBy}
-            onChange={setFDeletedBy}
-            options={facet(records.map((r) => r.deletedBy))}
-          />
-          <Select
-            label="Retention Status"
-            value={fRetention}
-            onChange={setFRetention}
-            options={facet(records.map((r) => r.retentionStatus))}
-          />
-          <Select
-            label="Legal Hold"
-            value={fLegal}
-            onChange={setFLegal}
-            options={holdFacet}
-          />
-          <Select
-            label="Compliance Hold"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={holdFacet}
-          />
-          <Select
-            label="Purge Status"
-            value={fPurge}
-            onChange={setFPurge}
-            options={facet(records.map((r) => r.purgeStatus))}
-          />
-          <Select
-            label="Deleted Date"
-            value={fDate}
-            onChange={setFDate}
-            options={facet(records.map((r) => r.deletedDate))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "deletedDate", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<ShieldAlert size={13} />} onClick={clear}>
-                Apply Hold
-              </HeaderButton>
-              <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
-                Extend Retention
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "View Evidence", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                { label: "View Audit History", onClick: () => setSelId(r.id) },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Trash2 size={20} />}
-              title="No deleted workspaces found."
-              hint="Deleted workspaces originate from the archival lifecycle. Review archived workspaces to see candidates awaiting deletion."
-              cta="View Archived Workspaces"
-              onCta={() => navigate("/admin/workspaces?tab=archived")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <DeletedDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

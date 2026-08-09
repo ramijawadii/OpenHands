@@ -37,7 +37,6 @@ import {
   KVGrid,
   DirectoryTable,
   FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -51,6 +50,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Lifecycle → Active — the steady-state operational view of fully provisioned workspaces.
@@ -307,6 +308,14 @@ export function LifecycleActiveView() {
   const [fRegion, setFRegion] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_WORKSPACES;
 
@@ -334,19 +343,6 @@ export function LifecycleActiveView() {
       (!fRegion || r.region === fRegion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fEnv ||
-    fType ||
-    fBu ||
-    fOwner ||
-    fCompliance ||
-    fRisk ||
-    fHealth ||
-    fStatus ||
-    fCloud ||
-    fRegion
-  );
   const clearFilters = () => {
     setSearch("");
     setFEnv("");
@@ -619,138 +615,143 @@ export function LifecycleActiveView() {
         </PostureGrid>
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Active workspaces"
         desc="Fully provisioned workspaces that are operational and available for enterprise use — continuously governed, secured, compliant, and monitored. Manage operational workspaces, monitor health, govern lifecycle, and administer enterprise configurations."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search active workspaces — workspace, business unit, owner, environment, cloud account, tags, workspace ID…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search active workspaces — workspace, business unit, owner, environment, cloud account, tags, workspace ID…"
+        count={rows.length}
+        pills={[
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "workspaceType",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.workspaceType)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "compliance",
+            label: "Compliance",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.compliance)),
+          },
+          {
+            key: "riskLevel",
+            label: "Risk Level",
+            value: fRisk,
+            onChange: setFRisk,
+            options: facet(records.map((r) => r.riskLevel)),
+          },
+          {
+            key: "health",
+            label: "Health",
+            value: fHealth,
+            onChange: setFHealth,
+            options: facet(records.map((r) => r.health)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "cloud",
+            label: "Cloud Provider",
+            value: fCloud,
+            onChange: setFCloud,
+            options: facet(records.map((r) => r.cloud)),
+          },
+          {
+            key: "region",
+            label: "Region",
+            value: fRegion,
+            onChange: setFRegion,
+            options: facet(records.map((r) => r.region)),
+          },
+        ]}
+        presets={[{ label: "All active workspaces", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "workspace", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
+              Assign Policies ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
+              Run Health Check
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              {
+                label: "Open Workspace",
+                onClick: () => navigate("/admin/workspaces"),
+              },
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Run Health Check", onClick: () => setSelId(r.id) },
+              { label: "Maintenance Mode", onClick: () => setSelId(r.id) },
+              { label: "Clone", onClick: () => setSelId(r.id) },
+              {
+                label: "Archive",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.workspaceType))}
+        )}
+        empty={
+          <EmptyState
+            icon={<LayoutGrid size={20} />}
+            title="No active workspaces found."
+            hint="Adjust filters, review the provisioning queue, or create a workspace to get started."
+            cta="Create Workspace"
+            onCta={() => navigate("/admin/workspaces?tab=requests")}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Compliance"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.compliance))}
-          />
-          <Select
-            label="Risk Level"
-            value={fRisk}
-            onChange={setFRisk}
-            options={facet(records.map((r) => r.riskLevel))}
-          />
-          <Select
-            label="Health"
-            value={fHealth}
-            onChange={setFHealth}
-            options={facet(records.map((r) => r.health))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Cloud Provider"
-            value={fCloud}
-            onChange={setFCloud}
-            options={facet(records.map((r) => r.cloud))}
-          />
-          <Select
-            label="Region"
-            value={fRegion}
-            onChange={setFRegion}
-            options={facet(records.map((r) => r.region))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "workspace", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
-                Assign Policies ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
-                Run Health Check
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                {
-                  label: "Open Workspace",
-                  onClick: () => navigate("/admin/workspaces"),
-                },
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Run Health Check", onClick: () => setSelId(r.id) },
-                { label: "Maintenance Mode", onClick: () => setSelId(r.id) },
-                { label: "Clone", onClick: () => setSelId(r.id) },
-                {
-                  label: "Archive",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<LayoutGrid size={20} />}
-              title="No active workspaces found."
-              hint="Adjust filters, review the provisioning queue, or create a workspace to get started."
-              cta="Create Workspace"
-              onCta={() => navigate("/admin/workspaces?tab=requests")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* Lifecycle Flow (spec §Lifecycle Flow) — ASCII node→node flow-chain, Active highlighted. */}
       <Card

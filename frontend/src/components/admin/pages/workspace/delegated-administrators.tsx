@@ -26,12 +26,9 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -45,6 +42,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Delegated Administrators — users granted administrative responsibility for one or more workspaces
@@ -318,6 +317,14 @@ export function DelegatedAdministratorsView() {
   const [fApproval, setFApproval] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_DELEGATIONS;
   const viewStatus = VIEW_STATUS[view];
@@ -345,17 +352,6 @@ export function DelegatedAdministratorsView() {
       (!fApproval || r.approvalStatus === fApproval)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fWorkspace ||
-    fAdmin ||
-    fProfile ||
-    fBu ||
-    fType ||
-    fStatus ||
-    fExpiration ||
-    fApproval
-  );
   const clearFilters = () => {
     setSearch("");
     setFWorkspace("");
@@ -581,128 +577,130 @@ export function DelegatedAdministratorsView() {
         </PostureGrid>
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Delegated administrators"
-        desc="Assign and manage delegated administrators responsible for workspace operations while maintaining business ownership separation. Delegated administrators inherit only the capabilities assigned through administrative profiles and expire automatically per delegation policy."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search delegated administrators — administrator, workspace, business unit, department, profile, email…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "admin",
+            label: "Administrator",
+            value: fAdmin,
+            onChange: setFAdmin,
+            options: facet(records.map((r) => r.administrator)),
+          },
+          {
+            key: "profile",
+            label: "Administrative Profile",
+            value: fProfile,
+            onChange: setFProfile,
+            options: facet(records.map((r) => r.adminProfile)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "type",
+            label: "Delegation Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.delegationType)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "expiration",
+            label: "Expiration",
+            value: fExpiration,
+            onChange: setFExpiration,
+            options: facet(records.map((r) => r.expiration)),
+          },
+          {
+            key: "approval",
+            label: "Approval Status",
+            value: fApproval,
+            onChange: setFApproval,
+            options: facet(records.map((r) => r.approvalStatus)),
+          },
+        ]}
+        presets={[{ label: "All delegations", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search delegated administrators — administrator, workspace, business unit, department, profile, email…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "effective", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Plus size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
+              Extend
+            </HeaderButton>
+            <HeaderButton icon={<Ban size={13} />} onClick={clear}>
+              Revoke
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Modify", onClick: () => setSelId(r.id) },
+              { label: "Extend", onClick: () => setSelId(r.id) },
+              { label: "Transfer", onClick: () => setSelId(r.id) },
+              {
+                label: "Revoke",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              {
+                label: "View Workspace",
+                onClick: () =>
+                  navigate("/admin/workspaces?tab=active-workspaces"),
+              },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Administrator"
-            value={fAdmin}
-            onChange={setFAdmin}
-            options={facet(records.map((r) => r.administrator))}
+        )}
+        empty={
+          <EmptyState
+            icon={<UserCheck size={20} />}
+            title="No delegated administrators found."
+            hint="Adjust filters, or assign a delegated administrator to a workspace to get started."
+            cta="Assign Administrator"
+            onCta={() =>
+              navigate("/admin/workspaces?tab=delegated-administrators")
+            }
           />
-          <Select
-            label="Administrative Profile"
-            value={fProfile}
-            onChange={setFProfile}
-            options={facet(records.map((r) => r.adminProfile))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Delegation Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.delegationType))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Expiration"
-            value={fExpiration}
-            onChange={setFExpiration}
-            options={facet(records.map((r) => r.expiration))}
-          />
-          <Select
-            label="Approval Status"
-            value={fApproval}
-            onChange={setFApproval}
-            options={facet(records.map((r) => r.approvalStatus))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "effective", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Plus size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
-                Extend
-              </HeaderButton>
-              <HeaderButton icon={<Ban size={13} />} onClick={clear}>
-                Revoke
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Modify", onClick: () => setSelId(r.id) },
-                { label: "Extend", onClick: () => setSelId(r.id) },
-                { label: "Transfer", onClick: () => setSelId(r.id) },
-                {
-                  label: "Revoke",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                {
-                  label: "View Workspace",
-                  onClick: () =>
-                    navigate("/admin/workspaces?tab=active-workspaces"),
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<UserCheck size={20} />}
-              title="No delegated administrators found."
-              hint="Adjust filters, or assign a delegated administrator to a workspace to get started."
-              cta="Assign Administrator"
-              onCta={() =>
-                navigate("/admin/workspaces?tab=delegated-administrators")
-              }
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && (
         <DelegationDetailDrawer rec={sel} onClose={() => setSelId(null)} />

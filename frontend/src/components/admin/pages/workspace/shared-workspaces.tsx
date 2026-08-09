@@ -31,7 +31,6 @@ import {
   KVGrid,
   DirectoryTable,
   FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -45,6 +44,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Shared Workspaces — the enterprise collaboration surface for Workspace Administration.
@@ -317,6 +318,14 @@ export function SharedWorkspacesView() {
   const [fStatus, setFStatus] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_SHARES;
   const tabType = TAB_TYPE[tab];
@@ -345,18 +354,6 @@ export function SharedWorkspacesView() {
       (!fStatus || r.status === fStatus)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fScope ||
-    fBu ||
-    fOwner ||
-    fTrust ||
-    fCompliance ||
-    fEnv ||
-    fHealth ||
-    fStatus
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -605,128 +602,128 @@ export function SharedWorkspacesView() {
         </PostureGrid>
       </Card>
 
-      <Card
+      <DiscoveryListView
         title="Shared workspace directory"
-        desc="Every shared workspace is governed through explicit trust relationships, resource-sharing policies and access controls. Select a row for the full detail drawer and lifecycle actions."
-      >
-        {/* ── Toolbar ── */}
-        <CommandBar items={toolbar} />
-
-        {/* ── Filters + Search ── */}
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search shared workspaces — name, business unit, owner, shared resources, connected workspaces, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.shareType))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "type",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.shareType)),
+          },
+          {
+            key: "scope",
+            label: "Sharing Scope",
+            value: fScope,
+            onChange: setFScope,
+            options: facet(records.map((r) => r.sharingScope)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "trust",
+            label: "Trust Status",
+            value: fTrust,
+            onChange: setFTrust,
+            options: facet(records.map((r) => r.trustStatus)),
+          },
+          {
+            key: "compliance",
+            label: "Compliance Profile",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.complianceProfile)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "health",
+            label: "Health",
+            value: fHealth,
+            onChange: setFHealth,
+            options: facet(records.map((r) => r.health)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+        ]}
+        presets={[{ label: "All shared", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search shared workspaces — name, business unit, owner, shared resources, connected workspaces, tags…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "name", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Scale size={13} />} onClick={clear}>
+              Assign Governance
+            </HeaderButton>
+            <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
+              Synchronize
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive ({ids.length})
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "Open", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Manage Sharing", onClick: () => setSelId(r.id) },
+              { label: "Manage Trust", onClick: () => setSelId(r.id) },
+              { label: "Synchronize", onClick: () => {} },
+              { label: "Export", onClick: () => {} },
+              { label: "Archive", onClick: () => {} },
+              { label: "Delete", onClick: () => {}, danger: true },
+            ]}
           />
-          <Select
-            label="Sharing Scope"
-            value={fScope}
-            onChange={setFScope}
-            options={facet(records.map((r) => r.sharingScope))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Share2 size={20} />}
+            title="No shared workspaces found."
+            hint="Adjust filters, create a shared workspace, or share an existing workspace to get started."
+            cta="Create Shared Workspace"
+            onCta={() => navigate("/admin/workspaces?tab=requests")}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Trust Status"
-            value={fTrust}
-            onChange={setFTrust}
-            options={facet(records.map((r) => r.trustStatus))}
-          />
-          <Select
-            label="Compliance Profile"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.complianceProfile))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Health"
-            value={fHealth}
-            onChange={setFHealth}
-            options={facet(records.map((r) => r.health))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-        </FilterBar>
-
-        {/* ── Data Table + Row/Bulk actions ── */}
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "name", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Scale size={13} />} onClick={clear}>
-                Assign Governance
-              </HeaderButton>
-              <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
-                Synchronize
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive ({ids.length})
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "Open", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Manage Sharing", onClick: () => setSelId(r.id) },
-                { label: "Manage Trust", onClick: () => setSelId(r.id) },
-                { label: "Synchronize", onClick: () => {} },
-                { label: "Export", onClick: () => {} },
-                { label: "Archive", onClick: () => {} },
-                { label: "Delete", onClick: () => {}, danger: true },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Share2 size={20} />}
-              title="No shared workspaces found."
-              hint="Adjust filters, create a shared workspace, or share an existing workspace to get started."
-              cta="Create Shared Workspace"
-              onCta={() => navigate("/admin/workspaces?tab=requests")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* ── Resource Dependency Graph (spec §Resource Dependency Graph) ── */}
       <Card

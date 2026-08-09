@@ -31,8 +31,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -46,6 +44,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Business Ownership — organizational accountability for a workspace from a business perspective.
@@ -396,6 +396,14 @@ export function BusinessOwnershipView() {
   const [fStatus, setFStatus] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_OWNERSHIP;
   const isType = OWNER_TYPES.includes(view as OwnerType);
@@ -421,17 +429,6 @@ export function BusinessOwnershipView() {
       (!fStatus || r.status === fStatus)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fBu ||
-    fDept ||
-    fDivision ||
-    fRegion ||
-    fCostCenter ||
-    fWorkspace ||
-    fSponsor ||
-    fStatus
-  );
   const clearFilters = () => {
     setSearch("");
     setFBu("");
@@ -668,116 +665,118 @@ export function BusinessOwnershipView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Business ownership assignments"
-        desc="Assign organizational ownership for workspaces to support governance, budgeting, compliance, reporting, and operational accountability."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search business ownership — workspace, business unit, department, division, cost center, executive sponsor…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "dept",
+            label: "Department",
+            value: fDept,
+            onChange: setFDept,
+            options: facet(records.map((r) => r.department)),
+          },
+          {
+            key: "division",
+            label: "Division",
+            value: fDivision,
+            onChange: setFDivision,
+            options: facet(records.map((r) => r.division)),
+          },
+          {
+            key: "region",
+            label: "Region",
+            value: fRegion,
+            onChange: setFRegion,
+            options: facet(records.map((r) => r.region)),
+          },
+          {
+            key: "costCenter",
+            label: "Cost Center",
+            value: fCostCenter,
+            onChange: setFCostCenter,
+            options: facet(records.map((r) => r.costCenter)),
+          },
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "sponsor",
+            label: "Executive Sponsor",
+            value: fSponsor,
+            onChange: setFSponsor,
+            options: facet(records.map((r) => r.executiveSponsor)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+        ]}
+        presets={[{ label: "All assignments", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search business ownership — workspace, business unit, department, division, cost center, executive sponsor…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "workspace", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<UserCog size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<ArrowLeftRight size={13} />} onClick={clear}>
+              Transfer
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit Assignment", onClick: () => setSelId(r.id) },
+              { label: "Transfer", onClick: () => setSelId(r.id) },
+              {
+                label: "View Workspaces",
+                onClick: () => setSelId(r.id),
+              },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Department"
-            value={fDept}
-            onChange={setFDept}
-            options={facet(records.map((r) => r.department))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Building2 size={20} />}
+            title="No business ownership assignments found."
+            hint="Adjust filters, or assign business ownership to align workspaces with the enterprise organizational structure."
+            cta="Assign Business Ownership"
+            onCta={() => navigate("/admin/workspaces?tab=business-ownership")}
           />
-          <Select
-            label="Division"
-            value={fDivision}
-            onChange={setFDivision}
-            options={facet(records.map((r) => r.division))}
-          />
-          <Select
-            label="Region"
-            value={fRegion}
-            onChange={setFRegion}
-            options={facet(records.map((r) => r.region))}
-          />
-          <Select
-            label="Cost Center"
-            value={fCostCenter}
-            onChange={setFCostCenter}
-            options={facet(records.map((r) => r.costCenter))}
-          />
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
-          />
-          <Select
-            label="Executive Sponsor"
-            value={fSponsor}
-            onChange={setFSponsor}
-            options={facet(records.map((r) => r.executiveSponsor))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "workspace", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<UserCog size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<ArrowLeftRight size={13} />} onClick={clear}>
-                Transfer
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit Assignment", onClick: () => setSelId(r.id) },
-                { label: "Transfer", onClick: () => setSelId(r.id) },
-                {
-                  label: "View Workspaces",
-                  onClick: () => setSelId(r.id),
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Building2 size={20} />}
-              title="No business ownership assignments found."
-              hint="Adjust filters, or assign business ownership to align workspaces with the enterprise organizational structure."
-              cta="Assign Business Ownership"
-              onCta={() => navigate("/admin/workspaces?tab=business-ownership")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && (
         <OwnershipDetailDrawer rec={sel} onClose={() => setSelId(null)} />

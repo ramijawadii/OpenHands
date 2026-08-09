@@ -39,8 +39,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -54,6 +52,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Suspended Workspaces — the Lifecycle sub-module for workspaces that have been temporarily disabled
@@ -362,6 +362,14 @@ export function LifecycleSuspendedView() {
   const [fReactivation, setFReactivation] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_SUSPENDED;
   const viewPred = VIEW_PREDICATE[view];
@@ -387,17 +395,6 @@ export function LifecycleSuspendedView() {
       (!fReactivation || r.reactivation === fReactivation)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fReason ||
-    fBu ||
-    fOwner ||
-    fDuration ||
-    fRisk ||
-    fCompliance ||
-    fReactivation
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -664,117 +661,120 @@ export function LifecycleSuspendedView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Suspended workspace directory"
         desc="Temporarily disabled workspaces retain all configuration, resources, metadata and audit history and are expected to return to service once reactivation is approved."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search suspended workspaces — workspace, ID, owner, business unit, suspension reason, request ID…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Suspension Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.suspensionType))}
-          />
-          <Select
-            label="Reason"
-            value={fReason}
-            onChange={setFReason}
-            options={facet(records.map((r) => r.reason))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Duration"
-            value={fDuration}
-            onChange={setFDuration}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search suspended workspaces — workspace, ID, owner, business unit, suspension reason, request ID…"
+        count={rows.length}
+        pills={[
+          {
+            key: "suspensionType",
+            label: "Suspension Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.suspensionType)),
+          },
+          {
+            key: "reason",
+            label: "Reason",
+            value: fReason,
+            onChange: setFReason,
+            options: facet(records.map((r) => r.reason)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "duration",
+            label: "Duration",
+            value: fDuration,
+            onChange: setFDuration,
+            options: [
               { value: "", label: "All" },
               ...DURATION_BUCKETS.map((v) => ({ value: v, label: v })),
+            ],
+          },
+          {
+            key: "riskLevel",
+            label: "Risk Level",
+            value: fRisk,
+            onChange: setFRisk,
+            options: facet(records.map((r) => r.riskLevel)),
+          },
+          {
+            key: "complianceStatus",
+            label: "Compliance Status",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.complianceStatus)),
+          },
+          {
+            key: "reactivation",
+            label: "Reactivation Status",
+            value: fReactivation,
+            onChange: setFReactivation,
+            options: facet(records.map((r) => r.reactivation)),
+          },
+        ]}
+        presets={[{ label: "All suspended workspaces", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "since", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Play size={13} />} onClick={clear}>
+              Reactivate ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Bell size={13} />} onClick={clear}>
+              Notify Owners
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Reactivate", onClick: () => setSelId(r.id) },
+              { label: "Extend Suspension", onClick: () => setSelId(r.id) },
+              { label: "Edit Reason", onClick: () => setSelId(r.id) },
+              { label: "View Timeline", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
             ]}
           />
-          <Select
-            label="Risk Level"
-            value={fRisk}
-            onChange={setFRisk}
-            options={facet(records.map((r) => r.riskLevel))}
+        )}
+        empty={
+          <EmptyState
+            icon={<PauseCircle size={20} />}
+            title="No suspended workspaces found."
+            hint="No workspaces are currently suspended for this view. Review active workspaces to manage the estate."
+            cta="View Active Workspaces"
+            onCta={() => navigate("/admin/workspaces?tab=active")}
           />
-          <Select
-            label="Compliance Status"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.complianceStatus))}
-          />
-          <Select
-            label="Reactivation Status"
-            value={fReactivation}
-            onChange={setFReactivation}
-            options={facet(records.map((r) => r.reactivation))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "since", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Play size={13} />} onClick={clear}>
-                Reactivate ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Bell size={13} />} onClick={clear}>
-                Notify Owners
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Reactivate", onClick: () => setSelId(r.id) },
-                { label: "Extend Suspension", onClick: () => setSelId(r.id) },
-                { label: "Edit Reason", onClick: () => setSelId(r.id) },
-                { label: "View Timeline", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<PauseCircle size={20} />}
-              title="No suspended workspaces found."
-              hint="No workspaces are currently suspended for this view. Review active workspaces to manage the estate."
-              cta="View Active Workspaces"
-              onCta={() => navigate("/admin/workspaces?tab=active")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* ── Reactivation Workflow (spec §Reactivation Workflow) ── */}
       <Card

@@ -33,7 +33,6 @@ import {
   KVGrid,
   DirectoryTable,
   FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -47,6 +46,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Owners — the business + operational ownership register for enterprise workspaces.
@@ -277,6 +278,14 @@ export function WorkspaceOwnersView() {
   const [fEnv, setFEnv] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_OWNERS;
 
@@ -319,16 +328,6 @@ export function WorkspaceOwnersView() {
     );
   });
 
-  const hasFilters = !!(
-    search ||
-    fOwner ||
-    fBu ||
-    fWorkspace ||
-    fType ||
-    fStatus ||
-    fDept ||
-    fEnv
-  );
   const clearFilters = () => {
     setSearch("");
     setFOwner("");
@@ -513,124 +512,126 @@ export function WorkspaceOwnersView() {
 
       <div style={{ display: "flex", marginBottom: 14, marginTop: 18 }} />
 
-      <Card
+      <DiscoveryListView
         title="Workspace ownership register"
-        desc="Manage business ownership and accountability for enterprise workspaces. Ownership is organizational metadata, not an access role — access permissions are managed through Identity & Access Management."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search workspace owners — workspace, owner, department, business unit, email…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="View"
-            value={view}
-            onChange={setView}
-            options={VIEW_TABS.map((t) => ({ value: t.id, label: t.label }))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "view",
+            label: "View",
+            value: view,
+            onChange: setView,
+            options: VIEW_TABS.map((t) => ({ value: t.id, label: t.label })),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.primaryOwner)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "type",
+            label: "Ownership Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.ownershipType)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "dept",
+            label: "Department",
+            value: fDept,
+            onChange: setFDept,
+            options: facet(records.map((r) => r.department)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+        ]}
+        presets={[{ label: "All owners", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search workspace owners — workspace, owner, department, business unit, email…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "assigned", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<UserPlus size={13} />} onClick={clear}>
+              Assign Owner ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<ArrowLeftRight size={13} />} onClick={clear}>
+              Transfer Ownership
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Transfer Ownership", onClick: () => setSelId(r.id) },
+              {
+                label: "Assign Additional Owner",
+                onClick: () => setSelId(r.id),
+              },
+              {
+                label: "Remove Owner",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              {
+                label: "View Workspace",
+                onClick: () => navigate("/admin/workspaces"),
+              },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.primaryOwner))}
+        )}
+        empty={
+          <EmptyState
+            icon={<UserPlus size={20} />}
+            title="No workspace owners found."
+            hint="Adjust filters, or assign a workspace owner to establish business accountability."
+            cta="Assign Workspace Owner"
+            onCta={() => navigate("/admin/workspaces?tab=owners")}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
-          />
-          <Select
-            label="Ownership Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.ownershipType))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Department"
-            value={fDept}
-            onChange={setFDept}
-            options={facet(records.map((r) => r.department))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "assigned", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<UserPlus size={13} />} onClick={clear}>
-                Assign Owner ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<ArrowLeftRight size={13} />} onClick={clear}>
-                Transfer Ownership
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Transfer Ownership", onClick: () => setSelId(r.id) },
-                {
-                  label: "Assign Additional Owner",
-                  onClick: () => setSelId(r.id),
-                },
-                {
-                  label: "Remove Owner",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                {
-                  label: "View Workspace",
-                  onClick: () => navigate("/admin/workspaces"),
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<UserPlus size={20} />}
-              title="No workspace owners found."
-              hint="Adjust filters, or assign a workspace owner to establish business accountability."
-              cta="Assign Workspace Owner"
-              onCta={() => navigate("/admin/workspaces?tab=owners")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* Ownership Model (spec §Ownership Model → Visualization) */}
       <Card

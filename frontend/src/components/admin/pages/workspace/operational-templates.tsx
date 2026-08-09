@@ -42,8 +42,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -57,6 +55,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Operational Templates — reusable operational blueprints that define how a workspace *operates after
@@ -321,6 +321,14 @@ export function OperationalTemplatesView() {
   const [fDefault, setFDefault] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_TEMPLATES;
   const tabStatus = TAB_STATUS[tab];
@@ -344,15 +352,6 @@ export function OperationalTemplatesView() {
       (!fDefault || (fDefault === "Yes" ? r.isDefault : !r.isDefault))
     );
   });
-  const hasFilters = !!(
-    search ||
-    fCategory ||
-    fTier ||
-    fBu ||
-    fStatus ||
-    fVersion ||
-    fDefault
-  );
   const clearFilters = () => {
     setSearch("");
     setFCategory("");
@@ -601,113 +600,110 @@ export function OperationalTemplatesView() {
       {tab === "versions" ? (
         <VersionsView records={records} />
       ) : (
-        <Card
+        <DiscoveryListView
           title="Operational template library"
-          desc="Reusable operational blueprints that define monitoring, automation, lifecycle management, scheduling, maintenance and operational policies for enterprise workspaces. Select a row for the full detail drawer."
-        >
-          {/* ── Toolbar ── */}
-          <CommandBar items={toolbar} />
-
-          {/* ── Filters + Search ── */}
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search operational templates — name, category, description, business unit, tags, version…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Category"
-              value={fCategory}
-              onChange={setFCategory}
-              options={facet(records.map((r) => r.category))}
-            />
-            <Select
-              label="Operational Tier"
-              value={fTier}
-              onChange={setFTier}
-              options={facet(records.map((r) => r.tier))}
-            />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
-            />
-            <Select
-              label="Version"
-              value={fVersion}
-              onChange={setFVersion}
-              options={facet(records.map((r) => r.version))}
-            />
-            <Select
-              label="Default"
-              value={fDefault}
-              onChange={setFDefault}
-              options={[
+          commands={toolbar}
+          pills={[
+            {
+              key: "category",
+              label: "Category",
+              value: fCategory,
+              onChange: setFCategory,
+              options: facet(records.map((r) => r.category)),
+            },
+            {
+              key: "tier",
+              label: "Operational Tier",
+              value: fTier,
+              onChange: setFTier,
+              options: facet(records.map((r) => r.tier)),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "version",
+              label: "Version",
+              value: fVersion,
+              onChange: setFVersion,
+              options: facet(records.map((r) => r.version)),
+            },
+            {
+              key: "default",
+              label: "Default",
+              value: fDefault,
+              onChange: setFDefault,
+              options: [
                 { value: "", label: "All" },
                 { value: "Yes", label: "Default only" },
                 { value: "No", label: "Non-default" },
+              ],
+            },
+          ]}
+          presets={[{ label: "All templates", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search operational templates — name, category, description, business unit, tags, version…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "name", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Send size={13} />} onClick={clear}>
+                Publish ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive
+              </HeaderButton>
+              <HeaderButton icon={<Star size={13} />} onClick={clear}>
+                Assign Default
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "Open", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Clone", onClick: () => {} },
+                { label: "Publish", onClick: () => {} },
+                { label: "Archive", onClick: () => {} },
+                { label: "Export", onClick: () => {} },
+                { label: "Compare Versions", onClick: () => setSelId(r.id) },
               ]}
             />
-          </FilterBar>
-
-          {/* ── Data Table + Row/Bulk actions ── */}
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "name", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Send size={13} />} onClick={clear}>
-                  Publish ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive
-                </HeaderButton>
-                <HeaderButton icon={<Star size={13} />} onClick={clear}>
-                  Assign Default
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "Open", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Clone", onClick: () => {} },
-                  { label: "Publish", onClick: () => {} },
-                  { label: "Archive", onClick: () => {} },
-                  { label: "Export", onClick: () => {} },
-                  { label: "Compare Versions", onClick: () => setSelId(r.id) },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Plus size={20} />}
-                title="No operational templates available."
-                hint="Create an operational template, or import one to get started."
-                cta="Create Operational Template"
-                onCta={() => navigate("/admin/workspaces?tab=templates")}
-              />
-            }
-          />
-        </Card>
+          )}
+          empty={
+            <EmptyState
+              icon={<Plus size={20} />}
+              title="No operational templates available."
+              hint="Create an operational template, or import one to get started."
+              cta="Create Operational Template"
+              onCta={() => navigate("/admin/workspaces?tab=templates")}
+            />
+          }
+        />
       )}
 
       {/* ── Operational Coverage + Template Relationships (spec §Operational Coverage / §Template Relationships) ── */}

@@ -32,8 +32,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -47,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Parent / Child Workspaces — the operational workspace-to-workspace hierarchy. Authoritative spec:
@@ -274,6 +274,14 @@ export function ParentChildWorkspacesView() {
   const [fStatus, setFStatus] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_RELATIONSHIPS;
 
@@ -319,15 +327,6 @@ export function ParentChildWorkspacesView() {
       (!fStatus || r.status === fStatus)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fEnv ||
-    fDepth ||
-    fBu ||
-    fInherit ||
-    fStatus
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -522,120 +521,121 @@ export function ParentChildWorkspacesView() {
       <HierarchyTreeCard />
 
       {/* Relationship directory */}
-      <Card
+      <DiscoveryListView
         title="Workspace relationship directory"
-        desc="Hierarchical workspace-to-workspace relationships governing configuration inheritance, shared governance, shared resources and lifecycle coordination — while preserving workspace isolation where required."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search workspace hierarchy — workspace, parent, child, business unit, environment, owner…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="View"
-            value={view}
-            onChange={setView}
-            options={VIEWS.map((v) => ({ value: v.id, label: v.label }))}
-          />
-          <Select
-            label="Relationship Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(RELATIONSHIP_TYPES)}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Hierarchy Depth"
-            value={fDepth}
-            onChange={setFDepth}
-            options={facet(records.map((r) => String(r.hierarchyDepth)))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Inheritance Enabled"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        pills={[
+          {
+            key: "view",
+            label: "View",
+            value: view,
+            onChange: setView,
+            options: VIEWS.map((v) => ({ value: v.id, label: v.label })),
+          },
+          {
+            key: "type",
+            label: "Relationship Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(RELATIONSHIP_TYPES),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "depth",
+            label: "Hierarchy Depth",
+            value: fDepth,
+            onChange: setFDepth,
+            options: facet(records.map((r) => String(r.hierarchyDepth))),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "inherit",
+            label: "Inheritance Enabled",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "Enabled", label: "Enabled" },
               { value: "Disabled", label: "Disabled" },
+            ],
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+        ]}
+        presets={[{ label: "All relationships", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search workspace hierarchy — workspace, parent, child, business unit, environment, owner…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "workspace", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Move size={13} />} onClick={clear}>
+              Move ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Link2 size={13} />} onClick={clear}>
+              Attach
+            </HeaderButton>
+            <HeaderButton icon={<Link2Off size={13} />} onClick={clear}>
+              Detach
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit Relationship", onClick: () => setSelId(r.id) },
+              { label: "Move", onClick: () => setSelId(r.id) },
+              { label: "Attach Child", onClick: () => setSelId(r.id) },
+              {
+                label: "Detach Child",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Preview Inheritance", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
             ]}
           />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Network size={20} />}
+            title="No parent/child workspace relationships configured."
+            hint="Create a parent workspace or attach a child workspace to model operational relationships, configuration inheritance and lifecycle coordination."
+            cta="Create Parent Workspace"
+            onCta={() => navigate("/admin/workspaces?tab=hierarchy")}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "workspace", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Move size={13} />} onClick={clear}>
-                Move ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Link2 size={13} />} onClick={clear}>
-                Attach
-              </HeaderButton>
-              <HeaderButton icon={<Link2Off size={13} />} onClick={clear}>
-                Detach
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit Relationship", onClick: () => setSelId(r.id) },
-                { label: "Move", onClick: () => setSelId(r.id) },
-                { label: "Attach Child", onClick: () => setSelId(r.id) },
-                {
-                  label: "Detach Child",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Preview Inheritance", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Network size={20} />}
-              title="No parent/child workspace relationships configured."
-              hint="Create a parent workspace or attach a child workspace to model operational relationships, configuration inheritance and lifecycle coordination."
-              cta="Create Parent Workspace"
-              onCta={() => navigate("/admin/workspaces?tab=hierarchy")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* View-specific surfaces */}
       {view === "graph" && <DependencyGraphCard />}

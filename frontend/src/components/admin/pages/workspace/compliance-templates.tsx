@@ -36,8 +36,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -51,6 +49,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Compliance Templates — reusable compliance blueprints (regulatory posture, control assignments,
@@ -326,6 +326,14 @@ export function ComplianceTemplatesView() {
   const [fDefault, setFDefault] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_TEMPLATES;
   const tabStatus = TAB_STATUS[tab];
@@ -350,16 +358,6 @@ export function ComplianceTemplatesView() {
       (!fDefault || (fDefault === "Yes") === r.isDefault)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fIndustry ||
-    fFramework ||
-    fTier ||
-    fStatus ||
-    fVersion ||
-    fBu ||
-    fDefault
-  );
   const clearFilters = () => {
     setSearch("");
     setFIndustry("");
@@ -631,119 +629,117 @@ export function ComplianceTemplatesView() {
       {isVersions ? (
         <VersionsCard records={records} onOpen={(id) => setSelId(id)} />
       ) : (
-        <Card
+        <DiscoveryListView
           title="Compliance template library"
-          desc="Reusable compliance blueprints applied during workspace provisioning and throughout the workspace lifecycle. Select a row for the full detail drawer and lifecycle actions."
-        >
-          {/* ── Toolbar ── */}
-          <CommandBar items={toolbar} />
-
-          {/* ── Filters + Search ── */}
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search compliance templates — name, framework, industry, description, tags, version…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Industry"
-              value={fIndustry}
-              onChange={setFIndustry}
-              options={facet(records.map((r) => r.industry))}
-            />
-            <Select
-              label="Framework"
-              value={fFramework}
-              onChange={setFFramework}
-              options={facet(records.flatMap((r) => r.frameworks))}
-            />
-            <Select
-              label="Compliance Tier"
-              value={fTier}
-              onChange={setFTier}
-              options={facet(records.map((r) => r.complianceTier))}
-            />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
-            />
-            <Select
-              label="Version"
-              value={fVersion}
-              onChange={setFVersion}
-              options={facet(records.map((r) => r.version))}
-            />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Default"
-              value={fDefault}
-              onChange={setFDefault}
-              options={[
+          commands={toolbar}
+          pills={[
+            {
+              key: "industry",
+              label: "Industry",
+              value: fIndustry,
+              onChange: setFIndustry,
+              options: facet(records.map((r) => r.industry)),
+            },
+            {
+              key: "framework",
+              label: "Framework",
+              value: fFramework,
+              onChange: setFFramework,
+              options: facet(records.flatMap((r) => r.frameworks)),
+            },
+            {
+              key: "tier",
+              label: "Compliance Tier",
+              value: fTier,
+              onChange: setFTier,
+              options: facet(records.map((r) => r.complianceTier)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "version",
+              label: "Version",
+              value: fVersion,
+              onChange: setFVersion,
+              options: facet(records.map((r) => r.version)),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "default",
+              label: "Default",
+              value: fDefault,
+              onChange: setFDefault,
+              options: [
                 { value: "", label: "All" },
                 { value: "Yes", label: "Yes" },
                 { value: "No", label: "No" },
+              ],
+            },
+          ]}
+          presets={[{ label: "All templates", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search compliance templates — name, framework, industry, description, tags, version…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "name", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Send size={13} />} onClick={clear}>
+                Publish ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive
+              </HeaderButton>
+              <HeaderButton icon={<Star size={13} />} onClick={clear}>
+                Assign Default
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "Open", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Clone", onClick: () => {} },
+                { label: "Publish", onClick: () => setSelId(r.id) },
+                { label: "Archive", onClick: () => {} },
+                { label: "Compare Versions", onClick: () => setSelId(r.id) },
+                { label: "Export", onClick: () => {} },
               ]}
             />
-          </FilterBar>
-
-          {/* ── Data Table + Row/Bulk actions ── */}
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "name", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Send size={13} />} onClick={clear}>
-                  Publish ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive
-                </HeaderButton>
-                <HeaderButton icon={<Star size={13} />} onClick={clear}>
-                  Assign Default
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "Open", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Clone", onClick: () => {} },
-                  { label: "Publish", onClick: () => setSelId(r.id) },
-                  { label: "Archive", onClick: () => {} },
-                  { label: "Compare Versions", onClick: () => setSelId(r.id) },
-                  { label: "Export", onClick: () => {} },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Plus size={20} />}
-                title="No compliance templates available."
-                hint="Adjust filters, or create / import a compliance template to get started."
-                cta="Create Compliance Template"
-                onCta={() => navigate("/admin/workspaces?tab=templates")}
-              />
-            }
-          />
-        </Card>
+          )}
+          empty={
+            <EmptyState
+              icon={<Plus size={20} />}
+              title="No compliance templates available."
+              hint="Adjust filters, or create / import a compliance template to get started."
+              cta="Create Compliance Template"
+              onCta={() => navigate("/admin/workspaces?tab=templates")}
+            />
+          }
+        />
       )}
 
       {/* ── Compliance Coverage Matrix (spec §Compliance Coverage Matrix) ── */}

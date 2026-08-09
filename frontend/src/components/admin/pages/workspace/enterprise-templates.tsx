@@ -37,8 +37,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -52,6 +50,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Enterprise Templates — organization-approved blueprints used to standardize the creation of
@@ -262,6 +262,14 @@ export function EnterpriseTemplatesView() {
   const [fOwner, setFOwner] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_TEMPLATES;
 
@@ -297,18 +305,6 @@ export function EnterpriseTemplatesView() {
       (!fOwner || r.owner === fOwner)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fCategory ||
-    fBu ||
-    fType ||
-    fEnv ||
-    fCompliance ||
-    fGovernance ||
-    fVersion ||
-    fOwner
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -579,128 +575,128 @@ export function EnterpriseTemplatesView() {
       {tab === "versions" ? (
         <VersionsView records={records} onOpen={(id) => setSelId(id)} />
       ) : (
-        <Card
+        <DiscoveryListView
           title="Enterprise template catalog"
-          desc="Organization-approved blueprints that standardize workspace provisioning. Select a row for the full detail drawer, version history and lifecycle actions."
-        >
-          {/* ── Toolbar ── */}
-          <CommandBar items={toolbar} />
-
-          {/* ── Filters + Search ── */}
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search enterprise templates — name, description, business unit, workspace type, tags, version…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
+          commands={toolbar}
+          pills={[
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "category",
+              label: "Category",
+              value: fCategory,
+              onChange: setFCategory,
+              options: facet(records.map((r) => r.category)),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "type",
+              label: "Workspace Type",
+              value: fType,
+              onChange: setFType,
+              options: facet(records.map((r) => r.workspaceType)),
+            },
+            {
+              key: "env",
+              label: "Environment",
+              value: fEnv,
+              onChange: setFEnv,
+              options: facet(records.map((r) => r.environment)),
+            },
+            {
+              key: "compliance",
+              label: "Compliance Profile",
+              value: fCompliance,
+              onChange: setFCompliance,
+              options: facet(records.map((r) => r.complianceProfile)),
+            },
+            {
+              key: "governance",
+              label: "Governance Profile",
+              value: fGovernance,
+              onChange: setFGovernance,
+              options: facet(records.map((r) => r.governanceProfile)),
+            },
+            {
+              key: "version",
+              label: "Version",
+              value: fVersion,
+              onChange: setFVersion,
+              options: facet(records.map((r) => r.version)),
+            },
+            {
+              key: "owner",
+              label: "Owner",
+              value: fOwner,
+              onChange: setFOwner,
+              options: facet(records.map((r) => r.owner)),
+            },
+          ]}
+          presets={[{ label: "All templates", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search enterprise templates — name, description, business unit, workspace type, tags, version…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "template", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Send size={13} />} onClick={clear}>
+                Publish ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+              <HeaderButton icon={<Star size={13} />} onClick={clear}>
+                Assign Default
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "Open", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Clone", onClick: () => setSelId(r.id) },
+                { label: "Publish", onClick: () => setSelId(r.id) },
+                { label: "Deprecate", onClick: () => setSelId(r.id) },
+                { label: "Archive", onClick: () => setSelId(r.id) },
+                { label: "Export", onClick: () => {} },
+                { label: "Compare Versions", onClick: () => setSelId(r.id) },
+              ]}
             />
-            <Select
-              label="Category"
-              value={fCategory}
-              onChange={setFCategory}
-              options={facet(records.map((r) => r.category))}
+          )}
+          empty={
+            <EmptyState
+              icon={<Plus size={20} />}
+              title="No enterprise templates available."
+              hint="Adjust filters, or create / import an enterprise template to get started."
+              cta="Create Enterprise Template"
+              onCta={() => navigate("/admin/workspaces?tab=templates")}
             />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Workspace Type"
-              value={fType}
-              onChange={setFType}
-              options={facet(records.map((r) => r.workspaceType))}
-            />
-            <Select
-              label="Environment"
-              value={fEnv}
-              onChange={setFEnv}
-              options={facet(records.map((r) => r.environment))}
-            />
-            <Select
-              label="Compliance Profile"
-              value={fCompliance}
-              onChange={setFCompliance}
-              options={facet(records.map((r) => r.complianceProfile))}
-            />
-            <Select
-              label="Governance Profile"
-              value={fGovernance}
-              onChange={setFGovernance}
-              options={facet(records.map((r) => r.governanceProfile))}
-            />
-            <Select
-              label="Version"
-              value={fVersion}
-              onChange={setFVersion}
-              options={facet(records.map((r) => r.version))}
-            />
-            <Select
-              label="Owner"
-              value={fOwner}
-              onChange={setFOwner}
-              options={facet(records.map((r) => r.owner))}
-            />
-          </FilterBar>
-
-          {/* ── Data Table + Row/Bulk actions ── */}
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "template", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Send size={13} />} onClick={clear}>
-                  Publish ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-                <HeaderButton icon={<Star size={13} />} onClick={clear}>
-                  Assign Default
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "Open", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Clone", onClick: () => setSelId(r.id) },
-                  { label: "Publish", onClick: () => setSelId(r.id) },
-                  { label: "Deprecate", onClick: () => setSelId(r.id) },
-                  { label: "Archive", onClick: () => setSelId(r.id) },
-                  { label: "Export", onClick: () => {} },
-                  { label: "Compare Versions", onClick: () => setSelId(r.id) },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Plus size={20} />}
-                title="No enterprise templates available."
-                hint="Adjust filters, or create / import an enterprise template to get started."
-                cta="Create Enterprise Template"
-                onCta={() => navigate("/admin/workspaces?tab=templates")}
-              />
-            }
-          />
-        </Card>
+          }
+        />
       )}
 
       {/* ── Template Inheritance visualization (spec §Template Inheritance) ── */}

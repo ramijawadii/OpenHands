@@ -37,8 +37,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -52,6 +50,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Administrative Delegation — the governance engine behind delegated administration. Authoritative
@@ -499,6 +499,14 @@ export function AdministrativeDelegationView() {
   const [fStatus, setFStatus] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_DELEGATIONS;
 
@@ -560,17 +568,6 @@ export function AdministrativeDelegationView() {
       (!fStatus || r.status === fStatus)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fWorkspace ||
-    fDelegate ||
-    fType ||
-    fProfile ||
-    fApproval ||
-    fBu ||
-    fExpiry ||
-    fStatus
-  );
   const clearFilters = () => {
     setSearch("");
     setFWorkspace("");
@@ -782,127 +779,129 @@ export function AdministrativeDelegationView() {
       ) : view === "workflows" ? (
         <ApprovalWorkflowsCard />
       ) : (
-        <Card
+        <DiscoveryListView
           title="Administrative delegations"
-          desc="Delegated administrative authority — least-privilege, time-bounded, approved, inherited-and-constrained, and fully auditable. Governance is separated from assignment."
-        >
-          <CommandBar items={toolbar} />
-
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search administrative delegations — delegate, workspace, profile, delegation ID, approver, business unit…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Workspace"
-              value={fWorkspace}
-              onChange={setFWorkspace}
-              options={facet(records.map((r) => r.workspace))}
-            />
-            <Select
-              label="Delegate"
-              value={fDelegate}
-              onChange={setFDelegate}
-              options={facet(records.map((r) => r.delegate))}
-            />
-            <Select
-              label="Delegation Type"
-              value={fType}
-              onChange={setFType}
-              options={facet(records.map((r) => r.delegationType))}
-            />
-            <Select
-              label="Administrative Profile"
-              value={fProfile}
-              onChange={setFProfile}
-              options={facet(records.map((r) => r.adminProfile))}
-            />
-            <Select
-              label="Approval Status"
-              value={fApproval}
-              onChange={setFApproval}
-              options={facet(APPROVAL_STATUSES)}
-            />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Expiration"
-              value={fExpiry}
-              onChange={setFExpiry}
-              options={facet(
+          commands={toolbar}
+          pills={[
+            {
+              key: "workspace",
+              label: "Workspace",
+              value: fWorkspace,
+              onChange: setFWorkspace,
+              options: facet(records.map((r) => r.workspace)),
+            },
+            {
+              key: "delegate",
+              label: "Delegate",
+              value: fDelegate,
+              onChange: setFDelegate,
+              options: facet(records.map((r) => r.delegate)),
+            },
+            {
+              key: "type",
+              label: "Delegation Type",
+              value: fType,
+              onChange: setFType,
+              options: facet(records.map((r) => r.delegationType)),
+            },
+            {
+              key: "profile",
+              label: "Administrative Profile",
+              value: fProfile,
+              onChange: setFProfile,
+              options: facet(records.map((r) => r.adminProfile)),
+            },
+            {
+              key: "approval",
+              label: "Approval Status",
+              value: fApproval,
+              onChange: setFApproval,
+              options: facet(APPROVAL_STATUSES),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "expiry",
+              label: "Expiration",
+              value: fExpiry,
+              onChange: setFExpiry,
+              options: facet(
                 records.map((r) => expiryBucket(r.expirationDate)),
-              )}
+              ),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+          ]}
+          presets={[{ label: "All delegations", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search administrative delegations — delegate, workspace, profile, delegation ID, approver, business unit…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "effective", dir: "desc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Clock size={13} />} onClick={clear}>
+                Extend ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<PauseCircle size={13} />} onClick={clear}>
+                Suspend
+              </HeaderButton>
+              <HeaderButton icon={<Ban size={13} />} onClick={clear}>
+                Revoke
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "View", onClick: () => setSelId(r.id) },
+                { label: "Modify", onClick: () => setSelId(r.id) },
+                { label: "Extend", onClick: () => setSelId(r.id) },
+                { label: "Suspend", onClick: () => setSelId(r.id) },
+                {
+                  label: "Revoke",
+                  onClick: () => setSelId(r.id),
+                  danger: true,
+                },
+                {
+                  label: "Show Effective Permissions",
+                  onClick: () => setSelId(r.id),
+                },
+                { label: "Export", onClick: () => {} },
+              ]}
             />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
+          )}
+          empty={
+            <EmptyState
+              icon={<KeyRound size={20} />}
+              title="No administrative delegations configured."
+              hint="Adjust filters, or create / import a delegation to get started."
+              cta="Create Delegation"
+              onCta={() => navigate("/admin/workspaces?tab=delegation")}
             />
-          </FilterBar>
-
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "effective", dir: "desc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Clock size={13} />} onClick={clear}>
-                  Extend ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<PauseCircle size={13} />} onClick={clear}>
-                  Suspend
-                </HeaderButton>
-                <HeaderButton icon={<Ban size={13} />} onClick={clear}>
-                  Revoke
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "View", onClick: () => setSelId(r.id) },
-                  { label: "Modify", onClick: () => setSelId(r.id) },
-                  { label: "Extend", onClick: () => setSelId(r.id) },
-                  { label: "Suspend", onClick: () => setSelId(r.id) },
-                  {
-                    label: "Revoke",
-                    onClick: () => setSelId(r.id),
-                    danger: true,
-                  },
-                  {
-                    label: "Show Effective Permissions",
-                    onClick: () => setSelId(r.id),
-                  },
-                  { label: "Export", onClick: () => {} },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<KeyRound size={20} />}
-                title="No administrative delegations configured."
-                hint="Adjust filters, or create / import a delegation to get started."
-                cta="Create Delegation"
-                onCta={() => navigate("/admin/workspaces?tab=delegation")}
-              />
-            }
-          />
-        </Card>
+          }
+        />
       )}
 
       {/* Enterprise Delegation Model (spec §Enterprise Delegation Model) */}

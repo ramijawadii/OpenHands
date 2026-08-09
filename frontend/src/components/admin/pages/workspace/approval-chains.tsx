@@ -32,12 +32,10 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
   FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -51,6 +49,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Approval Chains — reusable, policy-driven approval workflows required before administrative,
@@ -422,6 +422,14 @@ export function ApprovalChainsView() {
   const [fVersion, setFVersion] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_CHAINS;
 
@@ -446,17 +454,6 @@ export function ApprovalChainsView() {
       (!fVersion || r.version === fVersion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fCategory ||
-    fWorkspace ||
-    fBu ||
-    fStatus ||
-    fApprovalType ||
-    fOwner ||
-    fStageCount ||
-    fVersion
-  );
   const clearFilters = () => {
     setSearch("");
     setFCategory("");
@@ -674,126 +671,128 @@ export function ApprovalChainsView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Approval chain library"
-        desc="Configure reusable approval workflows governing administrative, operational, security, compliance, AI, and business actions across enterprise workspaces. Chains are referenced across the platform rather than duplicated."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search approval chains — name, description, workspace, business unit, approver, trigger…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Category"
-            value={fCategory}
-            onChange={setFCategory}
-            options={facet(records.map((r) => r.category))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "category",
+            label: "Category",
+            value: fCategory,
+            onChange: setFCategory,
+            options: facet(records.map((r) => r.category)),
+          },
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "approvalType",
+            label: "Approval Type",
+            value: fApprovalType,
+            onChange: setFApprovalType,
+            options: facet(records.map((r) => r.approvalType)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "stageCount",
+            label: "Stage Count",
+            value: fStageCount,
+            onChange: setFStageCount,
+            options: facet(records.map((r) => String(r.stageCount))),
+          },
+          {
+            key: "version",
+            label: "Version",
+            value: fVersion,
+            onChange: setFVersion,
+            options: facet(records.map((r) => r.version)),
+          },
+        ]}
+        presets={[{ label: "All chains", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search approval chains — name, description, workspace, business unit, approver, trigger…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "name", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Send size={13} />} onClick={clear}>
+              Publish ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<PowerOff size={13} />} onClick={clear}>
+              Disable
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Link2 size={13} />} onClick={clear}>
+              Assign
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Clone", onClick: () => setSelId(r.id) },
+              { label: "Publish", onClick: () => setSelId(r.id) },
+              { label: "Disable", onClick: () => setSelId(r.id) },
+              {
+                label: "Archive",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Export", onClick: () => {} },
+              { label: "Simulate", onClick: () => setSelId(r.id) },
+            ]}
           />
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
+        )}
+        empty={
+          <EmptyState
+            icon={<GitBranch size={20} />}
+            title="No approval chains configured."
+            hint="Adjust filters, or create / import an approval workflow to get started."
+            cta="Create Approval Chain"
+            onCta={() => navigate("/admin/workspaces?tab=approval-chains")}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Approval Type"
-            value={fApprovalType}
-            onChange={setFApprovalType}
-            options={facet(records.map((r) => r.approvalType))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Stage Count"
-            value={fStageCount}
-            onChange={setFStageCount}
-            options={facet(records.map((r) => String(r.stageCount)))}
-          />
-          <Select
-            label="Version"
-            value={fVersion}
-            onChange={setFVersion}
-            options={facet(records.map((r) => r.version))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "name", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Send size={13} />} onClick={clear}>
-                Publish ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<PowerOff size={13} />} onClick={clear}>
-                Disable
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Link2 size={13} />} onClick={clear}>
-                Assign
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Clone", onClick: () => setSelId(r.id) },
-                { label: "Publish", onClick: () => setSelId(r.id) },
-                { label: "Disable", onClick: () => setSelId(r.id) },
-                {
-                  label: "Archive",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Export", onClick: () => {} },
-                { label: "Simulate", onClick: () => setSelId(r.id) },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<GitBranch size={20} />}
-              title="No approval chains configured."
-              hint="Adjust filters, or create / import an approval workflow to get started."
-              cta="Create Approval Chain"
-              onCta={() => navigate("/admin/workspaces?tab=approval-chains")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <ChainDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

@@ -32,7 +32,6 @@ import {
   KVGrid,
   DirectoryTable,
   FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -46,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Decommissioned Workspaces — the FINAL operational lifecycle stage of a workspace. Authoritative
@@ -276,6 +277,14 @@ export function LifecycleDecommissionedView() {
   const [fProvider, setFProvider] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_RECORDS;
   const inView = VIEW_PREDICATE[tab] ?? (() => true);
@@ -301,17 +310,6 @@ export function LifecycleDecommissionedView() {
       (!fProvider || r.cloudProvider === fProvider)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fBu ||
-    fEnv ||
-    fOwner ||
-    fDate ||
-    fRetention ||
-    fLegalHold ||
-    fProvider
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -512,124 +510,130 @@ export function LifecycleDecommissionedView() {
 
       <div style={{ height: 18 }} />
 
-      <Card
+      <DiscoveryListView
         title="Decommissioned workspaces"
         desc="Review permanently retired workspaces, verify resource disposal, preserve compliance evidence, and maintain historical operational records. Decommissioned workspaces are not recoverable."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search decommissioned workspaces — workspace, ID, business unit, owner, decommission ID, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="View"
-            value={tab}
-            onChange={setTab}
-            options={VIEW_TABS.map((t) => ({ value: t.id, label: t.label }))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Decommission Date"
-            value={fDate}
-            onChange={setFDate}
-            options={facet(
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search decommissioned workspaces — workspace, ID, business unit, owner, decommission ID, tags…"
+        count={rows.length}
+        pills={[
+          {
+            key: "view",
+            label: "View",
+            value: tab,
+            onChange: setTab,
+            options: VIEW_TABS.map((t) => ({ value: t.id, label: t.label })),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "decommissionDate",
+            label: "Decommission Date",
+            value: fDate,
+            onChange: setFDate,
+            options: facet(
               records.map((r) => r.decommissionDate.split(" ")[0]),
-            )}
-          />
-          <Select
-            label="Retention Policy"
-            value={fRetention}
-            onChange={setFRetention}
-            options={facet(records.map((r) => r.retentionPolicy))}
-          />
-          <Select
-            label="Legal Hold"
-            value={fLegalHold}
-            onChange={setFLegalHold}
-            options={[
+            ),
+          },
+          {
+            key: "retentionPolicy",
+            label: "Retention Policy",
+            value: fRetention,
+            onChange: setFRetention,
+            options: facet(records.map((r) => r.retentionPolicy)),
+          },
+          {
+            key: "legalHold",
+            label: "Legal Hold",
+            value: fLegalHold,
+            onChange: setFLegalHold,
+            options: [
               { value: "", label: "All" },
               { value: "Yes", label: "Yes" },
               { value: "No", label: "No" },
+            ],
+          },
+          {
+            key: "cloudProvider",
+            label: "Cloud Provider",
+            value: fProvider,
+            onChange: setFProvider,
+            options: facet(records.map((r) => r.cloudProvider)),
+          },
+        ]}
+        presets={[
+          { label: "All decommissioned workspaces", onApply: clearFilters },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "date", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<FileText size={13} />} onClick={clear}>
+              Generate Reports
+            </HeaderButton>
+            <HeaderButton icon={<Package size={13} />} onClick={clear}>
+              Download Evidence
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => setSelId(r.id) },
+              { label: "Generate Report", onClick: () => setSelId(r.id) },
+              { label: "Download Evidence", onClick: () => setSelId(r.id) },
             ]}
           />
-          <Select
-            label="Cloud Provider"
-            value={fProvider}
-            onChange={setFProvider}
-            options={facet(records.map((r) => r.cloudProvider))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Archive size={20} />}
+            title="No decommissioned workspaces found."
+            hint="Adjust the View, filters or search. Workspaces appear here only after an approved decommissioning process completes."
+            cta="Clear filters"
+            onCta={clearFilters}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "date", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<FileText size={13} />} onClick={clear}>
-                Generate Reports
-              </HeaderButton>
-              <HeaderButton icon={<Package size={13} />} onClick={clear}>
-                Download Evidence
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => setSelId(r.id) },
-                { label: "Generate Report", onClick: () => setSelId(r.id) },
-                { label: "Download Evidence", onClick: () => setSelId(r.id) },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Archive size={20} />}
-              title="No decommissioned workspaces found."
-              hint="Adjust the View, filters or search. Workspaces appear here only after an approved decommissioning process completes."
-              cta="Clear filters"
-              onCta={clearFilters}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       <DecommissionChecklistCard />
       <LifecycleFlowCard />

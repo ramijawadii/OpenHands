@@ -37,8 +37,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -53,6 +51,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Custom Templates — the organization-specific workspace-template composition surface.
@@ -328,22 +328,19 @@ export function CustomTemplatesView() {
   const [fType, setFType] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
   const [builder, setBuilder] = React.useState(false);
   const [, bump] = React.useReducer((x) => x + 1, 0);
 
   const records = SAMPLE_TEMPLATES;
 
-  const hasFilters = !!(
-    search ||
-    fCategory ||
-    fBu ||
-    fOwner ||
-    fStatus ||
-    fVisibility ||
-    fVersion ||
-    fBase ||
-    fType
-  );
   const clearFilters = () => {
     setSearch("");
     setFCategory("");
@@ -704,129 +701,128 @@ export function CustomTemplatesView() {
           />
         </Card>
       ) : (
-        <Card
+        <DiscoveryListView
           title="Custom template directory"
-          desc="Compose governance, security, compliance, operational, AI and infrastructure configurations into a reusable, business-specific workspace blueprint. Select a row for the full detail drawer."
-        >
-          {/* ── Toolbar ── */}
-          <CommandBar items={toolbar} />
-
-          {/* ── Filters + Search ── */}
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search custom templates — name, description, business unit, owner, tags, workspace type…"
-            count={rows.length}
-            total={records.filter((r) => matchesSub(r, sub)).length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Category"
-              value={fCategory}
-              onChange={setFCategory}
-              options={facet(records.map((r) => r.category))}
+          commands={toolbar}
+          pills={[
+            {
+              key: "category",
+              label: "Category",
+              value: fCategory,
+              onChange: setFCategory,
+              options: facet(records.map((r) => r.category)),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "owner",
+              label: "Owner",
+              value: fOwner,
+              onChange: setFOwner,
+              options: facet(records.map((r) => r.owner)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "visibility",
+              label: "Visibility",
+              value: fVisibility,
+              onChange: setFVisibility,
+              options: facet(records.map((r) => r.visibility)),
+            },
+            {
+              key: "version",
+              label: "Version",
+              value: fVersion,
+              onChange: setFVersion,
+              options: facet(records.map((r) => r.version)),
+            },
+            {
+              key: "base",
+              label: "Base Template",
+              value: fBase,
+              onChange: setFBase,
+              options: facet(records.map((r) => r.baseTemplate)),
+            },
+            {
+              key: "type",
+              label: "Workspace Type",
+              value: fType,
+              onChange: setFType,
+              options: facet(records.map((r) => r.workspaceType)),
+            },
+          ]}
+          presets={[{ label: "All templates", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search custom templates — name, description, business unit, owner, tags, workspace type…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "name", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<CheckCircle size={13} />} onClick={clear}>
+                Publish
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Share2 size={13} />} onClick={clear}>
+                Share
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+              <HeaderButton icon={<Star size={13} />} onClick={clear}>
+                Assign Default
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "Open", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Clone", onClick: () => {} },
+                { label: "Duplicate", onClick: () => {} },
+                { label: "Publish", onClick: () => {} },
+                { label: "Archive", onClick: () => {} },
+                { label: "Share", onClick: () => {} },
+                { label: "Export", onClick: () => {} },
+                {
+                  label: "Compare Versions",
+                  onClick: () => setSub("versions"),
+                },
+              ]}
             />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
+          )}
+          empty={
+            <EmptyState
+              icon={<Plus size={20} />}
+              title="No custom templates available."
+              hint="Create a custom template, or import one to get started."
+              cta="Create Custom Template"
+              onCta={() => setBuilder(true)}
             />
-            <Select
-              label="Owner"
-              value={fOwner}
-              onChange={setFOwner}
-              options={facet(records.map((r) => r.owner))}
-            />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
-            />
-            <Select
-              label="Visibility"
-              value={fVisibility}
-              onChange={setFVisibility}
-              options={facet(records.map((r) => r.visibility))}
-            />
-            <Select
-              label="Version"
-              value={fVersion}
-              onChange={setFVersion}
-              options={facet(records.map((r) => r.version))}
-            />
-            <Select
-              label="Base Template"
-              value={fBase}
-              onChange={setFBase}
-              options={facet(records.map((r) => r.baseTemplate))}
-            />
-            <Select
-              label="Workspace Type"
-              value={fType}
-              onChange={setFType}
-              options={facet(records.map((r) => r.workspaceType))}
-            />
-          </FilterBar>
-
-          {/* ── Data Table + Row/Bulk actions ── */}
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "name", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<CheckCircle size={13} />} onClick={clear}>
-                  Publish
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Share2 size={13} />} onClick={clear}>
-                  Share
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-                <HeaderButton icon={<Star size={13} />} onClick={clear}>
-                  Assign Default
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "Open", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Clone", onClick: () => {} },
-                  { label: "Duplicate", onClick: () => {} },
-                  { label: "Publish", onClick: () => {} },
-                  { label: "Archive", onClick: () => {} },
-                  { label: "Share", onClick: () => {} },
-                  { label: "Export", onClick: () => {} },
-                  {
-                    label: "Compare Versions",
-                    onClick: () => setSub("versions"),
-                  },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Plus size={20} />}
-                title="No custom templates available."
-                hint="Create a custom template, or import one to get started."
-                cta="Create Custom Template"
-                onCta={() => setBuilder(true)}
-              />
-            }
-          />
-        </Card>
+          }
+        />
       )}
 
       {sel && (

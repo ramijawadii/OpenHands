@@ -36,9 +36,6 @@ import {
   Card,
   StatRow,
   KVGrid,
-  DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -52,6 +49,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Lifecycle → Maintenance — the workspaces temporarily placed into a controlled maintenance mode to
@@ -345,6 +344,14 @@ export function LifecycleMaintenanceView() {
   const [fApproval, setFApproval] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_MAINTENANCE;
   const viewStatus = VIEW_STATUS[view];
@@ -372,17 +379,6 @@ export function LifecycleMaintenanceView() {
       (!fApproval || r.approvalStatus === fApproval)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fStatus ||
-    fBu ||
-    fEnv ||
-    fOwner ||
-    fWindow ||
-    fRisk ||
-    fApproval
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -631,132 +627,138 @@ export function LifecycleMaintenanceView() {
 
       <div style={{ height: 18 }} />
 
-      <Card
+      <DiscoveryListView
         title="Maintenance Workspaces"
         desc="Manage workspaces undergoing planned maintenance, monitor operational progress, coordinate maintenance windows, and safely return workspaces to production."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search maintenance workspaces — workspace, maintenance ID, owner, business unit, type, change request…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="View"
-            value={view}
-            onChange={setView}
-            options={VIEW_TABS.map((t) => ({ value: t.id, label: t.label }))}
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search maintenance workspaces — workspace, maintenance ID, owner, business unit, type, change request…"
+        count={rows.length}
+        pills={[
+          {
+            key: "view",
+            label: "View",
+            value: view,
+            onChange: setView,
+            options: VIEW_TABS.map((t) => ({ value: t.id, label: t.label })),
+          },
+          {
+            key: "maintenanceType",
+            label: "Maintenance Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.maintenanceType)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "window",
+            label: "Maintenance Window",
+            value: fWindow,
+            onChange: setFWindow,
+            options: facet(records.map((r) => r.window)),
+          },
+          {
+            key: "riskLevel",
+            label: "Risk Level",
+            value: fRisk,
+            onChange: setFRisk,
+            options: facet(records.map((r) => r.riskLevel)),
+          },
+          {
+            key: "approvalStatus",
+            label: "Approval Status",
+            value: fApproval,
+            onChange: setFApproval,
+            options: facet(records.map((r) => r.approvalStatus)),
+          },
+        ]}
+        presets={[
+          { label: "All maintenance workspaces", onApply: clearFilters },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "window", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Play size={13} />} onClick={clear}>
+              Start ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Pause size={13} />} onClick={clear}>
+              Pause
+            </HeaderButton>
+            <HeaderButton icon={<PlayCircle size={13} />} onClick={clear}>
+              Resume
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Bell size={13} />} onClick={clear}>
+              Notify Owners
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Start", onClick: () => setSelId(r.id) },
+              { label: "Pause", onClick: () => setSelId(r.id) },
+              { label: "Resume", onClick: () => setSelId(r.id) },
+              { label: "Complete", onClick: () => setSelId(r.id) },
+              {
+                label: "Cancel",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "View Logs", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Maintenance Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.maintenanceType))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Wrench size={20} />}
+            title="No workspaces are currently in maintenance."
+            hint="Schedule a maintenance window to plan upgrades, migrations, patching, or infrastructure changes."
+            cta="Schedule Maintenance"
+            onCta={() => navigate("/admin/workspaces?tab=lifecycle")}
           />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Maintenance Window"
-            value={fWindow}
-            onChange={setFWindow}
-            options={facet(records.map((r) => r.window))}
-          />
-          <Select
-            label="Risk Level"
-            value={fRisk}
-            onChange={setFRisk}
-            options={facet(records.map((r) => r.riskLevel))}
-          />
-          <Select
-            label="Approval Status"
-            value={fApproval}
-            onChange={setFApproval}
-            options={facet(records.map((r) => r.approvalStatus))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "window", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Play size={13} />} onClick={clear}>
-                Start ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Pause size={13} />} onClick={clear}>
-                Pause
-              </HeaderButton>
-              <HeaderButton icon={<PlayCircle size={13} />} onClick={clear}>
-                Resume
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Bell size={13} />} onClick={clear}>
-                Notify Owners
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Start", onClick: () => setSelId(r.id) },
-                { label: "Pause", onClick: () => setSelId(r.id) },
-                { label: "Resume", onClick: () => setSelId(r.id) },
-                { label: "Complete", onClick: () => setSelId(r.id) },
-                {
-                  label: "Cancel",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "View Logs", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Wrench size={20} />}
-              title="No workspaces are currently in maintenance."
-              hint="Schedule a maintenance window to plan upgrades, migrations, patching, or infrastructure changes."
-              cta="Schedule Maintenance"
-              onCta={() => navigate("/admin/workspaces?tab=lifecycle")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {/* spec § Lifecycle Flow — ASCII node→node flow-chain (no graph library) */}
       <LifecycleFlowCard />

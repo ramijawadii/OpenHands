@@ -38,8 +38,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -53,6 +51,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Provisioning Queue — the operational execution center that orchestrates, monitors and manages all
@@ -425,6 +425,14 @@ export function ProvisioningQueueView() {
   const [fExecTime, setFExecTime] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_JOBS;
   const tabStatus = TAB_STATUS[tab];
@@ -453,20 +461,6 @@ export function ProvisioningQueueView() {
       (!fExecTime || r.executionTimeBucket === fExecTime)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fOperation ||
-    fWorkspace ||
-    fEnv ||
-    fBu ||
-    fNode ||
-    fPriority ||
-    fOwner ||
-    fSubmitter ||
-    fProvider ||
-    fExecTime
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -778,148 +772,153 @@ export function ProvisioningQueueView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Provisioning queue"
-        desc="Every approved workspace request is transformed into one or more provisioning jobs executed through the queue. Monitor, control and troubleshoot execution across the organization."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search provisioning jobs — workspace, job ID, operation, owner, business unit, execution node…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "operation",
+            label: "Operation",
+            value: fOperation,
+            onChange: setFOperation,
+            options: facet(records.map((r) => r.operation)),
+          },
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "node",
+            label: "Execution Node",
+            value: fNode,
+            onChange: setFNode,
+            options: facet(records.map((r) => r.executionNode)),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "submitter",
+            label: "Submitted By",
+            value: fSubmitter,
+            onChange: setFSubmitter,
+            options: facet(records.map((r) => r.submittedBy)),
+          },
+          {
+            key: "provider",
+            label: "Cloud Provider",
+            value: fProvider,
+            onChange: setFProvider,
+            options: facet(records.map((r) => r.cloudProvider)),
+          },
+          {
+            key: "exec",
+            label: "Execution Time",
+            value: fExecTime,
+            onChange: setFExecTime,
+            options: facet(records.map((r) => r.executionTimeBucket)),
+          },
+        ]}
+        presets={[{ label: "All jobs", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search provisioning jobs — workspace, job ID, operation, owner, business unit, execution node…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "started", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Pause size={13} />} onClick={clear}>
+              Pause ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Play size={13} />} onClick={clear}>
+              Resume
+            </HeaderButton>
+            <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
+              Retry
+            </HeaderButton>
+            <HeaderButton icon={<X size={13} />} onClick={clear}>
+              Cancel
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Retry", onClick: () => setSelId(r.id) },
+              { label: "Pause", onClick: () => setSelId(r.id) },
+              { label: "Resume", onClick: () => setSelId(r.id) },
+              {
+                label: "Cancel",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              {
+                label: "Rollback",
+                onClick: () => setSelId(r.id),
+                danger: true,
+                disabled: !r.rollbackAvailable,
+              },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Operation"
-            value={fOperation}
-            onChange={setFOperation}
-            options={facet(records.map((r) => r.operation))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Plus size={20} />}
+            title="No provisioning jobs in the queue."
+            hint="Adjust filters, or create a provisioning job / refresh the queue to get started."
+            cta="Create Provisioning Job"
+            onCta={() => navigate("/admin/workspaces?tab=requests")}
           />
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Execution Node"
-            value={fNode}
-            onChange={setFNode}
-            options={facet(records.map((r) => r.executionNode))}
-          />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Submitted By"
-            value={fSubmitter}
-            onChange={setFSubmitter}
-            options={facet(records.map((r) => r.submittedBy))}
-          />
-          <Select
-            label="Cloud Provider"
-            value={fProvider}
-            onChange={setFProvider}
-            options={facet(records.map((r) => r.cloudProvider))}
-          />
-          <Select
-            label="Execution Time"
-            value={fExecTime}
-            onChange={setFExecTime}
-            options={facet(records.map((r) => r.executionTimeBucket))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "started", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Pause size={13} />} onClick={clear}>
-                Pause ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Play size={13} />} onClick={clear}>
-                Resume
-              </HeaderButton>
-              <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
-                Retry
-              </HeaderButton>
-              <HeaderButton icon={<X size={13} />} onClick={clear}>
-                Cancel
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Retry", onClick: () => setSelId(r.id) },
-                { label: "Pause", onClick: () => setSelId(r.id) },
-                { label: "Resume", onClick: () => setSelId(r.id) },
-                {
-                  label: "Cancel",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                {
-                  label: "Rollback",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                  disabled: !r.rollbackAvailable,
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Plus size={20} />}
-              title="No provisioning jobs in the queue."
-              hint="Adjust filters, or create a provisioning job / refresh the queue to get started."
-              cta="Create Provisioning Job"
-              onCta={() => navigate("/admin/workspaces?tab=requests")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <JobDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

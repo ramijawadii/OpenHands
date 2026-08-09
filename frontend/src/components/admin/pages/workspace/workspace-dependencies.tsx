@@ -33,8 +33,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -49,6 +47,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Dependencies — the enterprise operational dependency map for the entire workspace
@@ -439,6 +439,14 @@ export function WorkspaceDependenciesView() {
   const [fStatus, setFStatus] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_DEPENDENCIES;
 
@@ -467,18 +475,6 @@ export function WorkspaceDependenciesView() {
     );
   });
 
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fCriticality ||
-    fWorkspace ||
-    fBu ||
-    fOwner ||
-    fProvider ||
-    fConsumer ||
-    fHealth ||
-    fStatus
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -701,130 +697,133 @@ export function WorkspaceDependenciesView() {
       </Card>
 
       {showCatalog && (
-        <Card
+        <DiscoveryListView
           title="Dependency catalog"
-          desc="Manage operational dependencies between workspaces, shared services, cloud resources, AI platforms, integrations, and enterprise services."
-        >
-          <CommandBar items={toolbar} />
-
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search dependencies — workspace, service, cloud account, cluster, integration, provider, consumer, owner…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Dependency Type"
-              value={fType}
-              onChange={setFType}
-              options={facet(records.map((r) => r.type))}
+          commands={toolbar}
+          pills={[
+            {
+              key: "type",
+              label: "Dependency Type",
+              value: fType,
+              onChange: setFType,
+              options: facet(records.map((r) => r.type)),
+            },
+            {
+              key: "criticality",
+              label: "Criticality",
+              value: fCriticality,
+              onChange: setFCriticality,
+              options: facet(records.map((r) => r.criticality)),
+            },
+            {
+              key: "workspace",
+              label: "Workspace",
+              value: fWorkspace,
+              onChange: setFWorkspace,
+              options: facet(records.flatMap((r) => [r.provider, r.consumer])),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "owner",
+              label: "Owner",
+              value: fOwner,
+              onChange: setFOwner,
+              options: facet(records.map((r) => r.owner)),
+            },
+            {
+              key: "provider",
+              label: "Provider",
+              value: fProvider,
+              onChange: setFProvider,
+              options: facet(records.map((r) => r.provider)),
+            },
+            {
+              key: "consumer",
+              label: "Consumer",
+              value: fConsumer,
+              onChange: setFConsumer,
+              options: facet(records.map((r) => r.consumer)),
+            },
+            {
+              key: "health",
+              label: "Health",
+              value: fHealth,
+              onChange: setFHealth,
+              options: facet(records.map((r) => r.health)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+          ]}
+          presets={[{ label: "All dependencies", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search dependencies — workspace, service, cloud account, cluster, integration, provider, consumer, owner…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={12}
+          initialSort={{ key: "criticality", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
+                Validate
+              </HeaderButton>
+              <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
+                Run Health Check
+              </HeaderButton>
+              <HeaderButton icon={<FileText size={13} />} onClick={clear}>
+                Generate Report
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "View", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Impact Analysis", onClick: () => setSelId(r.id) },
+                {
+                  label: "Show Dependency Graph",
+                  onClick: () => setView("graph"),
+                },
+                { label: "Export", onClick: () => {} },
+                {
+                  label: "Delete",
+                  onClick: () => setSelId(r.id),
+                  danger: true,
+                },
+              ]}
             />
-            <Select
-              label="Criticality"
-              value={fCriticality}
-              onChange={setFCriticality}
-              options={facet(records.map((r) => r.criticality))}
+          )}
+          empty={
+            <EmptyState
+              icon={<Link2 size={20} />}
+              title="No workspace dependencies configured."
+              hint="Create a dependency, or import an existing dependency map to get started."
+              cta="Create Dependency"
+              onCta={() => navigate("/admin/workspaces?tab=dependencies")}
             />
-            <Select
-              label="Workspace"
-              value={fWorkspace}
-              onChange={setFWorkspace}
-              options={facet(records.flatMap((r) => [r.provider, r.consumer]))}
-            />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Owner"
-              value={fOwner}
-              onChange={setFOwner}
-              options={facet(records.map((r) => r.owner))}
-            />
-            <Select
-              label="Provider"
-              value={fProvider}
-              onChange={setFProvider}
-              options={facet(records.map((r) => r.provider))}
-            />
-            <Select
-              label="Consumer"
-              value={fConsumer}
-              onChange={setFConsumer}
-              options={facet(records.map((r) => r.consumer))}
-            />
-            <Select
-              label="Health"
-              value={fHealth}
-              onChange={setFHealth}
-              options={facet(records.map((r) => r.health))}
-            />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
-            />
-          </FilterBar>
-
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={12}
-            initialSort={{ key: "criticality", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
-                  Validate
-                </HeaderButton>
-                <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
-                  Run Health Check
-                </HeaderButton>
-                <HeaderButton icon={<FileText size={13} />} onClick={clear}>
-                  Generate Report
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "View", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Impact Analysis", onClick: () => setSelId(r.id) },
-                  {
-                    label: "Show Dependency Graph",
-                    onClick: () => setView("graph"),
-                  },
-                  { label: "Export", onClick: () => {} },
-                  {
-                    label: "Delete",
-                    onClick: () => setSelId(r.id),
-                    danger: true,
-                  },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Link2 size={20} />}
-                title="No workspace dependencies configured."
-                hint="Create a dependency, or import an existing dependency map to get started."
-                cta="Create Dependency"
-                onCta={() => navigate("/admin/workspaces?tab=dependencies")}
-              />
-            }
-          />
-        </Card>
+          }
+        />
       )}
 
       {view === "graph" && <DependencyGraphView rows={rows} />}

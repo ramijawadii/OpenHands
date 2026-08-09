@@ -39,8 +39,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -55,6 +53,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Sandboxes — isolated, temporary, or experimental workspaces used to safely evaluate cloud
@@ -391,6 +391,14 @@ export function SandboxesView() {
   const [fHealth, setFHealth] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_SANDBOXES;
 
@@ -446,18 +454,6 @@ export function SandboxesView() {
     );
   });
 
-  const hasFilters = !!(
-    search ||
-    fPurpose ||
-    fEnv ||
-    fBu ||
-    fOwner ||
-    fProvider ||
-    fCompliance ||
-    fExpiration ||
-    fStatus ||
-    fHealth
-  );
   const clearFilters = () => {
     setSearch("");
     setFPurpose("");
@@ -751,147 +747,150 @@ export function SandboxesView() {
         />
       </div>
 
-      <Card
+      <DiscoveryListView
         title="Sandbox workspaces"
-        desc="Manage temporary, isolated workspaces used for testing, experimentation, validation, and development activities. Sandboxes enforce stricter resource quotas and lifecycle controls than production."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search sandbox workspaces — name, owner, business unit, purpose, template, ID, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Purpose"
-            value={fPurpose}
-            onChange={setFPurpose}
-            options={facet(records.map((r) => r.purpose))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Cloud Provider"
-            value={fProvider}
-            onChange={setFProvider}
-            options={facet(records.map((r) => r.cloudProvider))}
-          />
-          <Select
-            label="Compliance Profile"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.complianceProfile))}
-          />
-          <Select
-            label="Expiration"
-            value={fExpiration}
-            onChange={setFExpiration}
-            options={[
+        commands={toolbar}
+        pills={[
+          {
+            key: "purpose",
+            label: "Purpose",
+            value: fPurpose,
+            onChange: setFPurpose,
+            options: facet(records.map((r) => r.purpose)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "provider",
+            label: "Cloud Provider",
+            value: fProvider,
+            onChange: setFProvider,
+            options: facet(records.map((r) => r.cloudProvider)),
+          },
+          {
+            key: "compliance",
+            label: "Compliance Profile",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.complianceProfile)),
+          },
+          {
+            key: "expiration",
+            label: "Expiration",
+            value: fExpiration,
+            onChange: setFExpiration,
+            options: [
               { value: "", label: "All" },
               { value: "Expired", label: "Expired" },
               { value: "≤ 7 days", label: "≤ 7 days" },
               { value: "≤ 14 days", label: "≤ 14 days" },
               { value: "> 14 days", label: "> 14 days" },
               { value: "None", label: "No expiration" },
+            ],
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "health",
+            label: "Health",
+            value: fHealth,
+            onChange: setFHealth,
+            options: facet(records.map((r) => r.health)),
+          },
+        ]}
+        presets={[{ label: "All sandboxes", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search sandbox workspaces — name, owner, business unit, purpose, template, ID, tags…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "created", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Clock size={13} />} onClick={clear}>
+              Extend ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<PauseCircle size={13} />} onClick={clear}>
+              Suspend
+            </HeaderButton>
+            <HeaderButton icon={<PlayCircle size={13} />} onClick={clear}>
+              Resume
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive
+            </HeaderButton>
+            <HeaderButton
+              variant="danger"
+              icon={<Trash2 size={13} />}
+              onClick={clear}
+            >
+              Delete
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "Open", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Clone", onClick: () => setSelId(r.id) },
+              { label: "Reset", onClick: () => setSelId(r.id) },
+              { label: "Extend", onClick: () => setSelId(r.id) },
+              { label: "Suspend", onClick: () => setSelId(r.id) },
+              { label: "Archive", onClick: () => setSelId(r.id) },
+              {
+                label: "Delete",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Export", onClick: () => {} },
             ]}
           />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        )}
+        empty={
+          <EmptyState
+            icon={<FlaskConical size={20} />}
+            title="No sandbox workspaces found."
+            hint="Adjust filters, or create a sandbox / clone an existing workspace to get started."
+            cta="Create Sandbox"
+            onCta={() => navigate("/admin/workspaces?tab=sandboxes")}
           />
-          <Select
-            label="Health"
-            value={fHealth}
-            onChange={setFHealth}
-            options={facet(records.map((r) => r.health))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "created", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Clock size={13} />} onClick={clear}>
-                Extend ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<PauseCircle size={13} />} onClick={clear}>
-                Suspend
-              </HeaderButton>
-              <HeaderButton icon={<PlayCircle size={13} />} onClick={clear}>
-                Resume
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive
-              </HeaderButton>
-              <HeaderButton
-                variant="danger"
-                icon={<Trash2 size={13} />}
-                onClick={clear}
-              >
-                Delete
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "Open", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Clone", onClick: () => setSelId(r.id) },
-                { label: "Reset", onClick: () => setSelId(r.id) },
-                { label: "Extend", onClick: () => setSelId(r.id) },
-                { label: "Suspend", onClick: () => setSelId(r.id) },
-                { label: "Archive", onClick: () => setSelId(r.id) },
-                {
-                  label: "Delete",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<FlaskConical size={20} />}
-              title="No sandbox workspaces found."
-              hint="Adjust filters, or create a sandbox / clone an existing workspace to get started."
-              cta="Create Sandbox"
-              onCta={() => navigate("/admin/workspaces?tab=sandboxes")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <SandboxDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

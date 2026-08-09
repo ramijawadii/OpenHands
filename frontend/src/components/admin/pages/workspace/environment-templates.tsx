@@ -41,8 +41,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -56,6 +54,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Environment Templates — standardized configurations for specific operational environments
@@ -308,6 +308,14 @@ export function EnvironmentTemplatesView() {
   const [fDefault, setFDefault] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_TEMPLATES;
 
@@ -339,16 +347,6 @@ export function EnvironmentTemplatesView() {
       (!fDefault || (fDefault === "Yes" ? r.isDefault : !r.isDefault))
     );
   });
-  const hasFilters = !!(
-    search ||
-    fEnv ||
-    fStatus ||
-    fVersion ||
-    fBu ||
-    fCompliance ||
-    fSecurity ||
-    fDefault
-  );
   const clearFilters = () => {
     setSearch("");
     setFEnv("");
@@ -526,119 +524,117 @@ export function EnvironmentTemplatesView() {
       {isVersions ? (
         <VersionsCard records={records} onOpen={(id) => setSelId(id)} />
       ) : (
-        <Card
+        <DiscoveryListView
           title="Environment template catalog"
-          desc="Standardized configurations for operational environments used during workspace provisioning. Each environment template specializes one or more Enterprise Templates with environment-specific security, governance, compliance, AI and infrastructure settings."
-        >
-          {/* ── Toolbar ── */}
-          <CommandBar items={toolbar} />
-
-          {/* ── Filters + Search ── */}
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search environment templates — name, environment, description, business unit, tags, version…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Environment"
-              value={fEnv}
-              onChange={setFEnv}
-              options={facet(records.map((r) => r.environment))}
-            />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
-            />
-            <Select
-              label="Version"
-              value={fVersion}
-              onChange={setFVersion}
-              options={facet(records.map((r) => r.version))}
-            />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Compliance Profile"
-              value={fCompliance}
-              onChange={setFCompliance}
-              options={facet(records.map((r) => r.complianceProfile))}
-            />
-            <Select
-              label="Security Profile"
-              value={fSecurity}
-              onChange={setFSecurity}
-              options={facet(records.map((r) => r.securityProfile))}
-            />
-            <Select
-              label="Default"
-              value={fDefault}
-              onChange={setFDefault}
-              options={[
+          commands={toolbar}
+          pills={[
+            {
+              key: "env",
+              label: "Environment",
+              value: fEnv,
+              onChange: setFEnv,
+              options: facet(records.map((r) => r.environment)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "version",
+              label: "Version",
+              value: fVersion,
+              onChange: setFVersion,
+              options: facet(records.map((r) => r.version)),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "compliance",
+              label: "Compliance Profile",
+              value: fCompliance,
+              onChange: setFCompliance,
+              options: facet(records.map((r) => r.complianceProfile)),
+            },
+            {
+              key: "security",
+              label: "Security Profile",
+              value: fSecurity,
+              onChange: setFSecurity,
+              options: facet(records.map((r) => r.securityProfile)),
+            },
+            {
+              key: "default",
+              label: "Default",
+              value: fDefault,
+              onChange: setFDefault,
+              options: [
                 { value: "", label: "All" },
                 { value: "Yes", label: "Yes" },
                 { value: "No", label: "No" },
+              ],
+            },
+          ]}
+          presets={[{ label: "All templates", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search environment templates — name, environment, description, business unit, tags, version…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "environment", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Send size={13} />} onClick={clear}>
+                Publish ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+              <HeaderButton icon={<Star size={13} />} onClick={clear}>
+                Assign Default
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "Open", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Clone", onClick: () => {} },
+                { label: "Publish", onClick: () => setSelId(r.id) },
+                { label: "Archive", onClick: () => {} },
+                { label: "Export", onClick: () => {} },
+                { label: "Compare Versions", onClick: () => setSelId(r.id) },
               ]}
             />
-          </FilterBar>
-
-          {/* ── Data Table + Row/Bulk actions ── */}
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "environment", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Send size={13} />} onClick={clear}>
-                  Publish ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-                <HeaderButton icon={<Star size={13} />} onClick={clear}>
-                  Assign Default
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "Open", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Clone", onClick: () => {} },
-                  { label: "Publish", onClick: () => setSelId(r.id) },
-                  { label: "Archive", onClick: () => {} },
-                  { label: "Export", onClick: () => {} },
-                  { label: "Compare Versions", onClick: () => setSelId(r.id) },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Layers size={20} />}
-                title="No environment templates available."
-                hint="Adjust filters, or create / import an environment template to get started."
-                cta="Create Environment Template"
-                onCta={() => navigate("/admin/workspaces?tab=templates")}
-              />
-            }
-          />
-        </Card>
+          )}
+          empty={
+            <EmptyState
+              icon={<Layers size={20} />}
+              title="No environment templates available."
+              hint="Adjust filters, or create / import an environment template to get started."
+              cta="Create Environment Template"
+              onCta={() => navigate("/admin/workspaces?tab=templates")}
+            />
+          }
+        />
       )}
 
       {/* ── Environment Comparison (spec §Environment Comparison) ── */}

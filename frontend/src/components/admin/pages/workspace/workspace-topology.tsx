@@ -39,9 +39,6 @@ import {
   Card,
   StatRow,
   KVGrid,
-  DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -55,6 +52,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Topology — the enterprise operational map of every workspace and its relationships
@@ -399,6 +398,14 @@ export function WorkspaceTopologyView() {
   const [fHealth, setFHealth] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_NODES;
   const rows = records.filter((r) => {
@@ -423,18 +430,6 @@ export function WorkspaceTopologyView() {
       (!fHealth || r.healthStatus === fHealth)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fBu ||
-    fEnv ||
-    fRegion ||
-    fCloud ||
-    fType ||
-    fRel ||
-    fCompliance ||
-    fRisk ||
-    fHealth
-  );
   const clearFilters = () => {
     setSearch("");
     setFBu("");
@@ -726,126 +721,129 @@ export function WorkspaceTopologyView() {
       {/* View-specific topology visualization (indented tree / node→node flow, no graph library) */}
       <TopologyViewPanel view={view} records={records} />
 
-      <Card
+      <DiscoveryListView
         title="Topology nodes"
-        desc="Every workspace and its relationships across the enterprise. Read-mostly — relationships are managed in their source modules and visualized here. Select a node to open the inspector."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search workspace topology — workspace, business unit, cloud account, cluster, shared service, AI runtime, compliance program, owner…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "region",
+            label: "Region",
+            value: fRegion,
+            onChange: setFRegion,
+            options: facet(records.map((r) => r.region)),
+          },
+          {
+            key: "cloud",
+            label: "Cloud Provider",
+            value: fCloud,
+            onChange: setFCloud,
+            options: facet(records.map((r) => r.cloudProvider)),
+          },
+          {
+            key: "type",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.workspaceType)),
+          },
+          {
+            key: "rel",
+            label: "Relationship Type",
+            value: fRel,
+            onChange: setFRel,
+            options: facet(records.map((r) => r.relationshipType)),
+          },
+          {
+            key: "compliance",
+            label: "Compliance Program",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.complianceProgram)),
+          },
+          {
+            key: "risk",
+            label: "Risk Level",
+            value: fRisk,
+            onChange: setFRisk,
+            options: facet(records.map((r) => r.riskLevel)),
+          },
+          {
+            key: "health",
+            label: "Health Status",
+            value: fHealth,
+            onChange: setFHealth,
+            options: facet(records.map((r) => r.healthStatus)),
+          },
+        ]}
+        presets={[{ label: "All nodes", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search workspace topology — workspace, business unit, cloud account, cluster, shared service, AI runtime, compliance program, owner…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={14}
+        initialSort={{ key: "workspace", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Target size={13} />} onClick={clear}>
+              Impact Analysis ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Route size={13} />} onClick={clear}>
+              Dependency Analysis
+            </HeaderButton>
+            <HeaderButton icon={<Camera size={13} />} onClick={clear}>
+              Snapshot
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export Diagram
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "Open Node Inspector", onClick: () => setSelId(r.id) },
+              {
+                label: "Open Workspace",
+                onClick: () => navigate("/admin/workspaces"),
+              },
+              { label: "Run Impact Analysis", onClick: () => setSelId(r.id) },
+              { label: "View Relationships", onClick: () => setSelId(r.id) },
+              { label: "Dependency Path", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Network size={20} />}
+            title="No workspace topology available."
+            hint="Import an organization, create a workspace, or build relationships to populate the enterprise topology."
+            cta="Create Workspace"
+            onCta={() => navigate("/admin/workspaces")}
           />
-          <Select
-            label="Region"
-            value={fRegion}
-            onChange={setFRegion}
-            options={facet(records.map((r) => r.region))}
-          />
-          <Select
-            label="Cloud Provider"
-            value={fCloud}
-            onChange={setFCloud}
-            options={facet(records.map((r) => r.cloudProvider))}
-          />
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.workspaceType))}
-          />
-          <Select
-            label="Relationship Type"
-            value={fRel}
-            onChange={setFRel}
-            options={facet(records.map((r) => r.relationshipType))}
-          />
-          <Select
-            label="Compliance Program"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.complianceProgram))}
-          />
-          <Select
-            label="Risk Level"
-            value={fRisk}
-            onChange={setFRisk}
-            options={facet(records.map((r) => r.riskLevel))}
-          />
-          <Select
-            label="Health Status"
-            value={fHealth}
-            onChange={setFHealth}
-            options={facet(records.map((r) => r.healthStatus))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={14}
-          initialSort={{ key: "workspace", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Target size={13} />} onClick={clear}>
-                Impact Analysis ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Route size={13} />} onClick={clear}>
-                Dependency Analysis
-              </HeaderButton>
-              <HeaderButton icon={<Camera size={13} />} onClick={clear}>
-                Snapshot
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export Diagram
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "Open Node Inspector", onClick: () => setSelId(r.id) },
-                {
-                  label: "Open Workspace",
-                  onClick: () => navigate("/admin/workspaces"),
-                },
-                { label: "Run Impact Analysis", onClick: () => setSelId(r.id) },
-                { label: "View Relationships", onClick: () => setSelId(r.id) },
-                { label: "Dependency Path", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Network size={20} />}
-              title="No workspace topology available."
-              hint="Import an organization, create a workspace, or build relationships to populate the enterprise topology."
-              cta="Create Workspace"
-              onCta={() => navigate("/admin/workspaces")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <NodeInspectorDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

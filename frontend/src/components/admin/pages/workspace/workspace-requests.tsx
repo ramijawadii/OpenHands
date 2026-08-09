@@ -30,14 +30,10 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
-  Select,
   EmptyState,
   SampleTag,
   SideRailDrawer,
@@ -47,6 +43,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Requests — the intake + governance workflow for creating / modifying / sharing /
@@ -284,6 +282,14 @@ export function WorkspaceRequestsView() {
   const [fEnv, setFEnv] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_REQUESTS;
   const tabStatus = TAB_STATUS[tab];
@@ -307,15 +313,6 @@ export function WorkspaceRequestsView() {
       (!fEnv || r.environment === fEnv)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fType ||
-    fBu ||
-    fRequester ||
-    fPriority ||
-    fEnv
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -464,119 +461,117 @@ export function WorkspaceRequestsView() {
 
   return (
     <>
-      <div style={{ display: "flex", marginBottom: 14 }}>
-        <Select
-          label="View"
-          value={tab}
-          onChange={setTab}
-          options={TYPE_TABS.map((t) => ({ value: t.id, label: t.label }))}
-        />
-      </div>
-
-      <Card
+      <DiscoveryListView
         title="Workspace request queue"
-        desc="Every request follows an auditable, staged approval process before operational actions run. An approved request automatically creates a Provisioning Queue job."
-      >
-        <CommandBar items={toolbar} />
-
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search workspace requests — name, ID, requester, business unit, owner…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        commands={toolbar}
+        pills={[
+          {
+            key: "view",
+            label: "View",
+            value: tab,
+            onChange: setTab,
+            options: TYPE_TABS.map((t) => ({ value: t.id, label: t.label })),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "type",
+            label: "Request Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.requestType)),
+          },
+          {
+            key: "bu",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "requester",
+            label: "Requester",
+            value: fRequester,
+            onChange: setFRequester,
+            options: facet(records.map((r) => r.requester)),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "env",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+        ]}
+        presets={[{ label: "All requests", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search workspace requests — name, ID, requester, business unit, owner…"
+        count={rows.length}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={15}
+        initialSort={{ key: "submitted", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Check size={13} />} onClick={clear}>
+              Approve ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<X size={13} />} onClick={clear}>
+              Reject
+            </HeaderButton>
+            <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
+              Assign Reviewer
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Approve", onClick: () => setSelId(r.id) },
+              {
+                label: "Reject",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+              { label: "Request Changes", onClick: () => setSelId(r.id) },
+              { label: "Assign Reviewer", onClick: () => setSelId(r.id) },
+              { label: "Cancel", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Request Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.requestType))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Plus size={20} />}
+            title="No workspace requests found."
+            hint="Adjust filters, or create / import a workspace request to get started."
+            cta="Create Workspace Request"
+            onCta={() => navigate("/admin/workspaces?tab=requests")}
           />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Requester"
-            value={fRequester}
-            onChange={setFRequester}
-            options={facet(records.map((r) => r.requester))}
-          />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={15}
-          initialSort={{ key: "submitted", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Check size={13} />} onClick={clear}>
-                Approve ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<X size={13} />} onClick={clear}>
-                Reject
-              </HeaderButton>
-              <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
-                Assign Reviewer
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Approve", onClick: () => setSelId(r.id) },
-                {
-                  label: "Reject",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-                { label: "Request Changes", onClick: () => setSelId(r.id) },
-                { label: "Assign Reviewer", onClick: () => setSelId(r.id) },
-                { label: "Cancel", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Plus size={20} />}
-              title="No workspace requests found."
-              hint="Adjust filters, or create / import a workspace request to get started."
-              cta="Create Workspace Request"
-              onCta={() => navigate("/admin/workspaces?tab=requests")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <RequestDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

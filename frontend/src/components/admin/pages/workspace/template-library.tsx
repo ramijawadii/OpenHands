@@ -39,8 +39,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -54,6 +52,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Template Library — the centralized, enterprise-marketplace catalog for every reusable workspace
@@ -324,6 +324,14 @@ export function TemplateLibraryView() {
   const [fTag, setFTag] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_TEMPLATES;
 
@@ -377,21 +385,6 @@ export function TemplateLibraryView() {
       (!fTag || r.tags.includes(fTag))
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fCategory ||
-    fBu ||
-    fEnv ||
-    fIndustry ||
-    fCompliance ||
-    fWsType ||
-    fVisibility ||
-    fOwner ||
-    fStatus ||
-    fVersion ||
-    fTag
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -575,21 +568,6 @@ export function TemplateLibraryView() {
     },
   ];
 
-  const NAV_DESC: Record<string, string> = {
-    organization:
-      "Templates owned and governed by the organization — the canonical, standardized catalog.",
-    shared:
-      "Templates shared into your organization by other teams and business units.",
-    marketplace:
-      "Approved external templates. Preview, import or clone Vendor, Industry, Compliance and Partner templates.",
-    vendor: "Vendor-supplied templates approved for organizational reuse.",
-    recent: "Templates you or your team have recently provisioned or opened.",
-    favorites: "Templates you have bookmarked for quick reuse.",
-    recommended:
-      "Suggested from industry, business unit, compliance frameworks, workspace type, cloud provider and previously-used templates.",
-    archived: "Retired templates kept for history; restore to reuse.",
-  };
-
   return (
     <>
       <div style={{ display: "flex", marginBottom: 14 }}>
@@ -661,156 +639,156 @@ export function TemplateLibraryView() {
       {nav === "collections" ? (
         <CollectionsGallery records={records} />
       ) : (
-        <Card
+        <DiscoveryListView
           title="Template catalog"
-          desc={
-            NAV_DESC[nav] ??
-            "Browse, discover, compare and reuse workspace templates."
+          commands={toolbar}
+          pills={[
+            {
+              key: "type",
+              label: "Template Type",
+              value: fType,
+              onChange: setFType,
+              options: facet(records.map((r) => r.templateType)),
+            },
+            {
+              key: "category",
+              label: "Category",
+              value: fCategory,
+              onChange: setFCategory,
+              options: facet(records.map((r) => r.category)),
+            },
+            {
+              key: "bu",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "env",
+              label: "Environment",
+              value: fEnv,
+              onChange: setFEnv,
+              options: facet(records.map((r) => r.environment)),
+            },
+            {
+              key: "industry",
+              label: "Industry",
+              value: fIndustry,
+              onChange: setFIndustry,
+              options: facet(records.map((r) => r.industry)),
+            },
+            {
+              key: "compliance",
+              label: "Compliance",
+              value: fCompliance,
+              onChange: setFCompliance,
+              options: facet(records.map((r) => r.complianceFramework)),
+            },
+            {
+              key: "wsType",
+              label: "Workspace Type",
+              value: fWsType,
+              onChange: setFWsType,
+              options: facet(records.map((r) => r.workspaceType)),
+            },
+            {
+              key: "visibility",
+              label: "Visibility",
+              value: fVisibility,
+              onChange: setFVisibility,
+              options: facet(records.map((r) => r.visibility)),
+            },
+            {
+              key: "owner",
+              label: "Owner",
+              value: fOwner,
+              onChange: setFOwner,
+              options: facet(records.map((r) => r.owner)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "version",
+              label: "Version",
+              value: fVersion,
+              onChange: setFVersion,
+              options: facet(records.map((r) => r.version)),
+            },
+            {
+              key: "tag",
+              label: "Tags",
+              value: fTag,
+              onChange: setFTag,
+              options: facet(records.flatMap((r) => r.tags)),
+            },
+          ]}
+          presets={[{ label: "All templates", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
           }
-        >
-          {/* ── Toolbar ── */}
-          <CommandBar items={toolbar} />
-
-          {/* ── Filters + Search (spec §Filters / §Search) ── */}
-          <FilterBar
-            search={search}
-            onSearch={setSearch}
-            searchPlaceholder="Search templates — name, description, framework, category, business unit, tags, owner…"
-            count={rows.length}
-            total={records.length}
-            showClear={hasFilters}
-            onClear={clearFilters}
-          >
-            <Select
-              label="Template Type"
-              value={fType}
-              onChange={setFType}
-              options={facet(records.map((r) => r.templateType))}
+          search={search}
+          onSearch={setSearch}
+          searchPlaceholder="Search templates — name, description, framework, category, business unit, tags, owner…"
+          count={rows.length}
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={15}
+          initialSort={{ key: "usage", dir: "desc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<Share2 size={13} />} onClick={clear}>
+                Share ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Rocket size={13} />} onClick={clear}>
+                Publish
+              </HeaderButton>
+              <HeaderButton icon={<Star size={13} />} onClick={clear}>
+                Favorite
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "Open", onClick: () => setSelId(r.id) },
+                { label: "Preview", onClick: () => setSelId(r.id) },
+                {
+                  label: "Use Template",
+                  onClick: () => navigate("/admin/workspaces?tab=requests"),
+                },
+                { label: "Clone", onClick: () => {} },
+                { label: "Share", onClick: () => {} },
+                { label: "Favorite", onClick: () => {} },
+                { label: "Compare", onClick: () => setSelId(r.id) },
+                { label: "Export", onClick: () => {} },
+                { label: "Archive", onClick: () => {}, danger: true },
+              ]}
             />
-            <Select
-              label="Category"
-              value={fCategory}
-              onChange={setFCategory}
-              options={facet(records.map((r) => r.category))}
+          )}
+          empty={
+            <EmptyState
+              icon={<Package size={20} />}
+              title="No templates available."
+              hint="Adjust filters, or create / import a template — or browse the marketplace to get started."
+              cta="Create Template"
+              onCta={() => navigate("/admin/workspaces?tab=requests")}
             />
-            <Select
-              label="Business Unit"
-              value={fBu}
-              onChange={setFBu}
-              options={facet(records.map((r) => r.businessUnit))}
-            />
-            <Select
-              label="Environment"
-              value={fEnv}
-              onChange={setFEnv}
-              options={facet(records.map((r) => r.environment))}
-            />
-            <Select
-              label="Industry"
-              value={fIndustry}
-              onChange={setFIndustry}
-              options={facet(records.map((r) => r.industry))}
-            />
-            <Select
-              label="Compliance"
-              value={fCompliance}
-              onChange={setFCompliance}
-              options={facet(records.map((r) => r.complianceFramework))}
-            />
-            <Select
-              label="Workspace Type"
-              value={fWsType}
-              onChange={setFWsType}
-              options={facet(records.map((r) => r.workspaceType))}
-            />
-            <Select
-              label="Visibility"
-              value={fVisibility}
-              onChange={setFVisibility}
-              options={facet(records.map((r) => r.visibility))}
-            />
-            <Select
-              label="Owner"
-              value={fOwner}
-              onChange={setFOwner}
-              options={facet(records.map((r) => r.owner))}
-            />
-            <Select
-              label="Status"
-              value={fStatus}
-              onChange={setFStatus}
-              options={facet(records.map((r) => r.status))}
-            />
-            <Select
-              label="Version"
-              value={fVersion}
-              onChange={setFVersion}
-              options={facet(records.map((r) => r.version))}
-            />
-            <Select
-              label="Tags"
-              value={fTag}
-              onChange={setFTag}
-              options={facet(records.flatMap((r) => r.tags))}
-            />
-          </FilterBar>
-
-          {/* ── Data Table + Row/Bulk actions ── */}
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={15}
-            initialSort={{ key: "usage", dir: "desc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton icon={<Share2 size={13} />} onClick={clear}>
-                  Share ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Rocket size={13} />} onClick={clear}>
-                  Publish
-                </HeaderButton>
-                <HeaderButton icon={<Star size={13} />} onClick={clear}>
-                  Favorite
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "Open", onClick: () => setSelId(r.id) },
-                  { label: "Preview", onClick: () => setSelId(r.id) },
-                  {
-                    label: "Use Template",
-                    onClick: () => navigate("/admin/workspaces?tab=requests"),
-                  },
-                  { label: "Clone", onClick: () => {} },
-                  { label: "Share", onClick: () => {} },
-                  { label: "Favorite", onClick: () => {} },
-                  { label: "Compare", onClick: () => setSelId(r.id) },
-                  { label: "Export", onClick: () => {} },
-                  { label: "Archive", onClick: () => {}, danger: true },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Package size={20} />}
-                title="No templates available."
-                hint="Adjust filters, or create / import a template — or browse the marketplace to get started."
-                cta="Create Template"
-                onCta={() => navigate("/admin/workspaces?tab=requests")}
-              />
-            }
-          />
-        </Card>
+          }
+        />
       )}
 
       {sel && (
