@@ -34,7 +34,6 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -497,9 +496,6 @@ export function ProvisioningQueueView() {
     (completedToday / (completedToday + failedJobs || 1)) * 100,
   );
 
-  // Queue visualization counts (spec §Queue Visualization).
-  const qScheduled = records.filter((r) => r.status === "Scheduled").length;
-
   const toolbar: CommandItem[] = [
     {
       key: "new",
@@ -710,38 +706,6 @@ export function ProvisioningQueueView() {
           ]}
         />
       </div>
-
-      {/* Queue Visualization (spec §Queue Visualization) */}
-      <Card
-        title="Queue visualization"
-        desc="Real-time operational visibility of queue throughput."
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            flexWrap: "wrap",
-          }}
-        >
-          <QueueStage
-            label="Pending"
-            count={pendingJobs - qScheduled}
-            tone={T.warning}
-          />
-          <Arrow />
-          <QueueStage label="Scheduled" count={qScheduled} tone={T.accent} />
-          <Arrow />
-          <QueueStage label="Running" count={runningJobs} tone={T.accent} />
-          <Arrow />
-          <QueueStage
-            label="Completed"
-            count={completedToday}
-            tone={T.success}
-          />
-          <SampleTag />
-        </div>
-      </Card>
 
       <div style={{ display: "flex", marginBottom: 14 }}>
         <Select

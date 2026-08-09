@@ -547,11 +547,22 @@ export function SharedWorkspacesView() {
       </div>
 
       {/* ── Operational Dashboard (spec §Operational Dashboard) ── */}
-      <Card
-        title="Operational dashboard"
-        desc="Aggregate posture across all shared workspaces — connectivity, sharing surface, trust and compliance."
-        right={<SampleTag />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Operational dashboard <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={[
             {
@@ -591,7 +602,7 @@ export function SharedWorkspacesView() {
             },
           ]}
         />
-      </Card>
+      </div>
 
       <DiscoveryListView
         title="Shared workspace directory"

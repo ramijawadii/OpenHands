@@ -17,7 +17,6 @@ import {
   History,
   Activity as ActivityIcon,
   Clock,
-  ArrowUpRight,
   Tag,
   ShieldCheck,
   ClipboardCheck,
@@ -27,7 +26,6 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -529,9 +527,6 @@ export function ArchivedWorkspacesView() {
       {/* ── Operational Dashboard (spec §Operational Dashboard) ── */}
       <OperationalDashboard records={records} />
 
-      {/* ── Retention Timeline (spec §Retention Timeline) ── */}
-      <RetentionTimeline records={records} />
-
       {/* ── Archive sub-navigation ── */}
       <div style={{ display: "flex", marginBottom: 14 }}>
         <Select
@@ -738,86 +733,6 @@ function OperationalDashboard({ records }: { records: ArchiveRecord[] }) {
         { label: "Average Retention", value: `${avgYears} yrs` },
       ]}
     />
-  );
-}
-
-// ════════════ Retention Timeline (spec §Retention Timeline) ════════════
-function RetentionTimeline({ records }: { records: ArchiveRecord[] }) {
-  const stages = [
-    { key: "Archived", label: "Archived", icon: <Archive size={13} /> },
-    { key: "Retention", label: "Retention", icon: <Clock size={13} /> },
-    {
-      key: "Eligible for Deletion",
-      label: "Eligible for Deletion",
-      icon: <CalendarClock size={13} />,
-    },
-  ];
-  // Upcoming retention expirations (soonest first).
-  const upcoming = [...records]
-    .filter((r) => r.retentionExpiration !== "Indefinite")
-    .sort((a, b) => (a.retentionExpiration < b.retentionExpiration ? -1 : 1))
-    .slice(0, 5);
-  return (
-    <Card
-      title="Retention timeline"
-      desc="Archived → Retention → Eligible for Deletion. Shows upcoming retention expirations."
-      right={<SampleTag />}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          flexWrap: "wrap",
-          padding: "6px 0 14px",
-        }}
-      >
-        {stages.map((s, i) => (
-          <React.Fragment key={s.key}>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                height: 30,
-                padding: "0 12px",
-                borderRadius: 99,
-                border: `1px solid ${T.border}`,
-                background: "var(--cg-bg-badge)",
-                color: T.textNav,
-                fontSize: 12.5,
-              }}
-            >
-              {s.icon}
-              {s.label}
-            </span>
-            {i < stages.length - 1 && (
-              <ArrowUpRight
-                size={14}
-                color={T.textMuted}
-                style={{ transform: "rotate(45deg)" }}
-              />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-      {upcoming.map((r) => (
-        <StatRow
-          key={r.id}
-          label={`${r.name} · ${r.retentionPolicy}`}
-          value={`Expires ${r.retentionExpiration}`}
-          tone={r.legalHold || r.complianceHold ? "warn" : "ok"}
-          hint={
-            r.legalHold
-              ? "Legal hold suspends deletion"
-              : r.complianceHold
-                ? "Compliance hold suspends deletion"
-                : undefined
-          }
-          sample
-        />
-      ))}
-    </Card>
   );
 }
 

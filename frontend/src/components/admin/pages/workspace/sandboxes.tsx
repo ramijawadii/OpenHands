@@ -53,6 +53,7 @@ import {
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
+import { OverviewBar } from "#/components/features/explore/cloudguard-grid/OverviewBar";
 
 /**
  * Sandboxes — isolated, temporary, or experimental workspaces used to safely evaluate cloud
@@ -327,43 +328,6 @@ function HealthBadge({ health }: { health: Health }) {
       />
       {health}
     </span>
-  );
-}
-
-// ── Meter — quota utilisation bar (spec § Resource Consumption) ───────────────────────────────────
-function Meter({ label, pct }: { label: string; pct: number }) {
-  const tone = pct >= 85 ? T.danger : pct >= 65 ? T.warning : T.success;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 12,
-          color: T.textNav,
-        }}
-      >
-        <span>{label}</span>
-        <span style={{ color: T.textMuted }}>{pct}%</span>
-      </div>
-      <div
-        style={{
-          height: 8,
-          borderRadius: 99,
-          background: "var(--cg-bg-badge)",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            width: `${Math.min(100, pct)}%`,
-            height: "100%",
-            background: tone,
-            borderRadius: 99,
-          }}
-        />
-      </div>
-    </div>
   );
 }
 
@@ -675,7 +639,7 @@ export function SandboxesView() {
         }}
       >
         <Card title="Resource consumption" desc="Current quota utilisation">
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div
               style={{
                 display: "flex",
@@ -687,10 +651,24 @@ export function SandboxesView() {
             >
               Aggregate across all sandboxes <SampleTag />
             </div>
-            <Meter label="Compute" pct={80} />
-            <Meter label="Storage" pct={40} />
-            <Meter label="Network" pct={30} />
-            <Meter label="Budget" pct={60} />
+            <OverviewBar
+              max={100}
+              valueSuffix="%"
+              items={[
+                { label: "Compute", value: 80 },
+                { label: "Storage", value: 40 },
+                { label: "Network", value: 30 },
+                { label: "Budget", value: 60 },
+              ].map((d) => ({
+                ...d,
+                color:
+                  d.value >= 85
+                    ? "#e05555"
+                    : d.value >= 65
+                      ? "#e09a2d"
+                      : "#91cc75",
+              }))}
+            />
           </div>
         </Card>
 
@@ -698,7 +676,32 @@ export function SandboxesView() {
           title="Expiration timeline"
           desc="Proactively manage expiring environments"
         >
-          <ExpirationTimeline records={records} onSelect={setSelId} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 12,
+                color: T.textMuted,
+              }}
+            >
+              Sandboxes approaching expiration <SampleTag />
+            </div>
+            <OverviewBar
+              max={21}
+              valueSuffix="d"
+              items={records
+                .filter((r) => r.remainingDays != null && r.remainingDays >= 0)
+                .sort((a, b) => (a.remainingDays ?? 0) - (b.remainingDays ?? 0))
+                .slice(0, 6)
+                .map((r) => ({
+                  label: r.name,
+                  value: r.remainingDays ?? 0,
+                  color: expiringSoon(r) ? "#e09a2d" : "#5470c6",
+                }))}
+            />
+          </div>
         </Card>
       </div>
 
@@ -890,100 +893,6 @@ export function SandboxesPage() {
       />
       <SandboxesView />
     </Page>
-  );
-}
-
-// ── Expiration timeline (spec § Expiration Timeline) ──────────────────────────────────────────────
-function ExpirationTimeline({
-  records,
-  onSelect,
-}: {
-  records: SandboxRecord[];
-  onSelect: (id: string) => void;
-}) {
-  const upcoming = records
-    .filter((r) => r.remainingDays != null && r.remainingDays >= 0)
-    .sort((a, b) => (a.remainingDays ?? 0) - (b.remainingDays ?? 0))
-    .slice(0, 6);
-  const marks = [0, 3, 7, 14, 21];
-  const maxDay = 21;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 12,
-          color: T.textMuted,
-        }}
-      >
-        Sandboxes approaching expiration <SampleTag />
-      </div>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          fontSize: 11,
-          color: T.textMuted,
-          borderBottom: `1px solid ${T.border}`,
-          paddingBottom: 6,
-        }}
-      >
-        {marks.map((m) => (
-          <span key={m}>{m === 0 ? "Today" : `${m}d`}</span>
-        ))}
-      </div>
-      {upcoming.map((r) => {
-        const pct = Math.min(100, ((r.remainingDays ?? 0) / maxDay) * 100);
-        const tone = expiringSoon(r) ? T.warning : T.accent;
-        return (
-          <button
-            key={r.id}
-            type="button"
-            onClick={() => onSelect(r.id)}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              padding: "2px 0",
-              textAlign: "left",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                fontSize: 12,
-                color: T.textNav,
-              }}
-            >
-              <span>{r.name}</span>
-              <span style={{ color: tone }}>{r.remainingDays}d</span>
-            </div>
-            <div
-              style={{
-                height: 6,
-                borderRadius: 99,
-                background: "var(--cg-bg-badge)",
-              }}
-            >
-              <div
-                style={{
-                  width: `${pct}%`,
-                  height: "100%",
-                  background: tone,
-                  borderRadius: 99,
-                }}
-              />
-            </div>
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
