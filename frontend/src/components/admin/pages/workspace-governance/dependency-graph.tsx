@@ -28,14 +28,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
-  Select,
   EmptyState,
   SampleTag,
   SideRailDrawer,
@@ -44,7 +40,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { StatStripPlain } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Dependency Graph — the authoritative operational relationship map of every dependency between
@@ -273,6 +270,14 @@ export function DependencyGraphView() {
   const [fHealth, setFHealth] = React.useState("");
   const [layers, setLayers] = React.useState<Set<string>>(new Set(LAYERS));
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_NODES;
   const rows = records.filter((r) => {
@@ -290,15 +295,6 @@ export function DependencyGraphView() {
       (!fHealth || r.health === fHealth)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fWs ||
-    fProvider ||
-    fType ||
-    fDep ||
-    fCrit ||
-    fHealth
-  );
   const clearFilters = () => {
     setSearch("");
     setFWs("");
@@ -492,120 +488,109 @@ export function DependencyGraphView() {
         ]}
       />
 
-      <Card
+      {/* Layer controls (graph-explorer layer toggles) */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          padding: "4px 4px 12px",
+        }}
+      >
+        {LAYERS.map((l) => {
+          const on = layers.has(l);
+          return (
+            <button
+              key={l}
+              type="button"
+              onClick={() => toggleLayer(l)}
+              style={{
+                fontSize: 11.5,
+                color: on ? T.textPrimary : T.textMuted,
+                background: on ? T.badgeBg : "transparent",
+                border: `1px solid ${on ? T.borderStrong : T.border}`,
+                borderRadius: 99,
+                padding: "3px 10px",
+                cursor: "pointer",
+              }}
+            >
+              {l}
+            </button>
+          );
+        })}
+      </div>
+
+      <DiscoveryListView
         title="Dependency graph"
         desc="Visualize and analyze operational dependencies between workspaces, cloud resources, enterprise services, applications, identities, AI systems and shared infrastructure — the authoritative graph for blast-radius and impact analysis."
-        right={
-          <span
-            style={{
-              fontSize: 11.5,
-              color: T.textMuted,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <Waypoints size={13} /> {rows.length} nodes · {dependencies} edges
-          </span>
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search graph — workspace, application, cloud resource, identity, API, database, cluster, service, shared asset, tag…"
+        count={rows.length}
+        pills={[
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWs,
+            onChange: setFWs,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "provider",
+            label: "Cloud Provider",
+            value: fProvider,
+            onChange: setFProvider,
+            options: facet(records.map((r) => r.provider)),
+          },
+          {
+            key: "type",
+            label: "Node Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.type)),
+          },
+          {
+            key: "depType",
+            label: "Dependency Type",
+            value: fDep,
+            onChange: setFDep,
+            options: facet(records.map((r) => r.depType)),
+          },
+          {
+            key: "criticality",
+            label: "Criticality",
+            value: fCrit,
+            onChange: setFCrit,
+            options: facet(records.map((r) => r.criticality)),
+          },
+          {
+            key: "health",
+            label: "Health",
+            value: fHealth,
+            onChange: setFHealth,
+            options: facet(records.map((r) => r.health)),
+          },
+        ]}
+        presets={[{ label: "All dependencies", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
         }
-      >
-        {/* Layer controls (graph-explorer layer toggles) */}
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            padding: "4px 4px 12px",
-          }}
-        >
-          {LAYERS.map((l) => {
-            const on = layers.has(l);
-            return (
-              <button
-                key={l}
-                type="button"
-                onClick={() => toggleLayer(l)}
-                style={{
-                  fontSize: 11.5,
-                  color: on ? T.textPrimary : T.textMuted,
-                  background: on ? T.badgeBg : "transparent",
-                  border: `1px solid ${on ? T.borderStrong : T.border}`,
-                  borderRadius: 99,
-                  padding: "3px 10px",
-                  cursor: "pointer",
-                }}
-              >
-                {l}
-              </button>
-            );
-          })}
-        </div>
-
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search graph — workspace, application, cloud resource, identity, API, database, cluster, service, shared asset, tag…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Workspace"
-            value={fWs}
-            onChange={setFWs}
-            options={facet(records.map((r) => r.workspace))}
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "criticality", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        empty={
+          <EmptyState
+            icon={<Waypoints size={20} />}
+            title="No dependencies have been discovered."
+            hint="Run discovery to map operational dependencies between workspaces, resources and enterprise services."
+            cta="Discover Dependencies"
+            onCta={() => setSelId(null)}
           />
-          <Select
-            label="Cloud Provider"
-            value={fProvider}
-            onChange={setFProvider}
-            options={facet(records.map((r) => r.provider))}
-          />
-          <Select
-            label="Node Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.type))}
-          />
-          <Select
-            label="Dependency Type"
-            value={fDep}
-            onChange={setFDep}
-            options={facet(records.map((r) => r.depType))}
-          />
-          <Select
-            label="Criticality"
-            value={fCrit}
-            onChange={setFCrit}
-            options={facet(records.map((r) => r.criticality))}
-          />
-          <Select
-            label="Health"
-            value={fHealth}
-            onChange={setFHealth}
-            options={facet(records.map((r) => r.health))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "criticality", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          empty={
-            <EmptyState
-              icon={<Waypoints size={20} />}
-              title="No dependencies have been discovered."
-              hint="Run discovery to map operational dependencies between workspaces, resources and enterprise services."
-              cta="Discover Dependencies"
-              onCta={() => setSelId(null)}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <NodeDrawer node={sel} onClose={() => setSelId(null)} />}
     </>
