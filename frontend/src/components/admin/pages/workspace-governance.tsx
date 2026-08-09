@@ -15,6 +15,10 @@ import {
   Waypoints,
   Boxes,
   Cloud,
+  FolderGit2,
+  Server,
+  UserSquare,
+  LayoutGrid,
   Share2,
   Shield,
   KeyRound,
@@ -51,7 +55,12 @@ import { DefaultConfigurationView } from "#/components/admin/pages/workspace-gov
 import { OrganizationDefaultsView } from "#/components/admin/pages/workspace-governance/organization-defaults";
 import { WorkspaceOverridesView } from "#/components/admin/pages/workspace-governance/workspace-overrides";
 import { AwsAccountsView } from "#/components/admin/pages/workspace-governance/aws-accounts";
-import { ResourceBoundariesView } from "#/components/admin/pages/workspace-governance/resource-boundaries";
+import { BoundariesOverviewView } from "#/components/admin/pages/workspace-governance/boundaries-overview";
+import { AzureSubscriptionsView } from "#/components/admin/pages/workspace-governance/azure-subscriptions";
+import { GcpProjectsView } from "#/components/admin/pages/workspace-governance/gcp-projects";
+import { KubernetesClustersView } from "#/components/admin/pages/workspace-governance/kubernetes-clusters";
+import { SharedResourcesView } from "#/components/admin/pages/workspace-governance/shared-resources";
+import { ResourceOwnershipView } from "#/components/admin/pages/workspace-governance/resource-ownership";
 import { InheritanceTreeView } from "#/components/admin/pages/workspace-governance/inheritance-tree";
 import { EffectiveConfigurationView } from "#/components/admin/pages/workspace-governance/effective-configuration";
 import { LockedConfigurationView } from "#/components/admin/pages/workspace-governance/locked-configuration";
@@ -173,11 +182,15 @@ const INHERITANCE_LEAVES: Leaf[] = [
     Icon: Waypoints,
     render: () => <ConfigurationDriftView />,
   },
+];
+
+// ── 03 · Resource Boundaries (spec: docs/design/resource-boundaries-tab-spec.md) ───────────────────
+const BOUNDARIES_LEAVES: Leaf[] = [
   {
-    id: "allowed-resource-types",
-    label: "Allowed Resource Types",
-    Icon: Boxes,
-    render: () => <AllowedResourceTypesView />,
+    id: "overview",
+    label: "Overview",
+    Icon: LayoutGrid,
+    render: () => <BoundariesOverviewView />,
   },
   {
     id: "aws-accounts",
@@ -186,10 +199,40 @@ const INHERITANCE_LEAVES: Leaf[] = [
     render: () => <AwsAccountsView />,
   },
   {
-    id: "resource-boundaries",
-    label: "Cloud & Resources",
+    id: "azure-subscriptions",
+    label: "Azure Subscriptions",
+    Icon: Cloud,
+    render: () => <AzureSubscriptionsView />,
+  },
+  {
+    id: "gcp-projects",
+    label: "GCP Projects",
+    Icon: FolderGit2,
+    render: () => <GcpProjectsView />,
+  },
+  {
+    id: "kubernetes-clusters",
+    label: "Kubernetes Clusters",
+    Icon: Server,
+    render: () => <KubernetesClustersView />,
+  },
+  {
+    id: "shared-resources",
+    label: "Shared Resources",
+    Icon: Share2,
+    render: () => <SharedResourcesView />,
+  },
+  {
+    id: "allowed-resource-types",
+    label: "Allowed Resource Types",
     Icon: Boxes,
-    render: () => <ResourceBoundariesView />,
+    render: () => <AllowedResourceTypesView />,
+  },
+  {
+    id: "resource-ownership",
+    label: "Resource Ownership",
+    Icon: UserSquare,
+    render: () => <ResourceOwnershipView />,
   },
 ];
 
@@ -355,13 +398,7 @@ export function WorkspaceGovernancePage() {
       />
       {tab === "policies" && <LeafSubsection leaves={POLICY_LEAVES} />}
       {tab === "inheritance" && <LeafSubsection leaves={INHERITANCE_LEAVES} />}
-      {tab === "boundaries" && (
-        <EmptyState
-          icon={<Scale size={20} />}
-          title="Resource Boundaries"
-          hint="Resource-boundary governance (allowed resource types, cloud-account scoping, ownership and shared resources) is covered under Inheritance & Overrides for this release."
-        />
-      )}
+      {tab === "boundaries" && <LeafSubsection leaves={BOUNDARIES_LEAVES} />}
       {tab === "cross" && <LeafSubsection leaves={CROSS_LEAVES} />}
       {tab === "capacity" && <LeafSubsection leaves={CAPACITY_LEAVES} />}
     </DiscoveryPage>
