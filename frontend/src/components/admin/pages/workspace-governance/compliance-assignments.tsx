@@ -24,13 +24,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -44,6 +41,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Compliance Assignments — which regulatory frameworks, security standards and governance baselines
@@ -230,6 +229,14 @@ export function ComplianceAssignmentsView() {
   const [fProfile, setFProfile] = React.useState("");
   const [fInherit, setFInherit] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_ASSIGNMENTS;
   const rows = records.filter((r) => {
@@ -249,16 +256,6 @@ export function ComplianceAssignmentsView() {
       (!fInherit || (fInherit === "inherited") === r.inherited)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fFramework ||
-    fType ||
-    fStatus ||
-    fBu ||
-    fEnv ||
-    fProfile ||
-    fInherit
-  );
   const clearFilters = () => {
     setSearch("");
     setFFramework("");
@@ -484,122 +481,127 @@ export function ComplianceAssignmentsView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Compliance assignments"
         desc="Compliance Assignments establish each workspace's compliance posture — the regulatory frameworks and baselines that drive control implementation, evidence collection, monitoring and audit readiness."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search compliance assignments — workspace, framework, compliance profile, business unit, owner, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Framework"
-            value={fFramework}
-            onChange={setFFramework}
-            options={facet(records.map((r) => r.framework))}
-          />
-          <Select
-            label="Assignment Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.assignmentType))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Compliance Profile"
-            value={fProfile}
-            onChange={setFProfile}
-            options={facet(records.map((r) => r.profile))}
-          />
-          <Select
-            label="Inheritance"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search compliance assignments — workspace, framework, compliance profile, business unit, owner, tags…"
+        count={rows.length}
+        pills={[
+          {
+            key: "framework",
+            label: "Framework",
+            value: fFramework,
+            onChange: setFFramework,
+            options: facet(records.map((r) => r.framework)),
+          },
+          {
+            key: "assignmentType",
+            label: "Assignment Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.assignmentType)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "complianceProfile",
+            label: "Compliance Profile",
+            value: fProfile,
+            onChange: setFProfile,
+            options: facet(records.map((r) => r.profile)),
+          },
+          {
+            key: "inheritance",
+            label: "Inheritance",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "inherited", label: "Inherited" },
               { value: "direct", label: "Direct" },
+            ],
+          },
+        ]}
+        presets={[
+          { label: "All compliance assignments", onApply: clearFilters },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "workspace", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Plus size={13} />} onClick={clear}>
+              Assign Framework ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Trash2 size={13} />} onClick={clear}>
+              Remove Assignment
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+              Validate
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Assign", onClick: () => setSelId(r.id) },
+              {
+                label: "Preview Effective Compliance",
+                onClick: () => setSelId(r.id),
+              },
+              { label: "Request Exception", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              {
+                label: "Remove",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
             ]}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "workspace", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Plus size={13} />} onClick={clear}>
-                Assign Framework ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Trash2 size={13} />} onClick={clear}>
-                Remove Assignment
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
-                Validate
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Assign", onClick: () => setSelId(r.id) },
-                {
-                  label: "Preview Effective Compliance",
-                  onClick: () => setSelId(r.id),
-                },
-                { label: "Request Exception", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                {
-                  label: "Remove",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<BadgeCheck size={20} />}
-              title="No compliance assignments found."
-              hint="Assign a regulatory framework or compliance profile to a workspace to establish its compliance obligations."
-              cta="Assign Compliance Framework"
-              onCta={() => navigate("/admin/workspace-governance?tab=policies")}
-            />
-          }
-        />
-      </Card>
+        )}
+        empty={
+          <EmptyState
+            icon={<BadgeCheck size={20} />}
+            title="No compliance assignments found."
+            hint="Assign a regulatory framework or compliance profile to a workspace to establish its compliance obligations."
+            cta="Assign Compliance Framework"
+            onCta={() => navigate("/admin/workspace-governance?tab=policies")}
+          />
+        }
+      />
 
       {sel && <AssignmentDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

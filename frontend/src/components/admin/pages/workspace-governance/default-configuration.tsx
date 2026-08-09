@@ -27,13 +27,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -47,6 +44,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Default Configuration — the enterprise baseline configuration automatically applied to newly
@@ -204,6 +203,14 @@ export function DefaultConfigurationView() {
   const [fInherit, setFInherit] = React.useState("");
   const [fVersion, setFVersion] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_CONFIGS;
   const rows = records.filter((r) => {
@@ -223,16 +230,6 @@ export function DefaultConfigurationView() {
       (!fVersion || r.version === fVersion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fEnv ||
-    fType ||
-    fBu ||
-    fProfile ||
-    fInherit ||
-    fVersion
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -467,121 +464,126 @@ export function DefaultConfigurationView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Default configurations"
         desc="Default Configuration specifies the initial settings, services, features, integrations, quotas and governance automatically provisioned for a workspace — the foundation for consistent enterprise provisioning."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search default configurations — configuration name, workspace type, business unit, environment, assignment…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.workspaceType))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Configuration Profile"
-            value={fProfile}
-            onChange={setFProfile}
-            options={facet(records.map((r) => r.profile))}
-          />
-          <Select
-            label="Inheritance"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search default configurations — configuration name, workspace type, business unit, environment, assignment…"
+        count={rows.length}
+        pills={[
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "workspaceType",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.workspaceType)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "configurationProfile",
+            label: "Configuration Profile",
+            value: fProfile,
+            onChange: setFProfile,
+            options: facet(records.map((r) => r.profile)),
+          },
+          {
+            key: "inheritance",
+            label: "Inheritance",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "inherited", label: "Inherited" },
               { value: "direct", label: "Direct" },
+            ],
+          },
+          {
+            key: "version",
+            label: "Version",
+            value: fVersion,
+            onChange: setFVersion,
+            options: facet(records.map((r) => r.version)),
+          },
+        ]}
+        presets={[
+          { label: "All default configurations", onApply: clearFilters },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "name", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+              Enable
+            </HeaderButton>
+            <HeaderButton onClick={clear}>Disable</HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Duplicate", onClick: () => {} },
+              { label: "Assign", onClick: () => setSelId(r.id) },
+              { label: "Preview", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              { label: "Archive", onClick: () => setSelId(r.id) },
+              {
+                label: "Delete",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
             ]}
           />
-          <Select
-            label="Version"
-            value={fVersion}
-            onChange={setFVersion}
-            options={facet(records.map((r) => r.version))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Settings2 size={20} />}
+            title="No default configurations found."
+            hint="Create a default configuration to define the enterprise baseline automatically applied to new workspaces during provisioning."
+            cta="Create Default Configuration"
+            onCta={() => navigate("/admin/workspace-governance?tab=policies")}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "name", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
-                Enable
-              </HeaderButton>
-              <HeaderButton onClick={clear}>Disable</HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Duplicate", onClick: () => {} },
-                { label: "Assign", onClick: () => setSelId(r.id) },
-                { label: "Preview", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                { label: "Archive", onClick: () => setSelId(r.id) },
-                {
-                  label: "Delete",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Settings2 size={20} />}
-              title="No default configurations found."
-              hint="Create a default configuration to define the enterprise baseline automatically applied to new workspaces during provisioning."
-              cta="Create Default Configuration"
-              onCta={() => navigate("/admin/workspace-governance?tab=policies")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <ConfigDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

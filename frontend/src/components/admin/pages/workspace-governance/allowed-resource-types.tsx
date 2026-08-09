@@ -28,13 +28,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -48,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Allowed Resource Types — the authoritative governance layer defining which categories of
@@ -84,27 +83,53 @@ type Provider =
   | "SaaS";
 type Status = "Allowed" | "Restricted";
 
-const CATEGORIES: Category[] = [
-  "Cloud",
-  "Compute",
-  "Containers",
-  "Networking",
-  "Storage",
-  "Databases",
-  "Identity",
-  "Security",
-  "AI & ML",
+const PROVIDERS: Provider[] = [
+  "AWS",
+  "Azure",
+  "GCP",
+  "Kubernetes",
+  "Docker",
+  "VMware",
+  "On-Premises",
   "SaaS",
-  "Custom",
 ];
-const PROVIDERS: Provider[] = ["AWS", "Azure", "GCP", "Kubernetes", "Docker", "VMware", "On-Premises", "SaaS"];
 const ENVIRONMENTS = ["Production", "Pre-production", "Development", "Sandbox"];
-const WORKSPACES = ["Payments", "Retail Web", "Data Lake", "Identity", "Analytics", "Mobile API"];
-const POLICIES = ["Enterprise Cloud Policy", "Data Platform Standard", "AI Governance Policy", "Network Baseline", "Security Services Policy"];
-const FRAMEWORKS = ["ISO 27001", "SOC 2", "NIST", "PCI DSS", "HIPAA", "CSA CCM", "CIS Benchmarks"];
-const OWNERS = ["Enterprise Architect", "Cloud Team", "Platform Team", "Security Team", "Governance Admin"];
+const WORKSPACES = [
+  "Payments",
+  "Retail Web",
+  "Data Lake",
+  "Identity",
+  "Analytics",
+  "Mobile API",
+];
+const POLICIES = [
+  "Enterprise Cloud Policy",
+  "Data Platform Standard",
+  "AI Governance Policy",
+  "Network Baseline",
+  "Security Services Policy",
+];
+const FRAMEWORKS = [
+  "ISO 27001",
+  "SOC 2",
+  "NIST",
+  "PCI DSS",
+  "HIPAA",
+  "CSA CCM",
+  "CIS Benchmarks",
+];
+const OWNERS = [
+  "Enterprise Architect",
+  "Cloud Team",
+  "Platform Team",
+  "Security Team",
+  "Governance Admin",
+];
 
-const STATUS_TONE: Record<Status, string> = { Allowed: T.success, Restricted: T.danger };
+const STATUS_TONE: Record<Status, string> = {
+  Allowed: T.success,
+  Restricted: T.danger,
+};
 
 function hashId(id: string): number {
   let n = 0;
@@ -157,7 +182,10 @@ const RES_SEED: { name: string; cat: Category; prov: Provider }[] = [
 const SAMPLE_TYPES: ResType[] = RES_SEED.map(({ name, cat, prov }, i) => {
   const id = `RT-${(1000 + i * 7).toString().padStart(5, "0")}`;
   const n = hashId(id + name);
-  const status = pick<Status>(["Allowed", "Allowed", "Allowed", "Restricted"], n);
+  const status = pick<Status>(
+    ["Allowed", "Allowed", "Allowed", "Restricted"],
+    n,
+  );
   return {
     id,
     name,
@@ -183,7 +211,9 @@ const SAMPLE_TYPES: ResType[] = RES_SEED.map(({ name, cat, prov }, i) => {
 function StatusBadge({ status }: { status: Status }) {
   const c = STATUS_TONE[status];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: c }}>
+    <span
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, color: c }}
+    >
       {status === "Allowed" ? <Check size={12} /> : <Ban size={12} />}
       {status}
     </span>
@@ -201,6 +231,14 @@ export function AllowedResourceTypesView() {
   const [fPolicy, setFPolicy] = React.useState("");
   const [fInherit, setFInherit] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_TYPES;
   const rows = records.filter((r) => {
@@ -220,7 +258,6 @@ export function AllowedResourceTypesView() {
       (!fInherit || (fInherit === "inherited") === r.inherited)
     );
   });
-  const hasFilters = !!(search || fCat || fProvider || fWs || fEnv || fStatus || fPolicy || fInherit);
   const clearFilters = () => {
     setSearch("");
     setFCat("");
@@ -234,7 +271,9 @@ export function AllowedResourceTypesView() {
   const sel = records.find((r) => r.id === selId) ?? null;
   const facet = (vals: string[]) => [
     { value: "", label: "All" },
-    ...Array.from(new Set(vals)).sort().map((v) => ({ value: v, label: v })),
+    ...Array.from(new Set(vals))
+      .sort()
+      .map((v) => ({ value: v, label: v })),
   ];
 
   // KPI Summary (spec §KPI Summary).
@@ -244,20 +283,78 @@ export function AllowedResourceTypesView() {
   const inherited = records.filter((r) => r.inherited).length;
   const overrides = records.filter((r) => !r.inherited).length;
   const exceptions = records.reduce((a, r) => a + r.exceptions, 0);
-  const coverage = Math.round((records.filter((r) => r.complianceControls > 0).length / records.length) * 100);
+  const coverage = Math.round(
+    (records.filter((r) => r.complianceControls > 0).length / records.length) *
+      100,
+  );
 
   const toolbar: CommandItem[] = [
-    { key: "allow", label: "Allow Resource Type", icon: <Plus size={15} />, onClick: () => navigate("/admin/workspace-governance?tab=inheritance") },
-    { key: "restrict", label: "Restrict Resource Type", icon: <Ban size={15} />, disabled: true },
-    { key: "import", label: "Import Catalog", icon: <Upload size={15} />, disabled: true },
-    { key: "export", label: "Export", icon: <Download size={15} />, disabled: true },
-    { key: "refresh", label: "Refresh", icon: <RefreshCcw size={15} />, onClick: () => setSelId(null) },
-    { key: "assign", label: "Assign Policy", icon: <UserCheck size={15} />, disabled: true },
-    { key: "validate", label: "Validate Policies", icon: <ClipboardCheck size={15} />, disabled: true },
-    { key: "report", label: "Generate Report", icon: <FileText size={15} />, disabled: true },
-    { key: "sync", label: "Synchronize", icon: <RefreshCw size={15} />, disabled: true },
-    { key: "compare", label: "Compare Org Defaults", icon: <GitCompare size={15} />, disabled: true },
-    { key: "restore", label: "Restore Defaults", icon: <RotateCcw size={15} />, disabled: true },
+    {
+      key: "allow",
+      label: "Allow Resource Type",
+      icon: <Plus size={15} />,
+      onClick: () => navigate("/admin/workspace-governance?tab=inheritance"),
+    },
+    {
+      key: "restrict",
+      label: "Restrict Resource Type",
+      icon: <Ban size={15} />,
+      disabled: true,
+    },
+    {
+      key: "import",
+      label: "Import Catalog",
+      icon: <Upload size={15} />,
+      disabled: true,
+    },
+    {
+      key: "export",
+      label: "Export",
+      icon: <Download size={15} />,
+      disabled: true,
+    },
+    {
+      key: "refresh",
+      label: "Refresh",
+      icon: <RefreshCcw size={15} />,
+      onClick: () => setSelId(null),
+    },
+    {
+      key: "assign",
+      label: "Assign Policy",
+      icon: <UserCheck size={15} />,
+      disabled: true,
+    },
+    {
+      key: "validate",
+      label: "Validate Policies",
+      icon: <ClipboardCheck size={15} />,
+      disabled: true,
+    },
+    {
+      key: "report",
+      label: "Generate Report",
+      icon: <FileText size={15} />,
+      disabled: true,
+    },
+    {
+      key: "sync",
+      label: "Synchronize",
+      icon: <RefreshCw size={15} />,
+      disabled: true,
+    },
+    {
+      key: "compare",
+      label: "Compare Org Defaults",
+      icon: <GitCompare size={15} />,
+      disabled: true,
+    },
+    {
+      key: "restore",
+      label: "Restore Defaults",
+      icon: <RotateCcw size={15} />,
+      disabled: true,
+    },
   ];
 
   const cols: Column<ResType>[] = [
@@ -266,104 +363,261 @@ export function AllowedResourceTypesView() {
       header: "Resource Type",
       sortValue: (r) => r.name,
       render: (r) => (
-        <span style={{ color: T.textPrimary, display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            color: T.textPrimary,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
           <Boxes size={13} color={T.textMuted} />
           {r.name}
         </span>
       ),
     },
-    { key: "category", header: "Category", sortValue: (r) => r.category, render: (r) => r.category },
-    { key: "provider", header: "Provider", sortValue: (r) => r.provider, render: (r) => r.provider },
-    { key: "status", header: "Status", sortValue: (r) => r.status, render: (r) => <StatusBadge status={r.status} /> },
-    { key: "inherited", header: "Inherited", sortValue: (r) => (r.inherited ? 1 : 0), render: (r) => (r.inherited ? "Yes" : "No") },
-    { key: "policy", header: "Policy", sortValue: (r) => r.policy, render: (r) => r.policy },
-    { key: "workspace", header: "Workspace", sortValue: (r) => r.workspace, render: (r) => r.workspace },
+    {
+      key: "category",
+      header: "Category",
+      sortValue: (r) => r.category,
+      render: (r) => r.category,
+    },
+    {
+      key: "provider",
+      header: "Provider",
+      sortValue: (r) => r.provider,
+      render: (r) => r.provider,
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortValue: (r) => r.status,
+      render: (r) => <StatusBadge status={r.status} />,
+    },
+    {
+      key: "inherited",
+      header: "Inherited",
+      sortValue: (r) => (r.inherited ? 1 : 0),
+      render: (r) => (r.inherited ? "Yes" : "No"),
+    },
+    {
+      key: "policy",
+      header: "Policy",
+      sortValue: (r) => r.policy,
+      render: (r) => r.policy,
+    },
+    {
+      key: "workspace",
+      header: "Workspace",
+      sortValue: (r) => r.workspace,
+      render: (r) => r.workspace,
+    },
   ];
 
   return (
     <>
       <PostureGrid>
-        <PostureCard title="Allowed Types" value={allowed} tone="ok" sub={<>Permitted in workspaces <SampleTag /></>} />
-        <PostureCard title="Restricted Types" value={restricted} tone={restricted > 0 ? "warn" : "ok"} sub={<>Blocked by policy <SampleTag /></>} />
-        <PostureCard title="Custom Types" value={custom} tone="ok" sub={<>Enterprise-defined <SampleTag /></>} />
-        <PostureCard title="Inherited Types" value={inherited} tone="ok" sub={<>From org defaults <SampleTag /></>} />
-        <PostureCard title="Workspace Overrides" value={overrides} tone={overrides > 0 ? "warn" : "ok"} sub={<>Direct assignments <SampleTag /></>} />
-        <PostureCard title="Policy Violations" value={0} tone="ok" sub={<>Unauthorized provisioning <SampleTag /></>} />
-        <PostureCard title="Exception Requests" value={exceptions} tone={exceptions > 0 ? "warn" : "ok"} sub={<>Awaiting review <SampleTag /></>} />
-        <PostureCard title="Compliance Coverage" value={`${coverage}%`} tone={coverage >= 80 ? "ok" : "warn"} sub={<>Mapped to controls <SampleTag /></>} />
+        <PostureCard
+          title="Allowed Types"
+          value={allowed}
+          tone="ok"
+          sub={
+            <>
+              Permitted in workspaces <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Restricted Types"
+          value={restricted}
+          tone={restricted > 0 ? "warn" : "ok"}
+          sub={
+            <>
+              Blocked by policy <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Custom Types"
+          value={custom}
+          tone="ok"
+          sub={
+            <>
+              Enterprise-defined <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Inherited Types"
+          value={inherited}
+          tone="ok"
+          sub={
+            <>
+              From org defaults <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Workspace Overrides"
+          value={overrides}
+          tone={overrides > 0 ? "warn" : "ok"}
+          sub={
+            <>
+              Direct assignments <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Policy Violations"
+          value={0}
+          tone="ok"
+          sub={
+            <>
+              Unauthorized provisioning <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Exception Requests"
+          value={exceptions}
+          tone={exceptions > 0 ? "warn" : "ok"}
+          sub={
+            <>
+              Awaiting review <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Compliance Coverage"
+          value={`${coverage}%`}
+          tone={coverage >= 80 ? "ok" : "warn"}
+          sub={
+            <>
+              Mapped to controls <SampleTag />
+            </>
+          }
+        />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Allowed resource types"
         desc="Control which resource types may be provisioned, imported and managed within each workspace — aligning every workspace with enterprise architecture, security standards and compliance requirements."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search resource types — resource type, provider, category, policy, workspace, description…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select label="Category" value={fCat} onChange={setFCat} options={facet(records.map((r) => r.category))} />
-          <Select label="Provider" value={fProvider} onChange={setFProvider} options={facet(records.map((r) => r.provider))} />
-          <Select label="Workspace" value={fWs} onChange={setFWs} options={facet(records.map((r) => r.workspace))} />
-          <Select label="Environment" value={fEnv} onChange={setFEnv} options={facet(records.map((r) => r.environment))} />
-          <Select label="Status" value={fStatus} onChange={setFStatus} options={facet(records.map((r) => r.status))} />
-          <Select label="Policy" value={fPolicy} onChange={setFPolicy} options={facet(records.map((r) => r.policy))} />
-          <Select
-            label="Inheritance"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search resource types — resource type, provider, category, policy, workspace, description…"
+        count={rows.length}
+        pills={[
+          {
+            key: "category",
+            label: "Category",
+            value: fCat,
+            onChange: setFCat,
+            options: facet(records.map((r) => r.category)),
+          },
+          {
+            key: "provider",
+            label: "Provider",
+            value: fProvider,
+            onChange: setFProvider,
+            options: facet(records.map((r) => r.provider)),
+          },
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWs,
+            onChange: setFWs,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "policy",
+            label: "Policy",
+            value: fPolicy,
+            onChange: setFPolicy,
+            options: facet(records.map((r) => r.policy)),
+          },
+          {
+            key: "inheritance",
+            label: "Inheritance",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "inherited", label: "Inherited" },
               { value: "direct", label: "Direct" },
+            ],
+          },
+        ]}
+        presets={[
+          { label: "All allowed resource types", onApply: clearFilters },
+        ]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "category", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Check size={13} />} onClick={clear}>
+              Allow ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Ban size={13} />} onClick={clear}>
+              Restrict
+            </HeaderButton>
+            <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
+              Assign Policy
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              {
+                label: r.status === "Allowed" ? "Restrict" : "Allow",
+                onClick: () => {},
+              },
+              { label: "Assign Policy", onClick: () => setSelId(r.id) },
+              { label: "Create Exception", onClick: () => setSelId(r.id) },
+              { label: "View Dependencies", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
             ]}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "category", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Check size={13} />} onClick={clear}>Allow ({ids.length})</HeaderButton>
-              <HeaderButton icon={<Ban size={13} />} onClick={clear}>Restrict</HeaderButton>
-              <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>Assign Policy</HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>Export</HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: r.status === "Allowed" ? "Restrict" : "Allow", onClick: () => {} },
-                { label: "Assign Policy", onClick: () => setSelId(r.id) },
-                { label: "Create Exception", onClick: () => setSelId(r.id) },
-                { label: "View Dependencies", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Boxes size={20} />}
-              title="No resource types have been configured."
-              hint="Import the enterprise resource catalog to define which resource types may exist within each workspace."
-              cta="Import Enterprise Resource Catalog"
-              onCta={() => navigate("/admin/workspace-governance?tab=inheritance")}
-            />
-          }
-        />
-      </Card>
+        )}
+        empty={
+          <EmptyState
+            icon={<Boxes size={20} />}
+            title="No resource types have been configured."
+            hint="Import the enterprise resource catalog to define which resource types may exist within each workspace."
+            cta="Import Enterprise Resource Catalog"
+            onCta={() =>
+              navigate("/admin/workspace-governance?tab=inheritance")
+            }
+          />
+        }
+      />
 
       {sel && <ResDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
@@ -380,7 +634,13 @@ export function AllowedResourceTypesPage() {
         actions={
           <>
             <ScopeBadge scope="Organization" />
-            <HeaderButton variant="primary" icon={<Plus size={14} />} onClick={() => navigate("/admin/workspace-governance?tab=inheritance")}>
+            <HeaderButton
+              variant="primary"
+              icon={<Plus size={14} />}
+              onClick={() =>
+                navigate("/admin/workspace-governance?tab=inheritance")
+              }
+            >
               Allow Resource Type
             </HeaderButton>
           </>
@@ -391,10 +651,30 @@ export function AllowedResourceTypesPage() {
   );
 }
 
-function Section({ title, children, sample }: { title: string; children: React.ReactNode; sample?: boolean }) {
+function Section({
+  title,
+  children,
+  sample,
+}: {
+  title: string;
+  children: React.ReactNode;
+  sample?: boolean;
+}) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 6,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         {title}
         {sample && <SampleTag />}
       </div>
@@ -427,10 +707,28 @@ function ResDrawer({ rec, onClose }: { rec: ResType; onClose: () => void }) {
       width={820}
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", width: "100%" }}>
-          <HeaderButton icon={rec.status === "Allowed" ? <Ban size={13} /> : <Check size={13} />}>{rec.status === "Allowed" ? "Restrict" : "Allow"}</HeaderButton>
-          <HeaderButton icon={<UserCheck size={13} />}>Assign Policy</HeaderButton>
-          <HeaderButton variant="primary" icon={<Download size={13} />}>Export</HeaderButton>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+            width: "100%",
+          }}
+        >
+          <HeaderButton
+            icon={
+              rec.status === "Allowed" ? <Ban size={13} /> : <Check size={13} />
+            }
+          >
+            {rec.status === "Allowed" ? "Restrict" : "Allow"}
+          </HeaderButton>
+          <HeaderButton icon={<UserCheck size={13} />}>
+            Assign Policy
+          </HeaderButton>
+          <HeaderButton variant="primary" icon={<Download size={13} />}>
+            Export
+          </HeaderButton>
         </div>
       }
     >
@@ -469,7 +767,9 @@ function OverviewTab({ rec }: { rec: ResType }) {
               { k: "Created Date", v: rec.created, sample: true },
             ]}
           />
-          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>{rec.description}</div>
+          <div style={{ fontSize: 12.5, color: T.textNav, paddingTop: 6 }}>
+            {rec.description}
+          </div>
         </Section>
       )}
       {sub === "statistics" && (
@@ -480,7 +780,11 @@ function OverviewTab({ rec }: { rec: ResType }) {
               { k: "Using Workspaces", v: rec.usingWorkspaces, sample: true },
               { k: "Policies", v: rec.policies, sample: true },
               { k: "Exceptions", v: rec.exceptions, sample: true },
-              { k: "Compliance Controls", v: rec.complianceControls, sample: true },
+              {
+                k: "Compliance Controls",
+                v: rec.complianceControls,
+                sample: true,
+              },
               { k: "Dependencies", v: rec.dependencies, sample: true },
             ]}
           />
@@ -499,7 +803,11 @@ function ProvidersTab({ rec }: { rec: ResType }) {
       provider: p,
       supported: supported ? "Yes" : "No",
       version: supported ? `v${1 + (m % 5)}` : "—",
-      status: supported ? (p === rec.provider ? "Primary" : "Supported") : "Unsupported",
+      status: supported
+        ? p === rec.provider
+          ? "Primary"
+          : "Supported"
+        : "Unsupported",
     };
   });
   const cols: Column<(typeof list)[number]>[] = [
@@ -510,7 +818,16 @@ function ProvidersTab({ rec }: { rec: ResType }) {
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Providers on which this resource type is supported. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -537,10 +854,22 @@ function PolicyTab({ rec }: { rec: ResType }) {
   ];
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
         <HeaderButton icon={<UserCheck size={13} />}>Assign</HeaderButton>
-        <HeaderButton variant="danger" icon={<X size={13} />}>Remove</HeaderButton>
-        <HeaderButton icon={<ShieldCheck size={13} />}>View Policy</HeaderButton>
+        <HeaderButton variant="danger" icon={<X size={13} />}>
+          Remove
+        </HeaderButton>
+        <HeaderButton icon={<ShieldCheck size={13} />}>
+          View Policy
+        </HeaderButton>
         <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -563,16 +892,32 @@ function ScopeTab({ rec }: { rec: ResType }) {
   const cols: Column<(typeof list)[number]>[] = [
     { key: "workspace", header: "Workspace", render: (r) => r.workspace },
     { key: "environment", header: "Environment", render: (r) => r.environment },
-    { key: "allowed", header: "Allowed", render: (r) => (
-      <span style={{ color: r.allowed === "Allowed" ? T.success : T.danger }}>{r.allowed}</span>
-    ) },
+    {
+      key: "allowed",
+      header: "Allowed",
+      render: (r) => (
+        <span style={{ color: r.allowed === "Allowed" ? T.success : T.danger }}>
+          {r.allowed}
+        </span>
+      ),
+    },
     { key: "inherited", header: "Inherited", render: (r) => r.inherited },
     { key: "override", header: "Override", render: (r) => r.override },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
-        Where this resource type is permitted. Organization → Workspace → Allowed Resource Type. <SampleTag />
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        Where this resource type is permitted. Organization → Workspace →
+        Allowed Resource Type. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
     </>
@@ -593,14 +938,31 @@ function ComplianceTab({ rec }: { rec: ResType }) {
   const cols: Column<(typeof list)[number]>[] = [
     { key: "framework", header: "Framework", render: (r) => r.framework },
     { key: "required", header: "Required", render: (r) => r.required },
-    { key: "status", header: "Status", render: (r) => (
-      <span style={{ color: r.status === "Compliant" ? T.success : T.warning }}>{r.status}</span>
-    ) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span
+          style={{ color: r.status === "Compliant" ? T.success : T.warning }}
+        >
+          {r.status}
+        </span>
+      ),
+    },
     { key: "controls", header: "Controls", render: (r) => r.controls },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Compliance frameworks mapped to this resource type. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -613,7 +975,16 @@ function DepsTab({ rec }: { rec: ResType }) {
     const m = hashId(`${rec.id}-d-${i}`);
     return {
       id: `${rec.id}-d-${i}`,
-      dep: pick(["IAM Role", "VPC", "Key Management", "Container Registry", "Storage Bucket"], m),
+      dep: pick(
+        [
+          "IAM Role",
+          "VPC",
+          "Key Management",
+          "Container Registry",
+          "Storage Bucket",
+        ],
+        m,
+      ),
       rel: pick(["Requires", "Consumes", "Depends on"], m),
       required: m % 2 === 0 ? "Yes" : "No",
       status: pick(["Active", "Active", "Pending"], m),
@@ -627,7 +998,16 @@ function DepsTab({ rec }: { rec: ResType }) {
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Prerequisite resource types and dependent services. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -642,7 +1022,15 @@ function ExceptionsTab({ rec }: { rec: ResType }) {
       id: `${rec.id}-e-${i}`,
       exception: `EX-${1000 + (m % 9000)}`,
       workspace: pick(WORKSPACES, m),
-      reason: pick(["Migration", "Proof of Concept", "Legacy Support", "Customer Requirement"], m),
+      reason: pick(
+        [
+          "Migration",
+          "Proof of Concept",
+          "Legacy Support",
+          "Customer Requirement",
+        ],
+        m,
+      ),
       approvedBy: pick(OWNERS, m),
       expiration: `2026-0${1 + (m % 8)}-${(1 + (m % 27)).toString().padStart(2, "0")}`,
       status: pick(["Active", "Pending", "Expired"], m),
@@ -658,37 +1046,102 @@ function ExceptionsTab({ rec }: { rec: ResType }) {
   ];
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
-        <HeaderButton icon={<FilePlus2 size={13} />}>Create Exception</HeaderButton>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
+        <HeaderButton icon={<FilePlus2 size={13} />}>
+          Create Exception
+        </HeaderButton>
         <HeaderButton icon={<Check size={13} />}>Approve</HeaderButton>
-        <HeaderButton variant="danger" icon={<X size={13} />}>Reject</HeaderButton>
+        <HeaderButton variant="danger" icon={<X size={13} />}>
+          Reject
+        </HeaderButton>
         <SampleTag />
       </div>
       {list.length ? (
         <DirectoryTable columns={cols} rows={list} />
       ) : (
-        <EmptyState icon={<FilePlus2 size={18} />} title="No exceptions" hint="No temporary governance exceptions exist for this resource type." />
+        <EmptyState
+          icon={<FilePlus2 size={18} />}
+          title="No exceptions"
+          hint="No temporary governance exceptions exist for this resource type."
+        />
       )}
     </>
   );
 }
 
 function ActivityTab({ rec }: { rec: ResType }) {
-  const events = ["Resource Allowed", "Resource Restricted", "Policy Assigned", "Exception Created", "Exception Approved", "Configuration Updated"];
+  const events = [
+    "Resource Allowed",
+    "Resource Restricted",
+    "Policy Assigned",
+    "Exception Created",
+    "Exception Approved",
+    "Configuration Updated",
+  ];
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
-        <Select label="Actor" value="" onChange={() => {}} options={[{ value: "", label: "Actor: All" }, ...OWNERS.map((o) => ({ value: o, label: o }))]} />
-        <Select label="Action" value="" onChange={() => {}} options={[{ value: "", label: "Action: All" }, ...events.map((e) => ({ value: e, label: e }))]} />
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
+        <Select
+          label="Actor"
+          value=""
+          onChange={() => {}}
+          options={[
+            { value: "", label: "Actor: All" },
+            ...OWNERS.map((o) => ({ value: o, label: o })),
+          ]}
+        />
+        <Select
+          label="Action"
+          value=""
+          onChange={() => {}}
+          options={[
+            { value: "", label: "Action: All" },
+            ...events.map((e) => ({ value: e, label: e })),
+          ]}
+        />
         <SampleTag />
       </div>
       {events.map((e, i) => (
-        <div key={e} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, marginTop: 5, flexShrink: 0 }} />
+        <div
+          key={e}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "10px 0",
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: T.accent,
+              marginTop: 5,
+              flexShrink: 0,
+            }}
+          />
           <div>
             <div style={{ fontSize: 13, color: T.textPrimary }}>{e}</div>
             <div style={{ fontSize: 11.5, color: T.textMuted }}>
-              {pick(OWNERS, hashId(rec.id) + i)} · {pick(["5 min", "2 h", "yesterday", "3 days"], i)} ago
+              {pick(OWNERS, hashId(rec.id) + i)} ·{" "}
+              {pick(["5 min", "2 h", "yesterday", "3 days"], i)} ago
             </div>
           </div>
         </div>
@@ -698,14 +1151,37 @@ function ActivityTab({ rec }: { rec: ResType }) {
 }
 
 function AuditTab() {
-  const events = ["Resource Type Created", "Policy Assigned", "Policy Removed", "Workspace Override", "Exception Approved", "Restriction Applied", "Allowed Resource Updated"];
+  const events = [
+    "Resource Type Created",
+    "Policy Assigned",
+    "Policy Removed",
+    "Workspace Override",
+    "Exception Approved",
+    "Restriction Applied",
+    "Allowed Resource Updated",
+  ];
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.textMuted, marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          color: T.textMuted,
+          marginBottom: 12,
+        }}
+      >
         <ShieldCheck size={14} /> Read-only immutable log <SampleTag />
       </div>
       {events.map((e, i) => (
-        <StatRow key={e} label={e} value={`${pick(OWNERS, i)} · 2026-06-${(10 + i).toString().padStart(2, "0")}`} tone="ok" sample />
+        <StatRow
+          key={e}
+          label={e}
+          value={`${pick(OWNERS, i)} · 2026-06-${(10 + i).toString().padStart(2, "0")}`}
+          tone="ok"
+          sample
+        />
       ))}
     </>
   );

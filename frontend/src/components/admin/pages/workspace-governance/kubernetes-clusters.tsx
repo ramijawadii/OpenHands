@@ -31,13 +31,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -51,6 +48,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Kubernetes Clusters — the container-orchestration boundary assigned to a workspace: an isolated
@@ -221,6 +220,14 @@ export function KubernetesClustersView() {
   const [fStatus, setFStatus] = React.useState("");
   const [fVersion, setFVersion] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_CLUSTERS;
   const rows = records.filter((r) => {
@@ -241,16 +248,6 @@ export function KubernetesClustersView() {
       (!fVersion || r.version === fVersion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fWorkspace ||
-    fEnv ||
-    fType ||
-    fProvider ||
-    fRegion ||
-    fStatus ||
-    fVersion
-  );
   const clearFilters = () => {
     setSearch("");
     setFWorkspace("");
@@ -515,122 +512,125 @@ export function KubernetesClustersView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Kubernetes clusters"
         desc="The authoritative Kubernetes inventory — each cluster is a container-orchestration boundary a workspace is authorized to operate within, governed for security posture, compliance, workload isolation and GitOps across all supported distributions."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search Kubernetes clusters — cluster name, workspace, cloud provider, region, owner, environment, labels…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search Kubernetes clusters — cluster name, workspace, cloud provider, region, owner, environment, labels…"
+        count={rows.length}
+        pills={[
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "clusterType",
+            label: "Cluster Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.clusterType)),
+          },
+          {
+            key: "cloudProvider",
+            label: "Cloud Provider",
+            value: fProvider,
+            onChange: setFProvider,
+            options: facet(records.map((r) => r.provider)),
+          },
+          {
+            key: "region",
+            label: "Region",
+            value: fRegion,
+            onChange: setFRegion,
+            options: facet(records.map((r) => r.region)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "version",
+            label: "Version",
+            value: fVersion,
+            onChange: setFVersion,
+            options: facet(records.map((r) => r.version)),
+          },
+        ]}
+        presets={[{ label: "All kubernetes clusters", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "nodes", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
+              Synchronize ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Boxes size={13} />} onClick={clear}>
+              Inventory
+            </HeaderButton>
+            <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
+              Compliance Scan
+            </HeaderButton>
+            <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
+              Health Check
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Assign Workspace", onClick: () => setSelId(r.id) },
+              { label: "Discover Resources", onClick: () => setSelId(r.id) },
+              { label: "Health Check", onClick: () => setSelId(r.id) },
+              { label: "Compliance", onClick: () => setSelId(r.id) },
+              { label: "Security Findings", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              {
+                label: "Disconnect",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+            ]}
           />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Server size={20} />}
+            title="No Kubernetes clusters have been connected."
+            hint="Connect a Kubernetes cluster to bring its workloads under enterprise governance and authorize workspaces to operate within it."
+            cta="Connect Kubernetes Cluster"
+            onCta={() =>
+              navigate("/admin/workspace-governance?tab=inheritance")
+            }
           />
-          <Select
-            label="Cluster Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.clusterType))}
-          />
-          <Select
-            label="Cloud Provider"
-            value={fProvider}
-            onChange={setFProvider}
-            options={facet(records.map((r) => r.provider))}
-          />
-          <Select
-            label="Region"
-            value={fRegion}
-            onChange={setFRegion}
-            options={facet(records.map((r) => r.region))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Version"
-            value={fVersion}
-            onChange={setFVersion}
-            options={facet(records.map((r) => r.version))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "nodes", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
-                Synchronize ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Boxes size={13} />} onClick={clear}>
-                Inventory
-              </HeaderButton>
-              <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
-                Compliance Scan
-              </HeaderButton>
-              <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
-                Health Check
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Assign Workspace", onClick: () => setSelId(r.id) },
-                { label: "Discover Resources", onClick: () => setSelId(r.id) },
-                { label: "Health Check", onClick: () => setSelId(r.id) },
-                { label: "Compliance", onClick: () => setSelId(r.id) },
-                { label: "Security Findings", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                {
-                  label: "Disconnect",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Server size={20} />}
-              title="No Kubernetes clusters have been connected."
-              hint="Connect a Kubernetes cluster to bring its workloads under enterprise governance and authorize workspaces to operate within it."
-              cta="Connect Kubernetes Cluster"
-              onCta={() =>
-                navigate("/admin/workspace-governance?tab=inheritance")
-              }
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <ClusterDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

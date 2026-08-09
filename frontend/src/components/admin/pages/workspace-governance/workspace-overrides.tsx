@@ -27,13 +27,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -48,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Workspace Overrides — approved DEVIATIONS from inherited enterprise governance for an individual
@@ -327,6 +326,14 @@ export function WorkspaceOverridesView() {
   const [fApproval, setFApproval] = React.useState("");
   const [fRisk, setFRisk] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_OVERRIDES;
   const rows = records.filter((r) => {
@@ -346,15 +353,6 @@ export function WorkspaceOverridesView() {
       (!fRisk || r.risk === fRisk)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fType ||
-    fCat ||
-    fEnv ||
-    fApproval ||
-    fRisk
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -593,111 +591,113 @@ export function WorkspaceOverridesView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Workspace overrides"
         desc="Workspace Overrides provide controlled flexibility within a governed environment — approved deviations from the inherited baseline, each with a business justification, risk assessment, approval workflow, expiration and audit record."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search workspace overrides — override name, workspace, configuration, policy, reason, business unit…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search workspace overrides — override name, workspace, configuration, policy, reason, business unit…"
+        count={rows.length}
+        pills={[
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "overrideType",
+            label: "Override Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.overrideType)),
+          },
+          {
+            key: "category",
+            label: "Category",
+            value: fCat,
+            onChange: setFCat,
+            options: facet(records.map((r) => r.category)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "approvalStatus",
+            label: "Approval Status",
+            value: fApproval,
+            onChange: setFApproval,
+            options: facet(records.map((r) => r.approval)),
+          },
+          {
+            key: "riskLevel",
+            label: "Risk Level",
+            value: fRisk,
+            onChange: setFRisk,
+            options: facet(records.map((r) => r.risk)),
+          },
+        ]}
+        presets={[{ label: "All workspace overrides", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "status", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+              Approve ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Trash2 size={13} />} onClick={clear}>
+              Reject
+            </HeaderButton>
+            <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
+              Expire
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Undo2 size={13} />} onClick={clear}>
+              Restore Baseline
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Approve", onClick: () => setSelId(r.id) },
+              { label: "Reject", onClick: () => setSelId(r.id) },
+              { label: "Duplicate", onClick: () => {} },
+              { label: "Restore Baseline", onClick: () => setSelId(r.id) },
+              { label: "Expire", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+            ]}
           />
-          <Select
-            label="Override Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.overrideType))}
+        )}
+        empty={
+          <EmptyState
+            icon={<SlidersHorizontal size={20} />}
+            title="No workspace overrides configured."
+            hint="Create a governed, risk-assessed deviation from the inherited enterprise baseline for an individual workspace."
+            cta="Create Workspace Override"
+            onCta={() =>
+              navigate("/admin/workspace-governance?tab=inheritance")
+            }
           />
-          <Select
-            label="Category"
-            value={fCat}
-            onChange={setFCat}
-            options={facet(records.map((r) => r.category))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Approval Status"
-            value={fApproval}
-            onChange={setFApproval}
-            options={facet(records.map((r) => r.approval))}
-          />
-          <Select
-            label="Risk Level"
-            value={fRisk}
-            onChange={setFRisk}
-            options={facet(records.map((r) => r.risk))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "status", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
-                Approve ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Trash2 size={13} />} onClick={clear}>
-                Reject
-              </HeaderButton>
-              <HeaderButton icon={<CalendarClock size={13} />} onClick={clear}>
-                Expire
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Undo2 size={13} />} onClick={clear}>
-                Restore Baseline
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Approve", onClick: () => setSelId(r.id) },
-                { label: "Reject", onClick: () => setSelId(r.id) },
-                { label: "Duplicate", onClick: () => {} },
-                { label: "Restore Baseline", onClick: () => setSelId(r.id) },
-                { label: "Expire", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<SlidersHorizontal size={20} />}
-              title="No workspace overrides configured."
-              hint="Create a governed, risk-assessed deviation from the inherited enterprise baseline for an individual workspace."
-              cta="Create Workspace Override"
-              onCta={() =>
-                navigate("/admin/workspace-governance?tab=inheritance")
-              }
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <OverrideDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

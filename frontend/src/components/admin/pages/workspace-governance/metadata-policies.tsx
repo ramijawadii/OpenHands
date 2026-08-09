@@ -25,13 +25,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -45,6 +42,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Metadata Policies — the enterprise standards for workspace METADATA (what descriptive information a
@@ -225,6 +224,14 @@ export function MetadataPoliciesView() {
   const [fInherit, setFInherit] = React.useState("");
   const [fVersion, setFVersion] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_POLICIES;
   const rows = records.filter((r) => {
@@ -243,16 +250,6 @@ export function MetadataPoliciesView() {
       (!fVersion || r.version === fVersion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fStatus ||
-    fPriority ||
-    fBu ||
-    fType ||
-    fEnv ||
-    fInherit ||
-    fVersion
-  );
   const clearFilters = () => {
     setSearch("");
     setFStatus("");
@@ -498,121 +495,124 @@ export function MetadataPoliciesView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Metadata policies"
         desc="Metadata Policies govern what descriptive information a workspace must contain — ensuring every workspace is consistently identified, classified, searchable, governed and reportable."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search metadata policies — name, description, metadata field, workspace, tags, business unit…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Workspace Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.workspaceType))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Inheritance"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search metadata policies — name, description, metadata field, workspace, tags, business unit…"
+        count={rows.length}
+        pills={[
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "workspaceType",
+            label: "Workspace Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.workspaceType)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "inheritance",
+            label: "Inheritance",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "inherited", label: "Inherited" },
               { value: "direct", label: "Direct" },
+            ],
+          },
+          {
+            key: "version",
+            label: "Version",
+            value: fVersion,
+            onChange: setFVersion,
+            options: facet(records.map((r) => r.version)),
+          },
+        ]}
+        presets={[{ label: "All metadata policies", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "priority", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+              Enable
+            </HeaderButton>
+            <HeaderButton onClick={clear}>Disable</HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Duplicate", onClick: () => {} },
+              { label: "Assign", onClick: () => setSelId(r.id) },
+              { label: "Preview Evaluation", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              { label: "Archive", onClick: () => setSelId(r.id) },
+              {
+                label: "Delete",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
             ]}
           />
-          <Select
-            label="Version"
-            value={fVersion}
-            onChange={setFVersion}
-            options={facet(records.map((r) => r.version))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Tags size={20} />}
+            title="No metadata policies found."
+            hint="Create a metadata policy to enforce mandatory metadata standards, validation rules and classification requirements across workspaces."
+            cta="Create Metadata Policy"
+            onCta={() => navigate("/admin/workspace-governance?tab=policies")}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "priority", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
-                Enable
-              </HeaderButton>
-              <HeaderButton onClick={clear}>Disable</HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Duplicate", onClick: () => {} },
-                { label: "Assign", onClick: () => setSelId(r.id) },
-                { label: "Preview Evaluation", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                { label: "Archive", onClick: () => setSelId(r.id) },
-                {
-                  label: "Delete",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Tags size={20} />}
-              title="No metadata policies found."
-              hint="Create a metadata policy to enforce mandatory metadata standards, validation rules and classification requirements across workspaces."
-              cta="Create Metadata Policy"
-              onCta={() => navigate("/admin/workspace-governance?tab=policies")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <PolicyDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

@@ -26,13 +26,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -46,6 +43,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Policy Assignments — the central policy-orchestration layer: how governance policies attach to
@@ -251,6 +250,14 @@ export function PolicyAssignmentsView() {
   const [fPriority, setFPriority] = React.useState("");
   const [fVersion, setFVersion] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_ASSIGNMENTS;
   const rows = records.filter((r) => {
@@ -270,16 +277,6 @@ export function PolicyAssignmentsView() {
       (!fVersion || r.version === fVersion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fScope ||
-    fStatus ||
-    fBu ||
-    fInherit ||
-    fPriority ||
-    fVersion
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -510,125 +507,128 @@ export function PolicyAssignmentsView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="Policy assignments"
         desc="Policy Assignments bind governance policies to organizational entities and resolve inheritance, precedence, overrides and exceptions into the effective policy set the Policy Engine enforces."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search policy assignments — policy, workspace, business unit, assignment, policy type, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Policy Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.type))}
-          />
-          <Select
-            label="Assignment Scope"
-            value={fScope}
-            onChange={setFScope}
-            options={facet(records.map((r) => r.scope))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Inheritance"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search policy assignments — policy, workspace, business unit, assignment, policy type, tags…"
+        count={rows.length}
+        pills={[
+          {
+            key: "policyType",
+            label: "Policy Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.type)),
+          },
+          {
+            key: "assignmentScope",
+            label: "Assignment Scope",
+            value: fScope,
+            onChange: setFScope,
+            options: facet(records.map((r) => r.scope)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "inheritance",
+            label: "Inheritance",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "inherited", label: "Inherited" },
               { value: "direct", label: "Direct" },
+            ],
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "version",
+            label: "Version",
+            value: fVersion,
+            onChange: setFVersion,
+            options: facet(records.map((r) => r.version)),
+          },
+        ]}
+        presets={[{ label: "All policy assignments", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "priority", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Plus size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<Trash2 size={13} />} onClick={clear}>
+              Remove
+            </HeaderButton>
+            <HeaderButton icon={<Move size={13} />} onClick={clear}>
+              Move
+            </HeaderButton>
+            <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+              Validate
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Reassign", onClick: () => setSelId(r.id) },
+              {
+                label: "Preview Effective Policy",
+                onClick: () => setSelId(r.id),
+              },
+              { label: "View Inheritance", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              {
+                label: "Remove",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
             ]}
           />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
+        )}
+        empty={
+          <EmptyState
+            icon={<ListChecks size={20} />}
+            title="No policy assignments found."
+            hint="Assign a governance policy to an organization, business unit or workspace to begin building the effective policy set."
+            cta="Assign Policy"
+            onCta={() => navigate("/admin/workspace-governance?tab=policies")}
           />
-          <Select
-            label="Version"
-            value={fVersion}
-            onChange={setFVersion}
-            options={facet(records.map((r) => r.version))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "priority", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<Plus size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<Trash2 size={13} />} onClick={clear}>
-                Remove
-              </HeaderButton>
-              <HeaderButton icon={<Move size={13} />} onClick={clear}>
-                Move
-              </HeaderButton>
-              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
-                Validate
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Reassign", onClick: () => setSelId(r.id) },
-                {
-                  label: "Preview Effective Policy",
-                  onClick: () => setSelId(r.id),
-                },
-                { label: "View Inheritance", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                {
-                  label: "Remove",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<ListChecks size={20} />}
-              title="No policy assignments found."
-              hint="Assign a governance policy to an organization, business unit or workspace to begin building the effective policy set."
-              cta="Assign Policy"
-              onCta={() => navigate("/admin/workspace-governance?tab=policies")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <AssignmentDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

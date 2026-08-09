@@ -28,13 +28,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -48,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Shared Resources — the governance layer for enterprise resources intentionally shared across multiple
@@ -78,16 +77,63 @@ type Health = "Healthy" | "Degraded" | "Down";
 type Status = "Active" | "Maintenance" | "Archived";
 type Environment = "Production" | "Pre-production" | "Development" | "Shared";
 
-const RES_TYPES: ResType[] = ["OpenSearch", "Kubernetes Cluster", "VPC", "Database", "Redis", "Kafka", "Vault", "Container Registry", "API Gateway", "Identity Provider", "AI Gateway", "Cloud Account"];
-const PLATFORMS: Platform[] = ["AWS", "Azure", "GCP", "Kubernetes", "On-Premises"];
-const ENVIRONMENTS: Environment[] = ["Production", "Pre-production", "Development", "Shared"];
-const BUSINESS_UNITS = ["Finance", "Engineering", "Operations", "Retail", "Corporate"];
-const WORKSPACES = ["Payments", "Retail Web", "Data Lake", "Identity", "Analytics", "Mobile API", "Billing", "Support"];
-const OWNERS = ["Platform Team", "Cloud Team", "Security Team", "Data Team", "SRE Team"];
-const FRAMEWORKS = ["ISO 27001", "SOC 2", "PCI DSS", "HIPAA", "NIST", "CSA CCM", "CIS Benchmarks"];
+const PLATFORMS: Platform[] = [
+  "AWS",
+  "Azure",
+  "GCP",
+  "Kubernetes",
+  "On-Premises",
+];
+const ENVIRONMENTS: Environment[] = [
+  "Production",
+  "Pre-production",
+  "Development",
+  "Shared",
+];
+const BUSINESS_UNITS = [
+  "Finance",
+  "Engineering",
+  "Operations",
+  "Retail",
+  "Corporate",
+];
+const WORKSPACES = [
+  "Payments",
+  "Retail Web",
+  "Data Lake",
+  "Identity",
+  "Analytics",
+  "Mobile API",
+  "Billing",
+  "Support",
+];
+const OWNERS = [
+  "Platform Team",
+  "Cloud Team",
+  "Security Team",
+  "Data Team",
+  "SRE Team",
+];
+const FRAMEWORKS = [
+  "ISO 27001",
+  "SOC 2",
+  "PCI DSS",
+  "HIPAA",
+  "NIST",
+  "CSA CCM",
+  "CIS Benchmarks",
+];
 
-const HEALTH_TONE: Record<Health, string> = { Healthy: T.success, Degraded: T.warning, Down: T.danger };
-const STATUS_TONE: Record<Status, string> = { Active: T.success, Maintenance: T.warning, Archived: T.textMuted };
+const HEALTH_TONE: Record<Health, string> = {
+  Healthy: T.success,
+  Degraded: T.warning,
+  Down: T.danger,
+};
+const STATUS_TONE: Record<Status, string> = {
+  Active: T.success,
+  Maintenance: T.warning,
+  Archived: T.textMuted,
+};
 
 function hashId(id: string): number {
   let n = 0;
@@ -137,8 +183,14 @@ const RES_SEED: { name: string; type: ResType }[] = [
 const SAMPLE_SHARED: Shared[] = RES_SEED.map(({ name, type }, i) => {
   const id = `SH-${(1000 + i * 7).toString().padStart(5, "0")}`;
   const n = hashId(id + name);
-  const health = pick<Health>(["Healthy", "Healthy", "Healthy", "Degraded", "Down"], n);
-  const status = pick<Status>(["Active", "Active", "Active", "Maintenance", "Archived"], n);
+  const health = pick<Health>(
+    ["Healthy", "Healthy", "Healthy", "Degraded", "Down"],
+    n,
+  );
+  const status = pick<Status>(
+    ["Active", "Active", "Active", "Maintenance", "Archived"],
+    n,
+  );
   return {
     id,
     name,
@@ -163,8 +215,12 @@ const SAMPLE_SHARED: Shared[] = RES_SEED.map(({ name, type }, i) => {
 function HealthBadge({ health }: { health: Health }) {
   const c = HEALTH_TONE[health];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: c }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: c }} />
+    <span
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, color: c }}
+    >
+      <span
+        style={{ width: 7, height: 7, borderRadius: "50%", background: c }}
+      />
       {health}
     </span>
   );
@@ -172,8 +228,12 @@ function HealthBadge({ health }: { health: Health }) {
 function StatusBadge({ status }: { status: Status }) {
   const c = STATUS_TONE[status];
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: c }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: c }} />
+    <span
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, color: c }}
+    >
+      <span
+        style={{ width: 7, height: 7, borderRadius: "50%", background: c }}
+      />
       {status}
     </span>
   );
@@ -190,6 +250,14 @@ export function SharedResourcesView() {
   const [fStatus, setFStatus] = React.useState("");
   const [fHealth, setFHealth] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_SHARED;
   const rows = records.filter((r) => {
@@ -209,7 +277,6 @@ export function SharedResourcesView() {
       (!fHealth || r.health === fHealth)
     );
   });
-  const hasFilters = !!(search || fType || fWs || fOwner || fEnv || fPlatform || fStatus || fHealth);
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -223,32 +290,102 @@ export function SharedResourcesView() {
   const sel = records.find((r) => r.id === selId) ?? null;
   const facet = (vals: string[]) => [
     { value: "", label: "All" },
-    ...Array.from(new Set(vals)).sort().map((v) => ({ value: v, label: v })),
+    ...Array.from(new Set(vals))
+      .sort()
+      .map((v) => ({ value: v, label: v })),
   ];
 
   // KPI Summary (spec §KPI Summary).
   const sharedCount = records.length;
-  const connectedWorkspaces = records.reduce((a, r) => Math.max(a, r.connectedWorkspaces), 0);
+  const connectedWorkspaces = records.reduce(
+    (a, r) => Math.max(a, r.connectedWorkspaces),
+    0,
+  );
   const consumers = records.reduce((a, r) => a + r.consumers, 0);
   const sharedPlatforms = new Set(records.map((r) => r.platform)).size;
   const sharedNetworks = records.filter((r) => r.type === "VPC").length;
   const securityFindings = records.reduce((a, r) => a + r.securityFindings, 0);
-  const complianceScore = Math.round(records.reduce((a, r) => a + r.complianceScore, 0) / records.length);
-  const healthy = Math.round((records.filter((r) => r.health === "Healthy").length / records.length) * 100);
+  const complianceScore = Math.round(
+    records.reduce((a, r) => a + r.complianceScore, 0) / records.length,
+  );
+  const healthy = Math.round(
+    (records.filter((r) => r.health === "Healthy").length / records.length) *
+      100,
+  );
 
   const toolbar: CommandItem[] = [
-    { key: "register", label: "Register Resource", icon: <Plus size={15} />, onClick: () => navigate("/admin/workspace-governance?tab=inheritance") },
-    { key: "request", label: "Request Shared Resource", icon: <Send size={15} />, disabled: true },
-    { key: "import", label: "Import", icon: <Upload size={15} />, disabled: true },
-    { key: "refresh", label: "Refresh Inventory", icon: <RefreshCcw size={15} />, onClick: () => setSelId(null) },
-    { key: "export", label: "Export", icon: <Download size={15} />, disabled: true },
-    { key: "consumers", label: "Assign Consumers", icon: <UserPlus size={15} />, disabled: true },
-    { key: "owner", label: "Assign Owner", icon: <Users size={15} />, disabled: true },
-    { key: "validate", label: "Validate Policies", icon: <ClipboardCheck size={15} />, disabled: true },
-    { key: "scan", label: "Run Compliance Scan", icon: <ScanLine size={15} />, disabled: true },
-    { key: "health", label: "Health Check", icon: <HeartPulse size={15} />, disabled: true },
-    { key: "report", label: "Generate Report", icon: <FileText size={15} />, disabled: true },
-    { key: "discover", label: "Discover Resources", icon: <SearchIcon size={15} />, disabled: true },
+    {
+      key: "register",
+      label: "Register Resource",
+      icon: <Plus size={15} />,
+      onClick: () => navigate("/admin/workspace-governance?tab=inheritance"),
+    },
+    {
+      key: "request",
+      label: "Request Shared Resource",
+      icon: <Send size={15} />,
+      disabled: true,
+    },
+    {
+      key: "import",
+      label: "Import",
+      icon: <Upload size={15} />,
+      disabled: true,
+    },
+    {
+      key: "refresh",
+      label: "Refresh Inventory",
+      icon: <RefreshCcw size={15} />,
+      onClick: () => setSelId(null),
+    },
+    {
+      key: "export",
+      label: "Export",
+      icon: <Download size={15} />,
+      disabled: true,
+    },
+    {
+      key: "consumers",
+      label: "Assign Consumers",
+      icon: <UserPlus size={15} />,
+      disabled: true,
+    },
+    {
+      key: "owner",
+      label: "Assign Owner",
+      icon: <Users size={15} />,
+      disabled: true,
+    },
+    {
+      key: "validate",
+      label: "Validate Policies",
+      icon: <ClipboardCheck size={15} />,
+      disabled: true,
+    },
+    {
+      key: "scan",
+      label: "Run Compliance Scan",
+      icon: <ScanLine size={15} />,
+      disabled: true,
+    },
+    {
+      key: "health",
+      label: "Health Check",
+      icon: <HeartPulse size={15} />,
+      disabled: true,
+    },
+    {
+      key: "report",
+      label: "Generate Report",
+      icon: <FileText size={15} />,
+      disabled: true,
+    },
+    {
+      key: "discover",
+      label: "Discover Resources",
+      icon: <SearchIcon size={15} />,
+      disabled: true,
+    },
   ];
 
   const cols: Column<Shared>[] = [
@@ -257,99 +394,263 @@ export function SharedResourcesView() {
       header: "Resource",
       sortValue: (r) => r.name,
       render: (r) => (
-        <span style={{ color: T.textPrimary, display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            color: T.textPrimary,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
           <Share2 size={13} color={T.textMuted} />
           {r.name}
         </span>
       ),
     },
-    { key: "type", header: "Type", sortValue: (r) => r.type, render: (r) => r.type },
-    { key: "owner", header: "Owner", sortValue: (r) => r.owner, render: (r) => r.owner },
-    { key: "consumers", header: "Consumers", sortValue: (r) => r.consumers, render: (r) => r.consumers },
-    { key: "platform", header: "Platform", sortValue: (r) => r.platform, render: (r) => r.platform },
-    { key: "environment", header: "Environment", sortValue: (r) => r.environment, render: (r) => r.environment },
-    { key: "health", header: "Health", sortValue: (r) => r.health, render: (r) => <HealthBadge health={r.health} /> },
-    { key: "status", header: "Status", sortValue: (r) => r.status, render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: "type",
+      header: "Type",
+      sortValue: (r) => r.type,
+      render: (r) => r.type,
+    },
+    {
+      key: "owner",
+      header: "Owner",
+      sortValue: (r) => r.owner,
+      render: (r) => r.owner,
+    },
+    {
+      key: "consumers",
+      header: "Consumers",
+      sortValue: (r) => r.consumers,
+      render: (r) => r.consumers,
+    },
+    {
+      key: "platform",
+      header: "Platform",
+      sortValue: (r) => r.platform,
+      render: (r) => r.platform,
+    },
+    {
+      key: "environment",
+      header: "Environment",
+      sortValue: (r) => r.environment,
+      render: (r) => r.environment,
+    },
+    {
+      key: "health",
+      header: "Health",
+      sortValue: (r) => r.health,
+      render: (r) => <HealthBadge health={r.health} />,
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortValue: (r) => r.status,
+      render: (r) => <StatusBadge status={r.status} />,
+    },
   ];
 
   return (
     <>
       <PostureGrid>
-        <PostureCard title="Shared Resources" value={sharedCount} tone="ok" sub={<>Registered enterprise-wide <SampleTag /></>} />
-        <PostureCard title="Connected Workspaces" value={connectedWorkspaces} tone="ok" sub={<>Consuming a resource <SampleTag /></>} />
-        <PostureCard title="Consumers" value={consumers} tone="ok" sub={<>Total consumer bindings <SampleTag /></>} />
-        <PostureCard title="Shared Platforms" value={sharedPlatforms} tone="ok" sub={<>Provider platforms <SampleTag /></>} />
-        <PostureCard title="Shared Networks" value={sharedNetworks} tone="ok" sub={<>Shared VPCs/networks <SampleTag /></>} />
-        <PostureCard title="Security Findings" value={securityFindings} tone={securityFindings > 0 ? "warn" : "ok"} sub={<>Across shared assets <SampleTag /></>} />
-        <PostureCard title="Compliance Score" value={`${complianceScore}%`} tone={complianceScore >= 85 ? "ok" : "warn"} sub={<>Average across resources <SampleTag /></>} />
-        <PostureCard title="Resource Health" value={`${healthy}%`} tone={healthy >= 90 ? "ok" : "warn"} sub={<>Healthy resources <SampleTag /></>} />
-      </PostureGrid>
-
-      <Card
-        title="Shared resources"
-        desc="Manage enterprise resources shared across multiple workspaces while enforcing ownership, governance, security, compliance and operational boundaries."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search shared resources — name, resource ID, owner, workspace, platform, tags, environment…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select label="Resource Type" value={fType} onChange={setFType} options={facet(records.map((r) => r.type))} />
-          <Select label="Business Unit" value={fWs} onChange={setFWs} options={facet(records.map((r) => r.businessUnit))} />
-          <Select label="Owner" value={fOwner} onChange={setFOwner} options={facet(records.map((r) => r.owner))} />
-          <Select label="Environment" value={fEnv} onChange={setFEnv} options={facet(records.map((r) => r.environment))} />
-          <Select label="Platform" value={fPlatform} onChange={setFPlatform} options={facet(records.map((r) => r.platform))} />
-          <Select label="Status" value={fStatus} onChange={setFStatus} options={facet(records.map((r) => r.status))} />
-          <Select label="Health" value={fHealth} onChange={setFHealth} options={facet(records.map((r) => r.health))} />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "consumers", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
+        <PostureCard
+          title="Shared Resources"
+          value={sharedCount}
+          tone="ok"
+          sub={
             <>
-              <HeaderButton icon={<Users size={13} />} onClick={clear}>Assign Owner ({ids.length})</HeaderButton>
-              <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>Synchronize</HeaderButton>
-              <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>Health Check</HeaderButton>
-              <HeaderButton icon={<ScanLine size={13} />} onClick={clear}>Compliance Scan</HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>Export</HeaderButton>
+              Registered enterprise-wide <SampleTag />
             </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Assign Consumers", onClick: () => setSelId(r.id) },
-                { label: "View Dependencies", onClick: () => setSelId(r.id) },
-                { label: "Health Check", onClick: () => setSelId(r.id) },
-                { label: "Compliance", onClick: () => setSelId(r.id) },
-                { label: "Security Findings", onClick: () => setSelId(r.id) },
-                { label: "Archive", onClick: () => {} },
-                { label: "Export", onClick: () => {} },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Share2 size={20} />}
-              title="No shared resources have been registered."
-              hint="Register a shared resource to govern enterprise assets consumed across multiple workspaces with centralized ownership and access control."
-              cta="Register Shared Resource"
-              onCta={() => navigate("/admin/workspace-governance?tab=inheritance")}
-            />
           }
         />
-      </Card>
+        <PostureCard
+          title="Connected Workspaces"
+          value={connectedWorkspaces}
+          tone="ok"
+          sub={
+            <>
+              Consuming a resource <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Consumers"
+          value={consumers}
+          tone="ok"
+          sub={
+            <>
+              Total consumer bindings <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Shared Platforms"
+          value={sharedPlatforms}
+          tone="ok"
+          sub={
+            <>
+              Provider platforms <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Shared Networks"
+          value={sharedNetworks}
+          tone="ok"
+          sub={
+            <>
+              Shared VPCs/networks <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Security Findings"
+          value={securityFindings}
+          tone={securityFindings > 0 ? "warn" : "ok"}
+          sub={
+            <>
+              Across shared assets <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Compliance Score"
+          value={`${complianceScore}%`}
+          tone={complianceScore >= 85 ? "ok" : "warn"}
+          sub={
+            <>
+              Average across resources <SampleTag />
+            </>
+          }
+        />
+        <PostureCard
+          title="Resource Health"
+          value={`${healthy}%`}
+          tone={healthy >= 90 ? "ok" : "warn"}
+          sub={
+            <>
+              Healthy resources <SampleTag />
+            </>
+          }
+        />
+      </PostureGrid>
+
+      <DiscoveryListView
+        title="Shared resources"
+        desc="Manage enterprise resources shared across multiple workspaces while enforcing ownership, governance, security, compliance and operational boundaries."
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search shared resources — name, resource ID, owner, workspace, platform, tags, environment…"
+        count={rows.length}
+        pills={[
+          {
+            key: "resourceType",
+            label: "Resource Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.type)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fWs,
+            onChange: setFWs,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "owner",
+            label: "Owner",
+            value: fOwner,
+            onChange: setFOwner,
+            options: facet(records.map((r) => r.owner)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "platform",
+            label: "Platform",
+            value: fPlatform,
+            onChange: setFPlatform,
+            options: facet(records.map((r) => r.platform)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "health",
+            label: "Health",
+            value: fHealth,
+            onChange: setFHealth,
+            options: facet(records.map((r) => r.health)),
+          },
+        ]}
+        presets={[{ label: "All shared resources", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "consumers", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<Users size={13} />} onClick={clear}>
+              Assign Owner ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
+              Synchronize
+            </HeaderButton>
+            <HeaderButton icon={<HeartPulse size={13} />} onClick={clear}>
+              Health Check
+            </HeaderButton>
+            <HeaderButton icon={<ScanLine size={13} />} onClick={clear}>
+              Compliance Scan
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Assign Consumers", onClick: () => setSelId(r.id) },
+              { label: "View Dependencies", onClick: () => setSelId(r.id) },
+              { label: "Health Check", onClick: () => setSelId(r.id) },
+              { label: "Compliance", onClick: () => setSelId(r.id) },
+              { label: "Security Findings", onClick: () => setSelId(r.id) },
+              { label: "Archive", onClick: () => {} },
+              { label: "Export", onClick: () => {} },
+            ]}
+          />
+        )}
+        empty={
+          <EmptyState
+            icon={<Share2 size={20} />}
+            title="No shared resources have been registered."
+            hint="Register a shared resource to govern enterprise assets consumed across multiple workspaces with centralized ownership and access control."
+            cta="Register Shared Resource"
+            onCta={() =>
+              navigate("/admin/workspace-governance?tab=inheritance")
+            }
+          />
+        }
+      />
 
       {sel && <SharedDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
@@ -366,7 +667,13 @@ export function SharedResourcesPage() {
         actions={
           <>
             <ScopeBadge scope="Organization" />
-            <HeaderButton variant="primary" icon={<Plus size={14} />} onClick={() => navigate("/admin/workspace-governance?tab=inheritance")}>
+            <HeaderButton
+              variant="primary"
+              icon={<Plus size={14} />}
+              onClick={() =>
+                navigate("/admin/workspace-governance?tab=inheritance")
+              }
+            >
               Register Resource
             </HeaderButton>
           </>
@@ -377,10 +684,30 @@ export function SharedResourcesPage() {
   );
 }
 
-function Section({ title, children, sample }: { title: string; children: React.ReactNode; sample?: boolean }) {
+function Section({
+  title,
+  children,
+  sample,
+}: {
+  title: string;
+  children: React.ReactNode;
+  sample?: boolean;
+}) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 6,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         {title}
         {sample && <SampleTag />}
       </div>
@@ -414,10 +741,24 @@ function SharedDrawer({ rec, onClose }: { rec: Shared; onClose: () => void }) {
       width={840}
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", width: "100%" }}>
-          <HeaderButton icon={<UserPlus size={13} />}>Assign Consumers</HeaderButton>
-          <HeaderButton icon={<HeartPulse size={13} />}>Health Check</HeaderButton>
-          <HeaderButton variant="primary" icon={<Download size={13} />}>Export</HeaderButton>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+            width: "100%",
+          }}
+        >
+          <HeaderButton icon={<UserPlus size={13} />}>
+            Assign Consumers
+          </HeaderButton>
+          <HeaderButton icon={<HeartPulse size={13} />}>
+            Health Check
+          </HeaderButton>
+          <HeaderButton variant="primary" icon={<Download size={13} />}>
+            Export
+          </HeaderButton>
         </div>
       }
     >
@@ -467,10 +808,18 @@ function OverviewTab({ rec }: { rec: Shared }) {
             cols={3}
             items={[
               { k: "Consumers", v: rec.consumers, sample: true },
-              { k: "Connected Workspaces", v: rec.connectedWorkspaces, sample: true },
+              {
+                k: "Connected Workspaces",
+                v: rec.connectedWorkspaces,
+                sample: true,
+              },
               { k: "Dependencies", v: rec.dependencies, sample: true },
               { k: "Availability", v: `${rec.availability}%`, sample: true },
-              { k: "Compliance Score", v: `${rec.complianceScore}%`, sample: true },
+              {
+                k: "Compliance Score",
+                v: `${rec.complianceScore}%`,
+                sample: true,
+              },
               { k: "Security Findings", v: rec.securityFindings, sample: true },
               { k: "Incidents", v: rec.incidents, sample: true },
             ]}
@@ -482,30 +831,56 @@ function OverviewTab({ rec }: { rec: Shared }) {
 }
 
 function ConsumersTab({ rec }: { rec: Shared }) {
-  const list = Array.from({ length: Math.min(8, rec.connectedWorkspaces) }, (_, i) => {
-    const m = hashId(`${rec.id}-c-${i}`);
-    return {
-      id: `${rec.id}-c-${i}`,
-      workspace: pick(WORKSPACES, m),
-      businessUnit: pick(BUSINESS_UNITS, m),
-      accessLevel: pick(["Read", "Read/Write", "Admin"], m),
-      purpose: pick(["Logging", "Storage", "Compute", "Messaging", "Identity"], m),
-      status: pick(["Active", "Active", "Suspended"], m),
-    };
-  });
+  const list = Array.from(
+    { length: Math.min(8, rec.connectedWorkspaces) },
+    (_, i) => {
+      const m = hashId(`${rec.id}-c-${i}`);
+      return {
+        id: `${rec.id}-c-${i}`,
+        workspace: pick(WORKSPACES, m),
+        businessUnit: pick(BUSINESS_UNITS, m),
+        accessLevel: pick(["Read", "Read/Write", "Admin"], m),
+        purpose: pick(
+          ["Logging", "Storage", "Compute", "Messaging", "Identity"],
+          m,
+        ),
+        status: pick(["Active", "Active", "Suspended"], m),
+      };
+    },
+  );
   const cols: Column<(typeof list)[number]>[] = [
     { key: "workspace", header: "Workspace", render: (r) => r.workspace },
-    { key: "businessUnit", header: "Business Unit", render: (r) => r.businessUnit },
-    { key: "accessLevel", header: "Access Level", render: (r) => r.accessLevel },
+    {
+      key: "businessUnit",
+      header: "Business Unit",
+      render: (r) => r.businessUnit,
+    },
+    {
+      key: "accessLevel",
+      header: "Access Level",
+      render: (r) => r.accessLevel,
+    },
     { key: "purpose", header: "Purpose", render: (r) => r.purpose },
     { key: "status", header: "Status", render: (r) => r.status },
   ];
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
         <HeaderButton icon={<UserPlus size={13} />}>Add Consumer</HeaderButton>
-        <HeaderButton variant="danger" icon={<UserMinus size={13} />}>Remove Consumer</HeaderButton>
-        <HeaderButton icon={<Users size={13} />}>Transfer Ownership</HeaderButton>
+        <HeaderButton variant="danger" icon={<UserMinus size={13} />}>
+          Remove Consumer
+        </HeaderButton>
+        <HeaderButton icon={<Users size={13} />}>
+          Transfer Ownership
+        </HeaderButton>
         <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -519,10 +894,25 @@ function DetailsTab({ rec }: { rec: Shared }) {
       <KVGrid
         items={[
           { k: "Configuration", v: `${rec.type} cluster`, sample: true },
-          { k: "Capacity", v: `${20 + (hashId(rec.id) % 80)} nodes`, sample: true },
-          { k: "Version", v: `v${1 + (hashId(rec.id) % 9)}.${hashId(rec.id) % 9}`, sample: true },
+          {
+            k: "Capacity",
+            v: `${20 + (hashId(rec.id) % 80)} nodes`,
+            sample: true,
+          },
+          {
+            k: "Version",
+            v: `v${1 + (hashId(rec.id) % 9)}.${hashId(rec.id) % 9}`,
+            sample: true,
+          },
           { k: "Provider", v: rec.platform, sample: true },
-          { k: "Location", v: pick(["eu-west-1", "us-east-1", "eu-central-1", "westeurope"], hashId(rec.id)), sample: true },
+          {
+            k: "Location",
+            v: pick(
+              ["eu-west-1", "us-east-1", "eu-central-1", "westeurope"],
+              hashId(rec.id),
+            ),
+            sample: true,
+          },
         ]}
       />
     </Section>
@@ -532,19 +922,43 @@ function DetailsTab({ rec }: { rec: Shared }) {
 function AccessTab({ rec }: { rec: Shared }) {
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
         <HeaderButton icon={<KeyRound size={13} />}>Grant Access</HeaderButton>
-        <HeaderButton variant="danger" icon={<UserMinus size={13} />}>Revoke Access</HeaderButton>
-        <HeaderButton icon={<ClipboardCheck size={13} />}>Review Access</HeaderButton>
+        <HeaderButton variant="danger" icon={<UserMinus size={13} />}>
+          Revoke Access
+        </HeaderButton>
+        <HeaderButton icon={<ClipboardCheck size={13} />}>
+          Review Access
+        </HeaderButton>
         <SampleTag />
       </div>
       <Section title="Access control" sample>
-        <StatRow label="Authorized Workspaces" value={rec.connectedWorkspaces} sample />
+        <StatRow
+          label="Authorized Workspaces"
+          value={rec.connectedWorkspaces}
+          sample
+        />
         <StatRow label="Groups" value={2 + (hashId(rec.id) % 6)} sample />
         <StatRow label="Roles" value={3 + (hashId(rec.id) % 5)} sample />
         <StatRow label="Policies" value={1 + (hashId(rec.id) % 4)} sample />
-        <StatRow label="Approval Requirements" value={rec.environment === "Production" ? "Required" : "Optional"} sample />
-        <StatRow label="Inherited Access" value={hashId(rec.id) % 2 === 0 ? "Yes" : "No"} sample />
+        <StatRow
+          label="Approval Requirements"
+          value={rec.environment === "Production" ? "Required" : "Optional"}
+          sample
+        />
+        <StatRow
+          label="Inherited Access"
+          value={hashId(rec.id) % 2 === 0 ? "Yes" : "No"}
+          sample
+        />
       </Section>
     </>
   );
@@ -555,7 +969,16 @@ function DepsTab({ rec }: { rec: Shared }) {
     const m = hashId(`${rec.id}-d-${i}`);
     return {
       id: `${rec.id}-d-${i}`,
-      dep: pick(["Payments API", "Auth Service", "Data Pipeline", "Billing Job", "Search Index"], m),
+      dep: pick(
+        [
+          "Payments API",
+          "Auth Service",
+          "Data Pipeline",
+          "Billing Job",
+          "Search Index",
+        ],
+        m,
+      ),
       rel: pick(["Consumed by", "Depends on", "Feeds"], m),
       workspace: pick(WORKSPACES, m),
       status: pick(["Active", "Active", "Degraded"], m),
@@ -569,7 +992,16 @@ function DepsTab({ rec }: { rec: Shared }) {
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Upstream and downstream resource relationships. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -591,17 +1023,33 @@ function SecurityTab({ rec }: { rec: Shared }) {
   });
   const cols: Column<(typeof list)[number]>[] = [
     { key: "control", header: "Control", render: (r) => r.control },
-    { key: "status", header: "Status", render: (r) => (
-      <span style={{ color: r.status === "Enabled" ? T.success : T.warning }}>{r.status}</span>
-    ) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span style={{ color: r.status === "Enabled" ? T.success : T.warning }}>
+          {r.status}
+        </span>
+      ),
+    },
     { key: "findings", header: "Findings", render: (r) => r.findings },
     { key: "severity", header: "Severity", render: (r) => r.severity },
   ];
   return (
     <>
       <Section title="Security posture" sample>
-        <StatRow label="Security Score" value={`${100 - rec.securityFindings * 5}%`} tone={rec.securityFindings > 3 ? "warn" : "ok"} sample />
-        <StatRow label="Security Findings" value={rec.securityFindings} tone={rec.securityFindings > 0 ? "warn" : "ok"} sample />
+        <StatRow
+          label="Security Score"
+          value={`${100 - rec.securityFindings * 5}%`}
+          tone={rec.securityFindings > 3 ? "warn" : "ok"}
+          sample
+        />
+        <StatRow
+          label="Security Findings"
+          value={rec.securityFindings}
+          tone={rec.securityFindings > 0 ? "warn" : "ok"}
+          sample
+        />
       </Section>
       <DirectoryTable columns={cols} rows={list} />
     </>
@@ -627,13 +1075,30 @@ function ComplianceTab({ rec }: { rec: Shared }) {
     { key: "score", header: "Score", render: (r) => r.score },
     { key: "passed", header: "Passed Controls", render: (r) => r.passed },
     { key: "failed", header: "Failed Controls", render: (r) => r.failed },
-    { key: "status", header: "Status", render: (r) => (
-      <span style={{ color: r.status === "Compliant" ? T.success : T.warning }}>{r.status}</span>
-    ) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span
+          style={{ color: r.status === "Compliant" ? T.success : T.warning }}
+        >
+          {r.status}
+        </span>
+      ),
+    },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Compliance posture across frameworks. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -644,33 +1109,115 @@ function ComplianceTab({ rec }: { rec: Shared }) {
 function MonitoringTab({ rec }: { rec: Shared }) {
   return (
     <Section title="Monitoring & health" sample>
-      <StatRow label="Health" value={<HealthBadge health={rec.health} />} sample />
-      <StatRow label="Availability" value={`${rec.availability}%`} tone={rec.availability >= 99 ? "ok" : "warn"} sample />
-      <StatRow label="Latency" value={`${10 + (hashId(rec.id) % 90)} ms`} sample />
-      <StatRow label="Capacity" value={`${40 + (hashId(rec.id) % 55)}% used`} sample />
-      <StatRow label="Performance" value={pick(["Nominal", "Nominal", "Degraded"], hashId(rec.id))} sample />
-      <StatRow label="Alerts" value={rec.incidents} tone={rec.incidents > 0 ? "warn" : "ok"} sample />
-      <StatRow label="Maintenance Windows" value={rec.status === "Maintenance" ? "In progress" : "Scheduled Sun 02:00"} sample />
+      <StatRow
+        label="Health"
+        value={<HealthBadge health={rec.health} />}
+        sample
+      />
+      <StatRow
+        label="Availability"
+        value={`${rec.availability}%`}
+        tone={rec.availability >= 99 ? "ok" : "warn"}
+        sample
+      />
+      <StatRow
+        label="Latency"
+        value={`${10 + (hashId(rec.id) % 90)} ms`}
+        sample
+      />
+      <StatRow
+        label="Capacity"
+        value={`${40 + (hashId(rec.id) % 55)}% used`}
+        sample
+      />
+      <StatRow
+        label="Performance"
+        value={pick(["Nominal", "Nominal", "Degraded"], hashId(rec.id))}
+        sample
+      />
+      <StatRow
+        label="Alerts"
+        value={rec.incidents}
+        tone={rec.incidents > 0 ? "warn" : "ok"}
+        sample
+      />
+      <StatRow
+        label="Maintenance Windows"
+        value={
+          rec.status === "Maintenance" ? "In progress" : "Scheduled Sun 02:00"
+        }
+        sample
+      />
     </Section>
   );
 }
 
 function ActivityTab({ rec }: { rec: Shared }) {
-  const events = ["Resource Registered", "Consumer Added", "Consumer Removed", "Owner Changed", "Policy Updated", "Compliance Scan", "Health Check"];
+  const events = [
+    "Resource Registered",
+    "Consumer Added",
+    "Consumer Removed",
+    "Owner Changed",
+    "Policy Updated",
+    "Compliance Scan",
+    "Health Check",
+  ];
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
-        <Select label="Actor" value="" onChange={() => {}} options={[{ value: "", label: "Actor: All" }, ...OWNERS.map((o) => ({ value: o, label: o }))]} />
-        <Select label="Action" value="" onChange={() => {}} options={[{ value: "", label: "Action: All" }, ...events.map((e) => ({ value: e, label: e }))]} />
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
+        <Select
+          label="Actor"
+          value=""
+          onChange={() => {}}
+          options={[
+            { value: "", label: "Actor: All" },
+            ...OWNERS.map((o) => ({ value: o, label: o })),
+          ]}
+        />
+        <Select
+          label="Action"
+          value=""
+          onChange={() => {}}
+          options={[
+            { value: "", label: "Action: All" },
+            ...events.map((e) => ({ value: e, label: e })),
+          ]}
+        />
         <SampleTag />
       </div>
       {events.map((e, i) => (
-        <div key={e} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, marginTop: 5, flexShrink: 0 }} />
+        <div
+          key={e}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "10px 0",
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: T.accent,
+              marginTop: 5,
+              flexShrink: 0,
+            }}
+          />
           <div>
             <div style={{ fontSize: 13, color: T.textPrimary }}>{e}</div>
             <div style={{ fontSize: 11.5, color: T.textMuted }}>
-              {pick(OWNERS, hashId(rec.id) + i)} · {pick(["5 min", "2 h", "yesterday", "3 days"], i)} ago
+              {pick(OWNERS, hashId(rec.id) + i)} ·{" "}
+              {pick(["5 min", "2 h", "yesterday", "3 days"], i)} ago
             </div>
           </div>
         </div>
@@ -680,14 +1227,38 @@ function ActivityTab({ rec }: { rec: Shared }) {
 }
 
 function AuditTab() {
-  const events = ["Resource Registered", "Configuration Updated", "Consumer Assigned", "Consumer Removed", "Compliance Scan", "Security Scan", "Ownership Changed", "Archived"];
+  const events = [
+    "Resource Registered",
+    "Configuration Updated",
+    "Consumer Assigned",
+    "Consumer Removed",
+    "Compliance Scan",
+    "Security Scan",
+    "Ownership Changed",
+    "Archived",
+  ];
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.textMuted, marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          color: T.textMuted,
+          marginBottom: 12,
+        }}
+      >
         <ShieldCheck size={14} /> Read-only immutable log <SampleTag />
       </div>
       {events.map((e, i) => (
-        <StatRow key={e} label={e} value={`${pick(OWNERS, i)} · 2026-06-${(10 + i).toString().padStart(2, "0")}`} tone="ok" sample />
+        <StatRow
+          key={e}
+          label={e}
+          value={`${pick(OWNERS, i)} · 2026-06-${(10 + i).toString().padStart(2, "0")}`}
+          tone="ok"
+          sample
+        />
       ))}
     </>
   );

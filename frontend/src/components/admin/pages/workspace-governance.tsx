@@ -35,15 +35,16 @@ import {
   TrendingUp,
 } from "lucide-react";
 import {
-  Page,
-  PageHeader,
-  Tabs,
-  SubTabStrip,
   EmptyState,
   ScopeBadge,
   type StripIcon,
   useTabParam,
 } from "#/components/admin/admin-kit";
+import {
+  DiscoveryPage,
+  DiscoveryTabs,
+  DiscoveryPills,
+} from "#/components/admin/discovery-kit";
 import { CreationPoliciesView } from "#/components/admin/pages/workspace-governance/creation-policies";
 import { OperationalPoliciesView } from "#/components/admin/pages/workspace-governance/operational-policies";
 import { MetadataPoliciesView } from "#/components/admin/pages/workspace-governance/metadata-policies";
@@ -320,8 +321,13 @@ function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
   const cur = leaves.find((l) => l.id === leaf) ?? leaves[0];
   return (
     <>
-      <SubTabStrip
-        tabs={leaves.map(({ id, label, Icon }) => ({ id, label, Icon }))}
+      <DiscoveryPills
+        label="Views"
+        items={leaves.map(({ id, label, Icon }) => ({
+          id,
+          label,
+          icon: <Icon size={14} />,
+        }))}
         active={cur.id}
         onChange={setLeaf}
       />
@@ -347,16 +353,37 @@ const SUBSECTIONS = [
   { id: "capacity", label: "Capacity & Quotas" },
 ];
 
+const SUB_ICONS: Record<string, React.ReactNode> = {
+  policies: <ListChecks size={14} />,
+  inheritance: <Layers size={14} />,
+  boundaries: <Boxes size={14} />,
+  cross: <Share2 size={14} />,
+  capacity: <Gauge size={14} />,
+};
+
 export function WorkspaceGovernancePage() {
   const [tab, setTab] = useTabParam("policies");
   return (
-    <Page>
-      <PageHeader
-        title="Workspace Governance"
-        subtitle="Policies, inheritance and overrides, resource boundaries, cross-workspace trust and capacity quotas across every workspace in the organization."
-        actions={<ScopeBadge scope="Organization" />}
+    <DiscoveryPage>
+      {/* Framework chrome: scope badge on one row (no heading), then the icon tab
+          strip — matching the Identity & Access and Workspace Management consoles. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 10,
+          margin: "0 10px 8px",
+        }}
+      >
+        <ScopeBadge scope="Organization" />
+      </div>
+      <DiscoveryTabs
+        tabs={SUBSECTIONS.map((s) => ({ ...s, icon: SUB_ICONS[s.id] }))}
+        active={tab}
+        onChange={setTab}
+        label="Workspace Governance views"
       />
-      <Tabs tabs={SUBSECTIONS} active={tab} onChange={setTab} />
       {tab === "policies" && <LeafSubsection leaves={POLICY_LEAVES} />}
       {tab === "inheritance" && <LeafSubsection leaves={INHERITANCE_LEAVES} />}
       {tab === "boundaries" && (
@@ -368,6 +395,6 @@ export function WorkspaceGovernancePage() {
       )}
       {tab === "cross" && <LeafSubsection leaves={CROSS_LEAVES} />}
       {tab === "capacity" && <LeafSubsection leaves={CAPACITY_LEAVES} />}
-    </Page>
+    </DiscoveryPage>
   );
 }

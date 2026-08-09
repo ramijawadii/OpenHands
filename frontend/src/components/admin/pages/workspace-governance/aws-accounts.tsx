@@ -28,13 +28,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -48,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * AWS Accounts — the authoritative inventory and governance layer for AWS tenancy: the AWS accounts a
@@ -210,6 +209,14 @@ export function AwsAccountsView() {
   const [fRegion, setFRegion] = React.useState("");
   const [fCompliance, setFCompliance] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_ACCOUNTS;
   const rows = records.filter((r) => {
@@ -230,16 +237,6 @@ export function AwsAccountsView() {
       (!fCompliance || r.compliance === fCompliance)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fWorkspace ||
-    fEnv ||
-    fType ||
-    fStatus ||
-    fBu ||
-    fRegion ||
-    fCompliance
-  );
   const clearFilters = () => {
     setSearch("");
     setFWorkspace("");
@@ -497,123 +494,126 @@ export function AwsAccountsView() {
         />
       </PostureGrid>
 
-      <Card
+      <DiscoveryListView
         title="AWS accounts"
         desc="The authoritative AWS tenancy inventory — each account is a security and billing boundary a workspace is authorized to operate within, under enterprise governance guardrails."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search AWS accounts — account name, account ID, workspace, business unit, environment, owner, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet(records.map((r) => r.workspace))}
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search AWS accounts — account name, account ID, workspace, business unit, environment, owner, tags…"
+        count={rows.length}
+        pills={[
+          {
+            key: "workspace",
+            label: "Workspace",
+            value: fWorkspace,
+            onChange: setFWorkspace,
+            options: facet(records.map((r) => r.workspace)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "accountType",
+            label: "Account Type",
+            value: fType,
+            onChange: setFType,
+            options: facet(records.map((r) => r.accountType)),
+          },
+          {
+            key: "accountStatus",
+            label: "Account Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "region",
+            label: "Region",
+            value: fRegion,
+            onChange: setFRegion,
+            options: facet(records.map((r) => r.region)),
+          },
+          {
+            key: "compliance",
+            label: "Compliance",
+            value: fCompliance,
+            onChange: setFCompliance,
+            options: facet(records.map((r) => r.compliance)),
+          },
+        ]}
+        presets={[{ label: "All aws accounts", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "resources", dir: "desc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
+              Synchronize
+            </HeaderButton>
+            <HeaderButton icon={<Boxes size={13} />} onClick={clear}>
+              Inventory
+            </HeaderButton>
+            <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
+              Compliance Scan
+            </HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Assign Workspace", onClick: () => setSelId(r.id) },
+              { label: "View Resources", onClick: () => setSelId(r.id) },
+              { label: "Run Inventory", onClick: () => setSelId(r.id) },
+              { label: "Compliance", onClick: () => setSelId(r.id) },
+              { label: "Security Findings", onClick: () => setSelId(r.id) },
+              { label: "Cost Analysis", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              {
+                label: "Disconnect",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
+            ]}
           />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Cloud size={20} />}
+            title="No AWS accounts have been connected."
+            hint="Connect an AWS account to bring its tenancy under enterprise governance and authorize workspaces to operate within it."
+            cta="Connect AWS Account"
+            onCta={() =>
+              navigate("/admin/workspace-governance?tab=inheritance")
+            }
           />
-          <Select
-            label="Account Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.accountType))}
-          />
-          <Select
-            label="Account Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Region"
-            value={fRegion}
-            onChange={setFRegion}
-            options={facet(records.map((r) => r.region))}
-          />
-          <Select
-            label="Compliance"
-            value={fCompliance}
-            onChange={setFCompliance}
-            options={facet(records.map((r) => r.compliance))}
-          />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "resources", dir: "desc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<RefreshCcw size={13} />} onClick={clear}>
-                Synchronize
-              </HeaderButton>
-              <HeaderButton icon={<Boxes size={13} />} onClick={clear}>
-                Inventory
-              </HeaderButton>
-              <HeaderButton icon={<ShieldCheck size={13} />} onClick={clear}>
-                Compliance Scan
-              </HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Assign Workspace", onClick: () => setSelId(r.id) },
-                { label: "View Resources", onClick: () => setSelId(r.id) },
-                { label: "Run Inventory", onClick: () => setSelId(r.id) },
-                { label: "Compliance", onClick: () => setSelId(r.id) },
-                { label: "Security Findings", onClick: () => setSelId(r.id) },
-                { label: "Cost Analysis", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                {
-                  label: "Disconnect",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Cloud size={20} />}
-              title="No AWS accounts have been connected."
-              hint="Connect an AWS account to bring its tenancy under enterprise governance and authorize workspaces to operate within it."
-              cta="Connect AWS Account"
-              onCta={() =>
-                navigate("/admin/workspace-governance?tab=inheritance")
-              }
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <AccountDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

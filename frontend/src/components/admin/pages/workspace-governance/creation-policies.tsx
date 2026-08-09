@@ -27,13 +27,10 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -48,6 +45,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Creation Policies — the platform's ADMISSION GATE: the enterprise guardrails that decide whether,
@@ -277,6 +276,14 @@ export function CreationPoliciesView() {
   const [fInherit, setFInherit] = React.useState("");
   const [fVersion, setFVersion] = React.useState("");
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
 
   const records = SAMPLE_POLICIES;
   const rows = records.filter((r) => {
@@ -296,16 +303,6 @@ export function CreationPoliciesView() {
       (!fVersion || r.version === fVersion)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fCat ||
-    fStatus ||
-    fPriority ||
-    fBu ||
-    fEnv ||
-    fInherit ||
-    fVersion
-  );
   const clearFilters = () => {
     setSearch("");
     setFCat("");
@@ -556,121 +553,124 @@ export function CreationPoliciesView() {
       </PostureGrid>
 
       {/* Policy directory (spec §Table + §Toolbar + §Filters + §Search + §Row/Bulk Actions) */}
-      <Card
+      <DiscoveryListView
         title="Creation policies"
         desc="Creation Policies are the admission gate — they decide whether a workspace can be created, through which template and request, under which approvals, quotas and provisioning constraints. Evaluated across Request · Validation · Approval · Provisioning."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search creation policies — name, description, workspace type, category, business unit, tags…"
-          count={rows.length}
-          total={records.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Category"
-            value={fCat}
-            onChange={setFCat}
-            options={facet(records.map((r) => r.category))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Priority"
-            value={fPriority}
-            onChange={setFPriority}
-            options={facet(records.map((r) => r.priority))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Environment"
-            value={fEnv}
-            onChange={setFEnv}
-            options={facet(records.map((r) => r.environment))}
-          />
-          <Select
-            label="Inheritance"
-            value={fInherit}
-            onChange={setFInherit}
-            options={[
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search creation policies — name, description, workspace type, category, business unit, tags…"
+        count={rows.length}
+        pills={[
+          {
+            key: "category",
+            label: "Category",
+            value: fCat,
+            onChange: setFCat,
+            options: facet(records.map((r) => r.category)),
+          },
+          {
+            key: "status",
+            label: "Status",
+            value: fStatus,
+            onChange: setFStatus,
+            options: facet(records.map((r) => r.status)),
+          },
+          {
+            key: "priority",
+            label: "Priority",
+            value: fPriority,
+            onChange: setFPriority,
+            options: facet(records.map((r) => r.priority)),
+          },
+          {
+            key: "businessUnit",
+            label: "Business Unit",
+            value: fBu,
+            onChange: setFBu,
+            options: facet(records.map((r) => r.businessUnit)),
+          },
+          {
+            key: "environment",
+            label: "Environment",
+            value: fEnv,
+            onChange: setFEnv,
+            options: facet(records.map((r) => r.environment)),
+          },
+          {
+            key: "inheritance",
+            label: "Inheritance",
+            value: fInherit,
+            onChange: setFInherit,
+            options: [
               { value: "", label: "All" },
               { value: "inherited", label: "Inherited" },
               { value: "direct", label: "Direct" },
+            ],
+          },
+          {
+            key: "version",
+            label: "Version",
+            value: fVersion,
+            onChange: setFVersion,
+            options: facet(records.map((r) => r.version)),
+          },
+        ]}
+        presets={[{ label: "All creation policies", onApply: clearFilters }]}
+        filterRightSlot={
+          <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+        }
+        columns={cols.filter((c) => !hidden.has(c.key))}
+        rows={rows}
+        pageSize={12}
+        initialSort={{ key: "priority", dir: "asc" }}
+        onRowClick={(r) => setSelId(r.id)}
+        selectable
+        bulkActions={(ids, clear) => (
+          <>
+            <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
+              Assign ({ids.length})
+            </HeaderButton>
+            <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+              Enable
+            </HeaderButton>
+            <HeaderButton onClick={clear}>Disable</HeaderButton>
+            <HeaderButton icon={<Download size={13} />} onClick={clear}>
+              Export
+            </HeaderButton>
+            <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+              Archive
+            </HeaderButton>
+          </>
+        )}
+        rowActions={(r) => (
+          <RowMenu
+            items={[
+              { label: "View", onClick: () => setSelId(r.id) },
+              { label: "Edit", onClick: () => setSelId(r.id) },
+              { label: "Assign", onClick: () => setSelId(r.id) },
+              { label: "Duplicate", onClick: () => {} },
+              { label: "Preview Evaluation", onClick: () => setSelId(r.id) },
+              { label: "Export", onClick: () => {} },
+              { label: "Archive", onClick: () => setSelId(r.id) },
+              {
+                label: "Delete",
+                onClick: () => setSelId(r.id),
+                danger: true,
+              },
             ]}
           />
-          <Select
-            label="Version"
-            value={fVersion}
-            onChange={setFVersion}
-            options={facet(records.map((r) => r.version))}
+        )}
+        empty={
+          <EmptyState
+            icon={<Scale size={20} />}
+            title="No creation policies found."
+            hint="Create a creation policy to govern who may create workspaces, through which templates and requests, under which approvals, quotas and provisioning constraints."
+            cta="Create Creation Policy"
+            onCta={() => navigate("/admin/workspace-governance?tab=policies")}
           />
-        </FilterBar>
-
-        <DirectoryTable
-          columns={cols}
-          rows={rows}
-          pageSize={12}
-          initialSort={{ key: "priority", dir: "asc" }}
-          onRowClick={(r) => setSelId(r.id)}
-          selectable
-          bulkActions={(ids, clear) => (
-            <>
-              <HeaderButton icon={<UserCheck size={13} />} onClick={clear}>
-                Assign ({ids.length})
-              </HeaderButton>
-              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
-                Enable
-              </HeaderButton>
-              <HeaderButton onClick={clear}>Disable</HeaderButton>
-              <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                Export
-              </HeaderButton>
-              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                Archive
-              </HeaderButton>
-            </>
-          )}
-          rowActions={(r) => (
-            <RowMenu
-              items={[
-                { label: "View", onClick: () => setSelId(r.id) },
-                { label: "Edit", onClick: () => setSelId(r.id) },
-                { label: "Assign", onClick: () => setSelId(r.id) },
-                { label: "Duplicate", onClick: () => {} },
-                { label: "Preview Evaluation", onClick: () => setSelId(r.id) },
-                { label: "Export", onClick: () => {} },
-                { label: "Archive", onClick: () => setSelId(r.id) },
-                {
-                  label: "Delete",
-                  onClick: () => setSelId(r.id),
-                  danger: true,
-                },
-              ]}
-            />
-          )}
-          empty={
-            <EmptyState
-              icon={<Scale size={20} />}
-              title="No creation policies found."
-              hint="Create a creation policy to govern who may create workspaces, through which templates and requests, under which approvals, quotas and provisioning constraints."
-              cta="Create Creation Policy"
-              onCta={() => navigate("/admin/workspace-governance?tab=policies")}
-            />
-          }
-        />
-      </Card>
+        }
+      />
 
       {sel && <PolicyDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
