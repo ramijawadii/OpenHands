@@ -15,9 +15,6 @@ import {
   Waypoints,
   Boxes,
   Cloud,
-  FolderGit2,
-  Server,
-  UserSquare,
   Share2,
   Shield,
   KeyRound,
@@ -54,16 +51,12 @@ import { DefaultConfigurationView } from "#/components/admin/pages/workspace-gov
 import { OrganizationDefaultsView } from "#/components/admin/pages/workspace-governance/organization-defaults";
 import { WorkspaceOverridesView } from "#/components/admin/pages/workspace-governance/workspace-overrides";
 import { AwsAccountsView } from "#/components/admin/pages/workspace-governance/aws-accounts";
-import { AzureSubscriptionsView } from "#/components/admin/pages/workspace-governance/azure-subscriptions";
-import { GcpProjectsView } from "#/components/admin/pages/workspace-governance/gcp-projects";
-import { KubernetesClustersView } from "#/components/admin/pages/workspace-governance/kubernetes-clusters";
+import { ResourceBoundariesView } from "#/components/admin/pages/workspace-governance/resource-boundaries";
 import { InheritanceTreeView } from "#/components/admin/pages/workspace-governance/inheritance-tree";
 import { EffectiveConfigurationView } from "#/components/admin/pages/workspace-governance/effective-configuration";
 import { LockedConfigurationView } from "#/components/admin/pages/workspace-governance/locked-configuration";
 import { ConfigurationDriftView } from "#/components/admin/pages/workspace-governance/configuration-drift";
 import { AllowedResourceTypesView } from "#/components/admin/pages/workspace-governance/allowed-resource-types";
-import { ResourceOwnershipView } from "#/components/admin/pages/workspace-governance/resource-ownership";
-import { SharedResourcesView } from "#/components/admin/pages/workspace-governance/shared-resources";
 import { TrustRelationshipsView } from "#/components/admin/pages/workspace-governance/trust-relationships";
 import { CrossWorkspaceAccessView } from "#/components/admin/pages/workspace-governance/cross-workspace-access";
 import { SharedResourcePoliciesView } from "#/components/admin/pages/workspace-governance/shared-resource-policies";
@@ -193,34 +186,10 @@ const INHERITANCE_LEAVES: Leaf[] = [
     render: () => <AwsAccountsView />,
   },
   {
-    id: "azure-subscriptions",
-    label: "Azure Subscriptions",
-    Icon: Cloud,
-    render: () => <AzureSubscriptionsView />,
-  },
-  {
-    id: "gcp-projects",
-    label: "GCP Projects",
-    Icon: FolderGit2,
-    render: () => <GcpProjectsView />,
-  },
-  {
-    id: "kubernetes-clusters",
-    label: "Kubernetes Clusters",
-    Icon: Server,
-    render: () => <KubernetesClustersView />,
-  },
-  {
-    id: "resource-ownership",
-    label: "Resource Ownership",
-    Icon: UserSquare,
-    render: () => <ResourceOwnershipView />,
-  },
-  {
-    id: "shared-resources",
-    label: "Shared Resources",
-    Icon: Share2,
-    render: () => <SharedResourcesView />,
+    id: "resource-boundaries",
+    label: "Cloud & Resources",
+    Icon: Boxes,
+    render: () => <ResourceBoundariesView />,
   },
 ];
 
