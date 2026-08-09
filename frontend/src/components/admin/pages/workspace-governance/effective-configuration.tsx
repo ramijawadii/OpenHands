@@ -22,7 +22,6 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -239,7 +238,7 @@ function StatusBadge({ status }: { status: CfgStatus }) {
 }
 
 export function EffectiveConfigurationView() {
-  const [workspace, setWorkspace] = React.useState(WORKSPACES[0]);
+  const [workspace] = React.useState(WORKSPACES[0]);
   const [search, setSearch] = React.useState("");
   const [fCat, setFCat] = React.useState("");
   const [fSource, setFSource] = React.useState("");
@@ -420,60 +419,6 @@ export function EffectiveConfigurationView() {
 
   return (
     <>
-      {/* Configuration Summary (spec §Configuration Summary) */}
-      <Card
-        title="Configuration summary"
-        desc="Select a workspace to view its authoritative computed runtime configuration after inheritance, policy evaluation, overrides and governance rules."
-        right={
-          <div style={{ minWidth: 220 }}>
-            <Select
-              label="Workspace"
-              value={workspace}
-              onChange={(v) => {
-                setWorkspace(v);
-                setSelId(null);
-              }}
-              options={WORKSPACES.map((w) => ({ value: w, label: w }))}
-            />
-          </div>
-        }
-      >
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Workspace", v: workspace },
-            { k: "Workspace Type", v: "Regulated Production", sample: true },
-            {
-              k: "Business Unit",
-              v: pick(["Finance", "Retail", "Engineering"], hashId(workspace)),
-              sample: true,
-            },
-            { k: "Environment", v: "Production", sample: true },
-            {
-              k: "Configuration Version",
-              v: `v${8 + (hashId(workspace) % 6)}`,
-              sample: true,
-            },
-            {
-              k: "Inheritance Status",
-              v: overrides > 0 ? "Customized" : "Fully inherited",
-              sample: true,
-            },
-            {
-              k: "Compliance Status",
-              v: conflicts > 0 ? "At risk" : "Compliant",
-              sample: true,
-            },
-            {
-              k: "Drift Status",
-              v: drift > 0 ? `${drift} drifted` : "No drift",
-              sample: true,
-            },
-            { k: "Last Evaluation", v: "3 minutes ago", sample: true },
-          ]}
-        />
-      </Card>
-
       {/* Operational Dashboard */}
       <StatStripPlain
         items={[

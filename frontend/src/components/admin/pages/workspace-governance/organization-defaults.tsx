@@ -30,7 +30,6 @@ import {
   PageHeader,
   Card,
   StatRow,
-  DirectoryTable,
   CommandBar,
   HeaderButton,
   SubTabStrip,
@@ -46,6 +45,48 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { StatStripPlain } from "#/components/admin/settings-kit";
+import { DiscoveryTable } from "#/components/admin/discovery-kit";
+import { OverviewTree } from "#/components/features/explore/cloudguard-grid/OverviewTree";
+
+// Representative Org → Business Unit → Template → Workspace inheritance chain.
+const INHERIT_TREE = {
+  name: "Enterprise Baseline",
+  children: [
+    {
+      name: "Finance",
+      children: [
+        {
+          name: "Regulated Template",
+          children: [{ name: "Payments" }, { name: "Treasury" }],
+        },
+      ],
+    },
+    {
+      name: "Engineering",
+      children: [
+        {
+          name: "Standard Template",
+          children: [{ name: "Platform" }, { name: "Cloud" }],
+        },
+      ],
+    },
+    {
+      name: "Operations",
+      children: [
+        { name: "Standard Template", children: [{ name: "Monitoring" }] },
+      ],
+    },
+    {
+      name: "Retail",
+      children: [
+        {
+          name: "Production Template",
+          children: [{ name: "Web" }, { name: "POS" }],
+        },
+      ],
+    },
+  ],
+};
 
 /**
  * Organization Defaults — the enterprise-wide baseline configuration automatically inherited by every
@@ -527,7 +568,7 @@ function IntegrationDefaults() {
       title="Integration Defaults"
       desc="Enterprise integrations automatically inherited by every workspace."
     >
-      <DirectoryTable columns={cols} rows={list} />
+      <DiscoveryTable columns={cols} rows={list} />
     </Card>
   );
 }
@@ -548,6 +589,7 @@ function InheritancePreview() {
         </div>
       }
     >
+      <OverviewTree data={INHERIT_TREE} height={340} />
       <div style={{ marginTop: 12 }}>
         <StatRow
           label="Inherited Settings"
@@ -631,7 +673,7 @@ function OverrideRules() {
       title="Override Rules"
       desc="Defines which defaults may be overridden — Not Allowed · Allowed · Approval Required · Organization Locked."
     >
-      <DirectoryTable
+      <DiscoveryTable
         columns={cols}
         rows={rows}
         pageSize={14}
@@ -703,7 +745,7 @@ function VersionHistory() {
           hint="Publish the enterprise baseline to create the first version."
         />
       ) : (
-        <DirectoryTable columns={cols} rows={versions} />
+        <DiscoveryTable columns={cols} rows={versions} />
       )}
     </Card>
   );

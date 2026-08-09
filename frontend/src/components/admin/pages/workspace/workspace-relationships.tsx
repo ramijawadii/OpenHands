@@ -40,12 +40,9 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -58,7 +55,8 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { StatStripPlain } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
  * Workspace Relationships — the enterprise collaboration layer between workspaces. Authoritative spec:
@@ -365,6 +363,14 @@ export function WorkspaceRelationshipsView() {
   const [fReview, setFReview] = React.useState("");
 
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
+  const toggleCol = (k: string) =>
+    setHidden((s) => {
+      const n = new Set(s);
+      if (n.has(k)) n.delete(k);
+      else n.add(k);
+      return n;
+    });
   const [confirmId, setConfirmId] = React.useState<string | null>(null);
   const [wizardOpen, setWizardOpen] = React.useState(false);
 
@@ -393,16 +399,6 @@ export function WorkspaceRelationshipsView() {
       (!fReview || r.reviewStatus === fReview)
     );
   });
-  const hasFilters = !!(
-    search ||
-    fType ||
-    fBu ||
-    fWorkspace ||
-    fOwner ||
-    fDirection ||
-    fStatus ||
-    fReview
-  );
   const clearFilters = () => {
     setSearch("");
     setFType("");
@@ -629,128 +625,130 @@ export function WorkspaceRelationshipsView() {
         />
       </div>
 
-      <Card
-        title="Workspace relationships"
-        desc="Manage logical relationships between enterprise workspaces for governance, collaboration, AI, security, compliance and operational coordination. They capture why workspaces are connected — not merely how."
-      >
-        <CommandBar items={toolbar} />
+      <div style={{ display: "flex", marginBottom: 14 }}>
+        <Select
+          label="View"
+          value={view}
+          onChange={setView}
+          options={VIEW_OPTIONS}
+        />
+      </div>
 
-        <FilterBar
+      {isListView ? (
+        <DiscoveryListView
+          title="Workspace relationships"
+          desc="Manage logical relationships between enterprise workspaces for governance, collaboration, AI, security, compliance and operational coordination. They capture why workspaces are connected — not merely how."
+          commands={toolbar}
           search={search}
           onSearch={setSearch}
           searchPlaceholder="Search workspace relationships — workspace, relationship, business unit, owner, category, tags…"
-          count={isListView ? rows.length : undefined}
-          total={isListView ? records.length : undefined}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="View"
-            value={view}
-            onChange={setView}
-            options={VIEW_OPTIONS}
-          />
-          <Select
-            label="Relationship Type"
-            value={fType}
-            onChange={setFType}
-            options={facet(records.map((r) => r.relationshipType))}
-          />
-          <Select
-            label="Business Unit"
-            value={fBu}
-            onChange={setFBu}
-            options={facet(records.map((r) => r.businessUnit))}
-          />
-          <Select
-            label="Workspace"
-            value={fWorkspace}
-            onChange={setFWorkspace}
-            options={facet([
-              ...records.map((r) => r.source),
-              ...records.map((r) => r.target),
-            ])}
-          />
-          <Select
-            label="Owner"
-            value={fOwner}
-            onChange={setFOwner}
-            options={facet(records.map((r) => r.owner))}
-          />
-          <Select
-            label="Direction"
-            value={fDirection}
-            onChange={setFDirection}
-            options={facet(records.map((r) => r.direction))}
-          />
-          <Select
-            label="Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={facet(records.map((r) => r.status))}
-          />
-          <Select
-            label="Review Status"
-            value={fReview}
-            onChange={setFReview}
-            options={facet(records.map((r) => r.reviewStatus))}
-          />
-        </FilterBar>
-
-        {isListView ? (
-          <DirectoryTable
-            columns={cols}
-            rows={rows}
-            pageSize={12}
-            initialSort={{ key: "source", dir: "asc" }}
-            onRowClick={(r) => setSelId(r.id)}
-            selectable
-            bulkActions={(ids, clear) => (
-              <>
-                <HeaderButton
-                  icon={<ClipboardCheck size={13} />}
-                  onClick={clear}
-                >
-                  Review ({ids.length})
-                </HeaderButton>
-                <HeaderButton icon={<Archive size={13} />} onClick={clear}>
-                  Archive
-                </HeaderButton>
-                <HeaderButton icon={<Download size={13} />} onClick={clear}>
-                  Export
-                </HeaderButton>
-              </>
-            )}
-            rowActions={(r) => (
-              <RowMenu
-                items={[
-                  { label: "View", onClick: () => setSelId(r.id) },
-                  { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Review", onClick: () => setSelId(r.id) },
-                  { label: "Export", onClick: () => {} },
-                  { label: "Archive", onClick: () => setSelId(r.id) },
-                  {
-                    label: "Delete",
-                    onClick: () => setConfirmId(r.id),
-                    danger: true,
-                  },
-                ]}
-              />
-            )}
-            empty={
-              <EmptyState
-                icon={<Network size={20} />}
-                title="No workspace relationships configured."
-                hint="Create a relationship, or import a relationship map to get started."
-                cta="Create Relationship"
-                onCta={() => setWizardOpen(true)}
-              />
-            }
-          />
-        ) : (
-          <RelationshipHistoryPanel />
-        )}
-      </Card>
+          count={rows.length}
+          pills={[
+            {
+              key: "relationshipType",
+              label: "Relationship Type",
+              value: fType,
+              onChange: setFType,
+              options: facet(records.map((r) => r.relationshipType)),
+            },
+            {
+              key: "businessUnit",
+              label: "Business Unit",
+              value: fBu,
+              onChange: setFBu,
+              options: facet(records.map((r) => r.businessUnit)),
+            },
+            {
+              key: "workspace",
+              label: "Workspace",
+              value: fWorkspace,
+              onChange: setFWorkspace,
+              options: facet([
+                ...records.map((r) => r.source),
+                ...records.map((r) => r.target),
+              ]),
+            },
+            {
+              key: "owner",
+              label: "Owner",
+              value: fOwner,
+              onChange: setFOwner,
+              options: facet(records.map((r) => r.owner)),
+            },
+            {
+              key: "direction",
+              label: "Direction",
+              value: fDirection,
+              onChange: setFDirection,
+              options: facet(records.map((r) => r.direction)),
+            },
+            {
+              key: "status",
+              label: "Status",
+              value: fStatus,
+              onChange: setFStatus,
+              options: facet(records.map((r) => r.status)),
+            },
+            {
+              key: "reviewStatus",
+              label: "Review Status",
+              value: fReview,
+              onChange: setFReview,
+              options: facet(records.map((r) => r.reviewStatus)),
+            },
+          ]}
+          presets={[{ label: "All relationships", onApply: clearFilters }]}
+          filterRightSlot={
+            <ColumnChooser cols={cols} hidden={hidden} onToggle={toggleCol} />
+          }
+          columns={cols.filter((c) => !hidden.has(c.key))}
+          rows={rows}
+          pageSize={12}
+          initialSort={{ key: "source", dir: "asc" }}
+          onRowClick={(r) => setSelId(r.id)}
+          selectable
+          bulkActions={(ids, clear) => (
+            <>
+              <HeaderButton icon={<ClipboardCheck size={13} />} onClick={clear}>
+                Review ({ids.length})
+              </HeaderButton>
+              <HeaderButton icon={<Archive size={13} />} onClick={clear}>
+                Archive
+              </HeaderButton>
+              <HeaderButton icon={<Download size={13} />} onClick={clear}>
+                Export
+              </HeaderButton>
+            </>
+          )}
+          rowActions={(r) => (
+            <RowMenu
+              items={[
+                { label: "View", onClick: () => setSelId(r.id) },
+                { label: "Edit", onClick: () => setSelId(r.id) },
+                { label: "Review", onClick: () => setSelId(r.id) },
+                { label: "Export", onClick: () => {} },
+                { label: "Archive", onClick: () => setSelId(r.id) },
+                {
+                  label: "Delete",
+                  onClick: () => setConfirmId(r.id),
+                  danger: true,
+                },
+              ]}
+            />
+          )}
+          empty={
+            <EmptyState
+              icon={<Network size={20} />}
+              title="No workspace relationships configured."
+              hint="Create a relationship, or import a relationship map to get started."
+              cta="Create Relationship"
+              onCta={() => setWizardOpen(true)}
+            />
+          }
+        />
+      ) : (
+        <RelationshipHistoryPanel />
+      )}
 
       {sel && (
         <RelationshipDetailDrawer

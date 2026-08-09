@@ -7,9 +7,6 @@ import {
   Briefcase,
   LayoutTemplate,
   Boxes,
-  Maximize2,
-  Minimize2,
-  RefreshCcw,
   Eye,
   ShieldCheck,
   Lock,
@@ -22,7 +19,6 @@ import {
   Network,
   History,
   Layers,
-  AlertTriangle,
 } from "lucide-react";
 import {
   Page,
@@ -31,8 +27,6 @@ import {
   StatRow,
   KVGrid,
   DirectoryTable,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -41,9 +35,9 @@ import {
   ScopeBadge,
   T,
   type Column,
-  type CommandItem,
 } from "#/components/admin/admin-kit";
 import { StatStripPlain } from "#/components/admin/settings-kit";
+import { OverviewTree } from "#/components/features/explore/cloudguard-grid/OverviewTree";
 
 /**
  * Inheritance Tree — the authoritative visualization of governance inheritance across the platform:
@@ -197,6 +191,18 @@ function flatten(node: TreeNode, acc: TreeNode[] = []): TreeNode[] {
 }
 const ALL_NODES = flatten(ROOT);
 
+// ROOT → ECharts tree data (name + children).
+function toTreeData(node: TreeNode): {
+  name: string;
+  children?: ReturnType<typeof toTreeData>[];
+} {
+  return {
+    name: node.name,
+    children: node.children?.map(toTreeData),
+  };
+}
+const TREE_DATA = toTreeData(ROOT);
+
 function StatusDot({ status }: { status: NodeStatus }) {
   return (
     <span
@@ -333,29 +339,7 @@ function TreeRow({
 }
 
 export function InheritanceTreeView() {
-  const [expanded, setExpanded] = React.useState<Set<string>>(
-    new Set([
-      "ORG",
-      "BU-Finance",
-      "BU-Engineering",
-      "BU-Operations",
-      "BU-Retail",
-    ]),
-  );
   const [selId, setSelId] = React.useState<string | null>(null);
-  const [search, setSearch] = React.useState("");
-  const [fStatus, setFStatus] = React.useState("");
-  const [fType, setFType] = React.useState("");
-
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  const expandAll = () => setExpanded(new Set(ALL_NODES.map((n) => n.id)));
-  const collapseAll = () => setExpanded(new Set(["ORG"]));
 
   const sel = ALL_NODES.find((n) => n.id === selId) ?? null;
 
@@ -367,68 +351,6 @@ export function InheritanceTreeView() {
   const conflicts = ALL_NODES.reduce((a, n) => a + n.conflicts, 0);
   const healthyNodes = ALL_NODES.filter((n) => n.status === "Healthy").length;
   const coverage = Math.round((healthyNodes / ALL_NODES.length) * 100);
-
-  const toolbar: CommandItem[] = [
-    {
-      key: "expand",
-      label: "Expand All",
-      icon: <Maximize2 size={15} />,
-      onClick: expandAll,
-    },
-    {
-      key: "collapse",
-      label: "Collapse All",
-      icon: <Minimize2 size={15} />,
-      onClick: collapseAll,
-    },
-    {
-      key: "refresh",
-      label: "Refresh",
-      icon: <RefreshCcw size={15} />,
-      onClick: () => setSelId(null),
-    },
-    {
-      key: "preview",
-      label: "Preview Effective Configuration",
-      icon: <Eye size={15} />,
-      disabled: true,
-    },
-    {
-      key: "overrides",
-      label: "Show Overrides",
-      icon: <SlidersHorizontal size={15} />,
-      onClick: () => setFStatus("Overridden"),
-    },
-    {
-      key: "locked",
-      label: "Show Locked",
-      icon: <Lock size={15} />,
-      disabled: true,
-    },
-    {
-      key: "conflicts",
-      label: "Detect Conflicts",
-      icon: <AlertTriangle size={15} />,
-      onClick: () => setFStatus("Conflict"),
-    },
-    {
-      key: "export",
-      label: "Export Tree",
-      icon: <Download size={15} />,
-      disabled: true,
-    },
-  ];
-
-  const visible = ALL_NODES.filter((n) => {
-    const q = search.toLowerCase();
-    return (
-      (!q ||
-        n.name.toLowerCase().includes(q) ||
-        n.businessUnit.toLowerCase().includes(q)) &&
-      (!fType || n.type === fType)
-    );
-  });
-  const searchActive = !!(search || fType);
 
   return (
     <>
@@ -465,102 +387,7 @@ export function InheritanceTreeView() {
         title="Inheritance hierarchy"
         desc="Trace any configuration value back to its origin. The tree shows Organization → Business Unit → Workspace Template → Workspace, with per-node inheritance status, overrides, locks and conflicts."
       >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search hierarchy — workspace, business unit, configuration, policy, template…"
-          count={visible.length}
-          total={ALL_NODES.length}
-          showClear={searchActive || !!fStatus}
-          onClear={() => {
-            setSearch("");
-            setFType("");
-            setFStatus("");
-          }}
-        >
-          <Select
-            label="Node Type"
-            value={fType}
-            onChange={setFType}
-            options={[
-              { value: "", label: "All" },
-              ...(
-                [
-                  "Organization",
-                  "Business Unit",
-                  "Workspace Template",
-                  "Workspace",
-                ] as NodeType[]
-              ).map((t) => ({ value: t, label: t })),
-            ]}
-          />
-          <Select
-            label="Inheritance Status"
-            value={fStatus}
-            onChange={setFStatus}
-            options={[
-              { value: "", label: "All" },
-              ...(
-                [
-                  "Healthy",
-                  "Inherited",
-                  "Overridden",
-                  "Conflict",
-                  "Archived",
-                ] as NodeStatus[]
-              ).map((s) => ({ value: s, label: s })),
-            ]}
-          />
-        </FilterBar>
-
-        {/* Legend */}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            padding: "4px 4px 12px",
-            fontSize: 11.5,
-            color: T.textMuted,
-          }}
-        >
-          {(
-            [
-              "Healthy",
-              "Inherited",
-              "Overridden",
-              "Conflict",
-              "Archived",
-            ] as NodeStatus[]
-          ).map((s) => (
-            <span
-              key={s}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-            >
-              <StatusDot status={s} /> {s}
-            </span>
-          ))}
-        </div>
-
-        <div
-          style={{
-            border: `1px solid ${T.border}`,
-            borderRadius: 10,
-            padding: 6,
-            background: T.cardBg,
-          }}
-        >
-          <TreeRow
-            node={ROOT}
-            depth={0}
-            expanded={expanded}
-            toggle={toggle}
-            onSelect={setSelId}
-            selId={selId}
-            visibleStatus={fStatus}
-          />
-        </div>
+        <OverviewTree data={TREE_DATA} height={520} />
       </Card>
 
       {sel && <NodeDrawer node={sel} onClose={() => setSelId(null)} />}
