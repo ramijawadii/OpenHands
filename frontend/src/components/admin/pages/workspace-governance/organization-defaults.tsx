@@ -32,7 +32,6 @@ import {
   StatRow,
   CommandBar,
   HeaderButton,
-  SubTabStrip,
   EmptyState,
   ScopeBadge,
   InheritedField,
@@ -45,7 +44,10 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { StatStripPlain } from "#/components/admin/settings-kit";
-import { DiscoveryTable } from "#/components/admin/discovery-kit";
+import {
+  DiscoveryTable,
+  DiscoveryPills,
+} from "#/components/admin/discovery-kit";
 import { OverviewTree } from "#/components/features/explore/cloudguard-grid/OverviewTree";
 
 // Representative Org → Business Unit → Template → Workspace inheritance chain.
@@ -485,26 +487,30 @@ export function OrganizationDefaultsView() {
         ]}
       />
 
-      <Card
-        title="Enterprise baseline"
-        desc="Organization Defaults are the root of the workspace governance inheritance model — a single enterprise baseline from which every business unit, template and workspace derives its effective configuration. Mandatory controls carry a lock; a workspace may set a stricter value, not a weaker one."
-      >
-        <CommandBar items={toolbar} />
-        <SubTabStrip tabs={SUB_TABS} active={sub} onChange={setSub} />
+      <CommandBar items={toolbar} />
+      <DiscoveryPills
+        label="Defaults"
+        items={SUB_TABS.map(({ id, label, Icon }) => ({
+          id,
+          label,
+          icon: <Icon size={14} />,
+        }))}
+        active={sub}
+        onChange={setSub}
+      />
 
-        {curDomain && curDomain.id !== "integration" && (
-          <SettingsCard
-            title={curDomain.title}
-            desc={curDomain.desc}
-            settings={curDomain.settings}
-          />
-        )}
+      {curDomain && curDomain.id !== "integration" && (
+        <SettingsCard
+          title={curDomain.title}
+          desc={curDomain.desc}
+          settings={curDomain.settings}
+        />
+      )}
 
-        {sub === "integration" && <IntegrationDefaults />}
-        {sub === "inheritance-preview" && <InheritancePreview />}
-        {sub === "override-rules" && <OverrideRules />}
-        {sub === "version-history" && <VersionHistory />}
-      </Card>
+      {sub === "integration" && <IntegrationDefaults />}
+      {sub === "inheritance-preview" && <InheritancePreview />}
+      {sub === "override-rules" && <OverrideRules />}
+      {sub === "version-history" && <VersionHistory />}
     </>
   );
 }

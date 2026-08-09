@@ -71,16 +71,59 @@ export function railIcon(label: string): React.ReactNode {
   const sz = 16;
   if (has("mail", "email", "message", "comment", "note", "tip"))
     return <Mail size={sz} />;
-  if (has("detection", "detect", "signal", "indicator")) return <Eye size={sz} />;
+  if (has("detection", "detect", "signal", "indicator"))
+    return <Eye size={sz} />;
   if (has("evidence", "artifact", "attachment", "collected"))
     return <Inbox size={sz} />;
-  if (has("response", "respond", "remediat", "contain", "mitigat", "action", "resolve", "resolution"))
+  if (
+    has(
+      "response",
+      "respond",
+      "remediat",
+      "contain",
+      "mitigat",
+      "action",
+      "resolve",
+      "resolution",
+    )
+  )
     return <SlidersHorizontal size={sz} />;
-  if (has("risk", "threat", "attack", "alert", "violation", "suspicious", "anomal"))
+  if (
+    has(
+      "risk",
+      "threat",
+      "attack",
+      "alert",
+      "violation",
+      "suspicious",
+      "anomal",
+    )
+  )
     return <ShieldAlert size={sz} />;
-  if (has("review", "certification", "attestation", "approval", "approve", "approver", "certif"))
+  if (
+    has(
+      "review",
+      "certification",
+      "attestation",
+      "approval",
+      "approve",
+      "approver",
+      "certif",
+    )
+  )
     return <BadgeCheck size={sz} />;
-  if (has("assign", "delegation", "delegate", "grant", "workflow", "chain", "pipeline", "escalat"))
+  if (
+    has(
+      "assign",
+      "delegation",
+      "delegate",
+      "grant",
+      "workflow",
+      "chain",
+      "pipeline",
+      "escalat",
+    )
+  )
     return <GitBranch size={sz} />;
   if (has("integration", "connector", "provider", "federation", "sync"))
     return <Plug size={sz} />;
@@ -92,26 +135,105 @@ export function railIcon(label: string): React.ReactNode {
   if (has("role")) return <Shield size={sz} />;
   if (has("permission", "access", "scope", "entitle", "allowed", "capabilit"))
     return <Lock size={sz} />;
-  if (has("group", "member", "team", "owner", "analyst", "reviewer", "assignee", "people"))
+  if (
+    has(
+      "group",
+      "member",
+      "team",
+      "owner",
+      "analyst",
+      "reviewer",
+      "assignee",
+      "people",
+    )
+  )
     return <Users size={sz} />;
-  if (has("policy", "policies", "rule", "governance", "requirement", "justification", "sod", "segregation"))
+  if (
+    has(
+      "policy",
+      "policies",
+      "rule",
+      "governance",
+      "requirement",
+      "justification",
+      "sod",
+      "segregation",
+    )
+  )
     return <ScrollText size={sz} />;
   if (has("config", "setting", "attribute", "mapping", "parameter"))
     return <SlidersHorizontal size={sz} />;
-  if (has("network", "connection", "endpoint", "architecture", "topology", "path", "graph"))
+  if (
+    has(
+      "network",
+      "connection",
+      "endpoint",
+      "architecture",
+      "topology",
+      "path",
+      "graph",
+    )
+  )
     return <Network size={sz} />;
-  if (has("lifecycle", "provision", "recovery", "schedule", "expir", "age", "date", "time"))
+  if (
+    has(
+      "lifecycle",
+      "provision",
+      "recovery",
+      "schedule",
+      "expir",
+      "age",
+      "date",
+      "time",
+    )
+  )
     return <Clock size={sz} />;
   if (has("activity", "history", "log", "audit", "event", "timeline", "change"))
     return <History size={sz} />;
-  if (has("service", "machine", "workload", "server", "agent", "application", "app", "api"))
+  if (
+    has(
+      "service",
+      "machine",
+      "workload",
+      "server",
+      "agent",
+      "application",
+      "app",
+      "api",
+    )
+  )
     return <Server size={sz} />;
-  if (has("category", "type", "tag", "label", "classification")) return <Tag size={sz} />;
-  if (has("profile", "basic", "overview", "general", "about", "person", "contact"))
+  if (has("category", "type", "tag", "label", "classification"))
+    return <Tag size={sz} />;
+  if (
+    has("profile", "basic", "overview", "general", "about", "person", "contact")
+  )
     return <User size={sz} />;
-  if (has("employ", "organization", "org", "company", "department", "workspace", "tenant"))
+  if (
+    has(
+      "employ",
+      "organization",
+      "org",
+      "company",
+      "department",
+      "workspace",
+      "tenant",
+    )
+  )
     return <Boxes size={sz} />;
-  if (has("statistic", "metric", "impact", "inventory", "summary", "information", "metadata", "detail", "adoption"))
+  if (
+    has(
+      "statistic",
+      "metric",
+      "impact",
+      "inventory",
+      "summary",
+      "information",
+      "metadata",
+      "detail",
+      "adoption",
+    )
+  )
     return <Info size={sz} />;
   if (has("notification", "notify")) return <Bell size={sz} />;
   return <Boxes size={sz} />;
@@ -125,8 +247,10 @@ const KIT_CSS = `
   .cg-settings-kit button, .cg-settings-kit input,
   .cg-settings-kit select, .cg-settings-kit textarea { font-family: ${APP_FONT}; }
   .cg-settings-kit .cg-stat-row {
-    display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 0; margin: 0 10px 16px;
+    display: flex; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
+    gap: 0; margin: 0 10px 16px; scrollbar-width: none;
   }
+  .cg-settings-kit .cg-stat-row::-webkit-scrollbar { height: 0; width: 0; display: none; }
   .cg-settings-kit .cg-stat-tile { border-left: 1px solid var(--cg-border); padding: 0 16px; }
   .cg-settings-kit .cg-stat-tile:first-child { border-left: none; padding-left: 0; }
   .cg-settings-kit .cg-rail-tab { transition: background-color .12s, color .12s; }
@@ -143,15 +267,20 @@ export interface StatFigure {
   tone?: "warn" | "danger";
 }
 
+// Shared tile-value colour — only warn/danger tint (severity), else primary.
+function toneColor(tone?: string): string {
+  if (tone === "danger") return "var(--cgx-critical)";
+  if (tone === "warn") return "#e09a2d";
+  return "var(--cg-text-primary)";
+}
+
 function StatTile({ label, value, tone }: StatFigure) {
-  const color =
-    tone === "danger"
-      ? "var(--cgx-critical)"
-      : tone === "warn"
-        ? "#e09a2d"
-        : "var(--cg-text-primary)";
+  const color = toneColor(tone);
   return (
-    <div className="cg-stat-tile" style={{ minWidth: 120, flexShrink: 0, fontFamily: APP_FONT }}>
+    <div
+      className="cg-stat-tile"
+      style={{ minWidth: 120, flexShrink: 0, fontFamily: APP_FONT }}
+    >
       <div
         style={{
           fontSize: 11,
@@ -199,12 +328,7 @@ export interface StatStripItem {
  * Use this in place of `PostureGrid`/`PostureCard` (which carry rejected chrome).
  */
 export function StatStripPlain({ items }: { items: StatStripItem[] }) {
-  const color = (t?: string) =>
-    t === "danger"
-      ? "var(--cgx-critical)"
-      : t === "warn"
-        ? "#e09a2d"
-        : "var(--cg-text-primary)";
+  const color = toneColor;
   return (
     <div className="cg-settings-kit">
       <style>{KIT_CSS}</style>
@@ -257,7 +381,9 @@ export function ColumnChooser({
   hidden: Set<string>;
   onToggle: (k: string) => void;
 }) {
-  const [pos, setPos] = React.useState<{ top: number; right: number } | null>(null);
+  const [pos, setPos] = React.useState<{ top: number; right: number } | null>(
+    null,
+  );
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const menuRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
@@ -280,7 +406,10 @@ export function ColumnChooser({
             setPos(
               pos
                 ? null
-                : { top: r.bottom + 4, right: Math.max(8, window.innerWidth - r.right) },
+                : {
+                    top: r.bottom + 4,
+                    right: Math.max(8, window.innerWidth - r.right),
+                  },
             );
         }}
         style={{
@@ -439,17 +568,34 @@ export function EntityDrawer({
             </span>
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 600, color: "var(--cg-text-primary)", lineHeight: 1.3 }}>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 600,
+                color: "var(--cg-text-primary)",
+                lineHeight: 1.3,
+              }}
+            >
               {title}
             </div>
             {meta && <div style={{ marginTop: 3 }}>{meta}</div>}
           </div>
-          {actions && <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>{actions}</div>}
+          {actions && (
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              {actions}
+            </div>
+          )}
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            style={{ background: "transparent", border: "none", color: "var(--cg-text-muted)", cursor: "pointer", alignSelf: "flex-start" }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--cg-text-muted)",
+              cursor: "pointer",
+              alignSelf: "flex-start",
+            }}
           >
             <X size={18} />
           </button>
@@ -480,7 +626,9 @@ export function EntityDrawer({
                     setSec(i);
                     setSub(0);
                   }}
-                  className={on ? "cg-rail-tab cg-rail-item-active" : "cg-rail-tab"}
+                  className={
+                    on ? "cg-rail-tab cg-rail-item-active" : "cg-rail-tab"
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -518,7 +666,14 @@ export function EntityDrawer({
             })}
           </div>
 
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              minWidth: 0,
+            }}
+          >
             {subs.length > 0 && (
               <div
                 className="custom-scrollbar"
@@ -543,7 +698,9 @@ export function EntityDrawer({
                         background: "transparent",
                         border: "none",
                         borderBottom: `2px solid ${on ? "var(--cg-accent)" : "transparent"}`,
-                        color: on ? "var(--cg-text-primary)" : "var(--cg-text-nav)",
+                        color: on
+                          ? "var(--cg-text-primary)"
+                          : "var(--cg-text-nav)",
                         fontSize: 13,
                         fontWeight: on ? 600 : 400,
                         whiteSpace: "nowrap",
@@ -556,7 +713,10 @@ export function EntityDrawer({
                 })}
               </div>
             )}
-            <div className="custom-scrollbar" style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}>
+            <div
+              className="custom-scrollbar"
+              style={{ flex: 1, overflowY: "auto", padding: 20, minWidth: 0 }}
+            >
               {subs.length > 0 ? subs[sub]?.render() : active?.render?.()}
             </div>
           </div>
@@ -643,7 +803,9 @@ export function SettingsTab<R extends { id: string }>({
   } = config;
 
   const [search, setSearch] = React.useState("");
-  const [filterVals, setFilterVals] = React.useState<Record<string, string>>({});
+  const [filterVals, setFilterVals] = React.useState<Record<string, string>>(
+    {},
+  );
   const [hidden, setHidden] = React.useState<Set<string>>(new Set());
   const [sel, setSel] = React.useState<R | null>(null);
 
@@ -658,7 +820,11 @@ export function SettingsTab<R extends { id: string }>({
   const facet = (key: string) => [
     { value: "", label: "All" },
     ...Array.from(
-      new Set(rows.map((r) => String((r as Record<string, unknown>)[key] ?? "")).filter(Boolean)),
+      new Set(
+        rows
+          .map((r) => String((r as Record<string, unknown>)[key] ?? ""))
+          .filter(Boolean),
+      ),
     )
       .sort()
       .map((v) => ({ value: v, label: v })),
@@ -720,7 +886,12 @@ export function SettingsTab<R extends { id: string }>({
 
       <div className="cg-stat-row">
         {figures.map((t) => (
-          <StatTile key={t.label} label={t.label} value={t.value} tone={t.tone} />
+          <StatTile
+            key={t.label}
+            label={t.label}
+            value={t.value}
+            tone={t.tone}
+          />
         ))}
       </div>
 
@@ -750,7 +921,9 @@ export function SettingsTab<R extends { id: string }>({
         selectable={selectable}
         bulkActions={bulk}
         rowActions={
-          rowMenu ? (r) => <RowMenu items={rowMenu(r, () => setSel(r))} /> : undefined
+          rowMenu
+            ? (r) => <RowMenu items={rowMenu(r, () => setSel(r))} />
+            : undefined
         }
         empty={
           <EmptyState

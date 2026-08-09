@@ -73,6 +73,53 @@
 }
 
 /*
+ * Nested-view entrance.
+ *
+ * A drill-down replaces the pane in place, which gives no signal that anything
+ * moved — the operator clicks a row and the content simply becomes different
+ * content. A short slide-and-fade says "you went INTO something", which is what
+ * makes the back control feel like a way out rather than a second navigation.
+ *
+ * Deliberately fast (160ms) and small (8px): long enough to register direction,
+ * short enough that a reader stepping through five nodes is not waiting on it.
+ * Re-runs on every navigation because the caller keys the element by the node,
+ * so React remounts rather than updating in place.
+ */
+@keyframes cg-nested-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.cg-nested {
+  animation: cg-nested-in 0.16s ease-out both;
+}
+/* Going back is the same motion mirrored, so direction is legible both ways. */
+@keyframes cg-nested-back {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+.cg-nested-back {
+  animation: cg-nested-back 0.16s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cg-nested,
+  .cg-nested-back {
+    animation: none;
+  }
+}
+
+/*
  * Custom scrollbars.
  *
  * The OS scrollbar is drawn by the platform, not the page: on Windows it is a
@@ -113,6 +160,34 @@
 .cg-cmd-scroll,
 .cg-scroll,
 .cg-scroll * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cgx-scroll-thumb, rgba(255, 255, 255, 0.22))
+    transparent;
+}
+
+/* Data grids (AG Grid) — every table uses the themed scrollbar, not the OS default. */
+.ag-root-wrapper ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.ag-root-wrapper ::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ag-root-wrapper ::-webkit-scrollbar-thumb {
+  background: var(--cgx-scroll-thumb, rgba(255, 255, 255, 0.22));
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.ag-root-wrapper ::-webkit-scrollbar-thumb:hover {
+  background: var(--cgx-scroll-thumb-hover, rgba(255, 255, 255, 0.34));
+  background-clip: content-box;
+}
+.ag-root-wrapper ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.ag-root-wrapper,
+.ag-root-wrapper * {
   scrollbar-width: thin;
   scrollbar-color: var(--cgx-scroll-thumb, rgba(255, 255, 255, 0.22))
     transparent;
