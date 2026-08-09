@@ -39,14 +39,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Parent / Child Workspaces — the operational workspace-to-workspace hierarchy. Authoritative spec:
@@ -475,45 +473,21 @@ export function ParentChildWorkspacesView() {
   return (
     <>
       {/* Operational Dashboard */}
-      <PostureGrid>
-        <PostureCard
-          title="Parent Workspaces"
-          value={parents}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Child Workspaces"
-          value={childCount}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Hierarchy Depth"
-          value={`${maxDepth} levels`}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Shared Resources"
-          value={sharedTotal}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Inheritance Overrides"
-          value={overridesTotal}
-          tone="warn"
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Relationship Changes (30d)"
-          value={24}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Validation Errors"
-          value={2}
-          tone="danger"
-          sub={<SampleTag />}
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Parent Workspaces", value: parents },
+          { label: "Child Workspaces", value: childCount },
+          { label: "Hierarchy Depth", value: `${maxDepth} levels` },
+          { label: "Shared Resources", value: sharedTotal },
+          {
+            label: "Inheritance Overrides",
+            value: overridesTotal,
+            tone: "warn",
+          },
+          { label: "Relationship Changes (30d)", value: 24 },
+          { label: "Validation Errors", value: 2, tone: "danger" },
+        ]}
+      />
 
       <div style={{ height: 16 }} />
 

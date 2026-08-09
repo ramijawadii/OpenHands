@@ -47,14 +47,12 @@ import {
   RowMenu,
   ScopeBadge,
   ConfirmButton,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Sandboxes — isolated, temporary, or experimental workspaces used to safely evaluate cloud
@@ -651,56 +649,22 @@ export function SandboxesView() {
   return (
     <>
       {/* Operational Dashboard (spec § Operational Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Active Sandboxes"
-          value={activeCount}
-          sub={<>Currently running · Sample</>}
-          tone="ok"
-        />
-        <PostureCard
-          title="Expiring Soon"
-          value={expiringCount}
-          sub={<>Within 7 days · Sample</>}
-          tone="warn"
-        />
-        <PostureCard
-          title="Expired"
-          value={expiredCount}
-          sub={<>Awaiting cleanup · Sample</>}
-          tone="danger"
-        />
-        <PostureCard
-          title="Suspended"
-          value={suspendedCount}
-          sub={<>Paused environments · Sample</>}
-          tone="warn"
-        />
-        <PostureCard
-          title="Average Lifetime"
-          value={`${avgLifetime} d`}
-          sub={<>Across sandboxes · Sample</>}
-          tone="muted"
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={2}
-          sub={<>Open across sandboxes · Sample</>}
-          tone="danger"
-        />
-        <PostureCard
-          title="Compliance Status"
-          value="86%"
-          sub={<>Controls passing · Sample</>}
-          tone="ok"
-        />
-        <PostureCard
-          title="Resource Consumption"
-          value="61%"
-          sub={<>Aggregate quota · Sample</>}
-          tone="warn"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Sandboxes", value: activeCount, tone: "ok" },
+          { label: "Expiring Soon", value: expiringCount, tone: "warn" },
+          { label: "Expired", value: expiredCount, tone: "danger" },
+          { label: "Suspended", value: suspendedCount, tone: "warn" },
+          {
+            label: "Average Lifetime",
+            value: `${avgLifetime} d`,
+            tone: "muted",
+          },
+          { label: "Policy Violations", value: 2, tone: "danger" },
+          { label: "Compliance Status", value: "86%", tone: "ok" },
+          { label: "Resource Consumption", value: "61%", tone: "warn" },
+        ]}
+      />
 
       <div
         style={{

@@ -36,14 +36,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   EnforcementPill,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 import { UsageBar } from "#/components/admin/pages/workspace-governance/workspace-quotas";
 
@@ -405,88 +403,38 @@ export function ResourceLimitsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Configured Limits"
-          value={configured}
-          tone="ok"
-          sub={
-            <>
-              Enforced limits <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Resources Monitored"
-          value={monitored}
-          tone="ok"
-          sub={
-            <>
-              Under limit tracking <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exceeded Limits"
-          value={exceeded}
-          tone={exceeded > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Over ceiling <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Warning Thresholds"
-          value={warnings}
-          tone={warnings > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Near ceiling <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Healthy Workspaces"
-          value={healthyWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Within all limits <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Quota Utilization"
-          value={`${utilization}%`}
-          tone={utilization >= 85 ? "warn" : "ok"}
-          sub={
-            <>
-              Average across limits <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Cloud Spend"
-          value={`$${120 + (hashId("spend") % 80)}k`}
-          tone="ok"
-          sub={
-            <>
-              Monthly, limit-bound <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Capacity Score"
-          value={`${Math.max(0, capacityScore)}%`}
-          tone={capacityScore >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Headroom health <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Configured Limits", value: configured, tone: "ok" },
+          { label: "Resources Monitored", value: monitored, tone: "ok" },
+          {
+            label: "Exceeded Limits",
+            value: exceeded,
+            tone: exceeded > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Warning Thresholds",
+            value: warnings,
+            tone: warnings > 0 ? "warn" : "ok",
+          },
+          { label: "Healthy Workspaces", value: healthyWorkspaces, tone: "ok" },
+          {
+            label: "Quota Utilization",
+            value: `${utilization}%`,
+            tone: utilization >= 85 ? "warn" : "ok",
+          },
+          {
+            label: "Cloud Spend",
+            value: `$${120 + (hashId("spend") % 80)}k`,
+            tone: "ok",
+          },
+          {
+            label: "Capacity Score",
+            value: `${Math.max(0, capacityScore)}%`,
+            tone: capacityScore >= 80 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Resource limits"

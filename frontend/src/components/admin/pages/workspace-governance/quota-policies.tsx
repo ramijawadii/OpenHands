@@ -39,14 +39,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   EnforcementPill,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -433,88 +431,38 @@ export function QuotaPoliciesView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Policies"
-          value={active}
-          tone="ok"
-          sub={
-            <>
-              Governing quotas <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Protected Workspaces"
-          value={protectedWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Under quota policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Quota Violations"
-          value={violations}
-          tone={violations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Policy breaches <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Exceptions"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Auto Scaling Policies"
-          value={autoScaling}
-          tone="ok"
-          sub={
-            <>
-              Elastic quotas <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Approval Requests"
-          value={approvalRequests}
-          tone="ok"
-          sub={
-            <>
-              Awaiting decision <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Workspaces governed <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Health"
-          value={`${policyHealth}%`}
-          tone={policyHealth >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Enforcement posture <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Policies", value: active, tone: "ok" },
+          {
+            label: "Protected Workspaces",
+            value: protectedWorkspaces,
+            tone: "ok",
+          },
+          {
+            label: "Quota Violations",
+            value: violations,
+            tone: violations > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Policy Exceptions",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          { label: "Auto Scaling Policies", value: autoScaling, tone: "ok" },
+          { label: "Approval Requests", value: approvalRequests, tone: "ok" },
+          {
+            label: "Compliance Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Policy Health",
+            value: `${policyHealth}%`,
+            tone: policyHealth >= 85 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Quota policies"

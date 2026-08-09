@@ -33,13 +33,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -538,88 +536,42 @@ export function ConfigurationDriftView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Drift"
-          value={activeDrift}
-          tone={activeDrift > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Unresolved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Critical Drift"
-          value={criticalDrift}
-          tone={criticalDrift > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Highest severity <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Approved Drift"
-          value={approvedDrift}
-          tone="ok"
-          sub={
-            <>
-              Accepted via governance <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Remediation"
-          value={pendingRemediation}
-          tone={pendingRemediation > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting fix <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Auto Remediated"
-          value={autoRemediated}
-          tone="ok"
-          sub={
-            <>
-              Restored to baseline <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Violations"
-          value={complianceViolations}
-          tone={complianceViolations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Framework impact <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={policyViolations}
-          tone={policyViolations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Governance impact <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Average Drift Age"
-          value={`${avgAge}h`}
-          tone={avgAge <= 24 ? "ok" : "warn"}
-          sub={
-            <>
-              Detect to resolve <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Active Drift",
+            value: activeDrift,
+            tone: activeDrift > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Critical Drift",
+            value: criticalDrift,
+            tone: criticalDrift > 0 ? "danger" : "ok",
+          },
+          { label: "Approved Drift", value: approvedDrift, tone: "ok" },
+          {
+            label: "Pending Remediation",
+            value: pendingRemediation,
+            tone: pendingRemediation > 0 ? "warn" : "ok",
+          },
+          { label: "Auto Remediated", value: autoRemediated, tone: "ok" },
+          {
+            label: "Compliance Violations",
+            value: complianceViolations,
+            tone: complianceViolations > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Policy Violations",
+            value: policyViolations,
+            tone: policyViolations > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Average Drift Age",
+            value: `${avgAge}h`,
+            tone: avgAge <= 24 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Configuration drift"

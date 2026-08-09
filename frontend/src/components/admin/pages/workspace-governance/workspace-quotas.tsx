@@ -38,13 +38,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -403,91 +401,41 @@ export function WorkspaceQuotasView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Configured Quotas"
-          value={configured}
-          tone="ok"
-          sub={
-            <>
-              Workspace entitlements <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Allocated Capacity"
-          value={`${allocated}u`}
-          tone="ok"
-          sub={
-            <>
-              Total allocated <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Consumed Capacity"
-          value={`${consumed}u`}
-          tone={utilization >= 85 ? "warn" : "ok"}
-          sub={
-            <>
-              Currently used <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Available Capacity"
-          value={`${available}u`}
-          tone={available > 0 ? "ok" : "danger"}
-          sub={
-            <>
-              Remaining headroom <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exceeded Quotas"
-          value={exceeded}
-          tone={exceeded > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Over allocation <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Quota Requests"
-          value={records.reduce(
-            (a, r) => a + (r.status === "Warning" ? 1 : 0),
-            0,
-          )}
-          tone="ok"
-          sub={
-            <>
-              Expansion pending <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Reserved Capacity"
-          value={`${reserved}u`}
-          tone="ok"
-          sub={
-            <>
-              Held for growth <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Quota Health"
-          value={`${100 - Math.round((exceeded / configured) * 100)}%`}
-          tone={exceeded === 0 ? "ok" : "warn"}
-          sub={
-            <>
-              Within allocation <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Configured Quotas", value: configured, tone: "ok" },
+          { label: "Allocated Capacity", value: `${allocated}u`, tone: "ok" },
+          {
+            label: "Consumed Capacity",
+            value: `${consumed}u`,
+            tone: utilization >= 85 ? "warn" : "ok",
+          },
+          {
+            label: "Available Capacity",
+            value: `${available}u`,
+            tone: available > 0 ? "ok" : "danger",
+          },
+          {
+            label: "Exceeded Quotas",
+            value: exceeded,
+            tone: exceeded > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Quota Requests",
+            value: records.reduce(
+              (a, r) => a + (r.status === "Warning" ? 1 : 0),
+              0,
+            ),
+            tone: "ok",
+          },
+          { label: "Reserved Capacity", value: `${reserved}u`, tone: "ok" },
+          {
+            label: "Quota Health",
+            value: `${100 - Math.round((exceeded / configured) * 100)}%`,
+            tone: exceeded === 0 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Workspace quotas"

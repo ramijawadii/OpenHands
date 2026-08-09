@@ -42,7 +42,7 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Deleted Workspaces — the terminal forensic record of workspaces that have completed the
@@ -589,41 +589,24 @@ export function DeletedWorkspacesView() {
       </div>
 
       {/* Operational dashboard counters (spec §Operational Dashboard) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <DashTile
-          label="Deleted Workspaces"
-          value={dash.deleted}
-          tone="muted"
-        />
-        <DashTile label="Pending Purge" value={dash.pendingPurge} tone="warn" />
-        <DashTile
-          label="Retention Holds"
-          value={dash.retentionHolds}
-          tone="ok"
-        />
-        <DashTile
-          label="Compliance Holds"
-          value={dash.complianceHolds}
-          tone="ok"
-        />
-        <DashTile
-          label="Deletion Requests"
-          value={dash.deletionRequests}
-          tone="muted"
-        />
-        <DashTile
-          label="Deletion Evidence Available"
-          value={dash.evidenceAvailable}
-          tone="ok"
-        />
-      </div>
+      <StatStripPlain
+        items={[
+          { label: "Deleted Workspaces", value: dash.deleted },
+          { label: "Pending Purge", value: dash.pendingPurge, tone: "warn" },
+          { label: "Retention Holds", value: dash.retentionHolds, tone: "ok" },
+          {
+            label: "Compliance Holds",
+            value: dash.complianceHolds,
+            tone: "ok",
+          },
+          { label: "Deletion Requests", value: dash.deletionRequests },
+          {
+            label: "Deletion Evidence Available",
+            value: dash.evidenceAvailable,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Deleted workspace register"
@@ -772,66 +755,6 @@ export function DeletedWorkspacesPage() {
 }
 
 // ── DashTile — a compact operational-dashboard counter ──
-function DashTile({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: number;
-  tone: "ok" | "warn" | "danger" | "muted";
-}) {
-  const dot =
-    tone === "ok"
-      ? T.success
-      : tone === "warn"
-        ? T.warning
-        : tone === "danger"
-          ? T.danger
-          : T.textMuted;
-  return (
-    <div
-      style={{
-        border: `1px solid ${T.border}`,
-        borderRadius: 10,
-        background: T.cardBg,
-        padding: "12px 14px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        minWidth: 0,
-      }}
-    >
-      <span
-        style={{
-          fontSize: 11,
-          color: T.textMuted,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-        }}
-      >
-        {label}
-        <SampleTag />
-      </span>
-      <span
-        style={{
-          fontSize: 20,
-          fontWeight: 600,
-          color: T.textPrimary,
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <span
-          style={{ width: 8, height: 8, borderRadius: "50%", background: dot }}
-        />
-        {value}
-      </span>
-    </div>
-  );
-}
 
 // ════════════ Deleted Workspace Detail Drawer — 8 sub-tabs (spec §Deleted Workspace Detail Drawer) ════════════
 const DRAWER_TABS = [

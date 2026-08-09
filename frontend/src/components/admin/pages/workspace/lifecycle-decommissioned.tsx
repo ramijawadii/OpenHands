@@ -39,14 +39,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Decommissioned Workspaces — the FINAL operational lifecycle stage of a workspace. Authoritative
@@ -465,48 +463,36 @@ export function LifecycleDecommissionedView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Total Decommissioned"
-          value={totalDecommissioned}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Pending Finalization"
-          value={pendingFinalization}
-          tone={pendingFinalization ? "warn" : "muted"}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Pending Cleanup"
-          value={pendingCleanup}
-          tone={pendingCleanup ? "warn" : "ok"}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Evidence Generated"
-          value={evidenceGenerated}
-          tone="ok"
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Resources Removed"
-          value={resourcesRemoved.toLocaleString()}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Retention Expiring"
-          value={retentionExpiring}
-          tone={retentionExpiring ? "warn" : "muted"}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Legal Holds"
-          value={legalHolds}
-          tone={legalHolds ? "danger" : "muted"}
-          sub={<SampleTag />}
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Total Decommissioned", value: totalDecommissioned },
+          {
+            label: "Pending Finalization",
+            value: pendingFinalization,
+            tone: pendingFinalization ? "warn" : "muted",
+          },
+          {
+            label: "Pending Cleanup",
+            value: pendingCleanup,
+            tone: pendingCleanup ? "warn" : "ok",
+          },
+          { label: "Evidence Generated", value: evidenceGenerated, tone: "ok" },
+          {
+            label: "Resources Removed",
+            value: resourcesRemoved.toLocaleString(),
+          },
+          {
+            label: "Retention Expiring",
+            value: retentionExpiring,
+            tone: retentionExpiring ? "warn" : "muted",
+          },
+          {
+            label: "Legal Holds",
+            value: legalHolds,
+            tone: legalHolds ? "danger" : "muted",
+          },
+        ]}
+      />
 
       <div style={{ height: 18 }} />
 

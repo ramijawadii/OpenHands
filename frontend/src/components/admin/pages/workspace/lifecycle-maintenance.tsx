@@ -44,13 +44,12 @@ import {
   RowMenu,
   ScopeBadge,
   PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Lifecycle → Maintenance — the workspaces temporarily placed into a controlled maintenance mode to
@@ -580,50 +579,33 @@ export function LifecycleMaintenanceView() {
   return (
     <>
       {/* spec § Operational Dashboard */}
-      <PostureGrid>
-        <PostureCard
-          title="Active Maintenance"
-          value={activeCount}
-          sub={<SampleTag />}
-          tone={activeCount > 0 ? "warn" : "muted"}
-        />
-        <PostureCard
-          title="Upcoming Maintenance"
-          value={upcomingCount}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Completed Maintenance"
-          value={completedCount}
-          sub={<SampleTag />}
-          tone="ok"
-        />
-        <PostureCard
-          title="Delayed Maintenance"
-          value={delayedCount}
-          sub={<SampleTag />}
-          tone={delayedCount > 0 ? "danger" : "muted"}
-        />
-        <PostureCard
-          title="Average Duration"
-          value="2h 41m"
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Maintenance Success Rate"
-          value="97.4%"
-          sub={<SampleTag />}
-          tone="ok"
-        />
-        <PostureCard
-          title="Upcoming Maintenance Windows"
-          value={upcomingCount}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Active Maintenance",
+            value: activeCount,
+            tone: activeCount > 0 ? "warn" : "muted",
+          },
+          {
+            label: "Upcoming Maintenance",
+            value: upcomingCount,
+            tone: "muted",
+          },
+          { label: "Completed Maintenance", value: completedCount, tone: "ok" },
+          {
+            label: "Delayed Maintenance",
+            value: delayedCount,
+            tone: delayedCount > 0 ? "danger" : "muted",
+          },
+          { label: "Average Duration", value: "2h 41m", tone: "muted" },
+          { label: "Maintenance Success Rate", value: "97.4%", tone: "ok" },
+          {
+            label: "Upcoming Maintenance Windows",
+            value: upcomingCount,
+            tone: "muted",
+          },
+        ]}
+      />
 
       <div style={{ height: 18 }} />
 

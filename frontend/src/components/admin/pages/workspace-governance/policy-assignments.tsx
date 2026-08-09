@@ -37,13 +37,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -435,77 +433,33 @@ export function PolicyAssignmentsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Assignments"
-          value={activeAssignments}
-          tone="ok"
-          sub={
-            <>
-              Currently enforced <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Inherited Assignments"
-          value={inheritedAssignments}
-          sub={
-            <>
-              From ancestor scopes <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Workspace Overrides"
-          value={overrides}
-          tone={overrides > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Local deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Conflicts"
-          value={conflicts}
-          tone={conflicts > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Awaiting resolution <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exceptions"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Effective Policies"
-          value={effective}
-          tone="ok"
-          sub={
-            <>
-              Resolved across estate <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Scopes with assignment <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Assignments", value: activeAssignments, tone: "ok" },
+          { label: "Inherited Assignments", value: inheritedAssignments },
+          {
+            label: "Workspace Overrides",
+            value: overrides,
+            tone: overrides > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Policy Conflicts",
+            value: conflicts,
+            tone: conflicts > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Exceptions",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          { label: "Effective Policies", value: effective, tone: "ok" },
+          {
+            label: "Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Policy assignments"

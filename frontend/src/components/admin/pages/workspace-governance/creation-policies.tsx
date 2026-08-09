@@ -38,14 +38,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   EnforcementPill,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -469,88 +467,46 @@ export function CreationPoliciesView() {
   return (
     <>
       {/* Creation Dashboard (spec §Creation Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Active Policies"
-          value={active}
-          tone="ok"
-          sub={
-            <>
-              Enforced at creation <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Workspace types gated <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Creation Requests"
-          value={requests.toLocaleString()}
-          tone="ok"
-          sub={
-            <>
-              Submitted this period <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Approved Creations"
-          value={approved.toLocaleString()}
-          tone="ok"
-          sub={
-            <>
-              Passed admission gate <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Rejected Requests"
-          value={rejected}
-          tone={rejected > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Blocked by policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Approvals"
-          value={pendingApprovals}
-          tone={pendingApprovals > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting decision <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Exceptions"
-          value={pendingExceptions}
-          tone={pendingExceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting review <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Avg Approval Time"
-          value={`${avgApprovalTime}h`}
-          tone={avgApprovalTime <= 24 ? "ok" : "warn"}
-          sub={
-            <>
-              Request to provision <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Policies", value: active, tone: "ok" },
+          {
+            label: "Policy Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Creation Requests",
+            value: requests.toLocaleString(),
+            tone: "ok",
+          },
+          {
+            label: "Approved Creations",
+            value: approved.toLocaleString(),
+            tone: "ok",
+          },
+          {
+            label: "Rejected Requests",
+            value: rejected,
+            tone: rejected > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Pending Approvals",
+            value: pendingApprovals,
+            tone: pendingApprovals > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Pending Exceptions",
+            value: pendingExceptions,
+            tone: pendingExceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Avg Approval Time",
+            value: `${avgApprovalTime}h`,
+            tone: avgApprovalTime <= 24 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       {/* Policy directory (spec §Table + §Toolbar + §Filters + §Search + §Row/Bulk Actions) */}
       <DiscoveryListView

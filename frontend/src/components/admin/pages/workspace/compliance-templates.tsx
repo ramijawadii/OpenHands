@@ -43,14 +43,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Compliance Templates — reusable compliance blueprints (regulatory posture, control assignments,
@@ -580,50 +578,41 @@ export function ComplianceTemplatesView() {
         title="Operational dashboard"
         desc="Compliance-template estate at a glance — coverage, adoption and automation across the organization."
       >
-        <PostureGrid>
-          <PostureCard
-            title="Published Templates"
-            value={published}
-            sub={<SampleTag />}
-            tone="ok"
-          />
-          <PostureCard
-            title="Frameworks Covered"
-            value={frameworksCovered}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Controls Included"
-            value={controlsIncluded.toLocaleString()}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Assigned Workspaces"
-            value={assignedWorkspaces}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Assessment Success Rate"
-            value={`${avgSuccess}%`}
-            sub={<SampleTag />}
-            tone={avgSuccess >= 90 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Evidence Sources"
-            value={evidenceSources}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Automation Rules"
-            value={automationRules}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Published Templates", value: published, tone: "ok" },
+            {
+              label: "Frameworks Covered",
+              value: frameworksCovered,
+              tone: "muted",
+            },
+            {
+              label: "Controls Included",
+              value: controlsIncluded.toLocaleString(),
+              tone: "muted",
+            },
+            {
+              label: "Assigned Workspaces",
+              value: assignedWorkspaces,
+              tone: "muted",
+            },
+            {
+              label: "Assessment Success Rate",
+              value: `${avgSuccess}%`,
+              tone: avgSuccess >= 90 ? "ok" : "warn",
+            },
+            {
+              label: "Evidence Sources",
+              value: evidenceSources,
+              tone: "muted",
+            },
+            {
+              label: "Automation Rules",
+              value: automationRules,
+              tone: "muted",
+            },
+          ]}
+        />
       </Card>
 
       {isVersions ? (

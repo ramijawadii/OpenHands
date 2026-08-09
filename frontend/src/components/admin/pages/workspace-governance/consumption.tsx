@@ -33,13 +33,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -389,88 +387,30 @@ export function ConsumptionView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Current Consumption"
-          value={`${current}u`}
-          tone="ok"
-          sub={
-            <>
-              Live enterprise usage <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Peak Consumption"
-          value={`${peak}u`}
-          tone="ok"
-          sub={
-            <>
-              Highest observed <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Average Utilization"
-          value={`${avgUtil}%`}
-          tone={avgUtil >= 60 ? "ok" : "warn"}
-          sub={
-            <>
-              Of current usage <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Available Capacity"
-          value={`${available}u`}
-          tone="ok"
-          sub={
-            <>
-              Remaining headroom <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Monthly Growth"
-          value={`${growth >= 0 ? "+" : ""}${growth}%`}
-          tone={growth >= 15 ? "warn" : "ok"}
-          sub={
-            <>
-              Across resources <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Cloud Cost"
-          value={`$${cloudCost}k`}
-          tone="ok"
-          sub={
-            <>
-              Current month <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Top Consumer"
-          value={topConsumer}
-          tone="ok"
-          sub={
-            <>
-              Highest usage <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Forecast Accuracy"
-          value={`${85 + (hashId("acc") % 12)}%`}
-          tone="ok"
-          sub={
-            <>
-              Model reliability <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Current Consumption", value: `${current}u`, tone: "ok" },
+          { label: "Peak Consumption", value: `${peak}u`, tone: "ok" },
+          {
+            label: "Average Utilization",
+            value: `${avgUtil}%`,
+            tone: avgUtil >= 60 ? "ok" : "warn",
+          },
+          { label: "Available Capacity", value: `${available}u`, tone: "ok" },
+          {
+            label: "Monthly Growth",
+            value: `${growth >= 0 ? "+" : ""}${growth}%`,
+            tone: growth >= 15 ? "warn" : "ok",
+          },
+          { label: "Cloud Cost", value: `$${cloudCost}k`, tone: "ok" },
+          { label: "Top Consumer", value: topConsumer, tone: "ok" },
+          {
+            label: "Forecast Accuracy",
+            value: `${85 + (hashId("acc") % 12)}%`,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Consumption"

@@ -40,13 +40,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -396,88 +394,34 @@ export function TrustRelationshipsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Trusts"
-          value={activeTrusts}
-          tone="ok"
-          sub={
-            <>
-              In effect now <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Requests"
-          value={pending}
-          tone={pending > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting approval <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Expired Trusts"
-          value={expired}
-          tone="ok"
-          sub={
-            <>
-              No longer valid <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Revoked Trusts"
-          value={revoked}
-          tone="ok"
-          sub={
-            <>
-              Permanently terminated <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Connected Workspaces"
-          value={connectedWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Participating in trust <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared Resources"
-          value={sharedResources}
-          tone="ok"
-          sub={
-            <>
-              Exposed via trust <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={violations}
-          tone={violations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Failing validation <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Trust Reviews"
-          value={reviews}
-          tone={reviews > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Certifications due <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Trusts", value: activeTrusts, tone: "ok" },
+          {
+            label: "Pending Requests",
+            value: pending,
+            tone: pending > 0 ? "warn" : "ok",
+          },
+          { label: "Expired Trusts", value: expired, tone: "ok" },
+          { label: "Revoked Trusts", value: revoked, tone: "ok" },
+          {
+            label: "Connected Workspaces",
+            value: connectedWorkspaces,
+            tone: "ok",
+          },
+          { label: "Shared Resources", value: sharedResources, tone: "ok" },
+          {
+            label: "Policy Violations",
+            value: violations,
+            tone: violations > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Trust Reviews",
+            value: reviews,
+            tone: reviews > 0 ? "warn" : "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Trust relationships"

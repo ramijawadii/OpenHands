@@ -45,14 +45,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Custom Templates — the organization-specific workspace-template composition surface.
@@ -610,50 +608,21 @@ export function CustomTemplatesView() {
   return (
     <>
       {/* ── Operational Dashboard ── */}
-      <PostureGrid>
-        <PostureCard
-          title="Custom Templates"
-          value={records.length}
-          sub={<>Composed blueprints · Sample</>}
-          tone="muted"
-        />
-        <PostureCard
-          title="Published Templates"
-          value={published}
-          sub={<>Available for provisioning · Sample</>}
-          tone="ok"
-        />
-        <PostureCard
-          title="Draft Templates"
-          value={drafts}
-          sub={<>Not yet published · Sample</>}
-          tone="warn"
-        />
-        <PostureCard
-          title="Shared Templates"
-          value={shared}
-          sub={<>Organization / shared library · Sample</>}
-          tone="muted"
-        />
-        <PostureCard
-          title="Private Templates"
-          value={priv}
-          sub={<>Owner-scoped · Sample</>}
-          tone="muted"
-        />
-        <PostureCard
-          title="Assigned Workspaces"
-          value={assigned}
-          sub={<>Provisioned from custom templates · Sample</>}
-          tone="ok"
-        />
-        <PostureCard
-          title="Most Used Template"
-          value={<span style={{ fontSize: 15 }}>{mostUsed.name}</span>}
-          sub={<>{mostUsed.assignedWorkspaces} workspaces · Sample</>}
-          tone="ok"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Custom Templates", value: records.length, tone: "muted" },
+          { label: "Published Templates", value: published, tone: "ok" },
+          { label: "Draft Templates", value: drafts, tone: "warn" },
+          { label: "Shared Templates", value: shared, tone: "muted" },
+          { label: "Private Templates", value: priv, tone: "muted" },
+          { label: "Assigned Workspaces", value: assigned, tone: "ok" },
+          {
+            label: "Most Used Template",
+            value: <span style={{ fontSize: 15 }}>{mostUsed.name}</span>,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <div style={{ height: 18 }} />
 

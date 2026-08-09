@@ -42,13 +42,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -424,93 +422,31 @@ export function KubernetesClustersView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Connected Clusters"
-          value={connected}
-          tone="ok"
-          sub={
-            <>
-              Actively governed <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Production"
-          value={production}
-          sub={
-            <>
-              Production clusters <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Development"
-          value={development}
-          sub={
-            <>
-              Dev clusters <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared / Dedicated"
-          value={`${shared} / ${dedicated}`}
-          sub={
-            <>
-              Tenancy model <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Namespaces"
-          value={namespaces}
-          sub={
-            <>
-              Across clusters <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Running Workloads"
-          value={workloads.toLocaleString()}
-          tone="ok"
-          sub={
-            <>
-              Pods / deployments <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Nodes"
-          value={nodes}
-          sub={
-            <>
-              Total compute <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Score"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Estate average <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Security Findings"
-          value={findings}
-          tone={findings > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Across clusters <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Connected Clusters", value: connected, tone: "ok" },
+          { label: "Production", value: production },
+          { label: "Development", value: development },
+          { label: "Shared / Dedicated", value: `${shared} / ${dedicated}` },
+          { label: "Namespaces", value: namespaces },
+          {
+            label: "Running Workloads",
+            value: workloads.toLocaleString(),
+            tone: "ok",
+          },
+          { label: "Nodes", value: nodes },
+          {
+            label: "Compliance Score",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Security Findings",
+            value: findings,
+            tone: findings > 0 ? "warn" : "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Kubernetes clusters"

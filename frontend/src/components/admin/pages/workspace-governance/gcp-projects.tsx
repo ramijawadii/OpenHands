@@ -39,13 +39,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -410,84 +408,30 @@ export function GcpProjectsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Connected Projects"
-          value={connected}
-          tone="ok"
-          sub={
-            <>
-              Actively governed <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Production Projects"
-          value={production}
-          sub={
-            <>
-              Primary boundaries <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Development Projects"
-          value={development}
-          sub={
-            <>
-              Dev / sandbox <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared Projects"
-          value={shared}
-          sub={
-            <>
-              Shared services <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Onboarding"
-          value={pending}
-          tone={pending > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting connection <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Score"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Estate average <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Security Findings"
-          value={findings}
-          tone={findings > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Across projects <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Monthly Cost"
-          value={`$${cost}k`}
-          sub={
-            <>
-              Estate spend <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Connected Projects", value: connected, tone: "ok" },
+          { label: "Production Projects", value: production },
+          { label: "Development Projects", value: development },
+          { label: "Shared Projects", value: shared },
+          {
+            label: "Pending Onboarding",
+            value: pending,
+            tone: pending > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Compliance Score",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Security Findings",
+            value: findings,
+            tone: findings > 0 ? "warn" : "ok",
+          },
+          { label: "Monthly Cost", value: `$${cost}k` },
+        ]}
+      />
 
       <DiscoveryListView
         title="GCP projects"

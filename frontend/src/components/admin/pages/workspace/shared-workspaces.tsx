@@ -38,14 +38,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Shared Workspaces — the enterprise collaboration surface for Workspace Administration.
@@ -554,52 +552,45 @@ export function SharedWorkspacesView() {
         desc="Aggregate posture across all shared workspaces — connectivity, sharing surface, trust and compliance."
         right={<SampleTag />}
       >
-        <PostureGrid>
-          <PostureCard
-            title="Connected Workspaces"
-            value={totalConnected.toLocaleString()}
-            sub="Across active shared workspaces"
-            tone="ok"
-          />
-          <PostureCard
-            title="Shared Resources"
-            value={totalResources.toLocaleString()}
-            sub="Resources exposed via shares"
-            tone="ok"
-          />
-          <PostureCard
-            title="Trust Relationships"
-            value={totalTrusts.toLocaleString()}
-            sub="Established trust edges"
-            tone="ok"
-          />
-          <PostureCard
-            title="Policy Violations"
-            value={totalViolations}
-            sub={
-              totalViolations === 0 ? "No open violations" : "Open violations"
-            }
-            tone={totalViolations === 0 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Compliance Score"
-            value={`${avgCompliance}%`}
-            sub="Average across shares"
-            tone={avgCompliance >= 85 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Synchronization Status"
-            value={`${syncedPct}%`}
-            sub="Shares in sync"
-            tone={syncedPct >= 90 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Health Score"
-            value={`${avgHealth}%`}
-            sub="Average operational health"
-            tone={avgHealth >= 85 ? "ok" : "warn"}
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            {
+              label: "Connected Workspaces",
+              value: totalConnected.toLocaleString(),
+              tone: "ok",
+            },
+            {
+              label: "Shared Resources",
+              value: totalResources.toLocaleString(),
+              tone: "ok",
+            },
+            {
+              label: "Trust Relationships",
+              value: totalTrusts.toLocaleString(),
+              tone: "ok",
+            },
+            {
+              label: "Policy Violations",
+              value: totalViolations,
+              tone: totalViolations === 0 ? "ok" : "warn",
+            },
+            {
+              label: "Compliance Score",
+              value: `${avgCompliance}%`,
+              tone: avgCompliance >= 85 ? "ok" : "warn",
+            },
+            {
+              label: "Synchronization Status",
+              value: `${syncedPct}%`,
+              tone: syncedPct >= 90 ? "ok" : "warn",
+            },
+            {
+              label: "Health Score",
+              value: `${avgHealth}%`,
+              tone: avgHealth >= 85 ? "ok" : "warn",
+            },
+          ]}
+        />
       </Card>
 
       <DiscoveryListView

@@ -37,13 +37,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -426,88 +424,34 @@ export function CrossWorkspaceRequestsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Pending Requests"
-          value={pending}
-          tone={pending > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting approval <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Incoming Requests"
-          value={incoming}
-          tone="ok"
-          sub={
-            <>
-              Received from others <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Outgoing Requests"
-          value={outgoing}
-          tone="ok"
-          sub={
-            <>
-              Submitted by us <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Approved Requests"
-          value={approved}
-          tone="ok"
-          sub={
-            <>
-              Completed successfully <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Rejected Requests"
-          value={rejected}
-          tone={rejected > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Denied by reviewers <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Expired Requests"
-          value={expired}
-          tone="ok"
-          sub={
-            <>
-              Missed deadlines <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Avg Approval Time"
-          value={`${avgApproval}h`}
-          tone={avgApproval <= 24 ? "ok" : "warn"}
-          sub={
-            <>
-              Submit to decision <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={violations}
-          tone={violations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Flagged in review <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Pending Requests",
+            value: pending,
+            tone: pending > 0 ? "warn" : "ok",
+          },
+          { label: "Incoming Requests", value: incoming, tone: "ok" },
+          { label: "Outgoing Requests", value: outgoing, tone: "ok" },
+          { label: "Approved Requests", value: approved, tone: "ok" },
+          {
+            label: "Rejected Requests",
+            value: rejected,
+            tone: rejected > 0 ? "warn" : "ok",
+          },
+          { label: "Expired Requests", value: expired, tone: "ok" },
+          {
+            label: "Avg Approval Time",
+            value: `${avgApproval}h`,
+            tone: avgApproval <= 24 ? "ok" : "warn",
+          },
+          {
+            label: "Policy Violations",
+            value: violations,
+            tone: violations > 0 ? "warn" : "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Cross-workspace requests"

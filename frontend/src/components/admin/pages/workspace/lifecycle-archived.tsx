@@ -39,14 +39,12 @@ import {
   RowMenu,
   ScopeBadge,
   ConfirmButton,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Lifecycle → Archived — the STATE view for workspaces that are no longer actively used but must be
@@ -601,50 +599,45 @@ export function LifecycleArchivedView() {
 
       {/* Operational Dashboard */}
       <div style={{ marginBottom: 18 }}>
-        <PostureGrid>
-          <PostureCard
-            title="Archived Workspaces"
-            value={archivedCount}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Pending Restorations"
-            value={pendingRestorations}
-            sub={<SampleTag />}
-            tone={pendingRestorations ? "warn" : "muted"}
-          />
-          <PostureCard
-            title="Retention Expiring"
-            value={retentionExpiring}
-            sub={<SampleTag />}
-            tone={retentionExpiring ? "warn" : "muted"}
-          />
-          <PostureCard
-            title="Legal Holds"
-            value={legalHolds}
-            sub={<SampleTag />}
-            tone={legalHolds ? "danger" : "muted"}
-          />
-          <PostureCard
-            title="Compliance Archives"
-            value={complianceArchives}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Restorable Workspaces"
-            value={restorableCount}
-            sub={<SampleTag />}
-            tone="ok"
-          />
-          <PostureCard
-            title="Storage Consumption"
-            value={`${storageTb} TB`}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            {
+              label: "Archived Workspaces",
+              value: archivedCount,
+              tone: "muted",
+            },
+            {
+              label: "Pending Restorations",
+              value: pendingRestorations,
+              tone: pendingRestorations ? "warn" : "muted",
+            },
+            {
+              label: "Retention Expiring",
+              value: retentionExpiring,
+              tone: retentionExpiring ? "warn" : "muted",
+            },
+            {
+              label: "Legal Holds",
+              value: legalHolds,
+              tone: legalHolds ? "danger" : "muted",
+            },
+            {
+              label: "Compliance Archives",
+              value: complianceArchives,
+              tone: "muted",
+            },
+            {
+              label: "Restorable Workspaces",
+              value: restorableCount,
+              tone: "ok",
+            },
+            {
+              label: "Storage Consumption",
+              value: `${storageTb} TB`,
+              tone: "muted",
+            },
+          ]}
+        />
       </div>
 
       <DiscoveryListView

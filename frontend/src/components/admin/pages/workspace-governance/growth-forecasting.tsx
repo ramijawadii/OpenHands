@@ -33,13 +33,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -402,88 +400,46 @@ export function GrowthForecastingView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Predicted Growth"
-          value={`+${predictedGrowth}%`}
-          tone={predictedGrowth >= 40 ? "warn" : "ok"}
-          sub={
-            <>
-              Enterprise average <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Forecast Accuracy"
-          value={`${accuracy}%`}
-          tone={accuracy >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Model confidence <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Capacity Exhaustion"
-          value={exhaustion}
-          tone={exhaustion > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Resources under 60d <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Cloud Cost Projection"
-          value={`$${costProjection}k`}
-          tone="ok"
-          sub={
-            <>
-              Projected monthly <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Fastest Growing"
-          value={fastest}
-          tone="ok"
-          sub={
-            <>
-              Top-growth workspace <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Predicted Bottlenecks"
-          value={bottlenecks}
-          tone={bottlenecks > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              High/Critical risk <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Infrastructure Risk"
-          value={`${infraRisk}%`}
-          tone={infraRisk < 30 ? "ok" : "warn"}
-          sub={
-            <>
-              Of forecasts at risk <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Optimization Opportunities"
-          value={optOpportunities}
-          tone="ok"
-          sub={
-            <>
-              Flat/declining trends <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Predicted Growth",
+            value: `+${predictedGrowth}%`,
+            tone: predictedGrowth >= 40 ? "warn" : "ok",
+          },
+          {
+            label: "Forecast Accuracy",
+            value: `${accuracy}%`,
+            tone: accuracy >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Capacity Exhaustion",
+            value: exhaustion,
+            tone: exhaustion > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Cloud Cost Projection",
+            value: `$${costProjection}k`,
+            tone: "ok",
+          },
+          { label: "Fastest Growing", value: fastest, tone: "ok" },
+          {
+            label: "Predicted Bottlenecks",
+            value: bottlenecks,
+            tone: bottlenecks > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Infrastructure Risk",
+            value: `${infraRisk}%`,
+            tone: infraRisk < 30 ? "ok" : "warn",
+          },
+          {
+            label: "Optimization Opportunities",
+            value: optOpportunities,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Growth forecasting"

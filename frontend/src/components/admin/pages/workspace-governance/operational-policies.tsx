@@ -37,14 +37,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   EnforcementPill,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -458,78 +456,41 @@ export function OperationalPoliciesView() {
   return (
     <>
       {/* Operational Dashboard (spec §Operational Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Active Policies"
-          value={active}
-          tone="ok"
-          sub={
-            <>
-              Enforced org-wide <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Workspaces with policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Workspace Compliance"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Average score <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={violations}
-          tone={violations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Open across estate <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Critical Violations"
-          value={critViolations}
-          tone={critViolations > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              On Critical policies <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Exceptions"
-          value={pendingExceptions}
-          tone={pendingExceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting review <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Avg Compliance Score"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Across policies <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Policies", value: active, tone: "ok" },
+          {
+            label: "Policy Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Workspace Compliance",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Policy Violations",
+            value: violations,
+            tone: violations > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Critical Violations",
+            value: critViolations,
+            tone: critViolations > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Pending Exceptions",
+            value: pendingExceptions,
+            tone: pendingExceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Avg Compliance Score",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       {/* Policy directory (spec §Table + §Toolbar + §Filters + §Search + §Row/Bulk Actions) */}
       <DiscoveryListView

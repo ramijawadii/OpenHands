@@ -44,14 +44,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Enterprise Templates — organization-approved blueprints used to standardize the creation of
@@ -516,50 +514,33 @@ export function EnterpriseTemplatesView() {
         title="Operational dashboard"
         desc="Enterprise template estate at a glance — publication state, defaults, provisioning reach and the latest catalog version."
       >
-        <PostureGrid>
-          <PostureCard
-            title="Published Templates"
-            value={publishedCount}
-            sub={<>Available for provisioning · Sample</>}
-            tone="ok"
-          />
-          <PostureCard
-            title="Draft Templates"
-            value={draftCount}
-            sub={<>Awaiting review / publish · Sample</>}
-            tone="warn"
-          />
-          <PostureCard
-            title="Deprecated Templates"
-            value={deprecatedCount}
-            sub={<>Scheduled for retirement · Sample</>}
-            tone="danger"
-          />
-          <PostureCard
-            title="Default Templates"
-            value={defaultCount}
-            sub={<>Assigned as provisioning default · Sample</>}
-            tone="ok"
-          />
-          <PostureCard
-            title="Workspaces Provisioned"
-            value={workspacesProvisioned.toLocaleString()}
-            sub={<>From all templates · Sample</>}
-            tone="muted"
-          />
-          <PostureCard
-            title="Most Used Template"
-            value={mostUsed.name}
-            sub={<>{mostUsed.workspacesUsing} workspaces · Sample</>}
-            tone="muted"
-          />
-          <PostureCard
-            title="Latest Version"
-            value={latestVersion.version}
-            sub={<>{latestVersion.name} · Sample</>}
-            tone="muted"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Published Templates", value: publishedCount, tone: "ok" },
+            { label: "Draft Templates", value: draftCount, tone: "warn" },
+            {
+              label: "Deprecated Templates",
+              value: deprecatedCount,
+              tone: "danger",
+            },
+            { label: "Default Templates", value: defaultCount, tone: "ok" },
+            {
+              label: "Workspaces Provisioned",
+              value: workspacesProvisioned.toLocaleString(),
+              tone: "muted",
+            },
+            {
+              label: "Most Used Template",
+              value: mostUsed.name,
+              tone: "muted",
+            },
+            {
+              label: "Latest Version",
+              value: latestVersion.version,
+              tone: "muted",
+            },
+          ]}
+        />
       </Card>
 
       {/* ── Second-level sub-navigation ── */}

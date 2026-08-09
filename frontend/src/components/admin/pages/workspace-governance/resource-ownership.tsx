@@ -34,13 +34,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -417,88 +415,38 @@ export function ResourceOwnershipView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Owned Resources"
-          value={owned}
-          tone="ok"
-          sub={
-            <>
-              With valid ownership <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Orphaned Resources"
-          value={orphaned}
-          tone={orphaned > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              No valid owner <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Business Owners"
-          value={businessOwners}
-          tone="ok"
-          sub={
-            <>
-              Accountable leaders <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Technical Owners"
-          value={technicalOwners}
-          tone="ok"
-          sub={
-            <>
-              Operational teams <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Ownership Reviews"
-          value={reviews}
-          tone={reviews > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Certification due <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Requests"
-          value={pendingRequests}
-          tone={pendingRequests > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Transfers awaiting <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Ownership Violations"
-          value={orphaned}
-          tone={orphaned > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Failing governance rules <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Ownership Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 90 ? "ok" : "warn"}
-          sub={
-            <>
-              Resources with owners <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Owned Resources", value: owned, tone: "ok" },
+          {
+            label: "Orphaned Resources",
+            value: orphaned,
+            tone: orphaned > 0 ? "danger" : "ok",
+          },
+          { label: "Business Owners", value: businessOwners, tone: "ok" },
+          { label: "Technical Owners", value: technicalOwners, tone: "ok" },
+          {
+            label: "Ownership Reviews",
+            value: reviews,
+            tone: reviews > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Pending Requests",
+            value: pendingRequests,
+            tone: pendingRequests > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Ownership Violations",
+            value: orphaned,
+            tone: orphaned > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Ownership Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 90 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Resource ownership"

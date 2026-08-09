@@ -35,13 +35,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -410,76 +408,37 @@ export function ComplianceAssignmentsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Assigned Frameworks"
-          value={assignedFrameworks}
-          tone="ok"
-          sub={
-            <>
-              Across the estate <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Workspaces assigned <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Profiles"
-          value={profiles}
-          sub={
-            <>
-              Distinct profiles in use <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Requests"
-          value={pending}
-          tone={pending > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting approval <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exceptions"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Assignment Changes"
-          value={records.length}
-          sub={
-            <>
-              Recent changes <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Avg Compliance Score"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Implemented / required <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Assigned Frameworks",
+            value: assignedFrameworks,
+            tone: "ok",
+          },
+          {
+            label: "Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          { label: "Compliance Profiles", value: profiles },
+          {
+            label: "Pending Requests",
+            value: pending,
+            tone: pending > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Exceptions",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          { label: "Assignment Changes", value: records.length },
+          {
+            label: "Avg Compliance Score",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Compliance assignments"

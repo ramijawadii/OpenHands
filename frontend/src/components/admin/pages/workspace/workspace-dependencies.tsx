@@ -41,14 +41,12 @@ import {
   RowMenu,
   ScopeBadge,
   ConfirmButton,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Dependencies — the enterprise operational dependency map for the entire workspace
@@ -658,42 +656,32 @@ export function WorkspaceDependenciesView() {
         desc="Enterprise-wide view of dependency posture across all workspaces."
         right={<SampleTag />}
       >
-        <PostureGrid>
-          <PostureCard
-            title="Total Dependencies"
-            value={totalDeps}
-            tone="muted"
-          />
-          <PostureCard
-            title="Critical Dependencies"
-            value={criticalDeps}
-            tone="danger"
-          />
-          <PostureCard title="Healthy Services" value={healthyDeps} tone="ok" />
-          <PostureCard
-            title="Degraded Services"
-            value={degradedDeps}
-            tone="warn"
-          />
-          <PostureCard
-            title="Dependency Violations"
-            value={violations}
-            tone={violations > 0 ? "danger" : "ok"}
-          />
-          <PostureCard
-            title="Recent Changes"
-            value={recentChanges}
-            tone="muted"
-          />
-          <PostureCard
-            title="Impact Assessments"
-            value={records.reduce(
-              (a, r) => a + (r.incidentCount > 0 ? 1 : 0),
-              0,
-            )}
-            tone="muted"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Total Dependencies", value: totalDeps, tone: "muted" },
+            {
+              label: "Critical Dependencies",
+              value: criticalDeps,
+              tone: "danger",
+            },
+            { label: "Healthy Services", value: healthyDeps, tone: "ok" },
+            { label: "Degraded Services", value: degradedDeps, tone: "warn" },
+            {
+              label: "Dependency Violations",
+              value: violations,
+              tone: violations > 0 ? "danger" : "ok",
+            },
+            { label: "Recent Changes", value: recentChanges, tone: "muted" },
+            {
+              label: "Impact Assessments",
+              value: records.reduce(
+                (a, r) => a + (r.incidentCount > 0 ? 1 : 0),
+                0,
+              ),
+              tone: "muted",
+            },
+          ]}
+        />
       </Card>
 
       {showCatalog && (
@@ -966,24 +954,22 @@ function ImpactAnalysisView({ records }: { records: DependencyRecord[] }) {
         </div>
       }
     >
-      <PostureGrid>
-        <PostureCard
-          title="Affected Workspaces"
-          value={affectedWorkspaces}
-          tone="warn"
-        />
-        <PostureCard title="Affected Users" value={affectedUsers} tone="warn" />
-        <PostureCard
-          title="Affected Services"
-          value={affectedServices}
-          tone="warn"
-        />
-        <PostureCard
-          title="Critical Path Deps"
-          value={records.filter((r) => r.criticality === "Critical").length}
-          tone="danger"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Affected Workspaces",
+            value: affectedWorkspaces,
+            tone: "warn",
+          },
+          { label: "Affected Users", value: affectedUsers, tone: "warn" },
+          { label: "Affected Services", value: affectedServices, tone: "warn" },
+          {
+            label: "Critical Path Deps",
+            value: records.filter((r) => r.criticality === "Critical").length,
+            tone: "danger",
+          },
+        ]}
+      />
       <div style={{ marginTop: 12 }}>
         <FlowChain
           nodes={[

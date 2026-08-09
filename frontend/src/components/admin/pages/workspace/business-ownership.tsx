@@ -38,14 +38,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Business Ownership — organizational accountability for a workspace from a business perspective.
@@ -602,39 +600,25 @@ export function BusinessOwnershipView() {
         Organizational dashboard <SampleTag />
       </div>
       <div style={{ marginBottom: 18 }}>
-        <PostureGrid>
-          <PostureCard
-            title="Business Units"
-            value={uniqueBu}
-            sub="Owning organizations"
-            tone="ok"
-          />
-          <PostureCard title="Departments" value={uniqueDept} sub="Assigned" />
-          <PostureCard
-            title="Owned Workspaces"
-            value={totalWorkspaces}
-            sub="Across all assignments"
-            tone="ok"
-          />
-          <PostureCard
-            title="Executive Sponsors"
-            value={uniqueSponsors}
-            sub="Accountable leaders"
-          />
-          <PostureCard title="Cost Centers" value={uniqueCostCenters} />
-          <PostureCard
-            title="Monthly Spend"
-            value={money(totalMonthly)}
-            sub="Chargeback-allocated"
-            tone="warn"
-          />
-          <PostureCard
-            title="Compliance Coverage"
-            value={`${avgCompliance}%`}
-            sub="Avg. compliance score"
-            tone={avgCompliance >= 85 ? "ok" : "warn"}
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Business Units", value: uniqueBu, tone: "ok" },
+            { label: "Departments", value: uniqueDept },
+            { label: "Owned Workspaces", value: totalWorkspaces, tone: "ok" },
+            { label: "Executive Sponsors", value: uniqueSponsors },
+            { label: "Cost Centers", value: uniqueCostCenters },
+            {
+              label: "Monthly Spend",
+              value: money(totalMonthly),
+              tone: "warn",
+            },
+            {
+              label: "Compliance Coverage",
+              value: `${avgCompliance}%`,
+              tone: avgCompliance >= 85 ? "ok" : "warn",
+            },
+          ]}
+        />
       </div>
 
       {/* Ownership Hierarchy (spec §Ownership Hierarchy) */}

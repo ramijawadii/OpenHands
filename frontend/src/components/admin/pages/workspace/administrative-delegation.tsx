@@ -44,14 +44,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Administrative Delegation — the governance engine behind delegated administration. Authoritative
@@ -736,32 +734,33 @@ export function AdministrativeDelegationView() {
   return (
     <>
       {/* Operational Dashboard (spec §Operational Dashboard) */}
-      <PostureGrid>
-        <PostureCard title="Active Delegations" value={dash.active} tone="ok" />
-        <PostureCard
-          title="Pending Requests"
-          value={dash.pending}
-          tone={dash.pending ? "warn" : "muted"}
-        />
-        <PostureCard title="Temporary Delegations" value={dash.temporary} />
-        <PostureCard
-          title="Expiring Soon"
-          value={dash.expiring}
-          sub="≤ 7 days"
-          tone={dash.expiring ? "warn" : "muted"}
-        />
-        <PostureCard
-          title="Break Glass Sessions"
-          value={dash.breakGlass}
-          tone={dash.breakGlass ? "danger" : "muted"}
-        />
-        <PostureCard title="Revoked Delegations" value={dash.revoked} />
-        <PostureCard
-          title="Delegation Violations"
-          value={dash.violations}
-          tone={dash.violations ? "danger" : "ok"}
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Delegations", value: dash.active, tone: "ok" },
+          {
+            label: "Pending Requests",
+            value: dash.pending,
+            tone: dash.pending ? "warn" : "muted",
+          },
+          { label: "Temporary Delegations", value: dash.temporary },
+          {
+            label: "Expiring Soon",
+            value: dash.expiring,
+            tone: dash.expiring ? "warn" : "muted",
+          },
+          {
+            label: "Break Glass Sessions",
+            value: dash.breakGlass,
+            tone: dash.breakGlass ? "danger" : "muted",
+          },
+          { label: "Revoked Delegations", value: dash.revoked },
+          {
+            label: "Delegation Violations",
+            value: dash.violations,
+            tone: dash.violations ? "danger" : "ok",
+          },
+        ]}
+      />
 
       <div style={{ display: "flex", marginTop: 14, marginBottom: 14 }}>
         <Select

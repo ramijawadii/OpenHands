@@ -40,14 +40,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   EnforcementPill,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -421,88 +419,42 @@ export function SharedResourcePoliciesView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Policies"
-          value={active}
-          tone="ok"
-          sub={
-            <>
-              Enforced enterprise-wide <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Protected Resources"
-          value={protectedResources}
-          tone="ok"
-          sub={
-            <>
-              Governed by policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared Resources"
-          value={sharedResources}
-          tone="ok"
-          sub={
-            <>
-              Under sharing policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={violations}
-          tone={violations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Failing enforcement <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exceptions"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Mapped to controls <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Security Score"
-          value={`${securityScore}%`}
-          tone={securityScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Sharing posture <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Drift"
-          value={records.filter((r) => r.violations > 3).length}
-          tone="ok"
-          sub={
-            <>
-              Off enterprise standard <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Policies", value: active, tone: "ok" },
+          {
+            label: "Protected Resources",
+            value: protectedResources,
+            tone: "ok",
+          },
+          { label: "Shared Resources", value: sharedResources, tone: "ok" },
+          {
+            label: "Policy Violations",
+            value: violations,
+            tone: violations > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Exceptions",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Compliance Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Security Score",
+            value: `${securityScore}%`,
+            tone: securityScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Policy Drift",
+            value: records.filter((r) => r.violations > 3).length,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Shared resource policies"

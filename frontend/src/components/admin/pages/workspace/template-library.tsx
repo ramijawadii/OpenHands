@@ -46,14 +46,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Template Library — the centralized, enterprise-marketplace catalog for every reusable workspace
@@ -585,55 +583,26 @@ export function TemplateLibraryView() {
         desc="Library-wide template posture across the organization."
         right={<SampleTag />}
       >
-        <PostureGrid>
-          <PostureCard
-            title="Total Templates"
-            value={records.length}
-            tone="ok"
-          />
-          <PostureCard
-            title="Published"
-            value={published}
-            tone="ok"
-            sub={`${Math.round((published / records.length) * 100)}% of catalog`}
-          />
-          <PostureCard
-            title="Draft"
-            value={draft}
-            tone="warn"
-            sub="Awaiting publish"
-          />
-          <PostureCard
-            title="Archived"
-            value={archived}
-            tone="muted"
-            sub="Retained for history"
-          />
-          <PostureCard
-            title="Favorites"
-            value={favorites}
-            tone="ok"
-            sub="Bookmarked"
-          />
-          <PostureCard
-            title="Collections"
-            value={COLLECTIONS.length}
-            tone="ok"
-            cta="Manage collections"
-          />
-          <PostureCard
-            title="Provisioned Workspaces"
-            value={provisioned.toLocaleString()}
-            tone="ok"
-            sub="Across all templates"
-          />
-          <PostureCard
-            title="Most Used Template"
-            value={mostUsed.version}
-            tone="ok"
-            sub={mostUsed.name}
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Total Templates", value: records.length, tone: "ok" },
+            { label: "Published", value: published, tone: "ok" },
+            { label: "Draft", value: draft, tone: "warn" },
+            { label: "Archived", value: archived, tone: "muted" },
+            { label: "Favorites", value: favorites, tone: "ok" },
+            { label: "Collections", value: COLLECTIONS.length, tone: "ok" },
+            {
+              label: "Provisioned Workspaces",
+              value: provisioned.toLocaleString(),
+              tone: "ok",
+            },
+            {
+              label: "Most Used Template",
+              value: mostUsed.version,
+              tone: "ok",
+            },
+          ]}
+        />
       </Card>
 
       {nav === "collections" ? (
@@ -850,17 +819,13 @@ function CollectionsGallery({ records }: { records: TemplateRecord[] }) {
         <HeaderButton icon={<Plus size={13} />}>Add Template</HeaderButton>
         <HeaderButton variant="danger">Remove Template</HeaderButton>
       </div>
-      <PostureGrid>
-        {COLLECTIONS.map((c, i) => (
-          <PostureCard
-            key={c.name}
-            title={c.name}
-            value={`${3 + ((hashId(c.name) + i) % 10)} templates`}
-            sub={c.desc}
-            tone="ok"
-          />
-        ))}
-      </PostureGrid>
+      <StatStripPlain
+        items={COLLECTIONS.map((c, i) => ({
+          label: c.name,
+          value: `${3 + ((hashId(c.name) + i) % 10)} templates`,
+          tone: "ok" as const,
+        }))}
+      />
       <div style={{ marginTop: 6, fontSize: 11.5, color: T.textMuted }}>
         {records.length} templates are catalogued across {COLLECTIONS.length}{" "}
         collections.

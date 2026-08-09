@@ -38,13 +38,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -419,88 +417,42 @@ export function SharedAssetsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Shared Assets"
-          value={sharedAssets}
-          tone="ok"
-          sub={
-            <>
-              Registered enterprise-wide <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Consuming Workspaces"
-          value={consumingWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Using an asset <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Published Assets"
-          value={published}
-          tone="ok"
-          sub={
-            <>
-              Available to consume <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Requests"
-          value={pendingRequests}
-          tone={pendingRequests > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting publish <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Security Findings"
-          value={securityFindings}
-          tone={securityFindings > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Across shared assets <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Score"
-          value={`${complianceScore}%`}
-          tone={complianceScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Average across assets <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Asset Health"
-          value={`${health}%`}
-          tone={health >= 95 ? "ok" : "warn"}
-          sub={
-            <>
-              Availability <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Ownership Coverage"
-          value={`${ownershipCoverage}%`}
-          tone="ok"
-          sub={
-            <>
-              Assets with owners <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Shared Assets", value: sharedAssets, tone: "ok" },
+          {
+            label: "Consuming Workspaces",
+            value: consumingWorkspaces,
+            tone: "ok",
+          },
+          { label: "Published Assets", value: published, tone: "ok" },
+          {
+            label: "Pending Requests",
+            value: pendingRequests,
+            tone: pendingRequests > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Security Findings",
+            value: securityFindings,
+            tone: securityFindings > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Compliance Score",
+            value: `${complianceScore}%`,
+            tone: complianceScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Asset Health",
+            value: `${health}%`,
+            tone: health >= 95 ? "ok" : "warn",
+          },
+          {
+            label: "Ownership Coverage",
+            value: `${ownershipCoverage}%`,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Shared assets"

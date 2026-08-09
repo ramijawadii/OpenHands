@@ -31,13 +31,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 import { UsageBar } from "#/components/admin/pages/workspace-governance/workspace-quotas";
 
@@ -377,88 +375,46 @@ export function UtilizationView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Overall Utilization"
-          value={`${overall}%`}
-          tone={overall >= 60 ? "ok" : "warn"}
-          sub={
-            <>
-              Enterprise average <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Idle Capacity"
-          value={`${idle}u`}
-          tone={idle > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Unused allocation <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Overutilized Resources"
-          value={over}
-          tone={over > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Near saturation <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Underutilized Resources"
-          value={under}
-          tone={under > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Optimization targets <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Efficiency Score"
-          value={`${effScore}%`}
-          tone={effScore >= 70 ? "ok" : "warn"}
-          sub={
-            <>
-              Good/Excellent share <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Optimization Savings"
-          value={`$${savings}k`}
-          tone="ok"
-          sub={
-            <>
-              Estimated monthly <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Average Utilization"
-          value={`${overall}%`}
-          tone={overall >= 60 ? "ok" : "warn"}
-          sub={
-            <>
-              Across resources <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Capacity Health"
-          value={`${100 - over * 6}%`}
-          tone={over === 0 ? "ok" : "warn"}
-          sub={
-            <>
-              Saturation posture <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Overall Utilization",
+            value: `${overall}%`,
+            tone: overall >= 60 ? "ok" : "warn",
+          },
+          {
+            label: "Idle Capacity",
+            value: `${idle}u`,
+            tone: idle > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Overutilized Resources",
+            value: over,
+            tone: over > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Underutilized Resources",
+            value: under,
+            tone: under > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Efficiency Score",
+            value: `${effScore}%`,
+            tone: effScore >= 70 ? "ok" : "warn",
+          },
+          { label: "Optimization Savings", value: `$${savings}k`, tone: "ok" },
+          {
+            label: "Average Utilization",
+            value: `${overall}%`,
+            tone: overall >= 60 ? "ok" : "warn",
+          },
+          {
+            label: "Capacity Health",
+            value: `${100 - over * 6}%`,
+            tone: over === 0 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Utilization"

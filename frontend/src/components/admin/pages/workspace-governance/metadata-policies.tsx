@@ -36,13 +36,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -422,78 +420,45 @@ export function MetadataPoliciesView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Metadata Compliance"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Estate average <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Validation Failures"
-          value={failures}
-          tone={failures > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Open across estate <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Missing Required Fields"
-          value={missing}
-          tone={missing > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Fields not yet populated <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Workspaces with policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exceptions"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Recently Validated"
-          value={validated.toLocaleString()}
-          tone="ok"
-          sub={
-            <>
-              Workspace validations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Metadata Quality Score"
-          value={`${avgScore}%`}
-          tone={avgScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Completeness + validity <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Metadata Compliance",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Validation Failures",
+            value: failures,
+            tone: failures > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Missing Required Fields",
+            value: missing,
+            tone: missing > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Policy Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Exceptions",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Recently Validated",
+            value: validated.toLocaleString(),
+            tone: "ok",
+          },
+          {
+            label: "Metadata Quality Score",
+            value: `${avgScore}%`,
+            tone: avgScore >= 85 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Metadata policies"

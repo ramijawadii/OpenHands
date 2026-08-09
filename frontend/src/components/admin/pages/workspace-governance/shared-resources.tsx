@@ -39,13 +39,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -453,88 +451,34 @@ export function SharedResourcesView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Shared Resources"
-          value={sharedCount}
-          tone="ok"
-          sub={
-            <>
-              Registered enterprise-wide <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Connected Workspaces"
-          value={connectedWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Consuming a resource <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Consumers"
-          value={consumers}
-          tone="ok"
-          sub={
-            <>
-              Total consumer bindings <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared Platforms"
-          value={sharedPlatforms}
-          tone="ok"
-          sub={
-            <>
-              Provider platforms <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared Networks"
-          value={sharedNetworks}
-          tone="ok"
-          sub={
-            <>
-              Shared VPCs/networks <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Security Findings"
-          value={securityFindings}
-          tone={securityFindings > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Across shared assets <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Score"
-          value={`${complianceScore}%`}
-          tone={complianceScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Average across resources <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Resource Health"
-          value={`${healthy}%`}
-          tone={healthy >= 90 ? "ok" : "warn"}
-          sub={
-            <>
-              Healthy resources <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Shared Resources", value: sharedCount, tone: "ok" },
+          {
+            label: "Connected Workspaces",
+            value: connectedWorkspaces,
+            tone: "ok",
+          },
+          { label: "Consumers", value: consumers, tone: "ok" },
+          { label: "Shared Platforms", value: sharedPlatforms, tone: "ok" },
+          { label: "Shared Networks", value: sharedNetworks, tone: "ok" },
+          {
+            label: "Security Findings",
+            value: securityFindings,
+            tone: securityFindings > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Compliance Score",
+            value: `${complianceScore}%`,
+            tone: complianceScore >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Resource Health",
+            value: `${healthy}%`,
+            tone: healthy >= 90 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Shared resources"

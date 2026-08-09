@@ -55,12 +55,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { StatStripPlain } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Relationships — the enterprise collaboration layer between workspaces. Authoritative spec:
@@ -614,45 +613,34 @@ export function WorkspaceRelationshipsView() {
         Operational Dashboard <SampleTag />
       </div>
       <div style={{ marginBottom: 20 }}>
-        <PostureGrid>
-          <PostureCard title="Total Relationships" value={total} />
-          <PostureCard
-            title="Business Relationships"
-            value={nBusiness}
-            tone="ok"
-          />
-          <PostureCard
-            title="Operational Relationships"
-            value={nOps}
-            tone="ok"
-          />
-          <PostureCard
-            title="Security Relationships"
-            value={nSec}
-            tone="warn"
-          />
-          <PostureCard
-            title="Compliance Relationships"
-            value={nCompliance}
-            tone="ok"
-          />
-          <PostureCard
-            title="Pending Reviews"
-            value={pendingReviews}
-            tone={pendingReviews ? "warn" : "ok"}
-          />
-          <PostureCard
-            title="Expired Relationships"
-            value={expired}
-            tone={expired ? "danger" : "ok"}
-          />
-          <PostureCard
-            title="Relationship Health"
-            value={`${health}%`}
-            tone={health >= 70 ? "ok" : health >= 40 ? "warn" : "danger"}
-            sub="Active + reviewed"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Total Relationships", value: total },
+            { label: "Business Relationships", value: nBusiness, tone: "ok" },
+            { label: "Operational Relationships", value: nOps, tone: "ok" },
+            { label: "Security Relationships", value: nSec, tone: "warn" },
+            {
+              label: "Compliance Relationships",
+              value: nCompliance,
+              tone: "ok",
+            },
+            {
+              label: "Pending Reviews",
+              value: pendingReviews,
+              tone: pendingReviews ? "warn" : "ok",
+            },
+            {
+              label: "Expired Relationships",
+              value: expired,
+              tone: expired ? "danger" : "ok",
+            },
+            {
+              label: "Relationship Health",
+              value: `${health}%`,
+              tone: health >= 70 ? "ok" : health >= 40 ? "warn" : "danger",
+            },
+          ]}
+        />
       </div>
 
       <Card

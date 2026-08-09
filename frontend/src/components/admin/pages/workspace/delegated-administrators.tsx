@@ -36,14 +36,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Delegated Administrators — users granted administrative responsibility for one or more workspaces
@@ -531,50 +529,28 @@ export function DelegatedAdministratorsView() {
 
       {/* spec §Operational Dashboard */}
       <div style={{ marginBottom: 18 }}>
-        <PostureGrid>
-          <PostureCard
-            title="Active Delegations"
-            value={count("Active")}
-            sub={<SampleTag />}
-            tone="ok"
-          />
-          <PostureCard
-            title="Pending Approvals"
-            value={count("Pending Approval")}
-            sub={<SampleTag />}
-            tone="warn"
-          />
-          <PostureCard
-            title="Expiring Soon"
-            value={count("Expiring Soon")}
-            sub={<SampleTag />}
-            tone="warn"
-          />
-          <PostureCard
-            title="Expired"
-            value={count("Expired")}
-            sub={<SampleTag />}
-            tone="muted"
-          />
-          <PostureCard
-            title="Revoked"
-            value={count("Revoked")}
-            sub={<SampleTag />}
-            tone="danger"
-          />
-          <PostureCard
-            title="Most Active Administrator"
-            value={mostActive.administrator}
-            sub={
-              <span
-                style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
-              >
-                {mostActive.recentActivity} actions <SampleTag />
-              </span>
-            }
-            tone="muted"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Active Delegations", value: count("Active"), tone: "ok" },
+            {
+              label: "Pending Approvals",
+              value: count("Pending Approval"),
+              tone: "warn",
+            },
+            {
+              label: "Expiring Soon",
+              value: count("Expiring Soon"),
+              tone: "warn",
+            },
+            { label: "Expired", value: count("Expired"), tone: "muted" },
+            { label: "Revoked", value: count("Revoked"), tone: "danger" },
+            {
+              label: "Most Active Administrator",
+              value: mostActive.administrator,
+              tone: "muted",
+            },
+          ]}
+        />
       </div>
 
       <DiscoveryListView

@@ -35,10 +35,7 @@ import {
   HeaderButton,
   SubTabStrip,
   EmptyState,
-  SampleTag,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   InheritedField,
   FloorBadge,
   T,
@@ -48,6 +45,7 @@ import {
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { StatStripPlain } from "#/components/admin/settings-kit";
 
 /**
  * Organization Defaults — the enterprise-wide baseline configuration automatically inherited by every
@@ -434,75 +432,17 @@ export function OrganizationDefaultsView() {
   return (
     <>
       {/* Operational Dashboard (spec §Operational Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Organization Defaults"
-          value={totalSettings}
-          sub={
-            <>
-              Baseline settings <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Inherited Workspaces"
-          value={312}
-          tone="ok"
-          sub={
-            <>
-              Deriving from this baseline <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Overrides"
-          value={18}
-          tone="warn"
-          sub={
-            <>
-              Across the estate <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Locked Settings"
-          value={lockedCount}
-          sub={
-            <>
-              Mandatory floors <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Configuration Drift"
-          value={4}
-          tone="warn"
-          sub={
-            <>
-              Workspaces off-baseline <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Publications"
-          value={1}
-          sub={
-            <>
-              Awaiting approval <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Compliance"
-          value="94%"
-          tone="ok"
-          sub={
-            <>
-              Against baseline <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Organization Defaults", value: totalSettings },
+          { label: "Inherited Workspaces", value: 312, tone: "ok" },
+          { label: "Overrides", value: 18, tone: "warn" },
+          { label: "Locked Settings", value: lockedCount },
+          { label: "Configuration Drift", value: 4, tone: "warn" },
+          { label: "Pending Publications", value: 1 },
+          { label: "Policy Compliance", value: "94%", tone: "ok" },
+        ]}
+      />
 
       <Card
         title="Enterprise baseline"

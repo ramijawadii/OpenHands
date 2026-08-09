@@ -43,7 +43,7 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Active Workspaces — the operational landing page for Workspace Administration.
@@ -470,6 +470,26 @@ export function ActiveWorkspacesView() {
 
   return (
     <>
+      <StatStripPlain
+        items={[
+          { label: "Total workspaces", value: records.length },
+          {
+            label: "Healthy",
+            value: records.filter((r) => r.health === "Healthy").length,
+            tone: "ok",
+          },
+          {
+            label: "Needs attention",
+            value: records.filter((r) => r.health !== "Healthy").length,
+            tone: "warn",
+          },
+          {
+            label: "Production",
+            value: records.filter((r) => r.environment === "Production").length,
+          },
+          { label: "Shown", value: rows.length },
+        ]}
+      />
       <DiscoveryListView
         title="Workspace directory"
         commands={toolbar}

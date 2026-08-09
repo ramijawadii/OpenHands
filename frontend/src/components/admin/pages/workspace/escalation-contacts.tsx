@@ -40,14 +40,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Escalation Contacts — the individuals, teams, and on-call groups notified or engaged when workspace
@@ -628,50 +626,41 @@ export function EscalationContactsView() {
         desc="Live escalation-contact posture across the organization — coverage, on-call reach, and notification reliability."
         right={<SampleTag />}
       >
-        <PostureGrid>
-          <PostureCard
-            title="Active Contacts"
-            value={activeCount}
-            sub="Enabled escalation contacts"
-            tone="ok"
-          />
-          <PostureCard
-            title="Coverage Gaps"
-            value={coverageGaps}
-            sub="Core categories with no active contact"
-            tone={coverageGaps > 0 ? "danger" : "ok"}
-          />
-          <PostureCard
-            title="On-Call Coverage"
-            value={`${onCallCount}/${records.length}`}
-            sub="Contacts currently on a rotation"
-            tone={onCallCount > 0 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Recent Escalations"
-            value={recentEscalations}
-            sub="Triggered in the last 30 days"
-            tone="muted"
-          />
-          <PostureCard
-            title="Average Response Time"
-            value={`${avgResponse}m`}
-            sub="Acknowledgement latency (P1–P4)"
-            tone={avgResponse <= 15 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Failed Notifications"
-            value={failedNotifications}
-            sub="Delivery failures needing review"
-            tone={failedNotifications > 0 ? "danger" : "ok"}
-          />
-          <PostureCard
-            title="Emergency Contacts"
-            value={emergencyCount}
-            sub="Break-glass responders"
-            tone="muted"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Active Contacts", value: activeCount, tone: "ok" },
+            {
+              label: "Coverage Gaps",
+              value: coverageGaps,
+              tone: coverageGaps > 0 ? "danger" : "ok",
+            },
+            {
+              label: "On-Call Coverage",
+              value: `${onCallCount}/${records.length}`,
+              tone: onCallCount > 0 ? "ok" : "warn",
+            },
+            {
+              label: "Recent Escalations",
+              value: recentEscalations,
+              tone: "muted",
+            },
+            {
+              label: "Average Response Time",
+              value: `${avgResponse}m`,
+              tone: avgResponse <= 15 ? "ok" : "warn",
+            },
+            {
+              label: "Failed Notifications",
+              value: failedNotifications,
+              tone: failedNotifications > 0 ? "danger" : "ok",
+            },
+            {
+              label: "Emergency Contacts",
+              value: emergencyCount,
+              tone: "muted",
+            },
+          ]}
+        />
       </Card>
 
       {/* ── Coverage Map (spec) ── */}
@@ -692,17 +681,13 @@ export function EscalationContactsView() {
           </span>
         }
       >
-        <PostureGrid>
-          {coverage.map((c) => (
-            <PostureCard
-              key={c.core}
-              title={c.core}
-              value={c.covered ? `${c.count} assigned` : "No contact"}
-              sub={c.covered ? "Category covered" : "Coverage gap"}
-              tone={c.covered ? "ok" : "danger"}
-            />
-          ))}
-        </PostureGrid>
+        <StatStripPlain
+          items={coverage.map((c) => ({
+            label: c.core,
+            value: c.covered ? `${c.count} assigned` : "No contact",
+            tone: c.covered ? "ok" : "danger",
+          }))}
+        />
       </Card>
 
       {/* ── Second-level sub-nav as the first FilterBar-style facet (spec Navigation) ── */}

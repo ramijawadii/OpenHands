@@ -38,14 +38,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   FloorBadge,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -521,75 +519,33 @@ export function WorkspaceOverridesView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Overrides"
-          value={active}
-          sub={
-            <>
-              Currently in effect <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Approvals"
-          value={pending}
-          tone={pending > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting governance <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Expired Overrides"
-          value={expired}
-          sub={
-            <>
-              Reverted to baseline <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="High-Risk Overrides"
-          value={highRisk}
-          tone={highRisk > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              High or Critical <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Exceptions"
-          value={complianceExceptions}
-          tone={complianceExceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              With compliance impact <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Configuration Drift"
-          value={drift}
-          tone={drift > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Active, non-Low risk <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Categories"
-          value={categories}
-          sub={
-            <>
-              Distinct override categories <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Overrides", value: active },
+          {
+            label: "Pending Approvals",
+            value: pending,
+            tone: pending > 0 ? "warn" : "ok",
+          },
+          { label: "Expired Overrides", value: expired },
+          {
+            label: "High-Risk Overrides",
+            value: highRisk,
+            tone: highRisk > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Compliance Exceptions",
+            value: complianceExceptions,
+            tone: complianceExceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Configuration Drift",
+            value: drift,
+            tone: drift > 0 ? "warn" : "ok",
+          },
+          { label: "Categories", value: categories },
+        ]}
+      />
 
       <DiscoveryListView
         title="Workspace overrides"

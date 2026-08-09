@@ -44,7 +44,7 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Archived Workspaces — the long-term retention register for workspaces retired from active
@@ -711,78 +711,33 @@ function OperationalDashboard({ records }: { records: ArchiveRecord[] }) {
         nonIndef.length
       ).toFixed(1)
     : "—";
-  const tiles: { label: string; value: React.ReactNode; tone: string }[] = [
-    {
-      label: "Archived Workspaces",
-      value: records.length,
-      tone: T.textPrimary,
-    },
-    {
-      label: "Legal Holds",
-      value: records.filter((r) => r.legalHold).length,
-      tone: T.danger,
-    },
-    {
-      label: "Compliance Holds",
-      value: records.filter((r) => r.complianceHold).length,
-      tone: T.warning,
-    },
-    {
-      label: "Restorable",
-      value: records.filter((r) => r.restorable).length,
-      tone: T.success,
-    },
-    {
-      label: "Scheduled for Deletion",
-      value: records.filter((r) => r.scheduledDeletion).length,
-      tone: T.danger,
-    },
-    { label: "Average Retention", value: `${avgYears} yrs`, tone: T.accent },
-  ];
   return (
-    <Card
-      title="Operational dashboard"
-      desc="Portfolio view of the archive register."
-      right={<SampleTag />}
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-          gap: 14,
-          padding: "6px 0",
-        }}
-      >
-        {tiles.map((t) => (
-          <div
-            key={t.label}
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 10,
-              background: T.cardBg,
-              padding: 16,
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              minWidth: 0,
-            }}
-          >
-            <span style={{ fontSize: 12, color: T.textMuted }}>{t.label}</span>
-            <span
-              style={{
-                fontSize: 22,
-                fontWeight: 600,
-                color: t.tone,
-                letterSpacing: "-0.01em",
-                lineHeight: 1.1,
-              }}
-            >
-              {t.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    </Card>
+    <StatStripPlain
+      items={[
+        { label: "Archived Workspaces", value: records.length },
+        {
+          label: "Legal Holds",
+          value: records.filter((r) => r.legalHold).length,
+          tone: "danger",
+        },
+        {
+          label: "Compliance Holds",
+          value: records.filter((r) => r.complianceHold).length,
+          tone: "warn",
+        },
+        {
+          label: "Restorable",
+          value: records.filter((r) => r.restorable).length,
+          tone: "ok",
+        },
+        {
+          label: "Scheduled for Deletion",
+          value: records.filter((r) => r.scheduledDeletion).length,
+          tone: "danger",
+        },
+        { label: "Average Retention", value: `${avgYears} yrs` },
+      ]}
+    />
   );
 }
 

@@ -49,14 +49,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Operational Templates — reusable operational blueprints that define how a workspace *operates after
@@ -541,50 +539,29 @@ export function OperationalTemplatesView() {
   return (
     <>
       {/* ── Operational Dashboard ── */}
-      <PostureGrid>
-        <PostureCard
-          title="Published Templates"
-          value={published}
-          sub={<SampleTag />}
-          tone="ok"
-        />
-        <PostureCard
-          title="Assigned Workspaces"
-          value={assignedWorkspaces}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Automation Rules"
-          value={automationRules}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Scheduled Jobs"
-          value={scheduledJobs}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Monitoring Profiles"
-          value={monitoringProfiles}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Backup Policies"
-          value={backupPolicies}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Maintenance Policies"
-          value={maintenancePolicies}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Published Templates", value: published, tone: "ok" },
+          {
+            label: "Assigned Workspaces",
+            value: assignedWorkspaces,
+            tone: "muted",
+          },
+          { label: "Automation Rules", value: automationRules, tone: "muted" },
+          { label: "Scheduled Jobs", value: scheduledJobs, tone: "muted" },
+          {
+            label: "Monitoring Profiles",
+            value: monitoringProfiles,
+            tone: "muted",
+          },
+          { label: "Backup Policies", value: backupPolicies, tone: "muted" },
+          {
+            label: "Maintenance Policies",
+            value: maintenancePolicies,
+            tone: "muted",
+          },
+        ]}
+      />
       <div style={{ height: 18 }} />
 
       {/* ── Status sub-navigation ── */}

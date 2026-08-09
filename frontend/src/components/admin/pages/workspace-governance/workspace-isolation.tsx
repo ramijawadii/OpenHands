@@ -40,13 +40,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -404,88 +402,46 @@ export function WorkspaceIsolationView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Protected Workspaces"
-          value={protectedWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              With isolation policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Isolation Policies"
-          value={policies}
-          tone="ok"
-          sub={
-            <>
-              Enforced enterprise-wide <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Isolation Violations"
-          value={violations}
-          tone={violations > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Boundary breaches <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Active Exceptions"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Cross-Workspace Connections"
-          value={crossConnections}
-          tone="ok"
-          sub={
-            <>
-              Explicit shares <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Validation Score"
-          value={`${validationScore}%`}
-          tone={validationScore >= 90 ? "ok" : "warn"}
-          sub={
-            <>
-              Continuous validation <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Security Findings"
-          value={securityFindings}
-          tone={securityFindings > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Open isolation issues <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Score"
-          value={`${complianceScore}%`}
-          tone={complianceScore >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Isolation posture <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Protected Workspaces",
+            value: protectedWorkspaces,
+            tone: "ok",
+          },
+          { label: "Isolation Policies", value: policies, tone: "ok" },
+          {
+            label: "Isolation Violations",
+            value: violations,
+            tone: violations > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Active Exceptions",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Cross-Workspace Connections",
+            value: crossConnections,
+            tone: "ok",
+          },
+          {
+            label: "Validation Score",
+            value: `${validationScore}%`,
+            tone: validationScore >= 90 ? "ok" : "warn",
+          },
+          {
+            label: "Security Findings",
+            value: securityFindings,
+            tone: securityFindings > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Compliance Score",
+            value: `${complianceScore}%`,
+            tone: complianceScore >= 85 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Workspace isolation"

@@ -1,6 +1,5 @@
 /* eslint-disable i18next/no-literal-string, no-nested-ternary, @typescript-eslint/no-use-before-define, react/no-unstable-nested-components, no-bitwise -- CloudGuard Workspace Governance → Inheritance & Overrides → Inheritance Tree */
 import React from "react";
-import { useNavigate } from "react-router";
 import {
   ChevronRight,
   ChevronDown,
@@ -29,7 +28,6 @@ import {
   Page,
   PageHeader,
   Card,
-  Tabs,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -41,12 +39,11 @@ import {
   SampleTag,
   SideRailDrawer,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
+import { StatStripPlain } from "#/components/admin/settings-kit";
 
 /**
  * Inheritance Tree — the authoritative visualization of governance inheritance across the platform:
@@ -65,7 +62,12 @@ type NodeType =
   | "Business Unit"
   | "Workspace Template"
   | "Workspace";
-type NodeStatus = "Healthy" | "Inherited" | "Overridden" | "Conflict" | "Archived";
+type NodeStatus =
+  | "Healthy"
+  | "Inherited"
+  | "Overridden"
+  | "Conflict"
+  | "Archived";
 
 const STATUS_TONE: Record<NodeStatus, string> = {
   Healthy: T.success,
@@ -104,7 +106,13 @@ interface TreeNode {
   children?: TreeNode[];
 }
 
-const OWNERS = ["Governance Admin", "Security Team", "Platform Team", "BU Lead", "Workspace Admin"];
+const OWNERS = [
+  "Governance Admin",
+  "Security Team",
+  "Platform Team",
+  "BU Lead",
+  "Workspace Admin",
+];
 
 function mkWorkspace(bu: string, i: number): TreeNode {
   const id = `WS-${bu}-${i}`;
@@ -113,7 +121,10 @@ function mkWorkspace(bu: string, i: number): TreeNode {
     id,
     name: `${bu} ${pick(["Payments", "Web", "Data", "Mobile", "Analytics", "Billing"], n)} WS`,
     type: "Workspace",
-    status: pick<NodeStatus>(["Healthy", "Healthy", "Inherited", "Overridden", "Conflict"], n),
+    status: pick<NodeStatus>(
+      ["Healthy", "Healthy", "Inherited", "Overridden", "Conflict"],
+      n,
+    ),
     owner: pick(OWNERS, n),
     businessUnit: bu,
     configVersion: `v${1 + (n % 9)}`,
@@ -148,7 +159,10 @@ function mkBusinessUnit(bu: string): TreeNode {
     id,
     name: bu,
     type: "Business Unit",
-    status: pick<NodeStatus>(["Healthy", "Healthy", "Inherited", "Overridden"], n),
+    status: pick<NodeStatus>(
+      ["Healthy", "Healthy", "Inherited", "Overridden"],
+      n,
+    ),
     owner: pick(OWNERS, n),
     businessUnit: bu,
     configVersion: `v${1 + (n % 5)}`,
@@ -171,7 +185,9 @@ const ROOT: TreeNode = {
   overrides: 0,
   locked: 24,
   conflicts: 1,
-  children: ["Finance", "Engineering", "Operations", "Retail"].map(mkBusinessUnit),
+  children: ["Finance", "Engineering", "Operations", "Retail"].map(
+    mkBusinessUnit,
+  ),
 };
 
 function flatten(node: TreeNode, acc: TreeNode[] = []): TreeNode[] {
@@ -182,7 +198,17 @@ function flatten(node: TreeNode, acc: TreeNode[] = []): TreeNode[] {
 const ALL_NODES = flatten(ROOT);
 
 function StatusDot({ status }: { status: NodeStatus }) {
-  return <span style={{ width: 8, height: 8, borderRadius: "50%", background: STATUS_TONE[status], flexShrink: 0 }} />;
+  return (
+    <span
+      style={{
+        width: 8,
+        height: 8,
+        borderRadius: "50%",
+        background: STATUS_TONE[status],
+        flexShrink: 0,
+      }}
+    />
+  );
 }
 
 function TreeRow({
@@ -243,28 +269,79 @@ function TreeRow({
         ) : (
           <span style={{ width: 15, display: "inline-block" }} />
         )}
-        <span style={{ color: T.textMuted, display: "inline-flex" }}>{TYPE_ICON[node.type]}</span>
-        <span style={{ fontWeight: node.type === "Organization" ? 600 : 400 }}>{node.name}</span>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginLeft: 6 }}>
-          <StatusDot status={node.status} />
-          <span style={{ fontSize: 11.5, color: STATUS_TONE[node.status] }}>{node.status}</span>
+        <span style={{ color: T.textMuted, display: "inline-flex" }}>
+          {TYPE_ICON[node.type]}
         </span>
-        <span style={{ marginLeft: "auto", fontSize: 11, color: T.textMuted, display: "flex", gap: 12 }}>
-          {node.overrides > 0 && <span style={{ color: T.warning }}>{node.overrides} override{node.overrides > 1 ? "s" : ""}</span>}
-          {node.locked > 0 && <span><Lock size={10} style={{ verticalAlign: "middle" }} /> {node.locked}</span>}
-          {node.conflicts > 0 && <span style={{ color: T.danger }}>{node.conflicts} conflict</span>}
+        <span style={{ fontWeight: node.type === "Organization" ? 600 : 400 }}>
+          {node.name}
+        </span>
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            marginLeft: 6,
+          }}
+        >
+          <StatusDot status={node.status} />
+          <span style={{ fontSize: 11.5, color: STATUS_TONE[node.status] }}>
+            {node.status}
+          </span>
+        </span>
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 11,
+            color: T.textMuted,
+            display: "flex",
+            gap: 12,
+          }}
+        >
+          {node.overrides > 0 && (
+            <span style={{ color: T.warning }}>
+              {node.overrides} override{node.overrides > 1 ? "s" : ""}
+            </span>
+          )}
+          {node.locked > 0 && (
+            <span>
+              <Lock size={10} style={{ verticalAlign: "middle" }} />{" "}
+              {node.locked}
+            </span>
+          )}
+          {node.conflicts > 0 && (
+            <span style={{ color: T.danger }}>{node.conflicts} conflict</span>
+          )}
           <span>{node.configVersion}</span>
         </span>
       </div>
-      {hasChildren && isOpen && node.children!.map((c) => (
-        <TreeRow key={c.id} node={c} depth={depth + 1} expanded={expanded} toggle={toggle} onSelect={onSelect} selId={selId} visibleStatus={visibleStatus} />
-      ))}
+      {hasChildren &&
+        isOpen &&
+        node.children!.map((c) => (
+          <TreeRow
+            key={c.id}
+            node={c}
+            depth={depth + 1}
+            expanded={expanded}
+            toggle={toggle}
+            onSelect={onSelect}
+            selId={selId}
+            visibleStatus={visibleStatus}
+          />
+        ))}
     </>
   );
 }
 
 export function InheritanceTreeView() {
-  const [expanded, setExpanded] = React.useState<Set<string>>(new Set(["ORG", "BU-Finance", "BU-Engineering", "BU-Operations", "BU-Retail"]));
+  const [expanded, setExpanded] = React.useState<Set<string>>(
+    new Set([
+      "ORG",
+      "BU-Finance",
+      "BU-Engineering",
+      "BU-Operations",
+      "BU-Retail",
+    ]),
+  );
   const [selId, setSelId] = React.useState<string | null>(null);
   const [search, setSearch] = React.useState("");
   const [fStatus, setFStatus] = React.useState("");
@@ -292,20 +369,62 @@ export function InheritanceTreeView() {
   const coverage = Math.round((healthyNodes / ALL_NODES.length) * 100);
 
   const toolbar: CommandItem[] = [
-    { key: "expand", label: "Expand All", icon: <Maximize2 size={15} />, onClick: expandAll },
-    { key: "collapse", label: "Collapse All", icon: <Minimize2 size={15} />, onClick: collapseAll },
-    { key: "refresh", label: "Refresh", icon: <RefreshCcw size={15} />, onClick: () => setSelId(null) },
-    { key: "preview", label: "Preview Effective Configuration", icon: <Eye size={15} />, disabled: true },
-    { key: "overrides", label: "Show Overrides", icon: <SlidersHorizontal size={15} />, onClick: () => setFStatus("Overridden") },
-    { key: "locked", label: "Show Locked", icon: <Lock size={15} />, disabled: true },
-    { key: "conflicts", label: "Detect Conflicts", icon: <AlertTriangle size={15} />, onClick: () => setFStatus("Conflict") },
-    { key: "export", label: "Export Tree", icon: <Download size={15} />, disabled: true },
+    {
+      key: "expand",
+      label: "Expand All",
+      icon: <Maximize2 size={15} />,
+      onClick: expandAll,
+    },
+    {
+      key: "collapse",
+      label: "Collapse All",
+      icon: <Minimize2 size={15} />,
+      onClick: collapseAll,
+    },
+    {
+      key: "refresh",
+      label: "Refresh",
+      icon: <RefreshCcw size={15} />,
+      onClick: () => setSelId(null),
+    },
+    {
+      key: "preview",
+      label: "Preview Effective Configuration",
+      icon: <Eye size={15} />,
+      disabled: true,
+    },
+    {
+      key: "overrides",
+      label: "Show Overrides",
+      icon: <SlidersHorizontal size={15} />,
+      onClick: () => setFStatus("Overridden"),
+    },
+    {
+      key: "locked",
+      label: "Show Locked",
+      icon: <Lock size={15} />,
+      disabled: true,
+    },
+    {
+      key: "conflicts",
+      label: "Detect Conflicts",
+      icon: <AlertTriangle size={15} />,
+      onClick: () => setFStatus("Conflict"),
+    },
+    {
+      key: "export",
+      label: "Export Tree",
+      icon: <Download size={15} />,
+      disabled: true,
+    },
   ];
 
   const visible = ALL_NODES.filter((n) => {
     const q = search.toLowerCase();
     return (
-      (!q || n.name.toLowerCase().includes(q) || n.businessUnit.toLowerCase().includes(q)) &&
+      (!q ||
+        n.name.toLowerCase().includes(q) ||
+        n.businessUnit.toLowerCase().includes(q)) &&
       (!fType || n.type === fType)
     );
   });
@@ -313,16 +432,34 @@ export function InheritanceTreeView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard title="Hierarchy Depth" value={depth} tone="ok" sub={<>Org → BU → Template → WS <SampleTag /></>} />
-        <PostureCard title="Inherited Configurations" value={inheritedConfigs.toLocaleString()} tone="ok" sub={<>Flowing downstream <SampleTag /></>} />
-        <PostureCard title="Overrides" value={overrides} tone={overrides > 0 ? "warn" : "ok"} sub={<>Deviations from parent <SampleTag /></>} />
-        <PostureCard title="Locked Settings" value={lockedSettings} tone="ok" sub={<>Protected in tree <SampleTag /></>} />
-        <PostureCard title="Conflicts" value={conflicts} tone={conflicts > 0 ? "danger" : "ok"} sub={<>Inheritance conflicts <SampleTag /></>} />
-        <PostureCard title="Healthy Nodes" value={healthyNodes} tone="ok" sub={<>Of {ALL_NODES.length} nodes <SampleTag /></>} />
-        <PostureCard title="Policy Coverage" value={`${coverage}%`} tone={coverage >= 80 ? "ok" : "warn"} sub={<>Nodes with policy <SampleTag /></>} />
-        <PostureCard title="Inheritance Errors" value={0} tone="ok" sub={<>Evaluation failures <SampleTag /></>} />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Hierarchy Depth", value: depth, tone: "ok" },
+          {
+            label: "Inherited Configurations",
+            value: inheritedConfigs.toLocaleString(),
+            tone: "ok",
+          },
+          {
+            label: "Overrides",
+            value: overrides,
+            tone: overrides > 0 ? "warn" : "ok",
+          },
+          { label: "Locked Settings", value: lockedSettings, tone: "ok" },
+          {
+            label: "Conflicts",
+            value: conflicts,
+            tone: conflicts > 0 ? "danger" : "ok",
+          },
+          { label: "Healthy Nodes", value: healthyNodes, tone: "ok" },
+          {
+            label: "Policy Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          { label: "Inheritance Errors", value: 0, tone: "ok" },
+        ]}
+      />
 
       <Card
         title="Inheritance hierarchy"
@@ -348,7 +485,14 @@ export function InheritanceTreeView() {
             onChange={setFType}
             options={[
               { value: "", label: "All" },
-              ...(["Organization", "Business Unit", "Workspace Template", "Workspace"] as NodeType[]).map((t) => ({ value: t, label: t })),
+              ...(
+                [
+                  "Organization",
+                  "Business Unit",
+                  "Workspace Template",
+                  "Workspace",
+                ] as NodeType[]
+              ).map((t) => ({ value: t, label: t })),
             ]}
           />
           <Select
@@ -357,22 +501,65 @@ export function InheritanceTreeView() {
             onChange={setFStatus}
             options={[
               { value: "", label: "All" },
-              ...(["Healthy", "Inherited", "Overridden", "Conflict", "Archived"] as NodeStatus[]).map((s) => ({ value: s, label: s })),
+              ...(
+                [
+                  "Healthy",
+                  "Inherited",
+                  "Overridden",
+                  "Conflict",
+                  "Archived",
+                ] as NodeStatus[]
+              ).map((s) => ({ value: s, label: s })),
             ]}
           />
         </FilterBar>
 
         {/* Legend */}
-        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", padding: "4px 4px 12px", fontSize: 11.5, color: T.textMuted }}>
-          {(["Healthy", "Inherited", "Overridden", "Conflict", "Archived"] as NodeStatus[]).map((s) => (
-            <span key={s} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            flexWrap: "wrap",
+            padding: "4px 4px 12px",
+            fontSize: 11.5,
+            color: T.textMuted,
+          }}
+        >
+          {(
+            [
+              "Healthy",
+              "Inherited",
+              "Overridden",
+              "Conflict",
+              "Archived",
+            ] as NodeStatus[]
+          ).map((s) => (
+            <span
+              key={s}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
               <StatusDot status={s} /> {s}
             </span>
           ))}
         </div>
 
-        <div style={{ border: `1px solid ${T.border}`, borderRadius: 10, padding: 6, background: T.cardBg }}>
-          <TreeRow node={ROOT} depth={0} expanded={expanded} toggle={toggle} onSelect={setSelId} selId={selId} visibleStatus={fStatus} />
+        <div
+          style={{
+            border: `1px solid ${T.border}`,
+            borderRadius: 10,
+            padding: 6,
+            background: T.cardBg,
+          }}
+        >
+          <TreeRow
+            node={ROOT}
+            depth={0}
+            expanded={expanded}
+            toggle={toggle}
+            onSelect={setSelId}
+            selId={selId}
+            visibleStatus={fStatus}
+          />
         </div>
       </Card>
 
@@ -394,10 +581,30 @@ export function InheritanceTreePage() {
   );
 }
 
-function Section({ title, children, sample }: { title: string; children: React.ReactNode; sample?: boolean }) {
+function Section({
+  title,
+  children,
+  sample,
+}: {
+  title: string;
+  children: React.ReactNode;
+  sample?: boolean;
+}) {
   return (
     <div style={{ marginBottom: 20 }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: "0.03em", marginBottom: 6, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 6,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         {title}
         {sample && <SampleTag />}
       </div>
@@ -408,17 +615,35 @@ function Section({ title, children, sample }: { title: string; children: React.R
 
 const DRAWER_TABS = [
   { id: "overview", label: "Overview", icon: <LayoutGrid size={13} /> },
-  { id: "incoming", label: "Incoming Configuration", icon: <ArrowDownToLine size={13} /> },
-  { id: "outgoing", label: "Outgoing Configuration", icon: <ArrowUpFromLine size={13} /> },
+  {
+    id: "incoming",
+    label: "Incoming Configuration",
+    icon: <ArrowDownToLine size={13} />,
+  },
+  {
+    id: "outgoing",
+    label: "Outgoing Configuration",
+    icon: <ArrowUpFromLine size={13} />,
+  },
   { id: "policies", label: "Applied Policies", icon: <ListChecks size={13} /> },
-  { id: "overrides", label: "Overrides", icon: <SlidersHorizontal size={13} /> },
+  {
+    id: "overrides",
+    label: "Overrides",
+    icon: <SlidersHorizontal size={13} />,
+  },
   { id: "locked", label: "Locked Configuration", icon: <Lock size={13} /> },
   { id: "children", label: "Children", icon: <Network size={13} /> },
   { id: "activity", label: "Activity", icon: <History size={13} /> },
   { id: "audit", label: "Audit History", icon: <History size={13} /> },
 ];
 
-function NodeDrawer({ node, onClose }: { node: TreeNode; onClose: () => void }) {
+function NodeDrawer({
+  node,
+  onClose,
+}: {
+  node: TreeNode;
+  onClose: () => void;
+}) {
   const [tab, setTab] = React.useState("overview");
   return (
     <SideRailDrawer
@@ -430,10 +655,22 @@ function NodeDrawer({ node, onClose }: { node: TreeNode; onClose: () => void }) 
       width={840}
       onClose={onClose}
       footer={
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", width: "100%" }}>
-          <HeaderButton icon={<Eye size={13} />}>View Effective Configuration</HeaderButton>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            justifyContent: "flex-end",
+            width: "100%",
+          }}
+        >
+          <HeaderButton icon={<Eye size={13} />}>
+            View Effective Configuration
+          </HeaderButton>
           <HeaderButton icon={<Layers size={13} />}>Compare</HeaderButton>
-          <HeaderButton variant="primary" icon={<Download size={13} />}>Export</HeaderButton>
+          <HeaderButton variant="primary" icon={<Download size={13} />}>
+            Export
+          </HeaderButton>
         </div>
       }
     >
@@ -464,24 +701,48 @@ function OverviewTab({ node }: { node: TreeNode }) {
         ]}
       />
       <div style={{ marginTop: 10 }}>
-        <StatRow label="Inheritance Path" value="Organization → Business Unit → Template → Workspace" sample />
+        <StatRow
+          label="Inheritance Path"
+          value="Organization → Business Unit → Template → Workspace"
+          sample
+        />
       </div>
     </Section>
   );
 }
 
-const CONFIGS = ["Authentication", "Encryption", "Default Region", "Backup Retention", "Network Policy", "Audit Logging", "AI Model Allow-list", "Session Timeout"];
+const CONFIGS = [
+  "Authentication",
+  "Encryption",
+  "Default Region",
+  "Backup Retention",
+  "Network Policy",
+  "Audit Logging",
+  "AI Model Allow-list",
+  "Session Timeout",
+];
 
 function IncomingTab({ node }: { node: TreeNode }) {
-  const list = CONFIGS.map((c, i) => {
+  const list = CONFIGS.map((c) => {
     const m = hashId(node.id + c);
     return {
       id: c,
       config: c,
-      source: pick(["Organization Default", "Business Unit Default", "Workspace Template", "Policy Assignment"], m),
+      source: pick(
+        [
+          "Organization Default",
+          "Business Unit Default",
+          "Workspace Template",
+          "Policy Assignment",
+        ],
+        m,
+      ),
       inherited: m % 5 === 0 ? "No" : "Yes",
       version: `v${1 + (m % 9)}`,
-      status: pick<NodeStatus>(["Healthy", "Healthy", "Overridden", "Conflict"], m),
+      status: pick<NodeStatus>(
+        ["Healthy", "Healthy", "Overridden", "Conflict"],
+        m,
+      ),
     };
   });
   const cols: Column<(typeof list)[number]>[] = [
@@ -489,15 +750,35 @@ function IncomingTab({ node }: { node: TreeNode }) {
     { key: "source", header: "Source", render: (r) => r.source },
     { key: "inherited", header: "Inherited", render: (r) => r.inherited },
     { key: "version", header: "Version", render: (r) => r.version },
-    { key: "status", header: "Status", render: (r) => (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: STATUS_TONE[r.status] }}>
-        <StatusDot status={r.status} /> {r.status}
-      </span>
-    ) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            color: STATUS_TONE[r.status],
+          }}
+        >
+          <StatusDot status={r.status} /> {r.status}
+        </span>
+      ),
+    },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Inherited settings received by this node. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -507,10 +788,16 @@ function IncomingTab({ node }: { node: TreeNode }) {
 
 function OutgoingTab({ node }: { node: TreeNode }) {
   if (node.type === "Workspace") {
-    return <EmptyState icon={<ArrowUpFromLine size={18} />} title="Leaf node" hint="A workspace has no downstream children, so it does not pass configuration onward." />;
+    return (
+      <EmptyState
+        icon={<ArrowUpFromLine size={18} />}
+        title="Leaf node"
+        hint="A workspace has no downstream children, so it does not pass configuration onward."
+      />
+    );
   }
   const list = CONFIGS.slice(0, 6).map((c) => {
-    const m = hashId(node.id + c + "out");
+    const m = hashId(`${node.id + c}out`);
     return {
       id: c,
       config: c,
@@ -522,14 +809,27 @@ function OutgoingTab({ node }: { node: TreeNode }) {
   });
   const cols: Column<(typeof list)[number]>[] = [
     { key: "config", header: "Configuration", render: (r) => r.config },
-    { key: "inheritedBy", header: "Inherited By", render: (r) => r.inheritedBy },
+    {
+      key: "inheritedBy",
+      header: "Inherited By",
+      render: (r) => r.inheritedBy,
+    },
     { key: "override", header: "Override", render: (r) => r.override },
     { key: "locked", header: "Locked", render: (r) => r.locked },
     { key: "status", header: "Status", render: (r) => r.status },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Settings inherited by child objects. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -538,7 +838,14 @@ function OutgoingTab({ node }: { node: TreeNode }) {
 }
 
 function PoliciesTab({ node }: { node: TreeNode }) {
-  const list = ["Creation Policies", "Operational Policies", "Metadata Policies", "Compliance Assignments", "Policy Assignments", "Default Configuration"].map((p) => {
+  const list = [
+    "Creation Policies",
+    "Operational Policies",
+    "Metadata Policies",
+    "Compliance Assignments",
+    "Policy Assignments",
+    "Default Configuration",
+  ].map((p) => {
     const m = hashId(node.id + p);
     return {
       id: p,
@@ -556,7 +863,16 @@ function PoliciesTab({ node }: { node: TreeNode }) {
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Policies applied at this node. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -578,20 +894,41 @@ function OverridesTab({ node }: { node: TreeNode }) {
   });
   const cols: Column<(typeof list)[number]>[] = [
     { key: "config", header: "Configuration", render: (r) => r.config },
-    { key: "original", header: "Original Value", render: (r) => <span style={{ color: T.textMuted }}>{r.original}</span> },
-    { key: "override", header: "Override Value", render: (r) => <span style={{ color: T.warning }}>{r.override}</span> },
+    {
+      key: "original",
+      header: "Original Value",
+      render: (r) => <span style={{ color: T.textMuted }}>{r.original}</span>,
+    },
+    {
+      key: "override",
+      header: "Override Value",
+      render: (r) => <span style={{ color: T.warning }}>{r.override}</span>,
+    },
     { key: "approvedBy", header: "Approved By", render: (r) => r.approvedBy },
     { key: "status", header: "Status", render: (r) => r.status },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Configuration overridden at this node. <SampleTag />
       </div>
       {list.length ? (
         <DirectoryTable columns={cols} rows={list} />
       ) : (
-        <EmptyState icon={<SlidersHorizontal size={18} />} title="No overrides" hint="This node inherits all configuration without deviation." />
+        <EmptyState
+          icon={<SlidersHorizontal size={18} />}
+          title="No overrides"
+          hint="This node inherits all configuration without deviation."
+        />
       )}
     </>
   );
@@ -602,7 +939,16 @@ function LockedTab({ node }: { node: TreeNode }) {
     const m = hashId(`${node.id}-lk-${i}`);
     return {
       id: `${node.id}-lk-${i}`,
-      config: pick(["Audit Logging", "MFA Required", "Encryption", "Data Residency", "Secrets Backend"], m),
+      config: pick(
+        [
+          "Audit Logging",
+          "MFA Required",
+          "Encryption",
+          "Data Residency",
+          "Secrets Backend",
+        ],
+        m,
+      ),
       source: pick(["Organization", "Business Unit"], m),
       lockLevel: pick(["Hard Lock", "Soft Lock", "Read Only"], m),
       status: "Locked",
@@ -612,15 +958,35 @@ function LockedTab({ node }: { node: TreeNode }) {
     { key: "config", header: "Configuration", render: (r) => r.config },
     { key: "source", header: "Source", render: (r) => r.source },
     { key: "lockLevel", header: "Lock Level", render: (r) => r.lockLevel },
-    { key: "status", header: "Status", render: (r) => (
-      <span style={{ color: T.success, display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <Lock size={11} /> {r.status}
-      </span>
-    ) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span
+          style={{
+            color: T.success,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+          }}
+        >
+          <Lock size={11} /> {r.status}
+        </span>
+      ),
+    },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Inherited locked settings at this node. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={list} />
@@ -631,22 +997,52 @@ function LockedTab({ node }: { node: TreeNode }) {
 function ChildrenTab({ node }: { node: TreeNode }) {
   const kids = node.children ?? [];
   if (!kids.length) {
-    return <EmptyState icon={<Network size={18} />} title="No children" hint="This node is a leaf in the inheritance hierarchy." />;
+    return (
+      <EmptyState
+        icon={<Network size={18} />}
+        title="No children"
+        hint="This node is a leaf in the inheritance hierarchy."
+      />
+    );
   }
   const cols: Column<TreeNode>[] = [
     { key: "name", header: "Child", render: (r) => r.name },
     { key: "type", header: "Type", render: (r) => r.type },
-    { key: "inheritedCount", header: "Inherited Settings", render: (r) => r.inheritedCount },
+    {
+      key: "inheritedCount",
+      header: "Inherited Settings",
+      render: (r) => r.inheritedCount,
+    },
     { key: "overrides", header: "Overrides", render: (r) => r.overrides },
-    { key: "status", header: "Status", render: (r) => (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: STATUS_TONE[r.status] }}>
-        <StatusDot status={r.status} /> {r.status}
-      </span>
-    ) },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            color: STATUS_TONE[r.status],
+          }}
+        >
+          <StatusDot status={r.status} /> {r.status}
+        </span>
+      ),
+    },
   ];
   return (
     <>
-      <div style={{ fontSize: 12.5, color: T.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+      <div
+        style={{
+          fontSize: 12.5,
+          color: T.textMuted,
+          marginBottom: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
         Downstream inheritance. <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={kids} />
@@ -655,21 +1051,70 @@ function ChildrenTab({ node }: { node: TreeNode }) {
 }
 
 function ActivityTab({ node }: { node: TreeNode }) {
-  const events = ["Configuration Inherited", "Override Applied", "Policy Updated", "Node Created", "Inheritance Recalculated", "Conflict Resolved"];
+  const events = [
+    "Configuration Inherited",
+    "Override Applied",
+    "Policy Updated",
+    "Node Created",
+    "Inheritance Recalculated",
+    "Conflict Resolved",
+  ];
   return (
     <>
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
-        <Select label="Actor" value="" onChange={() => {}} options={[{ value: "", label: "Actor: All" }, ...OWNERS.map((o) => ({ value: o, label: o }))]} />
-        <Select label="Action" value="" onChange={() => {}} options={[{ value: "", label: "Action: All" }, ...events.map((e) => ({ value: e, label: e }))]} />
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          flexWrap: "wrap",
+          marginBottom: 14,
+          alignItems: "center",
+        }}
+      >
+        <Select
+          label="Actor"
+          value=""
+          onChange={() => {}}
+          options={[
+            { value: "", label: "Actor: All" },
+            ...OWNERS.map((o) => ({ value: o, label: o })),
+          ]}
+        />
+        <Select
+          label="Action"
+          value=""
+          onChange={() => {}}
+          options={[
+            { value: "", label: "Action: All" },
+            ...events.map((e) => ({ value: e, label: e })),
+          ]}
+        />
         <SampleTag />
       </div>
       {events.map((e, i) => (
-        <div key={e} style={{ display: "flex", gap: 12, padding: "10px 0", borderBottom: `1px solid ${T.border}` }}>
-          <span style={{ width: 8, height: 8, borderRadius: "50%", background: T.accent, marginTop: 5, flexShrink: 0 }} />
+        <div
+          key={e}
+          style={{
+            display: "flex",
+            gap: 12,
+            padding: "10px 0",
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <span
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: T.accent,
+              marginTop: 5,
+              flexShrink: 0,
+            }}
+          />
           <div>
             <div style={{ fontSize: 13, color: T.textPrimary }}>{e}</div>
             <div style={{ fontSize: 11.5, color: T.textMuted }}>
-              {pick(OWNERS, hashId(node.id) + i)} · {pick(["5 min", "2 h", "yesterday", "3 days"], i)} ago
+              {pick(OWNERS, hashId(node.id) + i)} ·{" "}
+              {pick(["5 min", "2 h", "yesterday", "3 days"], i)} ago
             </div>
           </div>
         </div>
@@ -679,14 +1124,36 @@ function ActivityTab({ node }: { node: TreeNode }) {
 }
 
 function AuditTab() {
-  const events = ["Inheritance Created", "Policy Applied", "Override Added", "Configuration Locked", "Inheritance Updated", "Conflict Resolved"];
+  const events = [
+    "Inheritance Created",
+    "Policy Applied",
+    "Override Added",
+    "Configuration Locked",
+    "Inheritance Updated",
+    "Conflict Resolved",
+  ];
   return (
     <>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: T.textMuted, marginBottom: 12 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          color: T.textMuted,
+          marginBottom: 12,
+        }}
+      >
         <ShieldCheck size={14} /> Read-only immutable log <SampleTag />
       </div>
       {events.map((e, i) => (
-        <StatRow key={e} label={e} value={`${pick(OWNERS, i)} · 2026-06-${(10 + i).toString().padStart(2, "0")}`} tone="ok" sample />
+        <StatRow
+          key={e}
+          label={e}
+          value={`${pick(OWNERS, i)} · 2026-06-${(10 + i).toString().padStart(2, "0")}`}
+          tone="ok"
+          sample
+        />
       ))}
     </>
   );

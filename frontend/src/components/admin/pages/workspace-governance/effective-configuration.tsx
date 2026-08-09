@@ -31,13 +31,11 @@ import {
   SampleTag,
   SideRailDrawer,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -477,88 +475,46 @@ export function EffectiveConfigurationView() {
       </Card>
 
       {/* Operational Dashboard */}
-      <PostureGrid>
-        <PostureCard
-          title="Configuration Health"
-          value={`${configHealth}%`}
-          tone={configHealth >= 85 ? "ok" : "warn"}
-          sub={
-            <>
-              Healthy settings <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Overrides"
-          value={overrides}
-          tone={overrides > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Deviations from default <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Configuration Drift"
-          value={drift}
-          tone={drift > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Off baseline <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Changes"
-          value={hashId(workspace) % 4}
-          tone="ok"
-          sub={
-            <>
-              Awaiting apply <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Effective Policies"
-          value={12 + (hashId(workspace) % 10)}
-          tone="ok"
-          sub={
-            <>
-              Evaluated this run <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Status"
-          value={conflicts > 0 ? "At risk" : "Compliant"}
-          tone={conflicts > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Framework posture <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Inheritance Issues"
-          value={conflicts}
-          tone={conflicts > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Conflicts detected <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Locked Settings"
-          value={locked}
-          tone="ok"
-          sub={
-            <>
-              Protected values <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Configuration Health",
+            value: `${configHealth}%`,
+            tone: configHealth >= 85 ? "ok" : "warn",
+          },
+          {
+            label: "Overrides",
+            value: overrides,
+            tone: overrides > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Configuration Drift",
+            value: drift,
+            tone: drift > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Pending Changes",
+            value: hashId(workspace) % 4,
+            tone: "ok",
+          },
+          {
+            label: "Effective Policies",
+            value: 12 + (hashId(workspace) % 10),
+            tone: "ok",
+          },
+          {
+            label: "Compliance Status",
+            value: conflicts > 0 ? "At risk" : "Compliant",
+            tone: conflicts > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Inheritance Issues",
+            value: conflicts,
+            tone: conflicts > 0 ? "warn" : "ok",
+          },
+          { label: "Locked Settings", value: locked, tone: "ok" },
+        ]}
+      />
 
       <DiscoveryListView
         title={`Effective configuration — ${workspace}`}

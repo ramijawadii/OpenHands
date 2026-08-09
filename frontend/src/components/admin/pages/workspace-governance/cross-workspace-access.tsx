@@ -38,13 +38,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -459,88 +457,30 @@ export function CrossWorkspaceAccessView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Access Grants"
-          value={activeGrants}
-          tone="ok"
-          sub={
-            <>
-              Effective now <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Requests"
-          value={pending}
-          tone={pending > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting approval <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Temporary Grants"
-          value={temporary}
-          tone="ok"
-          sub={
-            <>
-              Time-limited access <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Expired Grants"
-          value={expired}
-          tone="ok"
-          sub={
-            <>
-              No longer valid <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Shared Resources"
-          value={sharedResources}
-          tone="ok"
-          sub={
-            <>
-              Accessed cross-workspace <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Privileged Access"
-          value={privileged}
-          tone={privileged > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Admin/Owner grants <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={violations}
-          tone={violations > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Failing governance <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Access Reviews"
-          value={reviews}
-          tone="ok"
-          sub={
-            <>
-              Certification scope <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Access Grants", value: activeGrants, tone: "ok" },
+          {
+            label: "Pending Requests",
+            value: pending,
+            tone: pending > 0 ? "warn" : "ok",
+          },
+          { label: "Temporary Grants", value: temporary, tone: "ok" },
+          { label: "Expired Grants", value: expired, tone: "ok" },
+          { label: "Shared Resources", value: sharedResources, tone: "ok" },
+          {
+            label: "Privileged Access",
+            value: privileged,
+            tone: privileged > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Policy Violations",
+            value: violations,
+            tone: violations > 0 ? "warn" : "ok",
+          },
+          { label: "Access Reviews", value: reviews, tone: "ok" },
+        ]}
+      />
 
       <DiscoveryListView
         title="Cross-workspace access"

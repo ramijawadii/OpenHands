@@ -180,6 +180,72 @@ function StatTile({ label, value, tone }: StatFigure) {
   );
 }
 
+// ════════════════════════ StatStripPlain (plain-tile KPI strip) ════════════════════════
+
+export interface StatStripItem {
+  label: string;
+  value: React.ReactNode;
+  /** Same vocabulary as PostureCard so values port verbatim; only warn/danger tint. */
+  tone?: "ok" | "warn" | "danger" | "muted";
+}
+
+/**
+ * The sanctioned KPI strip for a Platform Settings page: plain tiles (label +
+ * value, border-left separators, no card chrome) — the "plain tiles everywhere"
+ * treatment approved on Identity & Access, matching what `SettingsTab` renders.
+ *
+ * Drop it directly above a `DiscoveryListView`. It carries its own scoped styles
+ * (wrapped in `.cg-settings-kit`), so it needs no page setup and never drifts.
+ * Use this in place of `PostureGrid`/`PostureCard` (which carry rejected chrome).
+ */
+export function StatStripPlain({ items }: { items: StatStripItem[] }) {
+  const color = (t?: string) =>
+    t === "danger"
+      ? "var(--cgx-critical)"
+      : t === "warn"
+        ? "#e09a2d"
+        : "var(--cg-text-primary)";
+  return (
+    <div className="cg-settings-kit">
+      <style>{KIT_CSS}</style>
+      <div className="cg-stat-row">
+        {items.map((t) => (
+          <div
+            className="cg-stat-tile"
+            key={t.label}
+            style={{ minWidth: 120, flexShrink: 0, fontFamily: APP_FONT }}
+          >
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 500,
+                color: "var(--cg-text-muted)",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {t.label}
+            </div>
+            <div
+              style={{
+                marginTop: 2,
+                fontSize: 20,
+                lineHeight: 1.15,
+                fontWeight: 600,
+                fontVariantNumeric: "tabular-nums",
+                color: color(t.tone),
+              }}
+            >
+              {t.value}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ════════════════════════ ColumnChooser ════════════════════════
 
 export function ColumnChooser({

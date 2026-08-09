@@ -46,14 +46,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Suspended Workspaces — the Lifecycle sub-module for workspaces that have been temporarily disabled
@@ -611,44 +609,37 @@ export function LifecycleSuspendedView() {
   return (
     <>
       {/* ── Operational Dashboard (spec §Operational Dashboard) ── */}
-      <PostureGrid>
-        <PostureCard
-          title="Total Suspended"
-          value={totalSuspended}
-          tone="warn"
-        />
-        <PostureCard
-          title="Pending Reactivation"
-          value={pendingReactivation}
-          tone="ok"
-        />
-        <PostureCard
-          title="Security Suspensions"
-          value={securitySuspensions}
-          tone="danger"
-        />
-        <PostureCard
-          title="Compliance Suspensions"
-          value={complianceSuspensions}
-          tone="warn"
-        />
-        <PostureCard
-          title="Average Suspension Duration"
-          value={`${avgDuration} d`}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Blocked Operations"
-          value={blockedOperations}
-          tone="danger"
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Upcoming Reactivations"
-          value={upcomingReactivations}
-          tone="ok"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Total Suspended", value: totalSuspended, tone: "warn" },
+          {
+            label: "Pending Reactivation",
+            value: pendingReactivation,
+            tone: "ok",
+          },
+          {
+            label: "Security Suspensions",
+            value: securitySuspensions,
+            tone: "danger",
+          },
+          {
+            label: "Compliance Suspensions",
+            value: complianceSuspensions,
+            tone: "warn",
+          },
+          { label: "Average Suspension Duration", value: `${avgDuration} d` },
+          {
+            label: "Blocked Operations",
+            value: blockedOperations,
+            tone: "danger",
+          },
+          {
+            label: "Upcoming Reactivations",
+            value: upcomingReactivations,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <div style={{ height: 14 }} />
 

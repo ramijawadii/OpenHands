@@ -37,13 +37,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 import { UsageBar } from "#/components/admin/pages/workspace-governance/workspace-quotas";
 
@@ -411,88 +409,38 @@ export function CapacityReservationsView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Reservations"
-          value={activeReservations}
-          tone="ok"
-          sub={
-            <>
-              Currently guaranteed <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Reserved Capacity"
-          value={reservedCapacity}
-          tone="ok"
-          sub={
-            <>
-              Total units held <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Available Reserved"
-          value={availableReserved}
-          tone="ok"
-          sub={
-            <>
-              Unconsumed reserve <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Upcoming Reservations"
-          value={upcoming}
-          tone="ok"
-          sub={
-            <>
-              Scheduled ahead <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Expiring Reservations"
-          value={expiring}
-          tone={expiring > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Nearing expiry <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Reservation Utilization"
-          value={`${reservationUtil}%`}
-          tone={reservationUtil >= 50 ? "ok" : "warn"}
-          sub={
-            <>
-              Reserve consumed <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Reservation Success Rate"
-          value={`${Math.min(100, successRate)}%`}
-          tone="ok"
-          sub={
-            <>
-              Fulfilled on demand <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Capacity Health"
-          value={`${100 - expiring * 4}%`}
-          tone={expiring === 0 ? "ok" : "warn"}
-          sub={
-            <>
-              Reservation posture <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          {
+            label: "Active Reservations",
+            value: activeReservations,
+            tone: "ok",
+          },
+          { label: "Reserved Capacity", value: reservedCapacity, tone: "ok" },
+          { label: "Available Reserved", value: availableReserved, tone: "ok" },
+          { label: "Upcoming Reservations", value: upcoming, tone: "ok" },
+          {
+            label: "Expiring Reservations",
+            value: expiring,
+            tone: expiring > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Reservation Utilization",
+            value: `${reservationUtil}%`,
+            tone: reservationUtil >= 50 ? "ok" : "warn",
+          },
+          {
+            label: "Reservation Success Rate",
+            value: `${Math.min(100, successRate)}%`,
+            tone: "ok",
+          },
+          {
+            label: "Capacity Health",
+            value: `${100 - expiring * 4}%`,
+            tone: expiring === 0 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Capacity reservations"

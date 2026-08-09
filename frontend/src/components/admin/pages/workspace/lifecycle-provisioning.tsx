@@ -43,14 +43,12 @@ import {
   RowMenu,
   ScopeBadge,
   ConfirmButton,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Provisioning — the Workspace Administration → Lifecycle state for workspaces that have passed
@@ -546,40 +544,38 @@ export function LifecycleProvisioningView() {
         desc="Live throughput across the provisioning engine — running, queued, blocked and rollback jobs at a glance."
         right={<SampleTag />}
       >
-        <PostureGrid>
-          <PostureCard title="Running Jobs" value={running} tone="ok" />
-          <PostureCard title="Queued Jobs" value={queued} tone="muted" />
-          <PostureCard
-            title="Successful Provisioning"
-            value={success}
-            tone="ok"
-          />
-          <PostureCard
-            title="Failed Provisioning"
-            value={failed}
-            tone={failed ? "danger" : "muted"}
-          />
-          <PostureCard
-            title="Average Deployment Time"
-            value={`${avgDeploy} min`}
-            tone="muted"
-          />
-          <PostureCard
-            title="Current Throughput"
-            value={`${running + queued}/h`}
-            tone="muted"
-          />
-          <PostureCard
-            title="Blocked Jobs"
-            value={blocked}
-            tone={blocked ? "warn" : "muted"}
-          />
-          <PostureCard
-            title="Rollback Jobs"
-            value={rolledBack}
-            tone={rolledBack ? "warn" : "muted"}
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Running Jobs", value: running, tone: "ok" },
+            { label: "Queued Jobs", value: queued, tone: "muted" },
+            { label: "Successful Provisioning", value: success, tone: "ok" },
+            {
+              label: "Failed Provisioning",
+              value: failed,
+              tone: failed ? "danger" : "muted",
+            },
+            {
+              label: "Average Deployment Time",
+              value: `${avgDeploy} min`,
+              tone: "muted",
+            },
+            {
+              label: "Current Throughput",
+              value: `${running + queued}/h`,
+              tone: "muted",
+            },
+            {
+              label: "Blocked Jobs",
+              value: blocked,
+              tone: blocked ? "warn" : "muted",
+            },
+            {
+              label: "Rollback Jobs",
+              value: rolledBack,
+              tone: rolledBack ? "warn" : "muted",
+            },
+          ]}
+        />
       </Card>
 
       <Card

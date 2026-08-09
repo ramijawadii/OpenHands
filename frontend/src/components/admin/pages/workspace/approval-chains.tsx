@@ -43,14 +43,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Approval Chains — reusable, policy-driven approval workflows required before administrative,
@@ -620,46 +618,28 @@ export function ApprovalChainsView() {
   return (
     <>
       <div style={{ marginBottom: 18 }}>
-        <PostureGrid>
-          <PostureCard
-            title="Approval Chains"
-            value={totalChains}
-            sub={<SampleTag />}
-            tone="ok"
-          />
-          <PostureCard
-            title="Pending Requests"
-            value={totalPending}
-            sub={<SampleTag />}
-            tone={totalPending > 0 ? "warn" : "ok"}
-          />
-          <PostureCard
-            title="Average Approval Time"
-            value={`${avgApproval}h`}
-            sub={<SampleTag />}
-          />
-          <PostureCard
-            title="Rejected Requests"
-            value={totalRejected}
-            sub={<SampleTag />}
-            tone={totalRejected > 0 ? "danger" : "ok"}
-          />
-          <PostureCard
-            title="Escalations"
-            value={totalEscalations}
-            sub={<SampleTag />}
-            tone={totalEscalations > 0 ? "warn" : "ok"}
-          />
-          <PostureCard
-            title="Most Used Chains"
-            value={mostUsed.name}
-            sub={
-              <>
-                {mostUsed.approvalRequests} requests <SampleTag />
-              </>
-            }
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Approval Chains", value: totalChains, tone: "ok" },
+            {
+              label: "Pending Requests",
+              value: totalPending,
+              tone: totalPending > 0 ? "warn" : "ok",
+            },
+            { label: "Average Approval Time", value: `${avgApproval}h` },
+            {
+              label: "Rejected Requests",
+              value: totalRejected,
+              tone: totalRejected > 0 ? "danger" : "ok",
+            },
+            {
+              label: "Escalations",
+              value: totalEscalations,
+              tone: totalEscalations > 0 ? "warn" : "ok",
+            },
+            { label: "Most Used Chains", value: mostUsed.name },
+          ]}
+        />
       </div>
 
       <div style={{ display: "flex", marginBottom: 14 }}>

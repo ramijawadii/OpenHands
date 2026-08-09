@@ -39,14 +39,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Organization Hierarchy — the authoritative logical enterprise structure that defines where each
@@ -533,74 +531,25 @@ export function OrganizationHierarchyView() {
   return (
     <>
       {/* Operational Dashboard (spec §Operational Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Organization Nodes"
-          value={records.length}
-          sub={
-            <>
-              Across the enterprise <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Business Units"
-          value={buCount}
-          sub={
-            <>
-              Top-level organizations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Departments"
-          value={deptCount}
-          sub={
-            <>
-              Leaf-level organizations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Managed Workspaces"
-          value={totalWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Placed in the hierarchy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Hierarchy Depth"
-          value={maxDepth}
-          sub={
-            <>
-              Enterprise → Workspace levels <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Unassigned Workspaces"
-          value={unassignedCount}
-          tone={unassignedCount > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Need organizational placement <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Coverage"
-          value={`${policyCoverage}%`}
-          tone={policyCoverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Nodes with governance <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Organization Nodes", value: records.length },
+          { label: "Business Units", value: buCount },
+          { label: "Departments", value: deptCount },
+          { label: "Managed Workspaces", value: totalWorkspaces, tone: "ok" },
+          { label: "Hierarchy Depth", value: maxDepth },
+          {
+            label: "Unassigned Workspaces",
+            value: unassignedCount,
+            tone: unassignedCount > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Policy Coverage",
+            value: `${policyCoverage}%`,
+            tone: policyCoverage >= 80 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       {/* Hierarchy Tree (spec §Hierarchy Tree) */}
       <Card

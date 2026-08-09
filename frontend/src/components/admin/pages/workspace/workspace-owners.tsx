@@ -40,14 +40,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Owners — the business + operational ownership register for enterprise workspaces.
@@ -477,38 +475,27 @@ export function WorkspaceOwnersView() {
   return (
     <>
       {/* Ownership Dashboard (spec §Ownership Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Total Owners"
-          value={totalOwners}
-          sub={<SampleTag />}
-          tone="ok"
-        />
-        <PostureCard
-          title="Unassigned Workspaces"
-          value={unassignedCount}
-          sub={<SampleTag />}
-          tone={unassignedCount ? "danger" : "muted"}
-        />
-        <PostureCard
-          title="Multiple Owners"
-          value={multipleCount}
-          sub={<SampleTag />}
-          tone="muted"
-        />
-        <PostureCard
-          title="Ownership Requests"
-          value={requestCount}
-          sub={<SampleTag />}
-          tone={requestCount ? "warn" : "muted"}
-        />
-        <PostureCard
-          title="Pending Transfers"
-          value={pendingTransfers}
-          sub={<SampleTag />}
-          tone={pendingTransfers ? "warn" : "muted"}
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Total Owners", value: totalOwners, tone: "ok" },
+          {
+            label: "Unassigned Workspaces",
+            value: unassignedCount,
+            tone: unassignedCount ? "danger" : "muted",
+          },
+          { label: "Multiple Owners", value: multipleCount, tone: "muted" },
+          {
+            label: "Ownership Requests",
+            value: requestCount,
+            tone: requestCount ? "warn" : "muted",
+          },
+          {
+            label: "Pending Transfers",
+            value: pendingTransfers,
+            tone: pendingTransfers ? "warn" : "muted",
+          },
+        ]}
+      />
 
       <div style={{ display: "flex", marginBottom: 14, marginTop: 18 }} />
 

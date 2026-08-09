@@ -39,13 +39,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -416,88 +414,34 @@ export function AllowedResourceTypesView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Allowed Types"
-          value={allowed}
-          tone="ok"
-          sub={
-            <>
-              Permitted in workspaces <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Restricted Types"
-          value={restricted}
-          tone={restricted > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Blocked by policy <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Custom Types"
-          value={custom}
-          tone="ok"
-          sub={
-            <>
-              Enterprise-defined <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Inherited Types"
-          value={inherited}
-          tone="ok"
-          sub={
-            <>
-              From org defaults <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Workspace Overrides"
-          value={overrides}
-          tone={overrides > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Direct assignments <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Policy Violations"
-          value={0}
-          tone="ok"
-          sub={
-            <>
-              Unauthorized provisioning <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Exception Requests"
-          value={exceptions}
-          tone={exceptions > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting review <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Compliance Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Mapped to controls <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Allowed Types", value: allowed, tone: "ok" },
+          {
+            label: "Restricted Types",
+            value: restricted,
+            tone: restricted > 0 ? "warn" : "ok",
+          },
+          { label: "Custom Types", value: custom, tone: "ok" },
+          { label: "Inherited Types", value: inherited, tone: "ok" },
+          {
+            label: "Workspace Overrides",
+            value: overrides,
+            tone: overrides > 0 ? "warn" : "ok",
+          },
+          { label: "Policy Violations", value: 0, tone: "ok" },
+          {
+            label: "Exception Requests",
+            value: exceptions,
+            tone: exceptions > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Compliance Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+        ]}
+      />
 
       <DiscoveryListView
         title="Allowed resource types"

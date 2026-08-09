@@ -44,7 +44,7 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Requests — the intake + governance workflow for creating / modifying / sharing /
@@ -461,6 +461,17 @@ export function WorkspaceRequestsView() {
 
   return (
     <>
+      <StatStripPlain
+        items={[
+          { label: "Total requests", value: records.length },
+          { label: "My requests", value: records.filter((r) => r.mine).length },
+          {
+            label: "Production",
+            value: records.filter((r) => r.environment === "Production").length,
+          },
+          { label: "Shown", value: rows.length },
+        ]}
+      />
       <DiscoveryListView
         title="Workspace request queue"
         commands={toolbar}

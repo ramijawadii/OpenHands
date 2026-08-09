@@ -38,13 +38,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -392,77 +390,37 @@ export function DefaultConfigurationView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Published Configurations"
-          value={published}
-          tone="ok"
-          sub={
-            <>
-              Active baselines <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Workspace Coverage"
-          value={`${coverage}%`}
-          tone={coverage >= 80 ? "ok" : "warn"}
-          sub={
-            <>
-              Provisioned with a baseline <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Configuration Drift"
-          value={drift}
-          tone={drift > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Baselines below 90% <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Overrides"
-          value={overrides}
-          tone={overrides > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Approved deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Validation Failures"
-          value={validationFailures}
-          tone={validationFailures > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Below validation floor <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Inheritance Conflicts"
-          value={conflicts}
-          tone={conflicts > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Inherited + overridden <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Configuration Versions"
-          value={versions}
-          sub={
-            <>
-              Across all baselines <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Published Configurations", value: published, tone: "ok" },
+          {
+            label: "Workspace Coverage",
+            value: `${coverage}%`,
+            tone: coverage >= 80 ? "ok" : "warn",
+          },
+          {
+            label: "Configuration Drift",
+            value: drift,
+            tone: drift > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Overrides",
+            value: overrides,
+            tone: overrides > 0 ? "warn" : "ok",
+          },
+          {
+            label: "Validation Failures",
+            value: validationFailures,
+            tone: validationFailures > 0 ? "danger" : "ok",
+          },
+          {
+            label: "Inheritance Conflicts",
+            value: conflicts,
+            tone: conflicts > 0 ? "warn" : "ok",
+          },
+          { label: "Configuration Versions", value: versions },
+        ]}
+      />
 
       <DiscoveryListView
         title="Default configurations"

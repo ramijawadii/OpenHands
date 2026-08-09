@@ -36,14 +36,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Administration → Lifecycle → Requested — the controlled intake phase of the workspace
@@ -505,43 +503,32 @@ export function LifecycleRequestedView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Pending Requests"
-          value={pendingRequests}
-          sub={<SampleTag />}
-          tone="warn"
-        />
-        <PostureCard
-          title="Average Approval Time"
-          value={`${avgApproval} days`}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Approval Backlog"
-          value={backlog}
-          sub={<SampleTag />}
-          tone={backlog > 3 ? "warn" : "muted"}
-        />
-        <PostureCard
-          title="Rejected Requests"
-          value={rejectedRequests}
-          sub={<SampleTag />}
-          tone={rejectedRequests > 0 ? "danger" : "muted"}
-        />
-        <PostureCard
-          title="Expiring Requests"
-          value={expiringRequests}
-          sub={<SampleTag />}
-          tone={expiringRequests > 0 ? "warn" : "muted"}
-        />
-        <PostureCard
-          title="High Priority Requests"
-          value={highPriority}
-          sub={<SampleTag />}
-          tone={highPriority > 0 ? "danger" : "muted"}
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Pending Requests", value: pendingRequests, tone: "warn" },
+          { label: "Average Approval Time", value: `${avgApproval} days` },
+          {
+            label: "Approval Backlog",
+            value: backlog,
+            tone: backlog > 3 ? "warn" : "muted",
+          },
+          {
+            label: "Rejected Requests",
+            value: rejectedRequests,
+            tone: rejectedRequests > 0 ? "danger" : "muted",
+          },
+          {
+            label: "Expiring Requests",
+            value: expiringRequests,
+            tone: expiringRequests > 0 ? "warn" : "muted",
+          },
+          {
+            label: "High Priority Requests",
+            value: highPriority,
+            tone: highPriority > 0 ? "danger" : "muted",
+          },
+        ]}
+      />
 
       <div style={{ height: 14 }} />
 

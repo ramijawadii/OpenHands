@@ -48,14 +48,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Environment Templates — standardized configurations for specific operational environments
@@ -687,44 +685,24 @@ function OperationalDashboard({ records }: { records: TemplateRecord[] }) {
       desc="Fleet-wide environment-template posture."
       right={<SampleTag />}
     >
-      <PostureGrid>
-        <PostureCard
-          title="Environment Templates"
-          value={records.length}
-          sub="Across all environments"
-          tone="ok"
-        />
-        <PostureCard
-          title="Published Versions"
-          value={published}
-          sub={`${records.length - published} draft / deprecated`}
-          tone="ok"
-        />
-        <PostureCard
-          title="Default Templates"
-          value={defaults}
-          sub="One default per environment"
-          tone="ok"
-        />
-        <PostureCard
-          title="Provisioned Workspaces"
-          value={workspaces.toLocaleString()}
-          sub="Governed by these templates"
-          tone="muted"
-        />
-        <PostureCard
-          title="Template Usage"
-          value={usage}
-          sub="Enterprise-template attachments"
-          tone="muted"
-        />
-        <PostureCard
-          title="Environment Distribution"
-          value={`${envCount} types`}
-          sub="Prod · Stg · Dev · Test · Sbx · DR · Train"
-          tone="muted"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Environment Templates", value: records.length, tone: "ok" },
+          { label: "Published Versions", value: published, tone: "ok" },
+          { label: "Default Templates", value: defaults, tone: "ok" },
+          {
+            label: "Provisioned Workspaces",
+            value: workspaces.toLocaleString(),
+            tone: "muted",
+          },
+          { label: "Template Usage", value: usage, tone: "muted" },
+          {
+            label: "Environment Distribution",
+            value: `${envCount} types`,
+            tone: "muted",
+          },
+        ]}
+      />
     </Card>
   );
 }

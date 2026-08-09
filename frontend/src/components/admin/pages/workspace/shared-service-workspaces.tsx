@@ -45,14 +45,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Shared Service Workspaces — centralized enterprise workspaces that PROVIDE reusable platform,
@@ -626,48 +624,25 @@ export function SharedServiceWorkspacesView() {
   return (
     <>
       {/* Operational Dashboard (spec §Operational Dashboard) */}
-      <PostureGrid>
-        <PostureCard
-          title="Shared Services"
-          value={records.length}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Connected Workspaces"
-          value={totalConsumers}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Consumer Growth"
-          value="+18%"
-          tone="ok"
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Capacity Utilization"
-          value={`${avgCapacity}%`}
-          tone={avgCapacity > 80 ? "warn" : "ok"}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Health Status"
-          value={`${healthy} healthy · ${degraded} degraded`}
-          tone={degraded > 0 ? "warn" : "ok"}
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Availability"
-          value="99.96%"
-          tone="ok"
-          sub={<SampleTag />}
-        />
-        <PostureCard
-          title="Critical Dependencies"
-          value={criticalDeps}
-          tone="warn"
-          sub={<SampleTag />}
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Shared Services", value: records.length },
+          { label: "Connected Workspaces", value: totalConsumers },
+          { label: "Consumer Growth", value: "+18%", tone: "ok" },
+          {
+            label: "Capacity Utilization",
+            value: `${avgCapacity}%`,
+            tone: avgCapacity > 80 ? "warn" : "ok",
+          },
+          {
+            label: "Health Status",
+            value: `${healthy} healthy · ${degraded} degraded`,
+            tone: degraded > 0 ? "warn" : "ok",
+          },
+          { label: "Availability", value: "99.96%", tone: "ok" },
+          { label: "Critical Dependencies", value: criticalDeps, tone: "warn" },
+        ]}
+      />
 
       <div style={{ display: "flex", marginTop: 16, marginBottom: 14 }}>
         <Select
@@ -1451,42 +1426,27 @@ function HealthTab({ rec }: { rec: ServiceRecord }) {
       <Tabs tabs={HEALTH_SUBS} active={sub} onChange={setSub} />
       {sub === "health-widgets" && (
         <Section title="Health widgets" sample>
-          <PostureGrid>
-            <PostureCard
-              title="Availability"
-              value={rec.availability}
-              tone="ok"
-              sub={<SampleTag />}
-            />
-            <PostureCard
-              title="Latency"
-              value={`${rec.latencyMs} ms`}
-              tone={rec.latencyMs > 120 ? "warn" : "ok"}
-              sub={<SampleTag />}
-            />
-            <PostureCard
-              title="Errors"
-              value={rec.errorRate}
-              tone="ok"
-              sub={<SampleTag />}
-            />
-            <PostureCard
-              title="Active Incidents"
-              value={rec.status === "Suspended" ? incidents : 0}
-              tone={rec.status === "Suspended" ? "danger" : "ok"}
-              sub={<SampleTag />}
-            />
-            <PostureCard
-              title="Maintenance"
-              value={n % 2 === 0 ? "Scheduled" : "None"}
-              sub={<SampleTag />}
-            />
-            <PostureCard
-              title="Service Level"
-              value={rec.serviceTier}
-              sub={<SampleTag />}
-            />
-          </PostureGrid>
+          <StatStripPlain
+            items={[
+              { label: "Availability", value: rec.availability, tone: "ok" },
+              {
+                label: "Latency",
+                value: `${rec.latencyMs} ms`,
+                tone: rec.latencyMs > 120 ? "warn" : "ok",
+              },
+              { label: "Errors", value: rec.errorRate, tone: "ok" },
+              {
+                label: "Active Incidents",
+                value: rec.status === "Suspended" ? incidents : 0,
+                tone: rec.status === "Suspended" ? "danger" : "ok",
+              },
+              {
+                label: "Maintenance",
+                value: n % 2 === 0 ? "Scheduled" : "None",
+              },
+              { label: "Service Level", value: rec.serviceTier },
+            ]}
+          />
         </Section>
       )}
       {sub === "operational-detail" && (

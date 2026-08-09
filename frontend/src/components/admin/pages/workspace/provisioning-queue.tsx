@@ -45,14 +45,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Provisioning Queue — the operational execution center that orchestrates, monitors and manages all
@@ -679,56 +677,38 @@ export function ProvisioningQueueView() {
         Operational dashboard <SampleTag />
       </div>
       <div style={{ marginBottom: 18 }}>
-        <PostureGrid>
-          <PostureCard
-            title="Running Jobs"
-            value={runningJobs}
-            sub="Active executions"
-            tone="ok"
-          />
-          <PostureCard
-            title="Pending Jobs"
-            value={pendingJobs}
-            sub="Awaiting execution"
-            tone="warn"
-          />
-          <PostureCard
-            title="Completed Today"
-            value={completedToday}
-            sub="Finished successfully"
-            tone="ok"
-          />
-          <PostureCard
-            title="Failed Jobs"
-            value={failedJobs}
-            sub="Require intervention"
-            tone={failedJobs ? "danger" : "muted"}
-          />
-          <PostureCard
-            title="Average Provisioning Time"
-            value={`${avgProvisioning} min`}
-            sub="Across all operations"
-            tone="muted"
-          />
-          <PostureCard
-            title="Success Rate"
-            value={`${successRate}%`}
-            sub="Completed vs failed"
-            tone={successRate >= 90 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Rollback Count"
-            value={rollbackCount}
-            sub="In-flight rollbacks"
-            tone={rollbackCount ? "warn" : "muted"}
-          />
-          <PostureCard
-            title="Execution Capacity"
-            value={`${EXECUTION_NODES.length} nodes`}
-            sub="72% utilized"
-            tone="ok"
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Running Jobs", value: runningJobs, tone: "ok" },
+            { label: "Pending Jobs", value: pendingJobs, tone: "warn" },
+            { label: "Completed Today", value: completedToday, tone: "ok" },
+            {
+              label: "Failed Jobs",
+              value: failedJobs,
+              tone: failedJobs ? "danger" : "muted",
+            },
+            {
+              label: "Average Provisioning Time",
+              value: `${avgProvisioning} min`,
+              tone: "muted",
+            },
+            {
+              label: "Success Rate",
+              value: `${successRate}%`,
+              tone: successRate >= 90 ? "ok" : "warn",
+            },
+            {
+              label: "Rollback Count",
+              value: rollbackCount,
+              tone: rollbackCount ? "warn" : "muted",
+            },
+            {
+              label: "Execution Capacity",
+              value: `${EXECUTION_NODES.length} nodes`,
+              tone: "ok",
+            },
+          ]}
+        />
       </div>
 
       {/* Queue Visualization (spec §Queue Visualization) */}

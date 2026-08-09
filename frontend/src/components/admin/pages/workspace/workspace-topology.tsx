@@ -46,14 +46,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureGrid,
-  PostureCard,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Workspace Topology — the enterprise operational map of every workspace and its relationships
@@ -646,68 +644,57 @@ export function WorkspaceTopologyView() {
       >
         Operational Dashboard <SampleTag />
       </div>
-      <PostureGrid>
-        <PostureCard
-          title="Total Workspaces"
-          value={records.length}
-          sub="Across the enterprise"
-          tone="ok"
-        />
-        <PostureCard
-          title="Business Units"
-          value={new Set(records.map((r) => r.businessUnit)).size}
-          sub="Organizational domains"
-        />
-        <PostureCard
-          title="Shared Services"
-          value={new Set(records.flatMap((r) => r.sharedServices)).size}
-          sub="Consumed platform services"
-        />
-        <PostureCard
-          title="Dependencies"
-          value={records.reduce(
-            (a, r) => a + r.depsIncoming + r.depsOutgoing,
-            0,
-          )}
-          sub="Incoming + outgoing edges"
-        />
-        <PostureCard
-          title="Cloud Resources"
-          value={records.reduce(
-            (a, r) =>
-              a + r.awsAccounts + r.azureSubs + r.gcpProjects + r.clusters,
-            0,
-          )}
-          sub="Accounts · subscriptions · projects · clusters"
-        />
-        <PostureCard
-          title="Connected AI Platforms"
-          value={records.reduce((a, r) => a + r.aiProviders, 0)}
-          sub="AI runtimes & providers"
-        />
-        <PostureCard
-          title="Compliance Coverage"
-          value={`${Math.round(
-            (records.filter((r) => r.complianceProgram).length /
-              records.length) *
-              100,
-          )}%`}
-          sub="Workspaces mapped to a program"
-          tone="ok"
-        />
-        <PostureCard
-          title="Critical Paths"
-          value={records.reduce((a, r) => a + r.depsCritical, 0)}
-          sub="Critical dependency paths"
-          tone="warn"
-        />
-        <PostureCard
-          title="Topology Health"
-          value={`${Math.round(records.reduce((a, r) => a + r.topologyScore, 0) / records.length)}%`}
-          sub="Aggregate topology score"
-          tone="ok"
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Total Workspaces", value: records.length, tone: "ok" },
+          {
+            label: "Business Units",
+            value: new Set(records.map((r) => r.businessUnit)).size,
+          },
+          {
+            label: "Shared Services",
+            value: new Set(records.flatMap((r) => r.sharedServices)).size,
+          },
+          {
+            label: "Dependencies",
+            value: records.reduce(
+              (a, r) => a + r.depsIncoming + r.depsOutgoing,
+              0,
+            ),
+          },
+          {
+            label: "Cloud Resources",
+            value: records.reduce(
+              (a, r) =>
+                a + r.awsAccounts + r.azureSubs + r.gcpProjects + r.clusters,
+              0,
+            ),
+          },
+          {
+            label: "Connected AI Platforms",
+            value: records.reduce((a, r) => a + r.aiProviders, 0),
+          },
+          {
+            label: "Compliance Coverage",
+            value: `${Math.round(
+              (records.filter((r) => r.complianceProgram).length /
+                records.length) *
+                100,
+            )}%`,
+            tone: "ok",
+          },
+          {
+            label: "Critical Paths",
+            value: records.reduce((a, r) => a + r.depsCritical, 0),
+            tone: "warn",
+          },
+          {
+            label: "Topology Health",
+            value: `${Math.round(records.reduce((a, r) => a + r.topologyScore, 0) / records.length)}%`,
+            tone: "ok",
+          },
+        ]}
+      />
 
       <div style={{ display: "flex", marginTop: 18, marginBottom: 14 }}>
         <Select

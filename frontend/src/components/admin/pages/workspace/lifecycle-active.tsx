@@ -44,14 +44,12 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 
 /**
  * Lifecycle → Active — the steady-state operational view of fully provisioned workspaces.
@@ -584,35 +582,34 @@ export function LifecycleActiveView() {
         >
           Operational Dashboard <SampleTag />
         </div>
-        <PostureGrid>
-          <PostureCard title="Total Active Workspaces" value={totalActive} />
-          <PostureCard
-            title="Healthy Workspaces"
-            value={`${healthy} / ${totalActive}`}
-            tone={healthy === totalActive ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Compliance Coverage"
-            value={`${avgCompliance}%`}
-            tone={avgCompliance >= 90 ? "ok" : "warn"}
-          />
-          <PostureCard
-            title="Security Score"
-            value={avgSecurity}
-            tone={avgSecurity >= 80 ? "ok" : "warn"}
-          />
-          <PostureCard title="Resource Utilization" value={`${avgUtil}%`} />
-          <PostureCard title="Cloud Distribution" value={cloudDist} />
-          <PostureCard
-            title="Monthly Cost"
-            value={`$${totalCost.toLocaleString()}`}
-          />
-          <PostureCard
-            title="Operational Alerts"
-            value={alerts}
-            tone={alerts === 0 ? "ok" : "danger"}
-          />
-        </PostureGrid>
+        <StatStripPlain
+          items={[
+            { label: "Total Active Workspaces", value: totalActive },
+            {
+              label: "Healthy Workspaces",
+              value: `${healthy} / ${totalActive}`,
+              tone: healthy === totalActive ? "ok" : "warn",
+            },
+            {
+              label: "Compliance Coverage",
+              value: `${avgCompliance}%`,
+              tone: avgCompliance >= 90 ? "ok" : "warn",
+            },
+            {
+              label: "Security Score",
+              value: avgSecurity,
+              tone: avgSecurity >= 80 ? "ok" : "warn",
+            },
+            { label: "Resource Utilization", value: `${avgUtil}%` },
+            { label: "Cloud Distribution", value: cloudDist },
+            { label: "Monthly Cost", value: `$${totalCost.toLocaleString()}` },
+            {
+              label: "Operational Alerts",
+              value: alerts,
+              tone: alerts === 0 ? "ok" : "danger",
+            },
+          ]}
+        />
       </div>
 
       <DiscoveryListView
@@ -1449,22 +1446,18 @@ function HealthTab({ rec }: { rec: WorkspaceRecord }) {
         Operational health — states: Healthy · Warning · Degraded · Critical{" "}
         <SampleTag />
       </div>
-      <PostureGrid>
-        {widgets.map((w) => (
-          <PostureCard
-            key={w.label}
-            title={w.label}
-            value={w.state}
-            tone={
-              w.state === "Healthy"
-                ? "ok"
-                : w.state === "Critical"
-                  ? "danger"
-                  : "warn"
-            }
-          />
-        ))}
-      </PostureGrid>
+      <StatStripPlain
+        items={widgets.map((w) => ({
+          label: w.label,
+          value: w.state,
+          tone:
+            w.state === "Healthy"
+              ? "ok"
+              : w.state === "Critical"
+                ? "danger"
+                : "warn",
+        }))}
+      />
     </>
   );
 }

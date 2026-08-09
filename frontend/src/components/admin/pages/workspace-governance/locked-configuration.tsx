@@ -32,13 +32,11 @@ import {
   SideRailDrawer,
   RowMenu,
   ScopeBadge,
-  PostureCard,
-  PostureGrid,
   T,
   type Column,
   type CommandItem,
 } from "#/components/admin/admin-kit";
-import { ColumnChooser } from "#/components/admin/settings-kit";
+import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
 import { DiscoveryListView } from "#/components/admin/discovery-kit";
 
 /**
@@ -440,78 +438,29 @@ export function LockedConfigurationView() {
 
   return (
     <>
-      <PostureGrid>
-        <PostureCard
-          title="Active Locks"
-          value={activeLocks}
-          tone="ok"
-          sub={
-            <>
-              Enforced org-wide <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Locked Workspaces"
-          value={lockedWorkspaces}
-          tone="ok"
-          sub={
-            <>
-              Inheriting a lock <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Pending Unlock Requests"
-          value={pendingUnlock}
-          tone={pendingUnlock > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Awaiting review <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="High-Risk Unlocks"
-          value={highRiskUnlock}
-          tone={highRiskUnlock > 0 ? "danger" : "ok"}
-          sub={
-            <>
-              Critical/High risk <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Locked Policies"
-          value={lockedPolicies}
-          tone="ok"
-          sub={
-            <>
-              Protected by locks <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Blocked Overrides"
-          value={blockedOverrides}
-          tone={blockedOverrides > 0 ? "warn" : "ok"}
-          sub={
-            <>
-              Prevented deviations <SampleTag />
-            </>
-          }
-        />
-        <PostureCard
-          title="Lock Violations"
-          value={0}
-          tone="ok"
-          sub={
-            <>
-              Attempted changes <SampleTag />
-            </>
-          }
-        />
-      </PostureGrid>
+      <StatStripPlain
+        items={[
+          { label: "Active Locks", value: activeLocks, tone: "ok" },
+          { label: "Locked Workspaces", value: lockedWorkspaces, tone: "ok" },
+          {
+            label: "Pending Unlock Requests",
+            value: pendingUnlock,
+            tone: pendingUnlock > 0 ? "warn" : "ok",
+          },
+          {
+            label: "High-Risk Unlocks",
+            value: highRiskUnlock,
+            tone: highRiskUnlock > 0 ? "danger" : "ok",
+          },
+          { label: "Locked Policies", value: lockedPolicies, tone: "ok" },
+          {
+            label: "Blocked Overrides",
+            value: blockedOverrides,
+            tone: blockedOverrides > 0 ? "warn" : "ok",
+          },
+          { label: "Lock Violations", value: 0, tone: "ok" },
+        ]}
+      />
 
       <DiscoveryListView
         title="Locked configuration"
