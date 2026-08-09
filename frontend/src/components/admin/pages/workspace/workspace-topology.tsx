@@ -316,29 +316,6 @@ function StatusBadge({ status }: { status: HealthState }) {
   );
 }
 
-// ── TreeBlock — monospace indented tree / node→node flow (the topology visualization) ──────────────
-function TreeBlock({ text }: { text: string }) {
-  return (
-    <pre
-      style={{
-        margin: 0,
-        padding: "14px 16px",
-        border: `1px solid ${T.border}`,
-        borderRadius: 8,
-        background: "var(--cg-bg-badge)",
-        color: T.textNav,
-        fontFamily: "monospace",
-        fontSize: 12,
-        lineHeight: 1.65,
-        overflowX: "auto",
-        whiteSpace: "pre",
-      }}
-    >
-      {text}
-    </pre>
-  );
-}
-
 // ── Chips — legend rows for node types / relationship types / shared services ─────────────────────
 function ChipRow({ items, sample }: { items: string[]; sample?: boolean }) {
   return (
@@ -875,54 +852,17 @@ function TopologyViewPanel({
   records: TopologyNode[];
 }) {
   if (view === "enterprise") return <EnterprisePanel />;
-  if (view === "business") return <BusinessPanel records={records} />;
-  if (view === "operational") return <OperationalPanel records={records} />;
+  if (view === "business") return <BusinessPanel />;
+  if (view === "operational") return <OperationalPanel />;
   if (view === "security") return <SecurityPanel />;
-  if (view === "compliance") return <CompliancePanel records={records} />;
+  if (view === "compliance") return <CompliancePanel />;
   if (view === "ai") return <AIPanel />;
-  if (view === "cloud") return <CloudPanel records={records} />;
+  if (view === "cloud") return <CloudPanel />;
   if (view === "service") return <ServicePanel />;
-  if (view === "dependency") return <DependencyPanel records={records} />;
+  if (view === "dependency") return <DependencyPanel />;
   if (view === "timeline") return <TimelinePanel />;
   return <HealthPanel records={records} />;
 }
-
-// ── Enterprise View — primary topology tree + interactive-graph legend (spec §Enterprise Topology) ──
-const ENTERPRISE_TREE = `Enterprise
-│
-├── Finance
-│     │
-│     ├── Payments
-│     ├── Treasury
-│     └── Fraud
-│
-├── Platform
-│     │
-│     ├── Identity
-│     ├── Security
-│     └── AI Platform
-│
-└── Operations
-      │
-      ├── SOC
-      ├── Monitoring
-      └── Logging`;
-
-const TOPOLOGY_MODEL = `Organization Hierarchy
-          │
-Workspace
-          │
-├── Parent / Child
-├── Dependencies
-├── Shared Services
-├── Business Relationships
-├── Cloud Resources
-├── AI Resources
-├── Compliance
-├── Security
-└── Integrations
-          │
-Enterprise Topology`;
 
 function EnterprisePanel() {
   return (
@@ -941,7 +881,6 @@ function EnterprisePanel() {
         >
           <SampleTag />
         </div>
-        <TreeBlock text={ENTERPRISE_TREE} />
       </Card>
       <Card
         title="Interactive Graph"
@@ -953,33 +892,18 @@ function EnterprisePanel() {
         <Section title="Relationship types" sample>
           <ChipRow items={RELATIONSHIP_TYPES} />
         </Section>
-        <Section title="Enterprise topology model" sample>
-          <TreeBlock text={TOPOLOGY_MODEL} />
-        </Section>
       </Card>
     </>
   );
 }
 
 // ── Business View (spec §Business View) ──
-function BusinessPanel({ records }: { records: TopologyNode[] }) {
-  const units = Array.from(new Set(records.map((r) => r.businessUnit)));
-  const tree = units
-    .map((u) => {
-      const kids = records
-        .filter((r) => r.businessUnit === u)
-        .map((r) => `│     ├── ${r.department}`);
-      return `├── ${u}\n${kids.join("\n")}`;
-    })
-    .join("\n│\n");
+function BusinessPanel() {
   return (
     <Card
       title="Business View"
       desc="Business units, departments, workspace ownership and executive ownership."
     >
-      <Section title="Business hierarchy" sample>
-        <TreeBlock text={`Enterprise\n│\n${tree}`} />
-      </Section>
       <Section title="Displays" sample>
         <ChipRow
           items={[
@@ -996,22 +920,12 @@ function BusinessPanel({ records }: { records: TopologyNode[] }) {
 }
 
 // ── Operational View (spec §Operational View) ──
-function OperationalPanel({ records }: { records: TopologyNode[] }) {
-  const flow = records
-    .slice(0, 6)
-    .map(
-      (r) =>
-        `${r.workspace}  ──▶  ${r.sharedServices.slice(0, 2).join(", ") || "—"}`,
-    )
-    .join("\n");
+function OperationalPanel() {
   return (
     <Card
       title="Operational View"
       desc="Shared services, dependencies, operational relationships, incident paths and automation."
     >
-      <Section title="Operational relationships" sample>
-        <TreeBlock text={flow} />
-      </Section>
       <Section title="Displays" sample>
         <ChipRow
           items={[
@@ -1034,18 +948,6 @@ function SecurityPanel() {
       title="Security View"
       desc="Trust boundaries, security zones, identity services and administrative scope."
     >
-      <Section title="Security topology" sample>
-        <TreeBlock
-          text={`Trust Boundary: Enterprise
-│
-├── Security Zone: Production
-│     ├── Identity Services  ──▶  All Workspaces
-│     └── Security Dependencies
-│
-└── Security Zone: Non-Production
-      └── Administrative Scope: Delegated`}
-        />
-      </Section>
       <Section title="Displays" sample>
         <ChipRow
           items={[
@@ -1062,19 +964,12 @@ function SecurityPanel() {
 }
 
 // ── Compliance View (spec §Compliance View) ──
-function CompliancePanel({ records }: { records: TopologyNode[] }) {
-  const byProgram = COMPLIANCE_PROGRAMS.map(
-    (p) =>
-      `├── ${p}  ──▶  ${records.filter((r) => r.complianceProgram === p).length} workspaces`,
-  ).join("\n");
+function CompliancePanel() {
   return (
     <Card
       title="Compliance View"
       desc="Compliance programs, inherited policies, evidence & audit scope and regulatory boundaries."
     >
-      <Section title="Regulatory boundaries" sample>
-        <TreeBlock text={`Compliance\n│\n${byProgram}`} />
-      </Section>
       <Section title="Displays" sample>
         <ChipRow
           items={[
@@ -1097,17 +992,6 @@ function AIPanel() {
       title="AI View"
       desc="AI runtime, model providers, knowledge sources, prompt libraries, AI governance and dependencies."
     >
-      <Section title="AI topology" sample>
-        <TreeBlock
-          text={`AI Platform (Shared Service)
-│
-├── AI Runtime  ──▶  Model Providers
-├── Knowledge Sources  ──▶  Knowledge Bases
-├── Prompt Libraries
-├── AI Governance
-└── AI Dependencies  ──▶  Consuming Workspaces`}
-        />
-      </Section>
       <Section title="Displays" sample>
         <ChipRow
           items={[
@@ -1125,27 +1009,12 @@ function AIPanel() {
 }
 
 // ── Cloud View (spec §Cloud View) ──
-function CloudPanel({ records }: { records: TopologyNode[] }) {
-  const aws = records.reduce((a, r) => a + r.awsAccounts, 0);
-  const az = records.reduce((a, r) => a + r.azureSubs, 0);
-  const gcp = records.reduce((a, r) => a + r.gcpProjects, 0);
-  const k8s = records.reduce((a, r) => a + r.clusters, 0);
+function CloudPanel() {
   return (
     <Card
       title="Cloud View"
       desc="AWS accounts, Azure subscriptions, GCP projects, Kubernetes clusters and shared infrastructure."
     >
-      <Section title="Cloud footprint" sample>
-        <TreeBlock
-          text={`Cloud
-│
-├── AWS Accounts          ──▶  ${aws}
-├── Azure Subscriptions   ──▶  ${az}
-├── GCP Projects          ──▶  ${gcp}
-├── Kubernetes Clusters   ──▶  ${k8s}
-└── Shared Infrastructure`}
-        />
-      </Section>
       <Section title="Displays" sample>
         <ChipRow
           items={[
@@ -1171,35 +1040,17 @@ function ServicePanel() {
       <Section title="Shared services" sample>
         <ChipRow items={SHARED_SERVICE_TYPES} />
       </Section>
-      <Section title="Consumption flow" sample>
-        <TreeBlock
-          text={`Shared Service Workspace
-          │
-          ▼
-Consuming Workspace  (Identity · Logging · Monitoring · AI Platform · Knowledge · Storage · Security · Networking · Secrets)`}
-        />
-      </Section>
     </Card>
   );
 }
 
 // ── Dependency View (spec §Dependencies) ──
-function DependencyPanel({ records }: { records: TopologyNode[] }) {
-  const flow = records
-    .slice(0, 6)
-    .map(
-      (r) =>
-        `${r.workspace}\n     │  (${r.depsIncoming} in · ${r.depsOutgoing} out · ${r.depsCritical} critical)\n     ▼\n${r.crossLinks[0]}`,
-    )
-    .join("\n\n");
+function DependencyPanel() {
   return (
     <Card
       title="Dependency View"
       desc="Incoming, outgoing, critical, external, runtime and infrastructure dependencies."
     >
-      <Section title="Dependency paths" sample>
-        <TreeBlock text={flow} />
-      </Section>
       <Section title="Categories" sample>
         <ChipRow
           items={[
@@ -1536,27 +1387,16 @@ const CONNECTIONS_SUBS = [
 ];
 function ConnectionsTab({ rec }: { rec: TopologyNode }) {
   const [sub, setSub] = React.useState("relationship-map");
-  const kids = rec.children.length
-    ? rec.children.map((c) => `     ├── ${c}`).join("\n")
-    : "     └── (none)";
   return (
     <>
       <Tabs tabs={CONNECTIONS_SUBS} active={sub} onChange={setSub} />
-      {sub === "relationship-map" && (
-        <Section title="Relationship map" sample>
-          <TreeBlock text={`${rec.workspace}\n     │\n     ▼\n${rec.parent}`} />
-        </Section>
-      )}
+
       {sub === "parent" && (
         <Section title="Parent" sample>
           <StatRow label="Parent" value={rec.parent} sample />
         </Section>
       )}
-      {sub === "children" && (
-        <Section title="Children" sample>
-          <TreeBlock text={`${rec.workspace}\n${kids}`} />
-        </Section>
-      )}
+
       {sub === "business-relationships" && (
         <Section title="Business Relationships" sample>
           <ChipRow items={rec.businessLinks} />
@@ -1624,13 +1464,7 @@ function DependenciesTab({ rec }: { rec: TopologyNode }) {
           />
         </Section>
       )}
-      {sub === "critical-path" && (
-        <Section title="Critical path" sample>
-          <TreeBlock
-            text={`${rec.workspace}\n     │  (critical)\n     ▼\n${rec.crossLinks[0]}\n     │\n     ▼\n${rec.sharedServices[0] ?? "Shared Service"}`}
-          />
-        </Section>
-      )}
+
       {sub === "supports" && (
         <Section title="Supports" sample>
           <ChipRow

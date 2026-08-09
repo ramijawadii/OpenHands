@@ -35,7 +35,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -770,47 +769,6 @@ export function LifecycleSuspendedView() {
       {/* ── Reactivation Workflow (spec §Reactivation Workflow) ── */}
 
       {/* ── Lifecycle Flow + Suspension Behavior (spec §Lifecycle Flow / §Suspension Behavior) ── */}
-      <Card title="Lifecycle & suspension behavior">
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 20,
-          }}
-        >
-          <div>
-            <Section title="Lifecycle flow">
-              <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>
-                Alternatively, Active → Suspended → Archived if the workspace is
-                no longer intended to return to service.
-              </div>
-            </Section>
-          </div>
-          <div>
-            <Section title="Suspension behavior">
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {SUSPENSION_BEHAVIOR.map((b) => (
-                  <div
-                    key={b.label}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      fontSize: 12.5,
-                      color: b.allowed ? T.textNav : T.textMuted,
-                    }}
-                  >
-                    <span style={{ color: b.allowed ? T.success : T.danger }}>
-                      {b.allowed ? "✓" : "✗"}
-                    </span>
-                    {b.label}
-                  </div>
-                ))}
-              </div>
-            </Section>
-          </div>
-        </div>
-      </Card>
 
       {sel && (
         <SuspendedDetailDrawer rec={sel} onClose={() => setSelId(null)} />
@@ -818,24 +776,6 @@ export function LifecycleSuspendedView() {
     </>
   );
 }
-
-const SUSPENSION_BEHAVIOR = [
-  { label: "Configuration is preserved", allowed: true },
-  {
-    label: "Cloud resources remain intact (unless explicitly deallocated)",
-    allowed: true,
-  },
-  { label: "Audit logs continue to be retained", allowed: true },
-  { label: "Compliance evidence is preserved", allowed: true },
-  { label: "Billing policies remain configurable", allowed: true },
-  { label: "Ownership is maintained", allowed: true },
-  { label: "Workspace metadata remains searchable", allowed: true },
-  { label: "Users cannot access the workspace", allowed: false },
-  { label: "Agents cannot execute", allowed: false },
-  { label: "Scheduled automation is paused", allowed: false },
-  { label: "Integrations are disabled (configurable)", allowed: false },
-  { label: "API access is blocked (configurable)", allowed: false },
-];
 
 /** Standalone route wrapper — banner + <Page> chrome around the embeddable view. */
 export function LifecycleSuspendedPage() {

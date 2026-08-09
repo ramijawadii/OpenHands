@@ -30,7 +30,6 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -728,52 +727,6 @@ export function SharedServiceWorkspacesView() {
       />
 
       {/* Operational Relationships (spec §Operational Relationships) */}
-      <Card title="Operational relationships" right={<SampleTag />}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 16,
-          }}
-        >
-          <div>
-            <Section title="Integrates with">
-              <ChipList
-                items={[
-                  "Organization Hierarchy",
-                  "Parent / Child Workspaces",
-                  "Workspace Governance",
-                  "Integration Manager",
-                  "Identity & Access",
-                  "Platform Security",
-                  "Compliance Center",
-                  "Commercial Center",
-                  "Support Center",
-                  "Logs Center",
-                  "Automation Engine",
-                  "Monitoring Center",
-                ]}
-              />
-            </Section>
-          </div>
-          <div>
-            <Section title="Referenced by">
-              <ChipList
-                items={[
-                  "Provisioning",
-                  "Workspace Templates",
-                  "Cross-Workspace Governance",
-                  "Capacity Planning",
-                  "Business Continuity",
-                  "Disaster Recovery",
-                  "Reporting",
-                  "Analytics",
-                ]}
-              />
-            </Section>
-          </div>
-        </div>
-      </Card>
 
       {sel && <ServiceDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

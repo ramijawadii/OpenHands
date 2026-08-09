@@ -16,7 +16,6 @@ import {
   ScrollText,
   Scale,
   Package,
-  ListChecks,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -27,7 +26,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -621,11 +619,6 @@ export function LifecycleDecommissionedView() {
         }
       />
 
-      <DecommissionChecklistCard />
-
-      <DecommissionBehaviorCard />
-      <LifecycleComparisonCard />
-
       {sel && (
         <DecomDetailDrawer
           rec={sel}
@@ -716,246 +709,6 @@ function Section({
       </div>
       {children}
     </div>
-  );
-}
-
-// ── Decommission Behavior (spec §Decommission Behavior) ──
-function DecommissionBehaviorCard() {
-  const allowed = [
-    "Workspace becomes permanently read-only",
-    "All cloud resources are removed or transferred",
-    "AI runtimes are terminated",
-    "Integrations are disconnected",
-    "Identity assignments are revoked",
-    "Policies are detached",
-    "Compliance evidence is preserved",
-    "Audit history remains immutable",
-    "Historical metadata remains searchable",
-    "Business records are retained",
-    "Reports remain exportable",
-  ];
-  const blocked = [
-    "Users cannot access the workspace",
-    "Administrators cannot modify configuration",
-    "Automation is disabled",
-    "Agents cannot execute",
-    "APIs are unavailable",
-    "Provisioning cannot resume",
-  ];
-  return (
-    <Card
-      title="Decommission behavior"
-      desc="What is guaranteed to remain, and what becomes permanently unavailable, once a workspace is decommissioned."
-    >
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          gap: 18,
-          paddingTop: 6,
-        }}
-      >
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: T.success,
-              marginBottom: 8,
-            }}
-          >
-            Preserved
-          </div>
-          {allowed.map((a) => (
-            <div
-              key={a}
-              style={{
-                display: "flex",
-                gap: 8,
-                fontSize: 12.5,
-                color: T.textNav,
-                padding: "5px 0",
-              }}
-            >
-              <span style={{ color: T.success }}>✓</span>
-              {a}
-            </div>
-          ))}
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: T.danger,
-              marginBottom: 8,
-            }}
-          >
-            Blocked
-          </div>
-          {blocked.map((b) => (
-            <div
-              key={b}
-              style={{
-                display: "flex",
-                gap: 8,
-                fontSize: 12.5,
-                color: T.textNav,
-                padding: "5px 0",
-              }}
-            >
-              <span style={{ color: T.danger }}>✗</span>
-              {b}
-            </div>
-          ))}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ── Lifecycle Comparison (spec §Lifecycle Comparison) ──
-function LifecycleComparisonCard() {
-  const rows = [
-    ["Active", "Operational workspace", "Yes"],
-    ["Suspended", "Temporary operational stop", "Yes"],
-    ["Maintenance", "Planned operational changes", "Yes"],
-    ["Archived", "Long-term inactive retention", "Yes"],
-    ["Decommissioned", "Permanent retirement", "No"],
-  ];
-  return (
-    <Card
-      title="Lifecycle comparison"
-      desc="Decommissioned is the only lifecycle state that is not recoverable."
-    >
-      <div style={{ overflowX: "auto", paddingTop: 6 }}>
-        <table
-          style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}
-        >
-          <thead>
-            <tr>
-              {["State", "Purpose", "Recoverable"].map((h) => (
-                <th
-                  key={h}
-                  style={{
-                    textAlign: "left",
-                    padding: "10px 14px",
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: T.textMuted,
-                    borderBottom: `2px solid var(--cg-border-card)`,
-                  }}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([state, purpose, rec]) => {
-              const isDecom = state === "Decommissioned";
-              return (
-                <tr key={state}>
-                  <td
-                    style={{
-                      padding: "11px 14px",
-                      borderBottom: `1px solid ${T.border}`,
-                      color: isDecom ? T.textPrimary : T.textNav,
-                      fontWeight: isDecom ? 600 : 400,
-                    }}
-                  >
-                    {state}
-                  </td>
-                  <td
-                    style={{
-                      padding: "11px 14px",
-                      borderBottom: `1px solid ${T.border}`,
-                      color: T.textNav,
-                    }}
-                  >
-                    {purpose}
-                  </td>
-                  <td
-                    style={{
-                      padding: "11px 14px",
-                      borderBottom: `1px solid ${T.border}`,
-                      color: rec === "No" ? T.danger : T.success,
-                      fontWeight: rec === "No" ? 600 : 400,
-                    }}
-                  >
-                    {rec}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-// ── Decommission Checklist (spec §Decommission Checklist) ──
-const CHECKLIST_CATEGORIES = [
-  "Identity Removed",
-  "Access Revoked",
-  "Cloud Resources Removed",
-  "Integrations Removed",
-  "Secrets Revoked",
-  "Policies Detached",
-  "Automation Disabled",
-  "AI Services Removed",
-  "Monitoring Removed",
-  "Logs Archived",
-  "Evidence Generated",
-  "Retention Applied",
-];
-
-function DecommissionChecklistCard() {
-  const items = CHECKLIST_CATEGORIES.map((label, i) => {
-    const n = hashId(label) + i;
-    const state = n % 7 === 0 ? "In Progress" : "Complete";
-    return {
-      id: `chk-${i}`,
-      category: label,
-      status: state,
-      owner: pick(OWNERS, n),
-      completed:
-        state === "Complete" ? `${MONTHS[n % 12]} ${1 + (n % 27)}, 2026` : "—",
-    };
-  });
-  const cols: Column<(typeof items)[number]>[] = [
-    {
-      key: "category",
-      header: "Validation Category",
-      render: (r) => r.category,
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (r) => (
-        <InlineValue
-          value={r.status}
-          tone={r.status === "Complete" ? "ok" : "warn"}
-        />
-      ),
-    },
-    { key: "owner", header: "Owner", render: (r) => r.owner },
-    { key: "completed", header: "Completed Date", render: (r) => r.completed },
-  ];
-  return (
-    <Card
-      title="Decommission checklist"
-      desc="Every validation category that must be satisfied before a decommission is finalized."
-      right={
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-          <ListChecks size={15} color={T.textMuted} />
-          <SampleTag />
-        </span>
-      }
-    >
-      <DirectoryTable columns={cols} rows={items} />
-    </Card>
   );
 }
 

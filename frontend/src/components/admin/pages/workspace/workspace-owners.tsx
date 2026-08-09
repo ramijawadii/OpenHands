@@ -7,10 +7,8 @@ import {
   RefreshCcw,
   UserMinus,
   Download,
-  Users,
   Users2,
   LayoutGrid,
-  Building2,
   ShieldCheck,
   ClipboardList,
   Activity as ActivityIcon,
@@ -20,7 +18,6 @@ import {
   UserCog,
   Star,
   Inbox,
-  Layers,
   UserX,
   ClipboardCheck,
 } from "lucide-react";
@@ -28,7 +25,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -621,12 +617,6 @@ export function WorkspaceOwnersView() {
       />
 
       {/* Ownership Model (spec §Ownership Model → Visualization) */}
-      <Card
-        title="Ownership model"
-        desc="How business accountability flows from the organization down to a workspace and its delegated administrators."
-      >
-        <OwnershipModel />
-      </Card>
 
       {sel && <OwnerDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
@@ -656,55 +646,6 @@ export function WorkspaceOwnersPage() {
       />
       <WorkspaceOwnersView />
     </Page>
-  );
-}
-
-// ── Ownership Model visualization (ASCII flow) ──
-function OwnershipModel() {
-  const nodes = [
-    { label: "Organization", Icon: Building2 },
-    { label: "Business Unit", Icon: Layers },
-    { label: "Workspace", Icon: LayoutGrid },
-    { label: "Primary Owner", Icon: Crown },
-    { label: "Delegated Administrators", Icon: Users },
-  ];
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        alignItems: "center",
-        paddingTop: 6,
-      }}
-    >
-      {nodes.map((node, i) => (
-        <React.Fragment key={node.label}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 16px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 9,
-              minWidth: 240,
-              justifyContent: "center",
-              background:
-                i === 3 ? "var(--cg-accent-bg-strong)" : "transparent",
-            }}
-          >
-            <node.Icon size={14} color={T.textMuted} />
-            {node.label}
-          </div>
-          {i < nodes.length - 1 && (
-            <span style={{ color: T.textMuted, fontSize: 13 }}>│</span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }
 

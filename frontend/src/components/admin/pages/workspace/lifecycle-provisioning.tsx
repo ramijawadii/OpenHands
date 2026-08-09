@@ -31,7 +31,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -78,18 +77,6 @@ type State =
   | "Failed"
   | "Cancelled"
   | "Rolled Back";
-
-const STATES: State[] = [
-  "Queued",
-  "Running",
-  "Waiting",
-  "Paused",
-  "Retrying",
-  "Completed",
-  "Failed",
-  "Cancelled",
-  "Rolled Back",
-];
 
 const STATE_TONE: Record<State, string> = {
   Queued: T.textMuted,
@@ -577,49 +564,6 @@ export function LifecycleProvisioningView() {
         />
       </div>
 
-      <Card
-        title="Lifecycle flow"
-        desc="The enterprise deployment chain every workspace follows from an approved request to an active workspace."
-        right={<SampleTag />}
-      >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 12,
-            marginTop: 14,
-            paddingTop: 12,
-            borderTop: `1px solid ${T.border}`,
-          }}
-        >
-          <span style={{ fontSize: 11.5, color: T.textMuted }}>
-            Provisioning states:
-          </span>
-          {STATES.map((s) => (
-            <span
-              key={s}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 11.5,
-                color: T.textNav,
-              }}
-            >
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: STATE_TONE[s],
-                }}
-              />
-              {s}
-            </span>
-          ))}
-        </div>
-      </Card>
-
       <div style={{ display: "flex", marginBottom: 14 }}>
         <Select
           label="View"
@@ -756,8 +700,6 @@ export function LifecycleProvisioningView() {
       {sel && (
         <ProvisioningDetailDrawer rec={sel} onClose={() => setSelId(null)} />
       )}
-
-      <RelationshipsCard />
     </>
   );
 }
@@ -785,87 +727,6 @@ export function LifecycleProvisioningPage() {
       />
       <LifecycleProvisioningView />
     </Page>
-  );
-}
-
-// ── RelationshipsCard — spec §Operational Relationships + §Permissions ────────────────────────────
-function RelationshipsCard() {
-  const integrates = [
-    "Workspace Requests",
-    "Workspace Templates",
-    "Commercial Center",
-    "Identity & Access",
-    "Platform Security",
-    "Compliance Center",
-    "Integration Manager",
-    "Cloud Management",
-    "AI Runtime Platform",
-    "Automation Engine",
-    "Notification Center",
-    "Logs Center",
-    "Monitoring Center",
-    "Support Center",
-  ];
-  const feeds = [
-    "Active Workspaces",
-    "Audit Logs",
-    "Operations Dashboard",
-    "Capacity Planning",
-    "Billing",
-    "Analytics",
-  ];
-  const permissions = [
-    "Organization Administrator",
-    "Platform Administrator",
-    "Cloud Administrator",
-    "Operations Administrator",
-  ];
-  function Chips({ items }: { items: string[] }) {
-    return (
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-        {items.map((it) => (
-          <span
-            key={it}
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 6,
-              padding: "4px 9px",
-              fontSize: 12,
-              color: T.textNav,
-              background: "var(--cg-bg-badge)",
-            }}
-          >
-            {it}
-          </span>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <Card title="Operational relationships & permissions">
-      <Section title="Provisioning integrates with">
-        <Chips items={integrates} />
-      </Section>
-      <Section title="Provisioning feeds">
-        <Chips items={feeds} />
-      </Section>
-      <Section title="Requires one of">
-        <Chips items={permissions} />
-        <div
-          style={{
-            fontSize: 11.5,
-            color: T.textMuted,
-            marginTop: 8,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          <ShieldCheck size={14} /> Only authorized administrators may pause,
-          retry, or rollback provisioning jobs.
-        </div>
-      </Section>
-    </Card>
   );
 }
 

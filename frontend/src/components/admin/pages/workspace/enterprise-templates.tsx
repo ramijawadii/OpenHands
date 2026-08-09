@@ -693,12 +693,6 @@ export function EnterpriseTemplatesView() {
       )}
 
       {/* ── Template Inheritance visualization (spec §Template Inheritance) ── */}
-      <Card
-        title="Template inheritance"
-        desc="Effective configuration inherited by newly provisioned workspaces — organization defaults flow through the enterprise template, then per-workspace overrides."
-      >
-        <TemplateInheritance />
-      </Card>
 
       {sel && <TemplateDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
@@ -831,45 +825,6 @@ function VersionsView({
         onRowClick={(r) => onOpen(r.templateId)}
       />
     </Card>
-  );
-}
-
-// ── Template Inheritance chain (Organization Defaults → Enterprise Template → Workspace → Overrides) ──
-function TemplateInheritance() {
-  const nodes = [
-    "Organization Defaults",
-    "Enterprise Template",
-    "Workspace",
-    "Workspace Overrides",
-  ];
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {nodes.map((label, i) => (
-        <React.Fragment key={label}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: i === 1 ? T.textPrimary : T.textNav,
-              fontWeight: i === 1 ? 600 : 400,
-              background:
-                i === 1 ? "var(--cg-accent-bg-strong)" : "transparent",
-            }}
-          >
-            {label}
-          </div>
-          {i < nodes.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }
 

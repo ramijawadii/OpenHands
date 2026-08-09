@@ -28,7 +28,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -552,32 +551,6 @@ export function OrganizationHierarchyView() {
       />
 
       {/* Hierarchy Tree (spec §Hierarchy Tree) */}
-      <Card
-        title="Hierarchy tree"
-        desc="The enterprise organizational tree — supports expand · collapse · drag & drop · move · filter · zoom."
-        right={
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <HeaderButton icon={<Plus size={13} />}>Expand</HeaderButton>
-            <HeaderButton>Collapse</HeaderButton>
-            <HeaderButton icon={<Move size={13} />}>Move</HeaderButton>
-          </div>
-        }
-      >
-        <AsciiTree
-          lines={[
-            "Enterprise",
-            "│",
-            "├── Americas",
-            "│   ├── Finance",
-            "│   ├── HR",
-            "│   └── Platform",
-            "│",
-            "├── Europe",
-            "│",
-            "└── APAC",
-          ]}
-        />
-      </Card>
 
       {/* Node Table (spec §Node Table + §Toolbar + §Filters + §Search + §Row/Bulk Actions) */}
       <DiscoveryListView
@@ -704,74 +677,8 @@ export function OrganizationHierarchyView() {
       />
 
       {/* Hierarchy Visualization (spec §Hierarchy Visualization) */}
-      <Card
-        title="Hierarchy visualization"
-        desc="Interactive enterprise tree."
-        right={
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <HeaderButton>Expand All</HeaderButton>
-            <HeaderButton>Collapse All</HeaderButton>
-            <HeaderButton>Show Workspace Counts</HeaderButton>
-            <HeaderButton>Show Policies</HeaderButton>
-            <HeaderButton>Show Compliance</HeaderButton>
-          </div>
-        }
-      >
-        <AsciiTree
-          lines={[
-            "Enterprise",
-            "│",
-            "├── Finance",
-            "│   ├── Payments",
-            "│   ├── Treasury",
-            "│   └── Audit",
-            "│",
-            "├── Engineering",
-            "│   ├── Platform",
-            "│   ├── Cloud",
-            "│   └── AI",
-            "│",
-            "└── Operations",
-          ]}
-        />
-      </Card>
 
       {/* Inheritance Preview (spec §Inheritance Preview) */}
-      <Card
-        title="Inheritance preview"
-        desc="Shows what the selected organizational node inherits down the enterprise governance chain."
-        right={
-          <HeaderButton icon={<Eye size={13} />}>
-            Preview Inheritance
-          </HeaderButton>
-        }
-      >
-        <div
-          style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}
-        >
-          <StatRow
-            label="Effective Policies"
-            value="18 resolved"
-            tone="ok"
-            sample
-          />
-          <div style={{ width: "100%" }} />
-          <StatRow
-            label="Inherited Settings"
-            value="14 from ancestors"
-            sample
-          />
-          <div style={{ width: "100%" }} />
-          <StatRow
-            label="Locked Settings"
-            value="5 mandatory floors"
-            tone="warn"
-            sample
-          />
-          <div style={{ width: "100%" }} />
-          <StatRow label="Overrides" value="2 at this node" sample />
-        </div>
-      </Card>
 
       {sel && <OrgDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>

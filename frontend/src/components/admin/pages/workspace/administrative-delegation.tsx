@@ -232,15 +232,6 @@ const TIMELINE_CHAIN = [
   "Extended",
   "Expired",
 ];
-const ENTERPRISE_MODEL = [
-  "Organization Policy",
-  "Administrative Delegation Policy",
-  "Approval Chain",
-  "Delegated Administrator",
-  "Workspace Scope",
-  "Effective Permissions",
-  "Audit Logs",
-];
 
 // Break Glass Administration capabilities (spec §Break Glass Administration).
 const BREAK_GLASS_CAPS = [
@@ -904,16 +895,6 @@ export function AdministrativeDelegationView() {
       )}
 
       {/* Enterprise Delegation Model (spec §Enterprise Delegation Model) */}
-      <div style={{ marginTop: 16 }}>
-        <Card
-          title="Enterprise delegation model"
-          desc="Administrative Delegation is the enterprise governance layer controlling how administrative authority is granted, constrained, inherited, approved, and revoked — separating governance from assignment."
-        >
-          <div style={{ maxWidth: 420, margin: "6px auto" }}>
-            <Chain steps={ENTERPRISE_MODEL} highlightLast />
-          </div>
-        </Card>
-      </div>
 
       {sel && (
         <DelegationDetailDrawer rec={sel} onClose={() => setSelId(null)} />

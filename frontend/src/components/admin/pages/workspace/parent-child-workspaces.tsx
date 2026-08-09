@@ -491,7 +491,6 @@ export function ParentChildWorkspacesView() {
       <div style={{ height: 16 }} />
 
       {/* Hierarchy Tree */}
-      <HierarchyTreeCard />
 
       {/* Relationship directory */}
       <DiscoveryListView
@@ -614,7 +613,6 @@ export function ParentChildWorkspacesView() {
       {view === "history" && <RelationshipHistoryCard records={records} />}
 
       {/* Hierarchy validation (spec §Hierarchy Validation) */}
-      <HierarchyValidationCard />
 
       {/* Enterprise relationship model (spec §Enterprise Relationship Model) */}
 
@@ -648,94 +646,6 @@ export function ParentChildWorkspacesPage() {
       />
       <ParentChildWorkspacesView />
     </Page>
-  );
-}
-
-// ════════════ Hierarchy Tree (spec §Hierarchy Tree) ════════════
-const TREE_SUPPORTS = [
-  "Expand",
-  "Collapse",
-  "Drag & Drop",
-  "Move",
-  "Filter",
-  "Zoom",
-  "Show Counts",
-];
-function HierarchyTreeCard() {
-  const lines: { text: string; count?: number }[] = [
-    { text: "Corporate Platform", count: 6 },
-    { text: "├── Production", count: 3 },
-    { text: "│   ├── Payments" },
-    { text: "│   ├── Identity" },
-    { text: "│   └── Security" },
-    { text: "├── Staging", count: 1 },
-    { text: "└── Development", count: 2 },
-  ];
-  return (
-    <Card
-      title="Hierarchy tree"
-      desc="Expand, collapse, drag & drop, move, filter and zoom the workspace hierarchy."
-      right={<SampleTag />}
-    >
-      <div
-        style={{
-          fontFamily: "monospace",
-          fontSize: 12.5,
-          lineHeight: 1.9,
-          color: T.textNav,
-          background: "var(--cg-input-bg)",
-          border: `1px solid ${T.border}`,
-          borderRadius: 8,
-          padding: "12px 16px",
-          overflowX: "auto",
-        }}
-      >
-        {lines.map((l) => (
-          <div
-            key={l.text}
-            style={{ display: "flex", alignItems: "center", gap: 10 }}
-          >
-            <span style={{ whiteSpace: "pre" }}>{l.text}</span>
-            {l.count != null && (
-              <span
-                style={{
-                  fontSize: 10.5,
-                  color: T.textMuted,
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 99,
-                  padding: "0 7px",
-                }}
-              >
-                {l.count}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 6,
-          flexWrap: "wrap",
-          marginTop: 12,
-        }}
-      >
-        {TREE_SUPPORTS.map((s) => (
-          <span
-            key={s}
-            style={{
-              fontSize: 11,
-              color: T.textMuted,
-              border: `1px solid ${T.border}`,
-              borderRadius: 6,
-              padding: "3px 8px",
-            }}
-          >
-            {s}
-          </span>
-        ))}
-      </div>
-    </Card>
   );
 }
 
@@ -775,45 +685,6 @@ function RelationshipHistoryCard({
       right={<SampleTag />}
     >
       <DirectoryTable columns={cols} rows={rows} />
-    </Card>
-  );
-}
-
-// ════════════ Hierarchy Validation (spec §Hierarchy Validation) ════════════
-const VALIDATION_CHECKS = [
-  "Circular Dependencies",
-  "Orphan Workspaces",
-  "Broken Relationships",
-  "Inheritance Conflicts",
-  "Policy Conflicts",
-  "Lifecycle Conflicts",
-];
-function HierarchyValidationCard() {
-  return (
-    <Card
-      title="Hierarchy validation"
-      desc="Automated integrity checks across the workspace hierarchy."
-      right={<SampleTag />}
-    >
-      {VALIDATION_CHECKS.map((label, i) => {
-        const state =
-          i % 6 === 1 ? "Failed" : i % 3 === 2 ? "Warning" : "Passed";
-        return (
-          <StatRow
-            key={label}
-            label={label}
-            value={state}
-            tone={
-              state === "Passed"
-                ? "ok"
-                : state === "Warning"
-                  ? "warn"
-                  : "danger"
-            }
-            sample
-          />
-        );
-      })}
     </Card>
   );
 }

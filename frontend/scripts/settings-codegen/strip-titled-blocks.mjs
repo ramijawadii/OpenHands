@@ -1,21 +1,19 @@
 #!/usr/bin/env node
 /**
- * Strip ASCII-art diagram blocks from admin pages.
+ * Strip named reference/explainer blocks from admin pages.
  *
- * Removes every usage of the hand-rolled ASCII flow/graph/tree components
- * (Viz, AsciiFlow, LifecycleFlow, LifecycleFlowCard, FlowChain) together with the
- * smallest sensible surrounding block, and deletes the now-dead component
- * definitions. For each usage:
- *   - if its nearest enclosing <Card>/<Section> holds it as the sole element child,
- *     the whole Card/Section is removed;
- *   - if that block sits in a `{cond && ( … )}` branch, the whole branch is removed;
- *   - otherwise just the element is removed.
+ * Removes every <Card>/<Section> whose title is in REMOVE_TITLES (the flow / tree /
+ * hierarchy / ownership / delegation / comparison / behavior / relationship
+ * "explainer" blocks), together with the smallest fully-dead surrounding wrapper
+ * (a layout div/Card/Section, or a `{cond && ( … )}` branch), and deletes any
+ * component whose entire render was one of those blocks (recursively). Leaves each
+ * page as its operational surface: KPI stat strip + toolbar + filters + table +
+ * detail drawer.
  *
- * Parses with the repo's TypeScript. Formatting is approximate; run eslint --fix
- * after. Empty view-branches / orphan nav entries left behind are surfaced by
- * tsc/eslint and fixed by hand.
+ * Parses with the repo's TypeScript. Run eslint --fix after; box-diagram helper
+ * components that become unused are surfaced by eslint and removed in a cleanup.
  *
- * Usage: node scripts/settings-codegen/strip-ascii-diagrams.mjs "<glob…>" [--write]
+ * Usage: node scripts/settings-codegen/strip-titled-blocks.mjs "<glob…>" [--write]
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -24,9 +22,30 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-const ASCII_TAGS = new Set(["Viz", "AsciiFlow", "LifecycleFlow", "LifecycleFlowCard", "FlowChain", "TreeBlock"]);
-const WRAPPER_TAGS = new Set(["Card", "Section"]);
-// Tags that are pure layout wrappers: a wrapper is "dead" iff all its children are.
+const REMOVE_TITLES = new Set([
+  "Template inheritance",
+  "Environment comparison",
+  "Template hierarchy",
+  "Operational lifecycle & relationships",
+  "Ownership model",
+  "Enterprise delegation model",
+  "Hierarchy tree",
+  "Hierarchy visualization",
+  "Inheritance preview",
+  "Hierarchy validation",
+  "Operational relationships",
+  "Operational relationships & permissions",
+  "Lifecycle flow",
+  "Lifecycle & suspension behavior",
+  "Archive types",
+  "Retention policies",
+  "Archive behavior",
+  "Archive vs Suspension",
+  "Decommission behavior",
+  "Decommission checklist",
+  "Lifecycle comparison",
+]);
+const BLOCK_TAGS = new Set(["Card", "Section"]);
 const LAYOUT_TAGS = new Set(["Card", "Section", "div", "span", "React.Fragment", ""]);
 
 function tagOf(n) {
@@ -43,12 +62,24 @@ function findAll(root, pred) {
   visit(root);
   return out;
 }
-function elementChildren(el) {
-  if (!ts.isJsxElement(el)) return [];
-  return el.children.filter((c) => ts.isJsxElement(c) || ts.isJsxSelfClosingElement(c));
+function getAttr(el, name) {
+  const opening = ts.isJsxSelfClosingElement(el) ? el : el.openingElement;
+  for (const p of opening.attributes.properties)
+    if (ts.isJsxAttribute(p) && p.name.getText() === name) return p;
+  return null;
 }
-
-// ── Dead-component analysis: a component that renders ONLY dead diagrams is dead ──
+function titleOf(el) {
+  const a = getAttr(el, "title");
+  if (a && a.initializer && ts.isStringLiteral(a.initializer)) return a.initializer.text;
+  return null;
+}
+function isTargetBlock(n) {
+  return (
+    (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) &&
+    BLOCK_TAGS.has(tagOf(n)) &&
+    REMOVE_TITLES.has(titleOf(n))
+  );
+}
 function isWs(node) {
   return ts.isJsxText(node) && /^\s*$/.test(node.text);
 }
@@ -57,6 +88,7 @@ function isDeadJsx(node, dead) {
   if (isWs(node)) return true;
   if (ts.isParenthesizedExpression(node)) return isDeadJsx(node.expression, dead);
   if (ts.isJsxElement(node) || ts.isJsxSelfClosingElement(node)) {
+    if (isTargetBlock(node)) return true;
     const t = tagOf(node);
     if (dead.has(t)) return true;
     if (LAYOUT_TAGS.has(t)) {
@@ -67,14 +99,11 @@ function isDeadJsx(node, dead) {
   }
   if (ts.isJsxFragment(node)) return node.children.every((c) => isDeadJsx(c, dead));
   if (ts.isJsxExpression(node)) {
-    if (!node.expression) return true; // {/* comment */} / whitespace
-    let e = node.expression;
-    if (
-      ts.isBinaryExpression(e) &&
-      e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
-    )
+    if (!node.expression) return true;
+    const e = node.expression;
+    if (ts.isBinaryExpression(e) && e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken)
       return isDeadJsx(e.right, dead);
-    return false; // any other expression is real content
+    return false;
   }
   return false;
 }
@@ -83,14 +112,8 @@ function returnedJsx(fn) {
   const ret = fn.body.statements.find((s) => ts.isReturnStatement(s));
   return ret && ret.expression ? ret.expression : null;
 }
-function containsDeadTag(fn, dead) {
-  return (
-    findAll(fn, (n) => (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && dead.has(tagOf(n)))
-      .length > 0
-  );
-}
 function computeDeadSet(sf) {
-  const dead = new Set(ASCII_TAGS);
+  const dead = new Set();
   const fns = findAll(sf, (n) => ts.isFunctionDeclaration(n) && n.name).filter((f) =>
     /^[A-Z]/.test(f.name.getText()),
   );
@@ -101,7 +124,11 @@ function computeDeadSet(sf) {
       const name = f.name.getText();
       if (dead.has(name)) continue;
       const r = returnedJsx(f);
-      if (r && containsDeadTag(f, dead) && isDeadJsx(r, dead)) {
+      const hasTarget =
+        findAll(f, (n) => isTargetBlock(n)).length > 0 ||
+        findAll(f, (n) => (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && dead.has(tagOf(n)))
+          .length > 0;
+      if (r && hasTarget && isDeadJsx(r, dead)) {
         dead.add(name);
         changed = true;
       }
@@ -109,24 +136,16 @@ function computeDeadSet(sf) {
   }
   return dead;
 }
-
-// Resolve the node whose range we should delete for a given diagram usage.
-function removalNode(usage, dead) {
-  // Climb to the nearest Card/Section wrapper all of whose element children are dead.
-  let target = usage;
-  let p = usage.parent;
-  while (p) {
-    if ((ts.isJsxElement(p) || ts.isJsxSelfClosingElement(p)) && WRAPPER_TAGS.has(tagOf(p))) {
-      const kids = elementChildren(p);
-      if (kids.length >= 1 && kids.every((k) => dead.has(tagOf(k)))) {
-        target = p;
-        p = p.parent;
-        continue;
-      }
+function removalNode(node, dead) {
+  let target = node;
+  while (target.parent) {
+    const p = target.parent;
+    if ((ts.isJsxElement(p) || ts.isJsxFragment(p)) && isDeadJsx(p, dead)) {
+      target = p;
+      continue;
     }
     break;
   }
-  // If target sits in `{cond && ( target )}`, remove the whole JsxExpression.
   let n = target;
   while (n.parent && ts.isParenthesizedExpression(n.parent)) n = n.parent;
   if (
@@ -143,36 +162,30 @@ function removalNode(usage, dead) {
 }
 
 function convert(filePath, src) {
-  if (![...ASCII_TAGS].some((t) => new RegExp(`\\b${t}\\b`).test(src)))
-    return { status: "skip" };
   const sf = ts.createSourceFile(filePath, src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const targets = findAll(sf, (n) => isTargetBlock(n));
   const dead = computeDeadSet(sf);
+  const defs = findAll(sf, (n) => ts.isFunctionDeclaration(n) && n.name && dead.has(n.name.getText()));
+  if (targets.length === 0 && defs.length === 0) return { status: "skip" };
 
-  const defs = findAll(
-    sf,
-    (n) => ts.isFunctionDeclaration(n) && n.name && dead.has(n.name.getText()),
-  );
   const inRemovedDef = (n) => defs.some((d) => n.getStart(sf) >= d.getStart(sf) && n.getEnd() <= d.getEnd());
-  // Usages of any dead tag, excluding those inside a def we're deleting wholesale.
   const usages = findAll(
     sf,
     (n) => (ts.isJsxElement(n) || ts.isJsxSelfClosingElement(n)) && dead.has(tagOf(n)),
   ).filter((n) => !inRemovedDef(n));
-  if (usages.length === 0 && defs.length === 0) return { status: "skip" };
+  const blockTargets = targets.filter((n) => !inRemovedDef(n));
 
-  // Build removal ranges (dedup + drop ranges contained in a larger removal).
   const raw = [];
-  for (const u of usages) {
-    const node = removalNode(u, dead);
+  for (const t of [...blockTargets, ...usages]) {
+    const node = removalNode(t, dead);
     raw.push({ start: node.getStart(sf), end: node.getEnd() });
   }
   for (const d of defs) {
-    // include a leading `// …` comment block and one trailing blank line
     let start = d.getStart(sf);
     const fullStart = d.getFullStart();
     const lead = src.slice(fullStart, start);
-    const mComment = lead.match(/\n(\/\/[^\n]*\n)+\s*$/);
-    if (mComment) start = fullStart + lead.lastIndexOf(mComment[0]) + 1;
+    const m = lead.match(/\n(\/\/[^\n]*\n)+\s*$/);
+    if (m) start = fullStart + lead.lastIndexOf(m[0]) + 1;
     let end = d.getEnd();
     while (end < src.length && src[end] !== "\n") end += 1;
     if (src[end] === "\n") end += 1;
@@ -182,17 +195,13 @@ function convert(filePath, src) {
   const ranges = [];
   for (const r of raw) {
     const last = ranges[ranges.length - 1];
-    if (last && r.start < last.end) {
-      last.end = Math.max(last.end, r.end); // merge/contain
-    } else {
-      ranges.push({ ...r });
-    }
+    if (last && r.start < last.end) last.end = Math.max(last.end, r.end);
+    else ranges.push({ ...r });
   }
-
   ranges.sort((a, b) => b.start - a.start);
   let out = src;
   for (const r of ranges) out = out.slice(0, r.start) + out.slice(r.end);
-  return { status: "convert", output: out, usages: usages.length, defs: defs.length };
+  return { status: "convert", output: out, blocks: blockTargets.length, defs: defs.length };
 }
 
 function expandGlobs(args) {
@@ -214,7 +223,7 @@ function main() {
   const write = argv.includes("--write");
   const files = expandGlobs(argv.filter((a) => !a.startsWith("--")));
   if (!files.length) {
-    console.error("No files matched. Usage: strip-ascii-diagrams.mjs <glob…> [--write]");
+    console.error("No files matched. Usage: strip-titled-blocks.mjs <glob…> [--write]");
     process.exit(2);
   }
   let n = 0;
@@ -230,10 +239,8 @@ function main() {
     if (res.status === "convert") {
       n += 1;
       if (write) fs.writeFileSync(f, res.output, "utf8");
-      console.log(`${write ? "WROTE  " : "STRIP  "} ${rel}  (${res.usages} usage, ${res.defs} def)`);
-    } else if (res.note) {
-      console.log(`SKIP    ${rel}  — ${res.note}`);
-    }
+      console.log(`${write ? "WROTE  " : "STRIP  "} ${rel}  (${res.blocks} block, ${res.defs} def)`);
+    } else if (res.note) console.log(`SKIP    ${rel}  — ${res.note}`);
   }
   console.log(`\n${write ? "Wrote" : "Would strip"} ${n} file(s)`);
   process.exit(0);

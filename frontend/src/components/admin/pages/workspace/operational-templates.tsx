@@ -684,18 +684,6 @@ export function OperationalTemplatesView() {
       )}
 
       {/* ── Operational Coverage + Template Relationships (spec §Operational Coverage / §Template Relationships) ── */}
-      <Card
-        title="Operational lifecycle & relationships"
-        desc="The complete operational lifecycle managed by the template, and where the Operational Template sits in the governance hierarchy."
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 20,
-          }}
-        />
-      </Card>
 
       {sel && (
         <OperationalTemplateDrawer rec={sel} onClose={() => setSelId(null)} />

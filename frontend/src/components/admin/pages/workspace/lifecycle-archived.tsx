@@ -19,15 +19,12 @@ import {
   Activity as ActivityIcon,
   History,
   RotateCcw,
-  CheckCircle2,
-  XCircle,
   Lock,
 } from "lucide-react";
 import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -762,143 +759,6 @@ export function LifecycleArchivedView() {
       {/* Lifecycle & restoration reference flows + policy catalogs (spec §Lifecycle Flow, §Restoration
           Workflow, §Archive Types, §Retention Policies, §Archive Behavior, §Archive vs Suspension,
           §Operational Relationships, §Permissions) */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-          gap: 18,
-        }}
-      >
-        <Card title="Archive types" desc="Supported archive classifications.">
-          <ChipList items={ARCHIVE_TYPES} />
-        </Card>
-
-        <Card
-          title="Retention policies"
-          desc="Supported retention schedules; retention may extend automatically."
-        >
-          <ChipList items={RETENTION_POLICIES} />
-          <div
-            style={{ fontSize: 11.5, color: T.textMuted, margin: "10px 0 6px" }}
-          >
-            Retention may be extended automatically by:
-          </div>
-          <ChipList items={RETENTION_EXTENDERS} muted />
-        </Card>
-
-        <Card
-          title="Archive behavior"
-          desc="What is preserved versus restricted while a workspace is archived."
-        >
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {[
-              "Workspace configuration is preserved",
-              "Audit history remains immutable",
-              "Compliance evidence is retained",
-              "Business metadata remains searchable",
-              "Logs remain accessible per retention policies",
-              "AI configuration is preserved",
-              "Cloud inventory is retained as historical records",
-              "Ownership and governance information remain available",
-              "Export remains supported",
-            ].map((t) => (
-              <BehaviorRow key={t} label={t} ok />
-            ))}
-            {[
-              "Users cannot access the workspace",
-              "Agents cannot execute",
-              "Automation is disabled",
-              "Integrations are inactive",
-              "Scheduled jobs do not run",
-              "Resource modifications are prohibited",
-            ].map((t) => (
-              <BehaviorRow key={t} label={t} />
-            ))}
-          </div>
-        </Card>
-
-        <Card
-          title="Archive vs Suspension"
-          desc="How the Archived state differs from Suspended."
-        >
-          <CompareTable />
-        </Card>
-
-        <Card
-          title="Operational relationships & permissions"
-          desc="Systems archived workspaces integrate with, references, and required roles."
-        >
-          <div
-            style={{
-              fontSize: 11,
-              color: T.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              marginBottom: 6,
-            }}
-          >
-            Integrates with
-          </div>
-          <ChipList
-            items={[
-              "Compliance Center",
-              "Commercial Center",
-              "Support Center",
-              "Logs Center",
-              "Identity & Access",
-              "Platform Security",
-              "Automation Engine",
-              "Backup & Recovery",
-              "Business Continuity",
-              "Records Management",
-            ]}
-            muted
-          />
-          <div
-            style={{
-              fontSize: 11,
-              color: T.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              margin: "12px 0 6px",
-            }}
-          >
-            Referenced by
-          </div>
-          <ChipList
-            items={[
-              "Audit Reports",
-              "Compliance Reviews",
-              "Legal Discovery",
-              "Executive Reporting",
-              "Historical Analytics",
-            ]}
-            muted
-          />
-          <div
-            style={{
-              fontSize: 11,
-              color: T.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              margin: "12px 0 6px",
-            }}
-          >
-            Requires one of
-          </div>
-          <ChipList
-            items={[
-              "Organization Administrator",
-              "Platform Administrator",
-              "Compliance Administrator",
-              "Records Administrator",
-            ]}
-          />
-          <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 10 }}>
-            Restoration may require multi-stage approval.
-          </div>
-        </Card>
-      </div>
 
       {sel && <ArchiveDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
@@ -928,101 +788,6 @@ export function LifecycleArchivedPage() {
       />
       <LifecycleArchivedView />
     </Page>
-  );
-}
-
-function ChipList({ items, muted }: { items: string[]; muted?: boolean }) {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-      {items.map((it) => (
-        <span
-          key={it}
-          style={{
-            fontSize: 11.5,
-            padding: "3px 9px",
-            borderRadius: 20,
-            border: `1px solid ${T.border}`,
-            color: muted ? T.textMuted : T.textNav,
-            background: muted ? "transparent" : "var(--cg-accent-bg-strong)",
-          }}
-        >
-          {it}
-        </span>
-      ))}
-    </div>
-  );
-}
-
-function BehaviorRow({ label, ok }: { label: string; ok?: boolean }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        fontSize: 12.5,
-        color: T.textNav,
-      }}
-    >
-      {ok ? (
-        <CheckCircle2 size={14} color={T.success} />
-      ) : (
-        <XCircle size={14} color={T.danger} />
-      )}
-      {label}
-    </div>
-  );
-}
-
-const COMPARE_ROWS = [
-  ["Long-term retention", "Temporary operational pause"],
-  ["Normally inactive permanently", "Expected to return to service"],
-  ["Optimized for retention", "Optimized for recovery"],
-  ["Supports historical reporting", "Supports operational recovery"],
-  [
-    "Focused on compliance and records",
-    "Focused on incident and operational management",
-  ],
-];
-
-function CompareTable() {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          padding: "8px 0",
-          borderBottom: `1px solid ${T.border}`,
-          fontSize: 11,
-          fontWeight: 600,
-          color: T.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: "0.03em",
-        }}
-      >
-        <span>Archived</span>
-        <span>Suspended</span>
-      </div>
-      {COMPARE_ROWS.map(([a, b]) => (
-        <div
-          key={a}
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 12,
-            padding: "9px 0",
-            borderBottom: `1px solid ${T.border}`,
-            fontSize: 12.5,
-            color: T.textNav,
-          }}
-        >
-          <span>{a}</span>
-          <span style={{ color: T.textMuted }}>{b}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
