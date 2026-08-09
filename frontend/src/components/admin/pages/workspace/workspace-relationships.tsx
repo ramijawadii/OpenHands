@@ -22,7 +22,6 @@ import {
   Database,
   Link2,
   Share2,
-  Users,
   KeyRound,
   Workflow,
   Gauge,
@@ -99,17 +98,6 @@ const REL_TYPES = [
   "Testing",
   "Reference Workspace",
   "External Partner",
-];
-
-const CATEGORIES = [
-  "Business",
-  "Operations",
-  "Security",
-  "Compliance",
-  "AI",
-  "Cloud",
-  "Platform",
-  "Support",
 ];
 
 // Maps each relationship type onto its primary governance category.
@@ -212,9 +200,7 @@ const VIEW_OPTIONS = [
   { value: "data", label: "Data Relationships" },
   { value: "security", label: "Security Relationships" },
   { value: "external", label: "External Relationships" },
-  { value: "graph", label: "Relationship Graph" },
   { value: "history", label: "Relationship History" },
-  { value: "validation", label: "Validation" },
 ];
 const LIST_VIEWS = new Set([
   "catalog",
@@ -740,7 +726,6 @@ export function WorkspaceRelationshipsView() {
                 items={[
                   { label: "View", onClick: () => setSelId(r.id) },
                   { label: "Edit", onClick: () => setSelId(r.id) },
-                  { label: "Show Graph", onClick: () => setView("graph") },
                   { label: "Review", onClick: () => setSelId(r.id) },
                   { label: "Export", onClick: () => {} },
                   { label: "Archive", onClick: () => setSelId(r.id) },
@@ -762,46 +747,10 @@ export function WorkspaceRelationshipsView() {
               />
             }
           />
-        ) : view === "graph" ? (
-          <RelationshipGraphPanel />
-        ) : view === "history" ? (
-          <RelationshipHistoryPanel />
         ) : (
-          <RelationshipValidationPanel />
+          <RelationshipHistoryPanel />
         )}
       </Card>
-
-      {/* Persistent spec sections shown alongside the list views (hidden when a dedicated panel view
-          already renders that content, to avoid duplication). */}
-      {isListView && (
-        <>
-          <Card
-            title="Relationship Graph"
-            desc="Interactive visualization of how workspaces collaborate across the enterprise."
-            right={<SampleTag />}
-          >
-            <GraphControls />
-          </Card>
-
-          <Card
-            title="Relationship Validation"
-            desc="Automatically checks relationship integrity across the enterprise model."
-            right={<SampleTag />}
-          >
-            <ValidationChecks />
-          </Card>
-
-          <Card
-            title="Relationship Review"
-            desc="Supports periodic governance reviews of enterprise relationships."
-            right={<SampleTag />}
-          >
-            <ReviewPanel />
-          </Card>
-
-          <ReferenceCard />
-        </>
-      )}
 
       {sel && (
         <RelationshipDetailDrawer
@@ -891,70 +840,6 @@ function Section({
   );
 }
 
-// Graph interaction affordances (spec §Relationship Graph → Supports).
-function GraphControls() {
-  return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-      <HeaderButton icon={<Plus size={13} />}>Expand</HeaderButton>
-      <HeaderButton icon={<Ban size={13} />}>Collapse</HeaderButton>
-      <HeaderButton icon={<GitBranch size={13} />}>Filter</HeaderButton>
-      <HeaderButton icon={<LayoutGrid size={13} />}>
-        Highlight Categories
-      </HeaderButton>
-      <HeaderButton icon={<Boxes size={13} />}>
-        Show Business Units
-      </HeaderButton>
-      <HeaderButton icon={<Users size={13} />}>Show Ownership</HeaderButton>
-    </div>
-  );
-}
-
-// ── Graph view panel (main card body when the "Relationship Graph" view is active) ──
-function RelationshipGraphPanel() {
-  return (
-    <>
-      <div
-        style={{
-          fontSize: 12.5,
-          color: T.textMuted,
-          marginBottom: 14,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        Interactive cross-workspace relationship visualization <SampleTag />
-      </div>
-
-      <GraphControls />
-      <div style={{ marginTop: 18 }}>
-        <Section title="Highlight Categories">
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {CATEGORIES.map((c) => (
-              <span
-                key={c}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  height: 22,
-                  padding: "0 10px",
-                  borderRadius: 99,
-                  fontSize: 11.5,
-                  color: T.textNav,
-                  background: T.badgeBg,
-                  border: `1px solid ${T.border}`,
-                }}
-              >
-                {c}
-              </span>
-            ))}
-          </div>
-        </Section>
-      </div>
-    </>
-  );
-}
-
 // ── History view panel (spec §Relationship History / §Activity) ──
 function RelationshipHistoryPanel() {
   const events = [
@@ -1030,136 +915,6 @@ function RelationshipHistoryPanel() {
         </div>
       ))}
     </>
-  );
-}
-
-// ── Validation view panel (spec §Relationship Validation + §Relationship Review) ──
-function RelationshipValidationPanel() {
-  return (
-    <>
-      <ValidationChecks />
-      <div style={{ height: 18 }} />
-      <Section title="Relationship Review" sample>
-        <ReviewPanel />
-      </Section>
-    </>
-  );
-}
-
-// Automated integrity checks (spec §Relationship Validation).
-function ValidationChecks() {
-  const checks: {
-    label: string;
-    count: number;
-    tone: "ok" | "warn" | "danger";
-  }[] = [
-    { label: "Duplicate Relationships", count: 0, tone: "ok" },
-    { label: "Conflicting Relationships", count: 1, tone: "warn" },
-    { label: "Expired Relationships", count: 2, tone: "danger" },
-    { label: "Missing Reviews", count: 3, tone: "warn" },
-    { label: "Orphan Relationships", count: 0, tone: "ok" },
-    { label: "Policy Conflicts", count: 1, tone: "danger" },
-  ];
-  return (
-    <>
-      <div
-        style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}
-      >
-        <HeaderButton variant="primary" icon={<Play size={13} />}>
-          Run Validation
-        </HeaderButton>
-        <HeaderButton icon={<Download size={13} />}>Export Report</HeaderButton>
-      </div>
-      {checks.map((c) => (
-        <StatRow
-          key={c.label}
-          label={c.label}
-          value={c.count === 0 ? "None" : `${c.count} found`}
-          tone={c.count === 0 ? "ok" : c.tone}
-          sample
-        />
-      ))}
-    </>
-  );
-}
-
-// Periodic governance review (spec §Relationship Review).
-function ReviewPanel() {
-  return (
-    <>
-      <KVGrid
-        items={[
-          { k: "Last Review", v: "2026-05-14", sample: true },
-          { k: "Next Review", v: "2026-08-14", sample: true },
-          { k: "Reviewer", v: "David Chen", sample: true },
-          { k: "Status", v: "Due", sample: true },
-          { k: "Outcome", v: "Approved with conditions", sample: true },
-        ]}
-        cols={3}
-      />
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-        <HeaderButton variant="primary" icon={<ClipboardCheck size={13} />}>
-          Approve
-        </HeaderButton>
-        <HeaderButton icon={<Pencil size={13} />}>Update</HeaderButton>
-        <HeaderButton icon={<Archive size={13} />}>Archive</HeaderButton>
-      </div>
-    </>
-  );
-}
-
-// Static reference of supported relationship types + categories (spec §Relationship Types /
-// §Relationship Categories).
-function ReferenceCard() {
-  return (
-    <Card
-      title="Relationship Types & Categories"
-      desc="The supported relationship vocabulary used across the enterprise collaboration model."
-    >
-      <Section title="Relationship Types">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {REL_TYPES.map((t) => (
-            <span
-              key={t}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: 24,
-                padding: "0 11px",
-                borderRadius: 99,
-                fontSize: 11.5,
-                color: T.textNav,
-                background: T.badgeBg,
-                border: `1px solid ${T.border}`,
-              }}
-            >
-              {t}
-            </span>
-          ))}
-        </div>
-      </Section>
-      <Section title="Relationship Categories">
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {CATEGORIES.map((c) => (
-            <span
-              key={c}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                height: 24,
-                padding: "0 11px",
-                borderRadius: 99,
-                fontSize: 11.5,
-                color: T.accent,
-                background: "var(--cg-accent-bg-strong)",
-              }}
-            >
-              {c}
-            </span>
-          ))}
-        </div>
-      </Section>
-    </Card>
   );
 }
 

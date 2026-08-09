@@ -7,10 +7,6 @@ import {
   LayoutGrid,
   ShieldCheck,
   Boxes,
-  Cloud,
-  Sparkles,
-  Building2,
-  Workflow,
   Activity as ActivityIcon,
   History,
   Route,
@@ -36,11 +32,9 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   HeaderButton,
-  Select,
   EmptyState,
   SampleTag,
   SideRailDrawer,
@@ -76,21 +70,6 @@ import { StatStripPlain, ColumnChooser } from "#/components/admin/settings-kit";
  */
 
 const ME = "You (current admin)";
-
-// ── Topology views (second-level sub-navigation, spec §Navigation) ─────────────────────────────────
-const VIEWS = [
-  { id: "enterprise", label: "Enterprise View", Icon: Network },
-  { id: "business", label: "Business View", Icon: Building2 },
-  { id: "operational", label: "Operational View", Icon: Workflow },
-  { id: "security", label: "Security View", Icon: ShieldCheck },
-  { id: "compliance", label: "Compliance View", Icon: ClipboardCheck },
-  { id: "ai", label: "AI View", Icon: Sparkles },
-  { id: "cloud", label: "Cloud View", Icon: Cloud },
-  { id: "service", label: "Service View", Icon: Share2 },
-  { id: "dependency", label: "Dependency View", Icon: Route },
-  { id: "timeline", label: "Topology Timeline", Icon: History },
-  { id: "health", label: "Topology Health", Icon: HeartPulse },
-];
 
 // ── Faceted domains (spec §Filters) ────────────────────────────────────────────────────────────────
 const BUSINESS_UNITS = ["Finance", "Platform", "Operations", "Retail", "Data"];
@@ -136,19 +115,6 @@ const COMPLIANCE_PROGRAMS = [
 const RISK_LEVELS = ["Low", "Medium", "High", "Critical"];
 const HEALTH_STATES = ["Healthy", "Warning", "Degraded", "Critical", "Offline"];
 
-// ── Node & relationship taxonomy (spec §Interactive Graph) ─────────────────────────────────────────
-const NODE_TYPES = [
-  "Workspace Nodes",
-  "Organization Nodes",
-  "Shared Services",
-  "Cloud Accounts",
-  "Kubernetes Clusters",
-  "AI Platforms",
-  "Knowledge Bases",
-  "Integrations",
-  "Identity Services",
-  "Support Services",
-];
 const SHARED_SERVICE_TYPES = [
   "Identity",
   "Logging",
@@ -359,7 +325,6 @@ function ChipRow({ items, sample }: { items: string[]; sample?: boolean }) {
  */
 export function WorkspaceTopologyView() {
   const navigate = useNavigate();
-  const [view, setView] = React.useState("enterprise");
 
   const [search, setSearch] = React.useState("");
   const [fBu, setFBu] = React.useState("");
@@ -673,18 +638,6 @@ export function WorkspaceTopologyView() {
         ]}
       />
 
-      <div style={{ display: "flex", marginTop: 18, marginBottom: 14 }}>
-        <Select
-          label="View"
-          value={view}
-          onChange={setView}
-          options={VIEWS.map((v) => ({ value: v.id, label: v.label }))}
-        />
-      </div>
-
-      {/* View-specific topology visualization (indented tree / node→node flow, no graph library) */}
-      <TopologyViewPanel view={view} records={records} />
-
       <DiscoveryListView
         title="Topology nodes"
         commands={toolbar}
@@ -840,387 +793,6 @@ export function WorkspaceTopologyPage() {
       />
       <WorkspaceTopologyView />
     </Page>
-  );
-}
-
-// ════════════ View-specific visualization panels (spec §Enterprise Topology / §Enterprise Views) ═══
-function TopologyViewPanel({
-  view,
-  records,
-}: {
-  view: string;
-  records: TopologyNode[];
-}) {
-  if (view === "enterprise") return <EnterprisePanel />;
-  if (view === "business") return <BusinessPanel />;
-  if (view === "operational") return <OperationalPanel />;
-  if (view === "security") return <SecurityPanel />;
-  if (view === "compliance") return <CompliancePanel />;
-  if (view === "ai") return <AIPanel />;
-  if (view === "cloud") return <CloudPanel />;
-  if (view === "service") return <ServicePanel />;
-  if (view === "dependency") return <DependencyPanel />;
-  if (view === "timeline") return <TimelinePanel />;
-  return <HealthPanel records={records} />;
-}
-
-function EnterprisePanel() {
-  return (
-    <>
-      <Card
-        title="Enterprise Topology"
-        desc="Primary visualization — organization → business unit → workspace hierarchy."
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            marginBottom: 8,
-          }}
-        >
-          <SampleTag />
-        </div>
-      </Card>
-      <Card
-        title="Interactive Graph"
-        desc="Node types and relationship types drawn across the enterprise topology."
-      >
-        <Section title="Node types" sample>
-          <ChipRow items={NODE_TYPES} />
-        </Section>
-        <Section title="Relationship types" sample>
-          <ChipRow items={RELATIONSHIP_TYPES} />
-        </Section>
-      </Card>
-    </>
-  );
-}
-
-// ── Business View (spec §Business View) ──
-function BusinessPanel() {
-  return (
-    <Card
-      title="Business View"
-      desc="Business units, departments, workspace ownership and executive ownership."
-    >
-      <Section title="Displays" sample>
-        <ChipRow
-          items={[
-            "Business Units",
-            "Departments",
-            "Workspace Ownership",
-            "Business Relationships",
-            "Executive Ownership",
-          ]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Operational View (spec §Operational View) ──
-function OperationalPanel() {
-  return (
-    <Card
-      title="Operational View"
-      desc="Shared services, dependencies, operational relationships, incident paths and automation."
-    >
-      <Section title="Displays" sample>
-        <ChipRow
-          items={[
-            "Shared Services",
-            "Dependencies",
-            "Operational Relationships",
-            "Incident Paths",
-            "Automation",
-          ]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Security View (spec §Security View) ──
-function SecurityPanel() {
-  return (
-    <Card
-      title="Security View"
-      desc="Trust boundaries, security zones, identity services and administrative scope."
-    >
-      <Section title="Displays" sample>
-        <ChipRow
-          items={[
-            "Trust Boundaries",
-            "Security Zones",
-            "Identity Services",
-            "Security Dependencies",
-            "Administrative Scope",
-          ]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Compliance View (spec §Compliance View) ──
-function CompliancePanel() {
-  return (
-    <Card
-      title="Compliance View"
-      desc="Compliance programs, inherited policies, evidence & audit scope and regulatory boundaries."
-    >
-      <Section title="Displays" sample>
-        <ChipRow
-          items={[
-            "Compliance Programs",
-            "Inherited Policies",
-            "Evidence Scope",
-            "Audit Scope",
-            "Regulatory Boundaries",
-          ]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── AI View (spec §AI View) ──
-function AIPanel() {
-  return (
-    <Card
-      title="AI View"
-      desc="AI runtime, model providers, knowledge sources, prompt libraries, AI governance and dependencies."
-    >
-      <Section title="Displays" sample>
-        <ChipRow
-          items={[
-            "AI Runtime",
-            "Model Providers",
-            "Knowledge Sources",
-            "Prompt Libraries",
-            "AI Governance",
-            "AI Dependencies",
-          ]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Cloud View (spec §Cloud View) ──
-function CloudPanel() {
-  return (
-    <Card
-      title="Cloud View"
-      desc="AWS accounts, Azure subscriptions, GCP projects, Kubernetes clusters and shared infrastructure."
-    >
-      <Section title="Displays" sample>
-        <ChipRow
-          items={[
-            "AWS Accounts",
-            "Azure Subscriptions",
-            "GCP Projects",
-            "Kubernetes Clusters",
-            "Shared Infrastructure",
-          ]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Service View (spec §Shared Services) ──
-function ServicePanel() {
-  return (
-    <Card
-      title="Service View"
-      desc="Shared service workspaces consumed across the enterprise."
-    >
-      <Section title="Shared services" sample>
-        <ChipRow items={SHARED_SERVICE_TYPES} />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Dependency View (spec §Dependencies) ──
-function DependencyPanel() {
-  return (
-    <Card
-      title="Dependency View"
-      desc="Incoming, outgoing, critical, external, runtime and infrastructure dependencies."
-    >
-      <Section title="Categories" sample>
-        <ChipRow
-          items={[
-            "Incoming",
-            "Outgoing",
-            "Critical",
-            "External",
-            "Runtime",
-            "Infrastructure",
-          ]}
-        />
-      </Section>
-      <Section title="Supports" sample>
-        <ChipRow
-          items={["Failure Simulation", "Dependency Path", "Critical Path"]}
-        />
-      </Section>
-    </Card>
-  );
-}
-
-// ── Topology Timeline (spec §Topology Timeline) ──
-function TimelinePanel() {
-  const events = [
-    "Workspace Created",
-    "Workspace Moved",
-    "Hierarchy Updated",
-    "Dependency Added",
-    "Shared Service Added",
-    "Policy Changed",
-    "Cloud Connected",
-  ];
-  return (
-    <Card
-      title="Topology Timeline"
-      desc="Architectural evolution of the enterprise topology over time."
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 10,
-        }}
-      >
-        <SampleTag />
-      </div>
-      {events.map((e, i) => (
-        <div
-          key={e}
-          style={{
-            display: "flex",
-            gap: 12,
-            padding: "10px 0",
-            borderBottom: `1px solid ${T.border}`,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: T.accent,
-              marginTop: 5,
-              flexShrink: 0,
-            }}
-          />
-          <div>
-            <div style={{ fontSize: 13, color: T.textPrimary }}>{e}</div>
-            <div style={{ fontSize: 11.5, color: T.textMuted }}>
-              {pick(OWNERS.slice(1), i)} · 2026-
-              {(4 + i).toString().padStart(2, "0")}-
-              {(3 + i * 4).toString().padStart(2, "0")}
-            </div>
-          </div>
-        </div>
-      ))}
-    </Card>
-  );
-}
-
-// ── Topology Health + Validation (spec §Topology Health / §Validation) ──
-function HealthPanel({ records }: { records: TopologyNode[] }) {
-  const n = hashId(records.map((r) => r.id).join(""));
-  const disconnected = records.filter((r) => r.connections < 6).length;
-  const circular = records.filter((r) => r.depsCritical >= 3).length;
-  const broken = records.filter((r) => r.healthStatus === "Offline").length;
-  const missingOwner = records.filter((r) => !r.owner).length;
-  const score = Math.round(
-    records.reduce((a, r) => a + r.topologyScore, 0) / records.length,
-  );
-  const validation = [
-    "Orphan Workspaces",
-    "Circular Dependencies",
-    "Broken Relationships",
-    "Missing Owners",
-    "Policy Conflicts",
-    "Duplicate Relationships",
-    "Invalid Shared Services",
-    "Configuration Drift",
-  ].map((label, i) => {
-    const state =
-      (n + i) % 6 === 0 ? "Failed" : (n + i) % 3 === 0 ? "Warning" : "Passed";
-    return { label, state };
-  });
-  return (
-    <>
-      <Card
-        title="Topology Health"
-        desc="Health of the overall enterprise topology."
-      >
-        <StatRow label="Topology Score" value={`${score}%`} tone="ok" sample />
-        <StatRow
-          label="Disconnected Workspaces"
-          value={disconnected}
-          tone={disconnected ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Circular Dependencies"
-          value={circular}
-          tone={circular ? "danger" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Broken Relationships"
-          value={broken}
-          tone={broken ? "danger" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Missing Ownership"
-          value={missingOwner}
-          tone={missingOwner ? "warn" : "ok"}
-          sample
-        />
-        <StatRow
-          label="Policy Drift"
-          value={`${n % 5} workspaces`}
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="Service Availability"
-          value={`${99 - (n % 3)}.9%`}
-          tone="ok"
-          sample
-        />
-      </Card>
-      <Card
-        title="Validation"
-        desc="Automatically detected topology integrity issues."
-      >
-        {validation.map((c) => (
-          <StatRow
-            key={c.label}
-            label={c.label}
-            value={c.state}
-            tone={
-              c.state === "Passed"
-                ? "ok"
-                : c.state === "Warning"
-                  ? "warn"
-                  : "danger"
-            }
-            sample
-          />
-        ))}
-      </Card>
-    </>
   );
 }
 

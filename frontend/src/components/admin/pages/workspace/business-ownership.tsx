@@ -18,16 +18,13 @@ import {
   Scale,
   Activity as ActivityIcon,
   History,
-  Users,
   DollarSign,
-  Landmark,
   Crown,
 } from "lucide-react";
 import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -622,23 +619,6 @@ export function BusinessOwnershipView() {
       </div>
 
       {/* Ownership Hierarchy (spec §Ownership Hierarchy) */}
-      <Card
-        title="Ownership hierarchy"
-        desc="Separates organizational ownership, individual ownership and administrative responsibility."
-      >
-        <HierarchyChain
-          nodes={[
-            { label: "Enterprise", Icon: Landmark },
-            { label: "Division", Icon: Network },
-            { label: "Business Unit", Icon: Building2 },
-            { label: "Department", Icon: Users },
-            { label: "Workspace", Icon: LayoutGrid },
-            { label: "Workspace Owner", Icon: UserCog },
-            { label: "Delegated Administrators", Icon: Users },
-          ]}
-          sample
-        />
-      </Card>
 
       <div style={{ display: "flex", marginBottom: 14, marginTop: 14 }}>
         <Select
@@ -794,55 +774,6 @@ export function BusinessOwnershipPage() {
       />
       <BusinessOwnershipView />
     </Page>
-  );
-}
-
-// ── Ownership hierarchy chain (spec §Organization / §Ownership Hierarchy) ──────────────────────────
-function HierarchyChain({
-  nodes,
-  sample,
-}: {
-  nodes: {
-    label: string;
-    Icon: React.ComponentType<{ size?: number; color?: string }>;
-  }[];
-  sample?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 8,
-        padding: "6px 0",
-      }}
-    >
-      {nodes.map((node, i) => (
-        <React.Fragment key={node.label}>
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 7,
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "7px 11px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background: "var(--cg-accent-bg-strong)",
-            }}
-          >
-            <node.Icon size={14} color={T.textMuted} />
-            {node.label}
-          </span>
-          {i < nodes.length - 1 && (
-            <span style={{ color: T.textMuted, fontSize: 13 }}>→</span>
-          )}
-        </React.Fragment>
-      ))}
-      {sample && <SampleTag />}
-    </div>
   );
 }
 
@@ -1018,19 +949,7 @@ function OrganizationTab({ rec }: { rec: OwnershipRecord }) {
   return (
     <>
       <Tabs tabs={ORGANIZATION_SUBS} active={sub} onChange={setSub} />
-      {sub === "organizational-ownership-hierarchy" && (
-        <Section title="Organizational ownership hierarchy" sample>
-          <HierarchyChain
-            nodes={[
-              { label: "Enterprise", Icon: Landmark },
-              { label: rec.division, Icon: Network },
-              { label: rec.businessUnit, Icon: Building2 },
-              { label: rec.department, Icon: Users },
-              { label: rec.workspace, Icon: LayoutGrid },
-            ]}
-          />
-        </Section>
-      )}
+
       {sub === "organization-details" && (
         <Section title="Organization details" sample>
           <StatRow label="Division" value={rec.division} sample />

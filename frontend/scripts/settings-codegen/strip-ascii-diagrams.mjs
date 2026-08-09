@@ -24,7 +24,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const ts = require("typescript");
 
-const ASCII_TAGS = new Set(["Viz", "AsciiFlow", "LifecycleFlow", "LifecycleFlowCard", "FlowChain", "TreeBlock"]);
+const ASCII_TAGS = new Set(["Viz", "AsciiFlow", "LifecycleFlow", "LifecycleFlowCard", "FlowChain", "TreeBlock", "HierarchyChain"]);
 const WRAPPER_TAGS = new Set(["Card", "Section"]);
 // Tags that are pure layout wrappers: a wrapper is "dead" iff all its children are.
 const LAYOUT_TAGS = new Set(["Card", "Section", "div", "span", "React.Fragment", ""]);
