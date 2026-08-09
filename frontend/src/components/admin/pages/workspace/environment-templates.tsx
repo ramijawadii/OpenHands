@@ -680,30 +680,47 @@ function OperationalDashboard({ records }: { records: TemplateRecord[] }) {
   const usage = records.reduce((a, r) => a + r.enterpriseTemplates, 0);
   const envCount = new Set(records.map((r) => r.environment)).size;
   return (
-    <Card
-      title="Operational dashboard"
-      desc="Fleet-wide environment-template posture."
-      right={<SampleTag />}
-    >
-      <StatStripPlain
-        items={[
-          { label: "Environment Templates", value: records.length, tone: "ok" },
-          { label: "Published Versions", value: published, tone: "ok" },
-          { label: "Default Templates", value: defaults, tone: "ok" },
-          {
-            label: "Provisioned Workspaces",
-            value: workspaces.toLocaleString(),
-            tone: "muted",
-          },
-          { label: "Template Usage", value: usage, tone: "muted" },
-          {
-            label: "Environment Distribution",
-            value: `${envCount} types`,
-            tone: "muted",
-          },
-        ]}
-      />
-    </Card>
+    <>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
+      >
+        Operational dashboard <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
+        <StatStripPlain
+          items={[
+            {
+              label: "Environment Templates",
+              value: records.length,
+              tone: "ok",
+            },
+            { label: "Published Versions", value: published, tone: "ok" },
+            { label: "Default Templates", value: defaults, tone: "ok" },
+            {
+              label: "Provisioned Workspaces",
+              value: workspaces.toLocaleString(),
+              tone: "muted",
+            },
+            { label: "Template Usage", value: usage, tone: "muted" },
+            {
+              label: "Environment Distribution",
+              value: `${envCount} types`,
+              tone: "muted",
+            },
+          ]}
+        />
+      </div>
+    </>
   );
 }
 

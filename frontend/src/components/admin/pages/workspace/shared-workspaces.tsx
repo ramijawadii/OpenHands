@@ -26,7 +26,6 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -726,27 +725,6 @@ export function SharedWorkspacesView() {
           />
         }
       />
-
-      {/* ── Resource Dependency Graph (spec §Resource Dependency Graph) ── */}
-      <Card
-        title="Resource dependency graph"
-        desc="End-to-end visibility of shared-resource usage — from the shared workspace, through each shared resource, to the consuming workspaces and their consumers."
-        right={<SampleTag />}
-      >
-        <Viz
-          lines={[
-            "Shared Workspace",
-            "        │",
-            " ├───────────────┐",
-            " │               │",
-            "Shared Resource  Shared Resource",
-            " │               │",
-            "Workspace A    Workspace B",
-            " │               │",
-            "Consumers      Consumers",
-          ]}
-        />
-      </Card>
 
       {sel && (
         <SharedWorkspaceDetailDrawer rec={sel} onClose={() => setSelId(null)} />

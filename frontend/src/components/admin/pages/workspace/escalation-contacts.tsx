@@ -23,14 +23,12 @@ import {
   Eye,
   AlertTriangle,
   LayoutGrid,
-  MapPin,
   Activity as ActivityIcon,
 } from "lucide-react";
 import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   HeaderButton,
@@ -621,11 +619,22 @@ export function EscalationContactsView() {
   return (
     <>
       {/* ── Operational Dashboard (spec) ── */}
-      <Card
-        title="Operational dashboard"
-        desc="Live escalation-contact posture across the organization — coverage, on-call reach, and notification reliability."
-        right={<SampleTag />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Operational dashboard <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={[
             { label: "Active Contacts", value: activeCount, tone: "ok" },
@@ -661,26 +670,25 @@ export function EscalationContactsView() {
             },
           ]}
         />
-      </Card>
+      </div>
 
       {/* ── Coverage Map (spec) ── */}
-      <Card
-        title="Coverage map"
-        desc="Whether every escalation category has at least one assigned active contact for the workspace."
-        right={
-          <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              color: T.textMuted,
-              fontSize: 12,
-            }}
-          >
-            <MapPin size={14} /> Workspace → categories <SampleTag />
-          </span>
-        }
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Coverage map <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={coverage.map((c) => ({
             label: c.core,
@@ -688,7 +696,7 @@ export function EscalationContactsView() {
             tone: c.covered ? "ok" : "danger",
           }))}
         />
-      </Card>
+      </div>
 
       {/* ── Second-level sub-nav as the first FilterBar-style facet (spec Navigation) ── */}
       <div style={{ display: "flex", marginBottom: 14 }}>

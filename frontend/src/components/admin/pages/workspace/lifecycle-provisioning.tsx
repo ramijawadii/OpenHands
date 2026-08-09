@@ -539,11 +539,22 @@ export function LifecycleProvisioningView() {
 
   return (
     <>
-      <Card
-        title="Provisioning operations"
-        desc="Live throughput across the provisioning engine — running, queued, blocked and rollback jobs at a glance."
-        right={<SampleTag />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Provisioning operations <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={[
             { label: "Running Jobs", value: running, tone: "ok" },
@@ -576,7 +587,7 @@ export function LifecycleProvisioningView() {
             },
           ]}
         />
-      </Card>
+      </div>
 
       <Card
         title="Lifecycle flow"

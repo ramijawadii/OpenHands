@@ -510,10 +510,22 @@ export function EnterpriseTemplatesView() {
   return (
     <>
       {/* ── Operational Dashboard ── */}
-      <Card
-        title="Operational dashboard"
-        desc="Enterprise template estate at a glance — publication state, defaults, provisioning reach and the latest catalog version."
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Operational dashboard <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={[
             { label: "Published Templates", value: publishedCount, tone: "ok" },
@@ -541,7 +553,7 @@ export function EnterpriseTemplatesView() {
             },
           ]}
         />
-      </Card>
+      </div>
 
       {/* ── Second-level sub-navigation ── */}
       <div style={{ display: "flex", marginBottom: 14 }}>

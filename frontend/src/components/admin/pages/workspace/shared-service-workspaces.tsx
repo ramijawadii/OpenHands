@@ -23,11 +23,7 @@ import {
   HeartPulse,
   Activity as ActivityIcon,
   History,
-  AlertTriangle,
   Trash2,
-  ZoomIn,
-  Filter as FilterIcon,
-  Route,
   CheckCircle2,
 } from "lucide-react";
 import {
@@ -767,55 +763,6 @@ export function SharedServiceWorkspacesView() {
           />
         }
       />
-
-      {/* Service Dependency Graph (spec §Service Dependency Graph — interactive; ASCII flow here) */}
-      <Card
-        title="Service dependency graph"
-        desc="Interactive visualization of shared-service → consumer → dependent-workspace relationships."
-        right={<SampleTag />}
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            marginBottom: 14,
-          }}
-        >
-          <HeaderButton icon={<ZoomIn size={13} />}>Zoom</HeaderButton>
-          <HeaderButton icon={<FilterIcon size={13} />}>Filter</HeaderButton>
-          <HeaderButton icon={<Route size={13} />}>Critical Path</HeaderButton>
-          <HeaderButton icon={<AlertTriangle size={13} />}>
-            Failure Impact
-          </HeaderButton>
-        </div>
-        <AsciiFlow
-          nodes={[
-            "Shared Service",
-            "Consumer Workspace",
-            "Dependent Workspace",
-          ]}
-        />
-      </Card>
-
-      {/* Enterprise Service Model (spec §Enterprise Service Model) */}
-      <Card
-        title="Enterprise service model"
-        desc="Shared Service Workspaces provide the enterprise service layer — centralize reusable capabilities, reduce duplication, simplify governance, enable secure multi-workspace consumption."
-        right={<SampleTag />}
-      >
-        <AsciiFlow
-          nodes={[
-            "Shared Service Workspace",
-            "Service Catalog",
-            "Access Policy",
-            "Consumer Workspace",
-            "Operational Usage",
-            "Monitoring",
-            "Audit",
-          ]}
-        />
-      </Card>
 
       {/* Operational Relationships (spec §Operational Relationships) */}
       <Card title="Operational relationships" right={<SampleTag />}>

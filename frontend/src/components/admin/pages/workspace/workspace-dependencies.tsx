@@ -651,11 +651,22 @@ export function WorkspaceDependenciesView() {
       </div>
 
       {/* Operational Dashboard — always visible (spec §Operational Dashboard). */}
-      <Card
-        title="Operational dashboard"
-        desc="Enterprise-wide view of dependency posture across all workspaces."
-        right={<SampleTag />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Operational dashboard <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={[
             { label: "Total Dependencies", value: totalDeps, tone: "muted" },
@@ -682,7 +693,7 @@ export function WorkspaceDependenciesView() {
             },
           ]}
         />
-      </Card>
+      </div>
 
       {showCatalog && (
         <DiscoveryListView

@@ -35,7 +35,6 @@ import {
   Page,
   PageHeader,
   Tabs,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -199,6 +198,47 @@ function hashId(id: string): number {
 }
 const pick = <X,>(arr: X[], n: number): X =>
   arr[((Math.trunc(n) % arr.length) + arr.length) % arr.length];
+
+/**
+ * ChartCard — a titled section frame with a TRANSPARENT background (unlike the
+ * filled `Card`), so an embedded ECharts canvas reads directly on the page ground.
+ * Border + header only; used for the chart surfaces on this page.
+ */
+function ChartCard({
+  title,
+  desc,
+  children,
+}: {
+  title: string;
+  desc?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        border: `1px solid ${T.border}`,
+        borderRadius: 10,
+        background: "transparent",
+        marginBottom: 18,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{ padding: "13px 16px", borderBottom: `1px solid ${T.border}` }}
+      >
+        <div style={{ fontSize: 13, fontWeight: 600, color: T.textPrimary }}>
+          {title}
+        </div>
+        {desc && (
+          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 2 }}>
+            {desc}
+          </div>
+        )}
+      </div>
+      <div style={{ padding: 16 }}>{children}</div>
+    </div>
+  );
+}
 
 // Deterministic representative sandbox set covering every spec state.
 const STATUS_CYCLE: Status[] = [
@@ -638,7 +678,10 @@ export function SandboxesView() {
           margin: "16px 0 4px",
         }}
       >
-        <Card title="Resource consumption" desc="Current quota utilisation">
+        <ChartCard
+          title="Resource consumption"
+          desc="Current quota utilisation"
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <div
               style={{
@@ -670,9 +713,9 @@ export function SandboxesView() {
               }))}
             />
           </div>
-        </Card>
+        </ChartCard>
 
-        <Card
+        <ChartCard
           title="Expiration timeline"
           desc="Proactively manage expiring environments"
         >
@@ -702,7 +745,7 @@ export function SandboxesView() {
                 }))}
             />
           </div>
-        </Card>
+        </ChartCard>
       </div>
 
       <div style={{ display: "flex", marginBottom: 14 }}>

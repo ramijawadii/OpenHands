@@ -578,11 +578,22 @@ export function TemplateLibraryView() {
       </div>
 
       {/* ── Operational Dashboard ── */}
-      <Card
-        title="Operational dashboard"
-        desc="Library-wide template posture across the organization."
-        right={<SampleTag />}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginBottom: 10,
+        }}
       >
+        Operational dashboard <SampleTag />
+      </div>
+      <div style={{ marginBottom: 18 }}>
         <StatStripPlain
           items={[
             { label: "Total Templates", value: records.length, tone: "ok" },
@@ -603,7 +614,7 @@ export function TemplateLibraryView() {
             },
           ]}
         />
-      </Card>
+      </div>
 
       {nav === "collections" ? (
         <CollectionsGallery records={records} />
