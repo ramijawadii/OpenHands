@@ -632,39 +632,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 function MiniTable<R extends { id: string }>({
   rows,
   cols,
@@ -1027,25 +994,20 @@ function WorkloadsTab({ rec }: { rec: Cluster }) {
 
 function NetworkingTab() {
   return (
-    <>
-      <Section title="Network topology" sample>
-        <FlowChain steps={["Cluster", "Namespaces", "Services", "Pods"]} />
-      </Section>
-      <Section title="Networking" sample>
-        <StatRow label="CNI" value="Cilium" sample />
-        <StatRow
-          label="Network Policies"
-          value="Enforced (default-deny)"
-          tone="ok"
-          sample
-        />
-        <StatRow label="Ingress Controllers" value="ingress-nginx" sample />
-        <StatRow label="Load Balancers" value="3 provisioned" sample />
-        <StatRow label="Service Mesh" value="Istio" sample />
-        <StatRow label="DNS" value="CoreDNS" sample />
-        <StatRow label="Gateway API" value="Enabled" tone="ok" sample />
-      </Section>
-    </>
+    <Section title="Networking" sample>
+      <StatRow label="CNI" value="Cilium" sample />
+      <StatRow
+        label="Network Policies"
+        value="Enforced (default-deny)"
+        tone="ok"
+        sample
+      />
+      <StatRow label="Ingress Controllers" value="ingress-nginx" sample />
+      <StatRow label="Load Balancers" value="3 provisioned" sample />
+      <StatRow label="Service Mesh" value="Istio" sample />
+      <StatRow label="DNS" value="CoreDNS" sample />
+      <StatRow label="Gateway API" value="Enabled" tone="ok" sample />
+    </Section>
   );
 }
 

@@ -622,8 +622,7 @@ export function LifecycleDecommissionedView() {
       />
 
       <DecommissionChecklistCard />
-      <LifecycleFlowCard />
-      <EnterpriseModelCard />
+
       <DecommissionBehaviorCard />
       <LifecycleComparisonCard />
 
@@ -717,113 +716,6 @@ function Section({
       </div>
       {children}
     </div>
-  );
-}
-
-// ════════════ Flow-chain visualization (ASCII node→node, NO graph library) ════════════
-function FlowChain({
-  steps,
-  optionalIdx,
-}: {
-  steps: string[];
-  optionalIdx?: number[];
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-            {optionalIdx?.includes(i) && (
-              <span style={{ fontSize: 11, color: T.textMuted }}>
-                (optional)
-              </span>
-            )}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-// ── Lifecycle Flow (spec §Lifecycle Flow) ──
-function LifecycleFlowCard() {
-  return (
-    <Card
-      title="Lifecycle flow"
-      desc="The governed end-of-life path a workspace follows into permanent retirement."
-    >
-      <FlowChain
-        steps={[
-          "Active",
-          "Archive (optional)",
-          "Decommission Request",
-          "Approval",
-          "Resource Cleanup",
-          "Evidence Generation",
-          "Retention Applied",
-          "Decommissioned",
-          "Retention Expired",
-          "Permanent Deletion",
-        ]}
-        optionalIdx={[1]}
-      />
-    </Card>
-  );
-}
-
-// ── Enterprise Decommission Model (spec §Enterprise Decommission Model) ──
-function EnterpriseModelCard() {
-  return (
-    <Card
-      title="Enterprise decommission model"
-      desc="The authoritative retirement sequence that preserves regulatory evidence, audit history, business context and historical records."
-    >
-      <FlowChain
-        steps={[
-          "Business Approval",
-          "Migration",
-          "Resource Cleanup",
-          "Identity Revocation",
-          "Integration Removal",
-          "Compliance Evidence",
-          "Retention",
-          "Historical Record",
-          "Decommissioned",
-        ]}
-      />
-    </Card>
   );
 }
 

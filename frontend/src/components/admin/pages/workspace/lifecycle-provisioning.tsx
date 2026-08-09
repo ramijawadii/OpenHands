@@ -129,18 +129,6 @@ const PIPELINE = [
   "Workspace Ready",
 ];
 
-// ── Lifecycle flow (spec §Lifecycle Flow) — the end-to-end deployment chain ───────────────────────
-const LIFECYCLE_FLOW = [
-  "Approved Request",
-  "Provisioning Queue",
-  "Provisioning Engine",
-  "Infrastructure Deployment",
-  "Configuration",
-  "Validation",
-  "Workspace Ready",
-  "Active Workspace",
-];
-
 const ENVIRONMENTS = ["Production", "Pre-production", "Development", "Sandbox"];
 const WS_TYPES = ["Enterprise", "Department", "Project", "Shared Service"];
 const PRIORITIES = ["Low", "Medium", "High", "Critical"];
@@ -594,7 +582,6 @@ export function LifecycleProvisioningView() {
         desc="The enterprise deployment chain every workspace follows from an approved request to an active workspace."
         right={<SampleTag />}
       >
-        <FlowChain nodes={LIFECYCLE_FLOW} />
         <div
           style={{
             display: "flex",
@@ -798,41 +785,6 @@ export function LifecycleProvisioningPage() {
       />
       <LifecycleProvisioningView />
     </Page>
-  );
-}
-
-// ── FlowChain — ASCII / node→node deployment chain, no graph library ──────────────────────────────
-function FlowChain({ nodes }: { nodes: string[] }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      {nodes.map((node, i) => (
-        <React.Fragment key={node}>
-          <span
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "7px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background: "var(--cg-bg-badge)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {node}
-          </span>
-          {i < nodes.length - 1 && (
-            <span style={{ color: T.textMuted, fontSize: 13 }}>→</span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }
 

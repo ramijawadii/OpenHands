@@ -32,7 +32,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   DirectoryTable,
@@ -751,12 +750,6 @@ export function LifecycleActiveView() {
       />
 
       {/* Lifecycle Flow (spec §Lifecycle Flow) — ASCII node→node flow-chain, Active highlighted. */}
-      <Card
-        title="Lifecycle flow"
-        desc="The Active state is the steady-state operational phase — a fully deployed, governed, secure, compliant, and monitored workspace. From here administrators move it toward maintenance, suspension, archival, or decommissioning."
-      >
-        <LifecycleFlow current="Active" />
-      </Card>
 
       {sel && (
         <WorkspaceDetailDrawer rec={sel} onClose={() => setSelId(null)} />
@@ -788,76 +781,6 @@ export function LifecycleActivePage() {
       />
       <LifecycleActiveView />
     </Page>
-  );
-}
-
-// ── Lifecycle flow-chain (no graph library — an ASCII / node→node stack) ───────────────────────────
-const LIFECYCLE_STAGES = [
-  "Requested",
-  "Approved",
-  "Provisioning",
-  "Validation",
-  "Active",
-  "Maintenance",
-  "Suspended",
-  "Archived",
-  "Decommissioned",
-];
-
-function LifecycleFlow({ current }: { current: string }) {
-  const curIdx = LIFECYCLE_STAGES.indexOf(current);
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 8,
-        padding: "6px 0",
-      }}
-    >
-      {LIFECYCLE_STAGES.map((stage, i) => {
-        const done = i < curIdx;
-        const active = i === curIdx;
-        const tone = active ? T.accent : done ? T.success : T.textMuted;
-        return (
-          <React.Fragment key={stage}>
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                height: 30,
-                padding: "0 12px",
-                borderRadius: 99,
-                fontSize: 12.5,
-                fontWeight: active ? 600 : 400,
-                color: tone,
-                background: active
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-                border: `1px solid ${active ? "transparent" : T.border}`,
-                whiteSpace: "nowrap",
-              }}
-            >
-              <span
-                style={{
-                  fontFamily: "monospace",
-                  fontSize: 11,
-                  color: T.textMuted,
-                }}
-              >
-                {(i + 1).toString().padStart(2, "0")}
-              </span>
-              {stage}
-            </span>
-            {i < LIFECYCLE_STAGES.length - 1 && (
-              <span style={{ color: T.textMuted, fontSize: 13 }}>→</span>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
   );
 }
 

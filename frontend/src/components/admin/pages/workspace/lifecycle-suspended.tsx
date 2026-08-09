@@ -768,12 +768,6 @@ export function LifecycleSuspendedView() {
       />
 
       {/* ── Reactivation Workflow (spec §Reactivation Workflow) ── */}
-      <Card
-        title="Reactivation workflow"
-        desc="A suspended workspace returns to service through a staged, auditable restoration pipeline."
-      >
-        <FlowChain steps={REACTIVATION_STAGES} sample />
-      </Card>
 
       {/* ── Lifecycle Flow + Suspension Behavior (spec §Lifecycle Flow / §Suspension Behavior) ── */}
       <Card title="Lifecycle & suspension behavior">
@@ -786,17 +780,6 @@ export function LifecycleSuspendedView() {
         >
           <div>
             <Section title="Lifecycle flow">
-              <FlowChain
-                steps={[
-                  "Active",
-                  "Suspended",
-                  "Investigation",
-                  "Validation",
-                  "Approval",
-                  "Reactivated",
-                  "Active",
-                ]}
-              />
               <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 8 }}>
                 Alternatively, Active → Suspended → Archived if the workspace is
                 no longer intended to return to service.
@@ -877,68 +860,6 @@ export function LifecycleSuspendedPage() {
       />
       <LifecycleSuspendedView />
     </Page>
-  );
-}
-
-// ── FlowChain — ASCII / node→node vertical flow (reused for both workflow visualizations) ──────────
-function FlowChain({ steps, sample }: { steps: string[]; sample?: boolean }) {
-  return (
-    <>
-      {sample && (
-        <div
-          style={{
-            fontSize: 12.5,
-            color: T.textMuted,
-            marginBottom: 12,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-          }}
-        >
-          Staged restoration pipeline <SampleTag />
-        </div>
-      )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {steps.map((s, i) => (
-          <React.Fragment key={`${s}-${i}`}>
-            <div
-              style={{
-                border: `1px solid ${T.border}`,
-                borderRadius: 8,
-                padding: "9px 12px",
-                fontSize: 12.5,
-                color: T.textNav,
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-              }}
-            >
-              <span
-                style={{
-                  color: T.textMuted,
-                  fontFamily: "monospace",
-                  fontSize: 11,
-                }}
-              >
-                {(i + 1).toString().padStart(2, "0")}
-              </span>
-              {s}
-            </div>
-            {i < steps.length - 1 && (
-              <span
-                style={{
-                  color: T.textMuted,
-                  textAlign: "center",
-                  fontSize: 12,
-                }}
-              >
-                ↓
-              </span>
-            )}
-          </React.Fragment>
-        ))}
-      </div>
-    </>
   );
 }
 

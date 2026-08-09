@@ -626,51 +626,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 // ════════════ Assignment Detail Drawer — 8 sub-tabs (spec §Assignment Detail Drawer) ════════════
 const DRAWER_TABS = [
   { id: "overview", label: "Overview", icon: <LayoutGrid size={13} /> },
@@ -873,52 +828,34 @@ function ControlsTab({ rec }: { rec: Assignment }) {
     },
   ];
   return (
-    <>
-      <Section title="Effective controls resolution" sample>
-        <FlowChain
-          steps={[
-            "Framework",
-            "Required Controls",
-            "Inherited Controls",
-            "Workspace Overrides",
-            "Effective Compliance Controls",
-          ]}
-        />
-      </Section>
-      <Section title="Controls required after inheritance + evaluation" sample>
-        <DirectoryTable columns={cols} rows={list} pageSize={8} />
-      </Section>
-    </>
+    <Section title="Controls required after inheritance + evaluation" sample>
+      <DirectoryTable columns={cols} rows={list} pageSize={8} />
+    </Section>
   );
 }
 
 function ScopeTab() {
   return (
-    <>
-      <Section title="Assignment hierarchy" sample>
-        <FlowChain steps={["Organization", "Business Unit", "Workspace"]} />
-      </Section>
-      <Section title="Assignment source" sample>
-        <StatRow
-          label="Assignment Source"
-          value="Organization Baseline"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Inherited"
-          value="12 frameworks from ancestors"
-          tone="ok"
-          sample
-        />
-        <StatRow label="Override" value="2 at this workspace" sample />
-        <StatRow
-          label="Effective Assignment"
-          value="Organization → Business Unit → Workspace"
-          sample
-        />
-      </Section>
-    </>
+    <Section title="Assignment source" sample>
+      <StatRow
+        label="Assignment Source"
+        value="Organization Baseline"
+        tone="ok"
+        sample
+      />
+      <StatRow
+        label="Inherited"
+        value="12 frameworks from ancestors"
+        tone="ok"
+        sample
+      />
+      <StatRow label="Override" value="2 at this workspace" sample />
+      <StatRow
+        label="Effective Assignment"
+        value="Organization → Business Unit → Workspace"
+        sample
+      />
+    </Section>
   );
 }
 

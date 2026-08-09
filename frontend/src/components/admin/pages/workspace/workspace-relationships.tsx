@@ -780,7 +780,6 @@ export function WorkspaceRelationshipsView() {
             desc="Interactive visualization of how workspaces collaborate across the enterprise."
             right={<SampleTag />}
           >
-            <RelationshipGraphFlow />
             <GraphControls />
           </Card>
 
@@ -892,74 +891,6 @@ function Section({
   );
 }
 
-// ── FlowChain — ASCII node→node visualization (no graph library), reused by the graph + impact views ─
-function FlowChain({
-  nodes,
-}: {
-  nodes: { label: string; kind?: "workspace" | "relationship" | "service" }[];
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {nodes.map((node, i) => {
-        const accent = node.kind === "relationship";
-        const service = node.kind === "service";
-        return (
-          <React.Fragment key={`${node.label}-${i}`}>
-            <div
-              style={{
-                border: `1px solid ${accent ? "transparent" : T.border}`,
-                borderRadius: 8,
-                padding: "10px 14px",
-                fontSize: 12.5,
-                textAlign: "center",
-                color: accent
-                  ? T.accent
-                  : service
-                    ? T.textMuted
-                    : T.textPrimary,
-                fontWeight: accent ? 600 : 400,
-                background: accent
-                  ? "var(--cg-accent-bg-strong)"
-                  : service
-                    ? "transparent"
-                    : T.cardBg,
-                fontStyle: service ? "italic" : "normal",
-              }}
-            >
-              {node.label}
-            </div>
-            {i < nodes.length - 1 && (
-              <span
-                style={{
-                  color: T.textMuted,
-                  textAlign: "center",
-                  fontSize: 13,
-                }}
-              >
-                │
-              </span>
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-function RelationshipGraphFlow() {
-  return (
-    <FlowChain
-      nodes={[
-        { label: "Payments", kind: "workspace" },
-        { label: "Business Collaboration", kind: "relationship" },
-        { label: "Fraud Detection", kind: "workspace" },
-        { label: "Shared AI", kind: "relationship" },
-        { label: "Risk Analytics", kind: "workspace" },
-      ]}
-    />
-  );
-}
-
 // Graph interaction affordances (spec §Relationship Graph → Supports).
 function GraphControls() {
   return (
@@ -994,7 +925,7 @@ function RelationshipGraphPanel() {
       >
         Interactive cross-workspace relationship visualization <SampleTag />
       </div>
-      <RelationshipGraphFlow />
+
       <GraphControls />
       <div style={{ marginTop: 18 }}>
         <Section title="Highlight Categories">
@@ -1544,67 +1475,55 @@ function ResourcesTab({ rec }: { rec: RelationshipRecord }) {
 // ── Impact Analysis (operational impact of changing / removing the relationship) ──
 function ImpactTab({ rec }: { rec: RelationshipRecord }) {
   return (
-    <>
-      <Section
-        title="Impact of changing or removing this relationship"
+    <Section
+      title="Impact of changing or removing this relationship"
+      sample
+      right={
+        <div style={{ display: "flex", gap: 8 }}>
+          <HeaderButton icon={<Play size={13} />}>Run Analysis</HeaderButton>
+          <HeaderButton icon={<Download size={13} />}>
+            Export Report
+          </HeaderButton>
+        </div>
+      }
+    >
+      <StatRow
+        label="Affected Workspaces"
+        value={`${2 + (hashId(rec.id) % 5)} workspaces`}
+        tone="warn"
         sample
-        right={
-          <div style={{ display: "flex", gap: 8 }}>
-            <HeaderButton icon={<Play size={13} />}>Run Analysis</HeaderButton>
-            <HeaderButton icon={<Download size={13} />}>
-              Export Report
-            </HeaderButton>
-          </div>
-        }
-      >
-        <StatRow
-          label="Affected Workspaces"
-          value={`${2 + (hashId(rec.id) % 5)} workspaces`}
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="Compliance Impact"
-          value="Shared compliance scope breaks"
-          tone="danger"
-          sample
-        />
-        <StatRow
-          label="Operational Impact"
-          value="Reduced cross-team coordination"
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="Security Impact"
-          value="Shared security policies decouple"
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="Business Impact"
-          value="Partnership continuity affected"
-          tone="warn"
-          sample
-        />
-        <StatRow
-          label="AI Impact"
-          value="Shared knowledge no longer available"
-          tone="warn"
-          sample
-        />
-      </Section>
-      <Section title="Impact visualization">
-        <FlowChain
-          nodes={[
-            { label: rec.source, kind: "workspace" },
-            { label: rec.relationshipType, kind: "relationship" },
-            { label: rec.target, kind: "workspace" },
-            { label: "Affected Services", kind: "service" },
-          ]}
-        />
-      </Section>
-    </>
+      />
+      <StatRow
+        label="Compliance Impact"
+        value="Shared compliance scope breaks"
+        tone="danger"
+        sample
+      />
+      <StatRow
+        label="Operational Impact"
+        value="Reduced cross-team coordination"
+        tone="warn"
+        sample
+      />
+      <StatRow
+        label="Security Impact"
+        value="Shared security policies decouple"
+        tone="warn"
+        sample
+      />
+      <StatRow
+        label="Business Impact"
+        value="Partnership continuity affected"
+        tone="warn"
+        sample
+      />
+      <StatRow
+        label="AI Impact"
+        value="Shared knowledge no longer available"
+        tone="warn"
+        sample
+      />
+    </Section>
   );
 }
 

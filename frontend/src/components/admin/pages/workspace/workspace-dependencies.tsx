@@ -18,11 +18,9 @@ import {
   Wrench,
   History,
   Activity as ActivityIcon,
-  AlertTriangle,
   Network,
   Server,
   BellRing,
-  PlayCircle,
   Link2,
 } from "lucide-react";
 import {
@@ -373,47 +371,6 @@ function HealthBadge({ health }: { health: Health }) {
 }
 
 /** A simple vertical node → node flow-chain rendered inside a Card (no graph library, per spec). */
-function FlowChain({ nodes }: { nodes: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {nodes.map((node, i) => (
-        <React.Fragment key={`${node}-${i}`}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: "var(--cg-bg-badge)",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {node}
-          </div>
-          {i < nodes.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 13 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
 
 /**
  * Embeddable body — sub-navigation + operational dashboard + directory + dependency graph + dependency
@@ -825,29 +782,11 @@ export function WorkspaceDependenciesView() {
         />
       )}
 
-      {view === "graph" && <DependencyGraphView rows={rows} />}
+      {view === "graph" && <DependencyGraphView />}
       {view === "impact" && <ImpactAnalysisView records={records} />}
       {view === "history" && <DependencyHistoryView records={records} />}
 
       {/* Enterprise Dependency Model — the canonical flow-chain (spec §Enterprise Dependency Model). */}
-      <Card
-        title="Enterprise dependency model"
-        desc="Dependencies provide the enterprise operational map of how workspaces rely on one another — explicit, monitored and auditable across the platform."
-        right={<SampleTag />}
-      >
-        <FlowChain
-          nodes={[
-            "Provider Workspace",
-            "Shared Service",
-            "Dependency",
-            "Consumer Workspace",
-            "Monitoring",
-            "Impact Analysis",
-            "Incident Response",
-            "Audit",
-          ]}
-        />
-      </Card>
 
       {sel && (
         <DependencyDetailDrawer rec={sel} onClose={() => setSelId(null)} />
@@ -857,87 +796,39 @@ export function WorkspaceDependenciesView() {
 }
 
 // ── Dependency Graph view (spec §Dependency Graph + §Circular Dependency Detection) ────────────────
-function DependencyGraphView({ rows }: { rows: DependencyRecord[] }) {
-  const chain =
-    rows.length > 0
-      ? [
-          rows[0].provider,
-          rows[0].service,
-          rows[0].consumer,
-          ...rows.slice(1, 4).map((r) => r.consumer),
-        ]
-      : [
-          "Identity Workspace",
-          "Authentication",
-          "Payments Workspace",
-          "Fraud Workspace",
-          "Reporting Workspace",
-        ];
+function DependencyGraphView() {
   return (
-    <>
-      <Card
-        title="Dependency graph"
-        desc="Interactive visualization of the workspace dependency chain."
-        right={
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <SampleTag />
-          </div>
-        }
-      >
-        <div
-          style={{
-            display: "flex",
-            gap: 8,
-            flexWrap: "wrap",
-            marginBottom: 14,
-          }}
-        >
-          <HeaderButton>Expand</HeaderButton>
-          <HeaderButton>Collapse</HeaderButton>
-          <HeaderButton>Filter</HeaderButton>
-          <HeaderButton>Zoom</HeaderButton>
-          <HeaderButton icon={<AlertTriangle size={13} />}>
-            Highlight Critical Paths
-          </HeaderButton>
-          <HeaderButton icon={<PlayCircle size={13} />}>
-            Failure Simulation
-          </HeaderButton>
-        </div>
-        <FlowChain nodes={chain} />
-      </Card>
-
-      <Card
-        title="Circular dependency detection"
-        desc="Automatically scans the dependency graph for structural faults."
-        right={<SampleTag />}
-      >
-        <StatRow
-          label="Circular References"
-          value="0 detected"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Recursive Dependencies"
-          value="0 detected"
-          tone="ok"
-          sample
-        />
-        <StatRow
-          label="Invalid Relationships"
-          value="1 detected"
-          tone="warn"
-          sample
-        />
-        <StatRow label="Broken Links" value="0 detected" tone="ok" sample />
-        <StatRow
-          label="Unreachable Services"
-          value="1 detected"
-          tone="warn"
-          sample
-        />
-      </Card>
-    </>
+    <Card
+      title="Circular dependency detection"
+      desc="Automatically scans the dependency graph for structural faults."
+      right={<SampleTag />}
+    >
+      <StatRow
+        label="Circular References"
+        value="0 detected"
+        tone="ok"
+        sample
+      />
+      <StatRow
+        label="Recursive Dependencies"
+        value="0 detected"
+        tone="ok"
+        sample
+      />
+      <StatRow
+        label="Invalid Relationships"
+        value="1 detected"
+        tone="warn"
+        sample
+      />
+      <StatRow label="Broken Links" value="0 detected" tone="ok" sample />
+      <StatRow
+        label="Unreachable Services"
+        value="1 detected"
+        tone="warn"
+        sample
+      />
+    </Card>
   );
 }
 
@@ -981,16 +872,7 @@ function ImpactAnalysisView({ records }: { records: DependencyRecord[] }) {
           },
         ]}
       />
-      <div style={{ marginTop: 12 }}>
-        <FlowChain
-          nodes={[
-            "Dependency Failure",
-            "Affected Workspace",
-            "Affected Services",
-            "Business Impact",
-          ]}
-        />
-      </div>
+      <div style={{ marginTop: 12 }} />
     </Card>
   );
 }
@@ -1231,11 +1113,6 @@ function RelationshipTab({ rec }: { rec: DependencyRecord }) {
   return (
     <>
       <Tabs tabs={RELATIONSHIP_SUBS} active={sub} onChange={setSub} />
-      {sub === "how-the-dependency-is-established" && (
-        <Section title="How the dependency is established" sample>
-          <FlowChain nodes={[rec.provider, rec.service, rec.consumer]} />
-        </Section>
-      )}
 
       {sub === "relationship-details" && (
         <Section title="Relationship details" sample>
@@ -1339,19 +1216,6 @@ function ImpactTab({ rec }: { rec: DependencyRecord }) {
             value={rec.recoveryPriority}
             tone={rec.recoveryPriority === "P1" ? "danger" : "warn"}
             sample
-          />
-        </Section>
-      )}
-
-      {sub === "impact-propagation" && (
-        <Section title="Impact propagation" sample>
-          <FlowChain
-            nodes={[
-              "Dependency Failure",
-              `Affected Workspace (${rec.consumer})`,
-              "Affected Services",
-              `Business Impact (${rec.businessImpact})`,
-            ]}
           />
         </Section>
       )}

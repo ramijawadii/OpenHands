@@ -746,15 +746,6 @@ export function OrganizationHierarchyView() {
           </HeaderButton>
         }
       >
-        <FlowChain
-          steps={[
-            "Enterprise Policies",
-            "Division Policies",
-            "Business Unit Policies",
-            "Department Policies",
-            "Workspace",
-          ]}
-        />
         <div
           style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}
         >
@@ -849,50 +840,6 @@ function AsciiTree({ lines }: { lines: string[] }) {
 }
 
 /** Renders a node → node flow chain (vertical), like the reference's inheritance pipeline. */
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
 
 // ════════════ Organization Detail Drawer — 8 sub-tabs (spec §Organization Detail Drawer) ════════════
 const DRAWER_TABS = [
@@ -1058,19 +1005,7 @@ function HierarchyTab({ rec }: { rec: OrgNode }) {
   return (
     <>
       <Tabs tabs={HIERARCHY_SUBS} active={sub} onChange={setSub} />
-      {sub === "organizational-relationships" && (
-        <Section title="Organizational relationships" sample>
-          <FlowChain
-            steps={[
-              "Enterprise",
-              "Division",
-              "Business Unit",
-              "Department",
-              "Workspace",
-            ]}
-          />
-        </Section>
-      )}
+
       {sub === "relationship-detail" && (
         <Section title="Relationship detail" sample>
           <StatRow label="Parent" value={rec.parent} sample />

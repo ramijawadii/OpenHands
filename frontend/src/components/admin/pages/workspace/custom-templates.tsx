@@ -27,7 +27,6 @@ import {
   Lock,
   GitBranch,
   ArrowRight,
-  Boxes,
 } from "lucide-react";
 import {
   Page,
@@ -1159,32 +1158,9 @@ function CompositionTab({ rec }: { rec: TemplateRecord }) {
           <StatRow label="AI Profile" value={rec.aiProfile} sample />
         </Section>
       )}
-      {sub === "chain" && (
-        <Section title="Composition chain">
-          <FlowChain
-            nodes={[
-              "Enterprise Template",
-              "Environment Template",
-              "Compliance Template",
-              "Operational Template",
-              "Custom Overrides",
-              "Final Workspace Template",
-            ]}
-          />
-        </Section>
-      )}
+
       {sub === "dependency-viewer" && (
         <Section title="Dependency viewer" sample>
-          <FlowChain
-            nodes={[
-              "Enterprise Template",
-              "Environment Template",
-              "Compliance Template",
-              "Operational Template",
-              "Custom Template",
-              "Workspace",
-            ]}
-          />
           <div style={{ fontSize: 12, color: T.textMuted, paddingTop: 6 }}>
             Selecting any component displays inherited configuration and
             dependencies.
@@ -1302,15 +1278,6 @@ function OverridesTab({ rec }: { rec: TemplateRecord }) {
       />
       <DirectoryTable columns={cols} rows={rows} />
       <div style={{ height: 18 }} />
-      <Section title="Override resolution">
-        <FlowChain
-          nodes={[
-            "Inherited Configuration",
-            "Custom Override",
-            "Effective Configuration",
-          ]}
-        />
-      </Section>
     </>
   );
 }
@@ -1469,11 +1436,6 @@ function VersionHistoryTab({ rec }: { rec: TemplateRecord }) {
       <ToolbarRow buttons={["Compare", "Restore", "Export"]} sample />
       <DirectoryTable columns={cols} rows={rows} />
       <div style={{ height: 18 }} />
-      <Section title="Comparison view">
-        <FlowChain
-          nodes={["Version 1.2", "Configuration Differences", "Version 2.0"]}
-        />
-      </Section>
     </>
   );
 }
@@ -1591,45 +1553,6 @@ function AuditTab() {
         />
       ))}
     </>
-  );
-}
-
-// ── Shared: vertical flow-chain visualization (composition / dependency / comparison) ──
-function FlowChain({ nodes }: { nodes: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {nodes.map((label, i) => (
-        <React.Fragment key={label}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              color: i === nodes.length - 1 ? T.textPrimary : T.textNav,
-              fontWeight: i === nodes.length - 1 ? 600 : 400,
-              background:
-                i === nodes.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <Boxes size={13} color={T.textMuted} />
-            {label}
-          </div>
-          {i < nodes.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }
 

@@ -769,29 +769,6 @@ export function LifecycleArchivedView() {
           gap: 18,
         }}
       >
-        <Card
-          title="Lifecycle flow"
-          desc="How a workspace reaches — and leaves — the Archived state."
-        >
-          <LifecycleFlow />
-        </Card>
-
-        <Card
-          title="Restoration workflow"
-          desc="Stages an archived workspace passes through when restored."
-        >
-          <FlowChain
-            steps={[
-              "Archived",
-              "Restore Request",
-              "Validation",
-              "Approval",
-              "Provisioning",
-              "Active",
-            ]}
-          />
-        </Card>
-
         <Card title="Archive types" desc="Supported archive classifications.">
           <ChipList items={ARCHIVE_TYPES} />
         </Card>
@@ -951,102 +928,6 @@ export function LifecycleArchivedPage() {
       />
       <LifecycleArchivedView />
     </Page>
-  );
-}
-
-// ════════════ Reusable flow / chip / behavior helpers ════════════
-
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-// Active → Archive Request → Approval → Archive → Retention → { Restore→Active | Delete→Deleted }
-function LifecycleFlow() {
-  const node = (label: string, tone?: string) => (
-    <div
-      style={{
-        border: `1px solid ${T.border}`,
-        borderRadius: 8,
-        padding: "8px 12px",
-        fontSize: 12.5,
-        color: tone ?? T.textNav,
-        textAlign: "center",
-      }}
-    >
-      {label}
-    </div>
-  );
-  const arrow = (
-    <span style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}>
-      ↓
-    </span>
-  );
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {node("Active")}
-      {arrow}
-      {node("Archive Request")}
-      {arrow}
-      {node("Approval")}
-      {arrow}
-      {node("Archive", T.accent)}
-      {arrow}
-      {node("Retention")}
-      {arrow}
-      <div style={{ display: "flex", gap: 12 }}>
-        <div
-          style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}
-        >
-          {node("Restore", T.success)}
-          {arrow}
-          {node("Active", T.success)}
-        </div>
-        <div
-          style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}
-        >
-          {node("Delete", T.danger)}
-          {arrow}
-          {node("Deleted", T.danger)}
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1567,21 +1448,6 @@ function RestorationTab({ rec }: { rec: ArchiveRecord }) {
           {RESTORE_OPTIONS.map((o) => (
             <StatRow key={o} label={o} value="Available" tone="ok" sample />
           ))}
-        </Section>
-      )}
-
-      {sub === "restoration-workflow" && (
-        <Section title="Restoration workflow">
-          <FlowChain
-            steps={[
-              "Archived",
-              "Restore Request",
-              "Validation",
-              "Approval",
-              "Provisioning",
-              "Active",
-            ]}
-          />
         </Section>
       )}
     </>

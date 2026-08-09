@@ -648,51 +648,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 // ════════════ Assignment Detail Drawer — 9 sub-tabs (spec §Assignment Detail Drawer) ════════════
 const DRAWER_TABS = [
   { id: "overview", label: "Overview", icon: <LayoutGrid size={13} /> },
@@ -844,14 +799,9 @@ function ScopeTab({ rec }: { rec: Assignment }) {
     },
   ];
   return (
-    <>
-      <Section title="Assignment hierarchy" sample>
-        <FlowChain steps={["Organization", "Business Unit", "Workspace"]} />
-      </Section>
-      <Section title="Supported scopes" sample>
-        <DirectoryTable columns={cols} rows={list} />
-      </Section>
-    </>
+    <Section title="Supported scopes" sample>
+      <DirectoryTable columns={cols} rows={list} />
+    </Section>
   );
 }
 
@@ -925,9 +875,7 @@ function InheritanceTab() {
         <HeaderButton>Collapse</HeaderButton>
         <SampleTag />
       </div>
-      <Section title="Inheritance visualization" sample>
-        <FlowChain steps={["Organization", "Business Unit", "Workspace"]} />
-      </Section>
+
       <Section title="Inheritance detail" sample>
         <StatRow
           label="Inherited Policies"
@@ -977,22 +925,9 @@ function EffectiveTab({ rec }: { rec: Assignment }) {
     { key: "effective", header: "Effective", render: (r) => r.effective },
   ];
   return (
-    <>
-      <Section title="Effective policy resolution" sample>
-        <FlowChain
-          steps={[
-            "Assigned Policies",
-            "Inherited Policies",
-            "Overrides",
-            "Exceptions",
-            "Effective Policy Set",
-          ]}
-        />
-      </Section>
-      <Section title="Final policy set enforced within the workspace" sample>
-        <DirectoryTable columns={cols} rows={list} />
-      </Section>
-    </>
+    <Section title="Final policy set enforced within the workspace" sample>
+      <DirectoryTable columns={cols} rows={list} />
+    </Section>
   );
 }
 
@@ -1013,17 +948,7 @@ function ConflictsTab({ rec }: { rec: Assignment }) {
         <HeaderButton icon={<Download size={13} />}>Export</HeaderButton>
         <SampleTag />
       </div>
-      <Section title="Resolution order (precedence)" sample>
-        <FlowChain
-          steps={[
-            "Locked Policy",
-            "Organization",
-            "Business Unit",
-            "Workspace",
-            "Exception",
-          ]}
-        />
-      </Section>
+
       <Section title="Conflicting policies" sample>
         {rec.conflicts === 0 ? (
           <StatRow

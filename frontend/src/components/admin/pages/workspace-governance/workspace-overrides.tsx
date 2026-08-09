@@ -719,51 +719,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 // ════════════ Override Detail Drawer — 9 sub-tabs (spec §Override Detail Drawer) ════════════
 const DRAWER_TABS = [
   { id: "overview", label: "Overview", icon: <LayoutGrid size={13} /> },
@@ -1002,23 +957,9 @@ function EffectiveTab({ rec }: { rec: Override }) {
     },
   ];
   return (
-    <>
-      <Section
-        title="Effective configuration after applying the override"
-        sample
-      >
-        <FlowChain
-          steps={[
-            "Inherited Configuration",
-            "Workspace Override",
-            "Effective Configuration",
-          ]}
-        />
-      </Section>
-      <Section title="Resulting values" sample>
-        <DirectoryTable columns={cols} rows={list} />
-      </Section>
-    </>
+    <Section title="Resulting values" sample>
+      <DirectoryTable columns={cols} rows={list} />
+    </Section>
   );
 }
 

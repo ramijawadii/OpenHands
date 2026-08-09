@@ -623,39 +623,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 function MiniTable<R extends { id: string }>({
   rows,
   cols,
@@ -798,36 +765,25 @@ function OverviewTab({ rec }: { rec: Account }) {
 
 function OrganizationTab({ rec }: { rec: Account }) {
   return (
-    <>
-      <Section title="AWS Organizations hierarchy" sample>
-        <FlowChain
-          steps={[
-            "AWS Organization (o-contoso)",
-            `Organizational Unit — ${rec.businessUnit}`,
-            `AWS Account — ${rec.accountId}`,
-          ]}
-        />
-      </Section>
-      <Section title="Organization detail" sample>
-        <KVGrid
-          items={[
-            { k: "Organization", v: "o-contoso", sample: true },
-            {
-              k: "Organizational Unit",
-              v: `OU-${rec.businessUnit}`,
-              sample: true,
-            },
-            { k: "Management Account", v: "111122223333", sample: true },
-            {
-              k: "Inherited SCPs",
-              v: "3 service control policies",
-              sample: true,
-            },
-            { k: "Account Tags", v: "cost-center, owner, env", sample: true },
-          ]}
-        />
-      </Section>
-    </>
+    <Section title="Organization detail" sample>
+      <KVGrid
+        items={[
+          { k: "Organization", v: "o-contoso", sample: true },
+          {
+            k: "Organizational Unit",
+            v: `OU-${rec.businessUnit}`,
+            sample: true,
+          },
+          { k: "Management Account", v: "111122223333", sample: true },
+          {
+            k: "Inherited SCPs",
+            v: "3 service control policies",
+            sample: true,
+          },
+          { k: "Account Tags", v: "cost-center, owner, env", sample: true },
+        ]}
+      />
+    </Section>
   );
 }
 
@@ -1039,40 +995,28 @@ function IamTab() {
 
 function NetworkingTab({ rec }: { rec: Account }) {
   return (
-    <>
-      <Section title="Network topology" sample>
-        <FlowChain
-          steps={[
-            `AWS Account — ${rec.accountId}`,
-            `Regions (${rec.regionCount})`,
-            "VPCs",
-            "Subnets",
-          ]}
-        />
-      </Section>
-      <Section title="Networking detail" sample>
-        <KVGrid
-          items={[
-            { k: "Regions", v: rec.regionCount, sample: true },
-            { k: "Availability Zones", v: rec.regionCount * 3, sample: true },
-            { k: "VPCs", v: 1 + (hashId(rec.id) % 6), sample: true },
-            { k: "Transit Gateway", v: "Attached", sample: true },
-            {
-              k: "VPN",
-              v: hashId(rec.id) % 2 ? "Site-to-Site" : "None",
-              sample: true,
-            },
-            {
-              k: "Direct Connect",
-              v: hashId(rec.id) % 3 ? "Provisioned" : "None",
-              sample: true,
-            },
-            { k: "PrivateLink", v: "Enabled", sample: true },
-            { k: "Route Tables", v: 4 + (hashId(rec.id) % 12), sample: true },
-          ]}
-        />
-      </Section>
-    </>
+    <Section title="Networking detail" sample>
+      <KVGrid
+        items={[
+          { k: "Regions", v: rec.regionCount, sample: true },
+          { k: "Availability Zones", v: rec.regionCount * 3, sample: true },
+          { k: "VPCs", v: 1 + (hashId(rec.id) % 6), sample: true },
+          { k: "Transit Gateway", v: "Attached", sample: true },
+          {
+            k: "VPN",
+            v: hashId(rec.id) % 2 ? "Site-to-Site" : "None",
+            sample: true,
+          },
+          {
+            k: "Direct Connect",
+            v: hashId(rec.id) % 3 ? "Provisioned" : "None",
+            sample: true,
+          },
+          { k: "PrivateLink", v: "Enabled", sample: true },
+          { k: "Route Tables", v: 4 + (hashId(rec.id) % 12), sample: true },
+        ]}
+      />
+    </Section>
   );
 }
 

@@ -611,39 +611,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 function MiniTable<R extends { id: string }>({
   rows,
   cols,
@@ -792,32 +759,21 @@ function OverviewTab({ rec }: { rec: Project }) {
 
 function OrganizationTab({ rec }: { rec: Project }) {
   return (
-    <>
-      <Section title="Resource Manager hierarchy" sample>
-        <FlowChain
-          steps={[
-            "Organization (contoso.com)",
-            `Folder — folders/${rec.businessUnit}`,
-            `Project — ${rec.projectId}`,
-          ]}
-        />
-      </Section>
-      <Section title="Organization detail" sample>
-        <KVGrid
-          items={[
-            { k: "Organization", v: "contoso.com", sample: true },
-            { k: "Folder", v: `folders/${rec.businessUnit}`, sample: true },
-            { k: "Billing Account", v: "01A2B3-4C5D6E-7F8G9H", sample: true },
-            {
-              k: "Organization Policies",
-              v: "6 org-policy constraints",
-              sample: true,
-            },
-            { k: "Labels", v: "cost-center, owner, env", sample: true },
-          ]}
-        />
-      </Section>
-    </>
+    <Section title="Organization detail" sample>
+      <KVGrid
+        items={[
+          { k: "Organization", v: "contoso.com", sample: true },
+          { k: "Folder", v: `folders/${rec.businessUnit}`, sample: true },
+          { k: "Billing Account", v: "01A2B3-4C5D6E-7F8G9H", sample: true },
+          {
+            k: "Organization Policies",
+            v: "6 org-policy constraints",
+            sample: true,
+          },
+          { k: "Labels", v: "cost-center, owner, env", sample: true },
+        ]}
+      />
+    </Section>
   );
 }
 
@@ -1024,39 +980,32 @@ function IamTab() {
 
 function NetworkingTab({ rec }: { rec: Project }) {
   return (
-    <>
-      <Section title="Network topology" sample>
-        <FlowChain
-          steps={[`Project — ${rec.projectId}`, "VPC", "Subnets", "Resources"]}
-        />
-      </Section>
-      <Section title="Networking detail" sample>
-        <KVGrid
-          items={[
-            { k: "Regions", v: rec.regionCount, sample: true },
-            { k: "Zones", v: rec.regionCount * 3, sample: true },
-            { k: "VPC Networks", v: 1 + (hashId(rec.id) % 5), sample: true },
-            { k: "Subnets", v: 4 + (hashId(rec.id) % 20), sample: true },
-            { k: "Firewall Rules", v: 8 + (hashId(rec.id) % 30), sample: true },
-            {
-              k: "Cloud NAT",
-              v: hashId(rec.id) % 2 ? "Enabled" : "None",
-              sample: true,
-            },
-            {
-              k: "VPN",
-              v: hashId(rec.id) % 2 ? "HA VPN" : "None",
-              sample: true,
-            },
-            {
-              k: "Interconnect",
-              v: hashId(rec.id) % 3 ? "Dedicated" : "None",
-              sample: true,
-            },
-          ]}
-        />
-      </Section>
-    </>
+    <Section title="Networking detail" sample>
+      <KVGrid
+        items={[
+          { k: "Regions", v: rec.regionCount, sample: true },
+          { k: "Zones", v: rec.regionCount * 3, sample: true },
+          { k: "VPC Networks", v: 1 + (hashId(rec.id) % 5), sample: true },
+          { k: "Subnets", v: 4 + (hashId(rec.id) % 20), sample: true },
+          { k: "Firewall Rules", v: 8 + (hashId(rec.id) % 30), sample: true },
+          {
+            k: "Cloud NAT",
+            v: hashId(rec.id) % 2 ? "Enabled" : "None",
+            sample: true,
+          },
+          {
+            k: "VPN",
+            v: hashId(rec.id) % 2 ? "HA VPN" : "None",
+            sample: true,
+          },
+          {
+            k: "Interconnect",
+            v: hashId(rec.id) % 3 ? "Dedicated" : "None",
+            sample: true,
+          },
+        ]}
+      />
+    </Section>
   );
 }
 

@@ -548,15 +548,6 @@ function InheritancePreview() {
         </div>
       }
     >
-      <FlowChain
-        steps={[
-          "Organization Defaults",
-          "Business Unit",
-          "Workspace Template",
-          "Workspace",
-          "Effective Configuration",
-        ]}
-      />
       <div style={{ marginTop: 12 }}>
         <StatRow
           label="Inherited Settings"
@@ -715,51 +706,5 @@ function VersionHistory() {
         <DirectoryTable columns={cols} rows={versions} />
       )}
     </Card>
-  );
-}
-
-// ── shared flow-chain visual ──
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }

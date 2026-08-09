@@ -33,7 +33,6 @@ import {
   Page,
   Tabs,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
   HeaderButton,
@@ -743,7 +742,6 @@ export function LifecycleMaintenanceView() {
       />
 
       {/* spec § Lifecycle Flow — ASCII node→node flow-chain (no graph library) */}
-      <LifecycleFlowCard />
 
       {sel && (
         <MaintenanceDetailDrawer rec={sel} onClose={() => setSelId(null)} />
@@ -775,112 +773,6 @@ export function LifecycleMaintenancePage() {
       />
       <LifecycleMaintenanceView />
     </Page>
-  );
-}
-
-// ── Lifecycle Flow (spec § Lifecycle Flow) — happy path + failure/rollback + critical-issue branches ──
-function FlowChain({ nodes, tone }: { nodes: string[]; tone: string }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      {nodes.map((node, i) => (
-        <React.Fragment key={node}>
-          <span
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "7px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background: "var(--cg-bg-badge)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {node}
-          </span>
-          {i < nodes.length - 1 && (
-            <span style={{ color: tone, fontSize: 14 }}>→</span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
-function LifecycleFlowCard() {
-  return (
-    <Card
-      title="Lifecycle flow"
-      desc="How a workspace transitions through maintenance and returns to Active."
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              marginBottom: 8,
-            }}
-          >
-            Standard path
-          </div>
-          <FlowChain
-            tone={T.success}
-            nodes={[
-              "Active",
-              "Maintenance Scheduled",
-              "Maintenance Mode",
-              "Change Execution",
-              "Validation",
-              "Maintenance Complete",
-              "Active",
-            ]}
-          />
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              marginBottom: 8,
-            }}
-          >
-            If maintenance fails — rollback path
-          </div>
-          <FlowChain
-            tone={T.warning}
-            nodes={["Maintenance", "Rollback", "Validation", "Active"]}
-          />
-        </div>
-        <div>
-          <div
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: T.textMuted,
-              textTransform: "uppercase",
-              letterSpacing: "0.03em",
-              marginBottom: 8,
-            }}
-          >
-            If a critical issue is discovered
-          </div>
-          <FlowChain tone={T.danger} nodes={["Maintenance", "Suspended"]} />
-        </div>
-      </div>
-    </Card>
   );
 }
 

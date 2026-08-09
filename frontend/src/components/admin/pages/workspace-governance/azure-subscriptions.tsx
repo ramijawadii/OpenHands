@@ -624,39 +624,6 @@ function Section({
   );
 }
 
-function FlowChain({ steps }: { steps: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {steps.map((s, i) => (
-        <React.Fragment key={s}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background:
-                i === steps.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            {s}
-          </div>
-          {i < steps.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 function MiniTable<R extends { id: string }>({
   rows,
   cols,
@@ -806,37 +773,26 @@ function OverviewTab({ rec }: { rec: Sub }) {
 
 function ManagementTab({ rec }: { rec: Sub }) {
   return (
-    <>
-      <Section title="Management Group hierarchy" sample>
-        <FlowChain
-          steps={[
-            "Microsoft Entra Tenant (contoso)",
-            `Management Group — MG-${rec.businessUnit}`,
-            `Subscription — ${rec.name}`,
-          ]}
-        />
-      </Section>
-      <Section title="Management group detail" sample>
-        <KVGrid
-          items={[
-            { k: "Tenant", v: "contoso.onmicrosoft.com", sample: true },
-            {
-              k: "Management Group",
-              v: `MG-${rec.businessUnit}`,
-              sample: true,
-            },
-            { k: "Parent Group", v: "MG-Root", sample: true },
-            {
-              k: "Inherited Policies",
-              v: "5 Azure Policy assignments",
-              sample: true,
-            },
-            { k: "Inherited RBAC", v: "3 role assignments", sample: true },
-            { k: "Tags", v: "cost-center, owner, env", sample: true },
-          ]}
-        />
-      </Section>
-    </>
+    <Section title="Management group detail" sample>
+      <KVGrid
+        items={[
+          { k: "Tenant", v: "contoso.onmicrosoft.com", sample: true },
+          {
+            k: "Management Group",
+            v: `MG-${rec.businessUnit}`,
+            sample: true,
+          },
+          { k: "Parent Group", v: "MG-Root", sample: true },
+          {
+            k: "Inherited Policies",
+            v: "5 Azure Policy assignments",
+            sample: true,
+          },
+          { k: "Inherited RBAC", v: "3 role assignments", sample: true },
+          { k: "Tags", v: "cost-center, owner, env", sample: true },
+        ]}
+      />
+    </Section>
   );
 }
 
@@ -1047,40 +1003,28 @@ function IdentityTab() {
 
 function NetworkingTab({ rec }: { rec: Sub }) {
   return (
-    <>
-      <Section title="Network topology" sample>
-        <FlowChain
-          steps={[
-            `Subscription — ${rec.name}`,
-            "Resource Groups",
-            "Virtual Networks",
-            "Resources",
-          ]}
-        />
-      </Section>
-      <Section title="Networking detail" sample>
-        <KVGrid
-          items={[
-            { k: "Regions", v: rec.regionCount, sample: true },
-            { k: "Availability Zones", v: rec.regionCount * 3, sample: true },
-            { k: "VNets", v: 1 + (hashId(rec.id) % 6), sample: true },
-            { k: "Subnets", v: 4 + (hashId(rec.id) % 20), sample: true },
-            { k: "Private Endpoints", v: hashId(rec.id) % 12, sample: true },
-            {
-              k: "ExpressRoute",
-              v: hashId(rec.id) % 3 ? "Provisioned" : "None",
-              sample: true,
-            },
-            {
-              k: "VPN",
-              v: hashId(rec.id) % 2 ? "Site-to-Site" : "None",
-              sample: true,
-            },
-            { k: "DNS Zones", v: 1 + (hashId(rec.id) % 4), sample: true },
-          ]}
-        />
-      </Section>
-    </>
+    <Section title="Networking detail" sample>
+      <KVGrid
+        items={[
+          { k: "Regions", v: rec.regionCount, sample: true },
+          { k: "Availability Zones", v: rec.regionCount * 3, sample: true },
+          { k: "VNets", v: 1 + (hashId(rec.id) % 6), sample: true },
+          { k: "Subnets", v: 4 + (hashId(rec.id) % 20), sample: true },
+          { k: "Private Endpoints", v: hashId(rec.id) % 12, sample: true },
+          {
+            k: "ExpressRoute",
+            v: hashId(rec.id) % 3 ? "Provisioned" : "None",
+            sample: true,
+          },
+          {
+            k: "VPN",
+            v: hashId(rec.id) % 2 ? "Site-to-Site" : "None",
+            sample: true,
+          },
+          { k: "DNS Zones", v: 1 + (hashId(rec.id) % 4), sample: true },
+        ]}
+      />
+    </Section>
   );
 }
 

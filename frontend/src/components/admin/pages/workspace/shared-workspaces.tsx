@@ -765,29 +765,6 @@ export function SharedWorkspacesPage() {
   );
 }
 
-// ── Shared visualization block — renders the spec's ASCII trust/dependency diagrams ────────────────
-function Viz({ lines }: { lines: string[] }) {
-  return (
-    <pre
-      style={{
-        margin: 0,
-        padding: "14px 16px",
-        border: `1px solid ${T.border}`,
-        borderRadius: 8,
-        background: "var(--cg-accent-bg-strong)",
-        color: T.textNav,
-        fontFamily: "monospace",
-        fontSize: 12,
-        lineHeight: 1.6,
-        overflowX: "auto",
-        whiteSpace: "pre",
-      }}
-    >
-      {lines.join("\n")}
-    </pre>
-  );
-}
-
 // ════════════ Shared Workspace Detail Drawer — 9 sub-tabs (spec §Shared Workspace Detail Drawer) ════
 const DRAWER_TABS = [
   { id: "overview", label: "Overview", icon: <LayoutGrid size={13} /> },
@@ -1131,19 +1108,6 @@ function ConnectedWorkspacesTab({ rec }: { rec: SharedWsRecord }) {
         sample
       />
       <DirectoryTable columns={cols} rows={rows} pageSize={8} />
-      <Section title="Connectivity">
-        <Viz
-          lines={[
-            "Shared Workspace",
-            "        │",
-            " ├──────────────┐",
-            " │              │",
-            "Workspace A   Workspace B",
-            " │              │",
-            "Workspace C   Workspace D",
-          ]}
-        />
-      </Section>
     </>
   );
 }
@@ -1194,19 +1158,6 @@ function TrustRelationshipsTab({ rec }: { rec: SharedWsRecord }) {
         sample
       />
       <DirectoryTable columns={cols} rows={rows} pageSize={8} />
-      <Section title="Trust flow">
-        <Viz
-          lines={[
-            "Workspace A",
-            "      │",
-            "      ▼",
-            "Trust Policy",
-            "      │",
-            "      ▼",
-            "Shared Workspace",
-          ]}
-        />
-      </Section>
     </>
   );
 }
@@ -1334,19 +1285,6 @@ function GovernanceTab({ rec }: { rec: SharedWsRecord }) {
           />
           <StatRow label="Capacity Limits" value="Standard tier" sample />
           <StatRow label="Approval Policies" value="2-of-3 approvers" sample />
-        </Section>
-      )}
-      {sub === "inheritance" && (
-        <Section title="Policy inheritance">
-          <Viz
-            lines={[
-              "Organization Policy",
-              "        │",
-              "Shared Workspace Policy",
-              "        │",
-              "Effective Configuration",
-            ]}
-          />
         </Section>
       )}
     </>

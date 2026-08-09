@@ -694,33 +694,7 @@ export function OperationalTemplatesView() {
             gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: 20,
           }}
-        >
-          <FlowChain
-            title="Operational Coverage"
-            nodes={[
-              "Provisioning",
-              "Automation",
-              "Monitoring",
-              "Operations",
-              "Maintenance",
-              "Backup",
-              "Recovery",
-            ]}
-            highlightLast={false}
-          />
-          <FlowChain
-            title="Template Relationships"
-            nodes={[
-              "Organization Policies",
-              "Enterprise Template",
-              "Environment Template",
-              "Compliance Template",
-              "Operational Template",
-              "Workspace",
-            ]}
-            highlight="Operational Template"
-          />
-        </div>
+        />
       </Card>
 
       {sel && (
@@ -1016,73 +990,6 @@ function ConfigList({ items }: { items: { label: string; value: string }[] }) {
   );
 }
 
-// ── Vertical flow chain visualization (Provision → Operate → …) ──
-function FlowChain({
-  title,
-  nodes,
-  highlight,
-  highlightLast = true,
-}: {
-  title: string;
-  nodes: string[];
-  highlight?: string;
-  highlightLast?: boolean;
-}) {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: T.textMuted,
-          textTransform: "uppercase",
-          letterSpacing: "0.03em",
-          marginBottom: 10,
-        }}
-      >
-        {title}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {nodes.map((label, i) => {
-          const isHi = highlight
-            ? label === highlight
-            : highlightLast && i === nodes.length - 1;
-          return (
-            <React.Fragment key={label}>
-              <div
-                style={{
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  padding: "9px 12px",
-                  fontSize: 12.5,
-                  color: isHi ? T.textPrimary : T.textNav,
-                  fontWeight: isHi ? 600 : 400,
-                  background: isHi
-                    ? "var(--cg-accent-bg-strong)"
-                    : "transparent",
-                }}
-              >
-                {label}
-              </div>
-              {i < nodes.length - 1 && (
-                <span
-                  style={{
-                    color: T.textMuted,
-                    textAlign: "center",
-                    fontSize: 12,
-                  }}
-                >
-                  ↓
-                </span>
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Overview (General · Statistics) ──
 const OVERVIEW_SUBS = [
   { id: "general", label: "General" },
@@ -1348,15 +1255,6 @@ function LifecycleTab({ rec }: { rec: TemplateRecord }) {
                 value: "Orphaned resources · daily",
               },
             ]}
-          />
-        </Section>
-      )}
-      {sub === "lifecycle-stages" && (
-        <Section title="Lifecycle stages">
-          <FlowChain
-            title="Workspace lifecycle"
-            nodes={["Provision", "Operate", "Maintenance", "Archive", "Delete"]}
-            highlightLast={false}
           />
         </Section>
       )}

@@ -359,43 +359,6 @@ function StatusBadge({ status }: { status: Status }) {
   );
 }
 
-// ── AsciiFlow — node→node vertical flow inside a Card (NO graph library, spec §Dependency Graph) ────
-function AsciiFlow({ nodes }: { nodes: string[] }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        alignItems: "center",
-      }}
-    >
-      {nodes.map((node, i) => (
-        <React.Fragment key={node}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 16px",
-              fontSize: 12.5,
-              color: T.textNav,
-              background: "var(--cg-bg-badge)",
-              fontFamily: "monospace",
-              minWidth: 220,
-              textAlign: "center",
-            }}
-          >
-            {node}
-          </div>
-          {i < nodes.length - 1 && (
-            <span style={{ color: T.textMuted, fontSize: 13 }}>│</span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-}
-
 // ── Bar — tiny inline usage bar for capacity / chart rows (styled div, no chart lib) ───────────────
 function Bar({ pct, tone }: { pct: number; tone?: string }) {
   const c = tone ?? T.accent;
@@ -1250,18 +1213,7 @@ function DependenciesTab({ rec }: { rec: ServiceRecord }) {
   return (
     <>
       <Tabs tabs={DEPENDENCIES_SUBS} active={sub} onChange={setSub} />
-      {sub === "upstream-downstream-relationships" && (
-        <Section title="Upstream ↓ downstream relationships" sample>
-          <AsciiFlow
-            nodes={[
-              "Identity Service",
-              "Logging Service",
-              "Platform Service",
-              "Business Workspace",
-            ]}
-          />
-        </Section>
-      )}
+
       {sub === "relationship-summary" && (
         <Section title="Relationship summary" sample>
           <StatRow

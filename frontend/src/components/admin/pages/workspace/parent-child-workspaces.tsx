@@ -88,7 +88,6 @@ const VIEWS = [
   { id: "orphans", label: "Orphan Workspaces" },
   { id: "cross", label: "Cross-Hierarchy Links" },
   { id: "inheritance", label: "Inheritance Policies" },
-  { id: "graph", label: "Dependency Graph" },
   { id: "history", label: "Relationship History" },
 ];
 
@@ -612,14 +611,12 @@ export function ParentChildWorkspacesView() {
       />
 
       {/* View-specific surfaces */}
-      {view === "graph" && <DependencyGraphCard />}
       {view === "history" && <RelationshipHistoryCard records={records} />}
 
       {/* Hierarchy validation (spec §Hierarchy Validation) */}
       <HierarchyValidationCard />
 
       {/* Enterprise relationship model (spec §Enterprise Relationship Model) */}
-      <RelationshipModelCard />
 
       {sel && (
         <RelationshipDetailDrawer rec={sel} onClose={() => setSelId(null)} />
@@ -742,47 +739,6 @@ function HierarchyTreeCard() {
   );
 }
 
-// ════════════ Dependency Graph (spec §Dependency Graph) ════════════
-const GRAPH_SUPPORTS = [
-  "Zoom",
-  "Filter",
-  "Highlight Critical Paths",
-  "Show Cycles",
-];
-function DependencyGraphCard() {
-  const nodes = [
-    "Workspace",
-    "Depends On",
-    "Shared Service",
-    "Another Workspace",
-  ];
-  return (
-    <Card
-      title="Dependency graph"
-      desc="Interactive visualization of operational dependencies between workspaces."
-      right={<SampleTag />}
-    >
-      <FlowChain nodes={nodes} />
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 }}>
-        {GRAPH_SUPPORTS.map((s) => (
-          <span
-            key={s}
-            style={{
-              fontSize: 11,
-              color: T.textMuted,
-              border: `1px solid ${T.border}`,
-              borderRadius: 6,
-              padding: "3px 8px",
-            }}
-          >
-            {s}
-          </span>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
 // ════════════ Relationship History (spec §Relationship History / Audit) ════════════
 const HISTORY_EVENTS = [
   "Relationship Created",
@@ -859,70 +815,6 @@ function HierarchyValidationCard() {
         );
       })}
     </Card>
-  );
-}
-
-// ════════════ Enterprise Relationship Model (spec §Enterprise Relationship Model) ════════════
-function RelationshipModelCard() {
-  return (
-    <Card
-      title="Enterprise relationship model"
-      desc="Unlike the Organization Hierarchy (who owns a workspace), Parent / Child Workspaces define how workspaces are operationally related — inheritance, shared governance, lifecycle coordination — while preserving isolation."
-    >
-      <FlowChain
-        nodes={[
-          "Organization Hierarchy",
-          "Parent Workspace",
-          "Child Workspace",
-          "Inherited Policies",
-          "Shared Resources",
-          "Workspace Operations",
-        ]}
-      />
-    </Card>
-  );
-}
-
-// A reusable vertical node → node flow (ASCII-style), no graph library.
-function FlowChain({ nodes }: { nodes: string[] }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {nodes.map((node, i) => (
-        <React.Fragment key={node}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: T.textNav,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              background: "var(--cg-input-bg)",
-            }}
-          >
-            <span
-              style={{
-                color: T.textMuted,
-                fontFamily: "monospace",
-                fontSize: 11,
-              }}
-            >
-              {(i + 1).toString().padStart(2, "0")}
-            </span>
-            {node}
-          </div>
-          {i < nodes.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }
 
@@ -1079,19 +971,10 @@ const HIERARCHY_SUBS = [
 ];
 function HierarchyTab({ rec }: { rec: RelationshipRecord }) {
   const [sub, setSub] = React.useState("workspace-hierarchy");
-  const parentNode = rec.parent === "—" ? rec.workspace : rec.parent;
-  const nodes =
-    rec.parent === "—"
-      ? [rec.workspace, "Child Workspace", "Grandchild Workspace"]
-      : [parentNode, rec.workspace, "Child Workspace"];
   return (
     <>
       <Tabs tabs={HIERARCHY_SUBS} active={sub} onChange={setSub} />
-      {sub === "workspace-hierarchy" && (
-        <Section title="Workspace hierarchy" sample>
-          <FlowChain nodes={nodes} />
-        </Section>
-      )}
+
       {sub === "positioning" && (
         <Section title="Positioning">
           <KVGrid
@@ -1161,19 +1044,6 @@ function InheritanceTab({ rec }: { rec: RelationshipRecord }) {
               />
             );
           })}
-        </Section>
-      )}
-
-      {sub === "resolution" && (
-        <Section title="Resolution" sample>
-          <FlowChain
-            nodes={[
-              "Parent Workspace",
-              "Inherited Configuration",
-              "Workspace Override",
-              "Effective Configuration",
-            ]}
-          />
         </Section>
       )}
 
@@ -1278,13 +1148,6 @@ function DependenciesTab({ rec }: { rec: RelationshipRecord }) {
                 sample: true,
               },
             ]}
-          />
-        </Section>
-      )}
-      {sub === "dependency-chain" && (
-        <Section title="Dependency chain" sample>
-          <FlowChain
-            nodes={["Parent Workspace", "Shared Service", "Child Workspace"]}
           />
         </Section>
       )}

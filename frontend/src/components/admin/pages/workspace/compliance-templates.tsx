@@ -744,40 +744,8 @@ export function ComplianceTemplatesView() {
       )}
 
       {/* ── Compliance Coverage Matrix (spec §Compliance Coverage Matrix) ── */}
-      <Card
-        title="Compliance coverage matrix"
-        desc="Understand complete compliance coverage — regulation through report — before assigning a template."
-      >
-        <FlowChain
-          nodes={[
-            "Regulation",
-            "Framework",
-            "Control",
-            "Policy",
-            "Assessment",
-            "Evidence",
-            "Report",
-          ]}
-          sample
-        />
-      </Card>
 
       {/* ── Template Relationships (spec §Template Relationships) ── */}
-      <Card
-        title="Template relationships"
-        desc="Compliance Templates establish the compliance baseline inherited by workspaces while allowing additional framework assignments or workspace-specific exceptions per organizational governance."
-      >
-        <FlowChain
-          nodes={[
-            "Organization Compliance Center",
-            "Compliance Template",
-            "Enterprise Template",
-            "Environment Template",
-            "Workspace",
-            "Compliance Assessments",
-          ]}
-        />
-      </Card>
 
       {sel && <TemplateDetailDrawer rec={sel} onClose={() => setSelId(null)} />}
     </>
@@ -807,46 +775,6 @@ export function ComplianceTemplatesPage() {
       />
       <ComplianceTemplatesView />
     </Page>
-  );
-}
-
-// ── Vertical flow-chain (coverage matrix, relationships, comparison) ──
-function FlowChain({ nodes, sample }: { nodes: string[]; sample?: boolean }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {sample && (
-        <div style={{ marginBottom: 2 }}>
-          <SampleTag />
-        </div>
-      )}
-      {nodes.map((label, i) => (
-        <React.Fragment key={label}>
-          <div
-            style={{
-              border: `1px solid ${T.border}`,
-              borderRadius: 8,
-              padding: "9px 12px",
-              fontSize: 12.5,
-              color: i === nodes.length - 1 ? T.textPrimary : T.textNav,
-              fontWeight: i === nodes.length - 1 ? 600 : 400,
-              background:
-                i === nodes.length - 1
-                  ? "var(--cg-accent-bg-strong)"
-                  : "transparent",
-            }}
-          >
-            {label}
-          </div>
-          {i < nodes.length - 1 && (
-            <span
-              style={{ color: T.textMuted, textAlign: "center", fontSize: 12 }}
-            >
-              ↓
-            </span>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
   );
 }
 
@@ -1278,11 +1206,6 @@ function MappingTab({ rec }: { rec: TemplateRecord }) {
         Regulatory obligations mapped to security frameworks <SampleTag />
       </div>
       <DirectoryTable columns={cols} rows={rows} />
-      <Section title="Example mapping" sample>
-        <FlowChain
-          nodes={["ISO 27001", "Annex A", "114 Controls", "100% Coverage"]}
-        />
-      </Section>
     </>
   );
 }
@@ -1366,18 +1289,6 @@ function AssessmentTab({ rec }: { rec: TemplateRecord }) {
             sample
           />
           <StatRow label="Exceptions" value={`${n % 5} active`} sample />
-        </Section>
-      )}
-      {sub === "assessment-cadence" && (
-        <Section title="Assessment cadence" sample>
-          <FlowChain
-            nodes={[
-              "Continuous Assessment",
-              "Weekly Validation",
-              "Quarterly Audit",
-              "Annual Certification",
-            ]}
-          />
         </Section>
       )}
     </>
@@ -1541,18 +1452,6 @@ function AutomationTab({ rec }: { rec: TemplateRecord }) {
           />
         </Section>
       )}
-      {sub === "active-automations" && (
-        <Section title="Active automations" sample>
-          <FlowChain
-            nodes={[
-              "Daily Compliance Scan",
-              "Automatic Ticket Creation",
-              "Weekly Executive Report",
-              "Continuous Evidence Collection",
-            ]}
-          />
-        </Section>
-      )}
     </>
   );
 }
@@ -1603,15 +1502,6 @@ function VersionHistoryTab({ rec }: { rec: TemplateRecord }) {
     <>
       <ToolbarRow buttons={["Compare", "Restore", "Export"]} sample />
       <DirectoryTable columns={cols} rows={rows} />
-      <Section title="Comparison view" sample>
-        <FlowChain
-          nodes={[
-            `Version ${major - 1}.0`,
-            "Differences",
-            `Version ${major}.0`,
-          ]}
-        />
-      </Section>
     </>
   );
 }
