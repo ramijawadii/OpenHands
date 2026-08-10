@@ -45,8 +45,8 @@ export function ConversationTabNav({
         "text-[12.5px] whitespace-nowrap transition-colors cursor-pointer",
         compact ? "gap-0 px-2" : "gap-1.5 px-2.5",
         isActive
-          ? "bg-[var(--cg-tab-active-bg)] text-[var(--cg-text-primary)]"
-          : "text-[var(--cg-text-nav)] hover:bg-[var(--cg-tab-hover-bg)] hover:text-[var(--cg-text-primary)]",
+          ? "cg-tab-primary-selected"
+          : "cg-tab-hoverable text-[var(--cg-text-nav)]",
       )}
     >
       <Icon className="h-3.5 w-3.5 text-inherit shrink-0" />

@@ -141,7 +141,7 @@ const LOADING_TIMEOUT_MS = 25000;
 function DrawerSkeleton() {
   return (
     <div
-      className="flex h-full w-full flex-col bg-[var(--cg-bg-sidebar)]"
+      className="cg-drawer-surface flex h-full w-full flex-col"
       role="status"
       aria-busy="true"
       aria-label="Loading conversation panel"
@@ -174,7 +174,7 @@ function DrawerUnavailable({
   return (
     <div
       role="status"
-      className="hidden md:flex shrink-0 md:-ml-2 w-14 flex-col items-center gap-2 border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] px-1.5 py-2"
+      className="cg-drawer-surface hidden md:flex shrink-0 md:-ml-2 w-14 flex-col items-center gap-2 border-l border-[var(--cg-border-subtle)] px-1.5 py-2"
       title={reason}
     >
       <AlertTriangle className="h-4 w-4 text-amber-400" aria-hidden />
@@ -662,7 +662,7 @@ export function ExploreConversationDrawer() {
       <Live conversationId={conversation.conversation_id}>
         <div
           ref={rootRef}
-          className="hidden md:flex shrink-0 md:-ml-2 flex-col items-center border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] px-1.5 py-2"
+          className="cg-drawer-surface hidden md:flex shrink-0 md:-ml-2 flex-col items-center border-l border-[var(--cg-border-subtle)] px-1.5 py-2"
         >
           <button
             type="button"
@@ -724,7 +724,7 @@ export function ExploreConversationDrawer() {
           />
         )}
         <div
-          className="flex flex-col min-h-0 shrink-0 overflow-hidden border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)]"
+          className="cg-drawer-surface flex flex-col min-h-0 shrink-0 overflow-hidden border-l border-[var(--cg-border-subtle)]"
           // Fullscreen deliberately does NOT write to `width` — the dragged width
           // is preserved and restored on exit rather than being overwritten.
           style={{ width: mode === "fullscreen" ? "100vw" : width }}

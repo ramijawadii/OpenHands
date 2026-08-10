@@ -45,6 +45,37 @@ import { LIFECYCLE_STAGES, slug } from "./remediation-structure";
  * ------------------------------------------------------------------ */
 
 /** Object-Lock semantics, named as the storage layer names them. */
+/**
+ * The evidence taxonomy's top-level groups.
+ *
+ * Folded in as a *dimension* on the records the lifecycle already produces,
+ * not as a second tree beside them. A parallel `04_Changes / 05_Artifacts / …`
+ * hierarchy would be a third place a stage's output is described — after the
+ * stage itself and the control it evidences — and the three would disagree
+ * within a release. As a column it stays one ledger, and "show me every
+ * command this action ran" becomes a filter rather than a different screen.
+ *
+ * `Record` covers the groups the taxonomy did not enumerate (the stage's own
+ * narrative output — detection, triage, risk, investigation, closure). Named
+ * rather than left blank so nothing sorts into an unlabelled bucket.
+ */
+export type EvidenceCategory =
+  | "Record"
+  | "Changes"
+  | "Artifacts"
+  | "Commands"
+  | "Logs"
+  | "Exceptions";
+
+export const CATEGORY_MEANING: Record<EvidenceCategory, string> = {
+  Record: "The stage's own output — what it concluded",
+  Changes: "What the estate looked like before and after, and the diff between",
+  Artifacts: "What was built or proposed — PRs, commits, plans, manifests",
+  Commands: "What was actually invoked, and what it returned",
+  Logs: "What the systems said while it ran",
+  Exceptions: "What went wrong, and what was done about it",
+};
+
 export type RetentionMode = "Compliance" | "Governance";
 
 export interface RetentionPolicy {
@@ -76,6 +107,8 @@ export interface Custody {
 export interface EvidenceRecord {
   id: string;
   name: string;
+  /** Taxonomy group — the coarse "what kind of proof is this". */
+  category: EvidenceCategory;
   kind: string;
   format: string;
   source: string;
@@ -104,115 +137,288 @@ export interface EvidenceRecord {
  * `STAGE_ARTIFACT`, without which the stage cannot be said to have happened.
  * The rest are supporting: valuable, but their absence is a weaker claim.
  */
+/** Shorthand for the table below — five positional fields, one per line. */
+const r = (
+  file: string,
+  category: EvidenceCategory,
+  kind: string,
+  source: string,
+  format: string,
+) => ({ file, category, kind, source, format });
+
 const STAGE_EVIDENCE: {
   file: string;
+  category: EvidenceCategory;
   kind: string;
   source: string;
   format: string;
 }[][] = [
+  /* 1 Discovery */
   [
-    {
-      file: "detection.json",
-      kind: "Detection record",
-      source: "cspm-scanner",
-      format: "application/json",
-    },
+    r(
+      "detection.json",
+      "Record",
+      "Detection record",
+      "cspm-scanner",
+      "application/json",
+    ),
+    r(
+      "scan-api-calls.jsonl",
+      "Commands",
+      "API calls",
+      "cspm-scanner",
+      "application/x-ndjson",
+    ),
   ],
+  /* 2 Triage */
   [
-    {
-      file: "triage-note.md",
-      kind: "Triage note",
-      source: "cloudguard-agent",
-      format: "text/markdown",
-    },
-    {
-      file: "asset-context.json",
-      kind: "Asset context",
-      source: "inventory",
-      format: "application/json",
-    },
+    r(
+      "triage-note.md",
+      "Record",
+      "Triage note",
+      "cloudguard-agent",
+      "text/markdown",
+    ),
+    r(
+      "asset-context.json",
+      "Record",
+      "Asset context",
+      "inventory",
+      "application/json",
+    ),
   ],
+  /* 3 Risk assessment */
   [
-    {
-      file: "risk-score.json",
-      kind: "Risk score sheet",
-      source: "risk-model",
-      format: "application/json",
-    },
+    r(
+      "risk-score.json",
+      "Record",
+      "Risk score sheet",
+      "risk-model",
+      "application/json",
+    ),
   ],
+  /* 4 Investigation */
   [
-    {
-      file: "investigation.md",
-      kind: "Investigation report",
-      source: "cloudguard-agent",
-      format: "text/markdown",
-    },
-    {
-      file: "cloudtrail-window.jsonl",
-      kind: "Cloud events",
-      source: "cloudtrail",
-      format: "application/x-ndjson",
-    },
+    r(
+      "investigation.md",
+      "Record",
+      "Investigation report",
+      "cloudguard-agent",
+      "text/markdown",
+    ),
+    r(
+      "cloudtrail-window.jsonl",
+      "Logs",
+      "API logs",
+      "cloudtrail",
+      "application/x-ndjson",
+    ),
   ],
+  /* 5 Blast radius */
   [
-    {
-      file: "blast-radius.json",
-      kind: "Blast radius simulation",
-      source: "simulator",
-      format: "application/json",
-    },
+    r(
+      "blast-radius.json",
+      "Record",
+      "Blast radius simulation",
+      "simulator",
+      "application/json",
+    ),
   ],
+  /* 6 Remediation plan — what was proposed, before anything ran. */
   [
-    {
-      file: "change-proposal.json",
-      kind: "Change proposal",
-      source: "cloudguard-agent",
-      format: "application/json",
-    },
-    {
-      file: "terraform.plan.json",
-      kind: "IaC diff",
-      source: "github",
-      format: "application/json",
-    },
+    r(
+      "change-proposal.json",
+      "Record",
+      "Change proposal",
+      "cloudguard-agent",
+      "application/json",
+    ),
+    r(
+      "terraform.plan.json",
+      "Artifacts",
+      "Terraform plan",
+      "github",
+      "application/json",
+    ),
+    r(
+      "pull-request.json",
+      "Artifacts",
+      "Pull request",
+      "github",
+      "application/json",
+    ),
+    r("commits.json", "Artifacts", "Commits", "github", "application/json"),
+    r(
+      "k8s-manifests.yaml",
+      "Artifacts",
+      "Kubernetes manifests",
+      "github",
+      "application/yaml",
+    ),
   ],
+  /* 7 Execution — what was invoked, and what the systems said. */
   [
-    {
-      file: "run-log.txt",
-      kind: "Run log",
-      source: "executor",
-      format: "text/plain",
-    },
-    {
-      file: "approval-chain.json",
-      kind: "Approval record",
-      source: "platform",
-      format: "application/json",
-    },
+    r("run-log.txt", "Logs", "Execution logs", "executor", "text/plain"),
+    r(
+      "approval-chain.json",
+      "Record",
+      "Approval record",
+      "platform",
+      "application/json",
+    ),
+    r(
+      "cli-commands.jsonl",
+      "Commands",
+      "CLI commands",
+      "executor",
+      "application/x-ndjson",
+    ),
+    r(
+      "tool-calls.jsonl",
+      "Commands",
+      "Tool calls",
+      "cloudguard-agent",
+      "application/x-ndjson",
+    ),
+    r(
+      "agent-actions.jsonl",
+      "Commands",
+      "Agent actions",
+      "cloudguard-agent",
+      "application/x-ndjson",
+    ),
+    r(
+      "exit-codes.json",
+      "Commands",
+      "Exit codes",
+      "executor",
+      "application/json",
+    ),
+    r("raw-output.txt", "Commands", "Raw output", "executor", "text/plain"),
+    r(
+      "terraform.apply.log",
+      "Artifacts",
+      "Terraform apply",
+      "github",
+      "text/plain",
+    ),
+    r("ci-run.json", "Artifacts", "CI/CD run", "github", "application/json"),
+    r(
+      "agent-log.jsonl",
+      "Logs",
+      "Agent logs",
+      "cloudguard-agent",
+      "application/x-ndjson",
+    ),
+    r("system-log.txt", "Logs", "System logs", "executor", "text/plain"),
   ],
+  /* 8 Execution results — the before/after the whole record turns on. */
   [
-    {
-      file: "result-diff.json",
-      kind: "Result diff",
-      source: "executor",
-      format: "application/json",
-    },
+    r(
+      "result-diff.json",
+      "Record",
+      "Result diff",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "resources-changed.json",
+      "Changes",
+      "Resources changed",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "before-state.json",
+      "Changes",
+      "Before state",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "after-state.json",
+      "Changes",
+      "After state",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "config-diff.patch",
+      "Changes",
+      "Configuration diff",
+      "executor",
+      "text/x-diff",
+    ),
+    r(
+      "infra-diff.patch",
+      "Changes",
+      "Infrastructure diff",
+      "github",
+      "text/x-diff",
+    ),
+    r(
+      "change-metadata.json",
+      "Changes",
+      "Change metadata",
+      "platform",
+      "application/json",
+    ),
+    r(
+      "errors.jsonl",
+      "Exceptions",
+      "Errors",
+      "executor",
+      "application/x-ndjson",
+    ),
+    r(
+      "failed-actions.json",
+      "Exceptions",
+      "Failed actions",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "permission-failures.json",
+      "Exceptions",
+      "Permission failures",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "partial-execution.json",
+      "Exceptions",
+      "Partial execution",
+      "executor",
+      "application/json",
+    ),
+    r(
+      "recovery-actions.json",
+      "Exceptions",
+      "Recovery actions",
+      "platform",
+      "application/json",
+    ),
+    r("error-log.txt", "Logs", "Error logs", "executor", "text/plain"),
   ],
+  /* 9 Validation */
   [
-    {
-      file: "rescan.json",
-      kind: "Validation report",
-      source: "cspm-scanner",
-      format: "application/json",
-    },
+    r(
+      "rescan.json",
+      "Record",
+      "Validation report",
+      "cspm-scanner",
+      "application/json",
+    ),
   ],
+  /* 10 Closure */
   [
-    {
-      file: "closure-report.pdf",
-      kind: "Closure report",
-      source: "platform",
-      format: "application/pdf",
-    },
+    r(
+      "closure-report.pdf",
+      "Record",
+      "Closure report",
+      "platform",
+      "application/pdf",
+    ),
   ],
 ];
 
@@ -272,6 +478,7 @@ export function buildEvidenceLedger(a: RemediationAction): EvidenceRecord[] {
       out.push({
         id: `EV-${num(seed, 1000, 9999)}`,
         name: spec.file,
+        category: spec.category,
         kind: spec.kind,
         format: spec.format,
         source: spec.source,
@@ -539,6 +746,7 @@ export function exportEvidenceBundle(
     records: items.map((it) => ({
       id: it.id,
       name: it.name,
+      category: it.category,
       kind: it.kind,
       format: it.format,
       stage: it.stage,
@@ -582,6 +790,7 @@ export function exportEvidenceRecord(
     record: {
       id: it.id,
       name: it.name,
+      category: it.category,
       kind: it.kind,
       format: it.format,
       source: it.source,

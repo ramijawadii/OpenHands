@@ -60,7 +60,7 @@
   --color-foreground: #ededed;
   --color-muted: #171717;
   --color-muted-foreground: #8b8b8b;
-  --color-border: #2c2c2c;
+  --color-border: #404040;
   --color-accent: #1f1f1f;
   --color-primary: #ffffff;
   --color-primary-foreground: #0a0a0a;
@@ -98,11 +98,23 @@
    deliberately left alone — it already works, and forcing a dark ground there
    would need every message restyled to stay legible. */
 .cg-chat-surface {
-  background: #171717;
+  /* The same ground as the rest of the drawer. It was #171717 to separate the
+     transcript from the chrome, but with the panel unified at #121212 that one
+     lighter column was the only seam left in it. Bubbles carry their own
+     surface, so they still stand off the ground without it. */
+  background: #121212;
 }
 
 [data-theme="light"] .cg-chat-surface {
   background: transparent;
+}
+
+/* Message bubbles sit one step off the transcript ground, on the same raised
+   grey as every hover surface in the app. They carried `--cg-input-bg` — a
+   translucent wash meant for form fields — which on the unified #121212 panel
+   barely separated from it. */
+.cg-chat-surface article[data-testid="user-message"] {
+  background: var(--cg-hover-bg) !important;
 }
 
 /* Message text. The same family the composer's controls use, so a reply and

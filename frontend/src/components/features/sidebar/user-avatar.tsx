@@ -1,7 +1,10 @@
 import { useTranslation } from "react-i18next";
+import { CircleUserRound } from "lucide-react";
 import { I18nKey } from "#/i18n/declaration";
 import { LoadingSpinner } from "#/components/shared/loading-spinner";
-import ProfileIcon from "#/icons/profile.svg?react";
+// The nav is drawn in lucide; the bundled `profile.svg` was the last
+// asset from the previous icon set and read as a different weight and
+// corner radius from everything above it.
 import { cn } from "#/utils/utils";
 import { Avatar } from "./avatar";
 
@@ -26,11 +29,11 @@ export function UserAvatar({ onClick, avatarUrl, isLoading }: UserAvatarProps) {
     >
       {!isLoading && avatarUrl && <Avatar src={avatarUrl} />}
       {!isLoading && !avatarUrl && (
-        <ProfileIcon
+        <CircleUserRound
           aria-label={t(I18nKey.USER$AVATAR_PLACEHOLDER)}
-          width={28}
-          height={28}
-          className="text-[#9099AC]"
+          size={24}
+          strokeWidth={1.5}
+          className="text-[var(--cg-text-muted)]"
         />
       )}
       {isLoading && <LoadingSpinner size="small" />}

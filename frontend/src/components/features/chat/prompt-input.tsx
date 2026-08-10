@@ -3,6 +3,7 @@ import * as React from "react";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { cn } from "#/utils/utils";
 import { ContextRingIndicator } from "./context-ring-indicator";
+import { PillSelect, MorphingText } from "./pill-select";
 
 // ----------------------------------------------------------------------
 // Transition Physics
@@ -37,31 +38,6 @@ interface Attachment {
 // ----------------------------------------------------------------------
 // Sub-components
 // ----------------------------------------------------------------------
-function MorphingText({ text }: { text: string }) {
-  const [width, setWidth] = useState<number | "auto">("auto");
-  const spanRef = useRef<HTMLSpanElement>(null);
-
-  useEffect(() => {
-    if (spanRef.current) setWidth(spanRef.current.offsetWidth);
-  }, [text]);
-
-  return (
-    <span
-      className="relative inline-flex items-center justify-center overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.175,0.885,0.32,1.275)]"
-      style={{ width }}
-    >
-      <span ref={spanRef} className="invisible whitespace-nowrap px-1">
-        {text}
-      </span>
-      <span
-        key={text}
-        className="prompt-text-in absolute inset-0 flex items-center justify-center whitespace-nowrap"
-      >
-        {text}
-      </span>
-    </span>
-  );
-}
 
 /**
  * Execution mode, marked by how much the agent may do unattended.
@@ -511,7 +487,6 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
     const [localValue, setLocalValue] = useState(defaultValue);
     const [selectedMode, setSelectedMode] = useState(modes[0]);
     const [effortIndex, setEffortIndex] = useState(1);
-    const [isModeSelectOpen, setIsModeSelectOpen] = useState(false);
 
     const [attachments, setAttachments] = useState<Attachment[]>([]);
     const [activeAttachment, setActiveAttachment] = useState<{
@@ -523,14 +498,14 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
       controlledValue !== undefined ? controlledValue : localValue,
     );
 
-    const [hoverStyle, setHoverStyle] = useState({
-      opacity: 0,
-      transform: "translateY(0px) scale(0.95)",
-      transition: "none",
-    });
     const [containerHeight, setContainerHeight] = useState(116);
     const [textareaHeight, setTextareaHeight] = useState(68);
     const [isScrolling, setIsScrolling] = useState(false);
+
+    const modeOptions = React.useMemo(
+      () => modes.map((m) => ({ value: m, label: m })),
+      [modes],
+    );
 
     const isControlled = controlledValue !== undefined;
     const value = isControlled ? controlledValue : localValue;
@@ -677,20 +652,6 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
       setTimeout(updateFades, 0);
     }, [textareaHeight]);
 
-    useEffect(() => {
-      if (!isModeSelectOpen) return undefined;
-      const handleOutsideClick = (e: MouseEvent) => {
-        if (
-          internalContainerRef.current &&
-          !internalContainerRef.current.contains(e.target as Node)
-        )
-          setIsModeSelectOpen(false);
-      };
-      document.addEventListener("mousedown", handleOutsideClick);
-      return () =>
-        document.removeEventListener("mousedown", handleOutsideClick);
-    }, [isModeSelectOpen]);
-
     const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
       if (
         internalContainerRef.current &&
@@ -704,7 +665,6 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
       if (value.trim() === "" && !hasAttachments) {
         setIsSmoothResize(false);
         setExpanded(false);
-        setIsModeSelectOpen(false);
       }
     };
 
@@ -720,7 +680,6 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
       attachments.forEach((a) => URL.revokeObjectURL(a.url));
       setAttachments([]);
       setExpanded(false);
-      setIsModeSelectOpen(false);
     };
 
     const cycleEffort = (e: React.MouseEvent) => {
@@ -892,12 +851,13 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
               // Focus reads as a neutral lift, not an accent. A blue ring on a
               // permanently-focused composer is a standing highlight competing
               // with everything the agent is actually saying above it.
-              "relative w-full shadow-sm z-10",
-              // A composer that is permanently open on its own tab does not
-              // need an outline to say where it is — the tab is the frame.
-              defaultExpanded
-                ? "border border-transparent"
-                : "border border-border focus-within:border-neutral-500 focus-within:ring-1 focus-within:ring-neutral-600/40 hover:border-border/80",
+              // Always outlined. The borderless treatment was fine when the
+              // transcript sat on a lighter ground, but with the whole drawer
+              // unified at #121212 the box had no edge at all — it read as a
+              // hole in the panel rather than as an input.
+              "relative w-full shadow-sm z-10 border border-border",
+              !defaultExpanded &&
+                "focus-within:border-neutral-500 focus-within:ring-1 focus-within:ring-neutral-600/40 hover:border-border/80",
               expanded ? "cursor-text" : "cursor-default",
             )}
           >
@@ -920,7 +880,6 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
                 ) {
                   setIsSmoothResize(false);
                   setExpanded(false);
-                  setIsModeSelectOpen(false);
                 }
               }}
               placeholder={placeholder}
@@ -987,89 +946,18 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
                   : "opacity-0 blur-sm translate-y-2 pointer-events-none",
               )}
             >
-              <div className="relative">
-                <button
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setIsModeSelectOpen((prev) => !prev);
-                  }}
-                  className={cn(
-                    "group flex items-center gap-1 rounded-full px-2 py-1 text-foreground transition-all duration-200 outline-none hover:bg-accent/60 cursor-default",
-                    isModeSelectOpen ? "bg-accent/60 text-foreground" : "",
-                  )}
-                  aria-label={`Execution mode. Current: ${selectedMode}`}
-                >
-                  <ModeIcon
-                    mode={selectedMode}
-                    className="size-3.5 opacity-70 group-hover:opacity-100 transition-opacity"
-                  />
-                  <span className="text-xs font-semibold select-none transition-colors">
-                    <MorphingText text={selectedMode} />
-                  </span>
-                </button>
-
-                <div
-                  style={{ transformOrigin: "bottom left" }}
-                  onMouseLeave={() => {
-                    setHoverStyle((prev) => ({
-                      ...prev,
-                      opacity: 0,
-                      transform: prev.transform.replace(
-                        "scale(1)",
-                        "scale(0.95)",
-                      ),
-                      transition:
-                        "opacity 0.2s ease-in, transform 0.2s ease-out",
-                    }));
-                  }}
-                  className={cn(
-                    "absolute bottom-full left-0 mb-2.5 z-50 w-44 rounded-2xl border border-border bg-card/95 p-1 shadow-xl backdrop-blur-md flex flex-col gap-0.5 transition-all duration-400 cursor-default",
-                    isModeSelectOpen
-                      ? "opacity-100 scale-100 translate-y-0 pointer-events-auto ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-                      : "opacity-0 scale-95 translate-y-3 pointer-events-none ease-[cubic-bezier(0.175,0.885,0.32,1.275)]",
-                  )}
-                >
-                  <div className="relative flex flex-col gap-0.5">
-                    <div
-                      style={hoverStyle}
-                      className="absolute left-0 right-0 top-0 h-8 -z-10 rounded-xl bg-accent pointer-events-none"
-                    />
-                    {modes.map((mode, idx) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onMouseEnter={() => {
-                          setHoverStyle((prev) => ({
-                            opacity: 1,
-                            transform: `translateY(${idx * 34}px) scale(1)`,
-                            transition:
-                              prev.opacity === 0
-                                ? "opacity 0.15s ease-out"
-                                : "transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.15s ease",
-                          }));
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedMode(mode);
-                          setIsModeSelectOpen(false);
-                        }}
-                        className="group relative flex h-8 w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-left text-xs font-medium text-foreground/80 outline-none active:scale-[0.98] cursor-default"
-                      >
-                        <span className="flex items-center gap-2">
-                          <ModeIcon
-                            mode={mode}
-                            className="size-3.5 opacity-85 group-hover:opacity-100 transition-opacity"
-                          />
-                          {mode}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <PillSelect
+                value={selectedMode}
+                options={modeOptions}
+                onChange={setSelectedMode}
+                ariaLabel="Execution mode"
+                disabled={!expanded}
+                placement="top"
+                width={176}
+                renderIcon={(v, iconClass) => (
+                  <ModeIcon mode={v} className={iconClass} />
+                )}
+              />
 
               <button
                 type="button"

@@ -254,6 +254,7 @@ export function AuditPane({
                 role="tab"
                 aria-selected={on}
                 onClick={() => setTrail(id)}
+                className={on ? "cg-tab-selected" : "cg-tab-hoverable"}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -262,8 +263,8 @@ export function AuditPane({
                   padding: "0 10px",
                   borderRadius: 6,
                   border: "none",
-                  background: on ? "var(--cg-tab-active-bg)" : "transparent",
-                  color: on ? "var(--cg-text-primary)" : "var(--cg-text-nav)",
+                  background: on ? undefined : "transparent",
+                  color: on ? undefined : "var(--cg-text-nav)",
                   fontSize: 12.5,
                   fontWeight: on ? 600 : 400,
                   fontFamily: APP_FONT,

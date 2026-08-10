@@ -26,7 +26,7 @@ import {
   Cloud,
   Sparkles,
   Shield,
-  ChevronsUpDown,
+  ChevronDown,
   LayoutDashboard,
   Check,
   Search,
@@ -1498,65 +1498,28 @@ export function Sidebar() {
               style={{ padding: "10px 10px 6px", position: "relative" }}
               ref={workspaceRef}
             >
+              {/*
+                Workspace switcher, to the reference spec: a rounded avatar
+                tile, the name over its plan, and a chevron that only lifts on
+                hover.
+
+                It carries no border or filled background of its own — the old
+                one was a bordered pill, which read as a form control sitting
+                in a nav rather than as the nav's own header. The wash on hover
+                is the same one the rows use, so the whole column has one
+                interaction language.
+              */}
               <button
                 type="button"
                 onClick={() => setWorkspaceOpen((p) => !p)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  padding: "7px 10px",
-                  background: workspaceOpen
-                    ? "var(--cg-workspace-bg-hover)"
-                    : "var(--cg-workspace-bg)",
-                  border: `1px solid ${T.border}`,
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  textAlign: "left",
-                  transition: "background 0.12s",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.background =
-                    "var(--cg-workspace-bg-hover)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!workspaceOpen)
-                    (e.currentTarget as HTMLButtonElement).style.background =
-                      "var(--cg-workspace-bg)";
-                }}
+                className="cg-sb-workspace group"
               >
-                <div
-                  style={{
-                    width: 20,
-                    height: 20,
-                    borderRadius: 5,
-                    background: "var(--cg-accent-purple-bg)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <ShieldCheck size={11} style={{ color: T.accentPurple }} />
-                </div>
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    color: T.textPrimary,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Default
+                <span className="cg-sb-workspace-avatar">D</span>
+                <span className="cg-sb-workspace-text">
+                  <span className="cg-sb-workspace-name">Default</span>
+                  <span className="cg-sb-workspace-plan">Enterprise</span>
                 </span>
-                <ChevronsUpDown
-                  size={13}
-                  style={{ color: T.textMuted, flexShrink: 0 }}
-                />
+                <ChevronDown size={16} className="cg-sb-workspace-chevron" />
               </button>
 
               {workspaceOpen && (

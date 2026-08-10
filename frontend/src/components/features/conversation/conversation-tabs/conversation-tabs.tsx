@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocalStorage } from "@uidotdev/usehooks";
 import {
   StickyNote,
@@ -207,19 +207,39 @@ export function ConversationTabs() {
           { icon, label, onClick, isActive, tooltipContent, tooltipAriaLabel },
           index,
         ) => (
-          <ChatActionTooltip
-            key={index}
-            tooltip={tooltipContent}
-            ariaLabel={tooltipAriaLabel}
-          >
-            <ConversationTabNav
-              icon={icon}
-              label={label}
-              onClick={onClick}
-              isActive={isActive}
-              compact={compact}
-            />
-          </ChatActionTooltip>
+          /*
+           * No tooltip while the label is visible.
+           *
+           * A tooltip repeating the word already printed on the button is
+           * noise that covers the strip next to it. It is still supplied in
+           * COMPACT mode, where the label is dropped and the icon alone has to
+           * carry the meaning — `aria-label` on the button keeps the
+           * accessible name in both.
+           */
+          <React.Fragment key={index}>
+            {compact ? (
+              <ChatActionTooltip
+                tooltip={tooltipContent}
+                ariaLabel={tooltipAriaLabel}
+              >
+                <ConversationTabNav
+                  icon={icon}
+                  label={label}
+                  onClick={onClick}
+                  isActive={isActive}
+                  compact={compact}
+                />
+              </ChatActionTooltip>
+            ) : (
+              <ConversationTabNav
+                icon={icon}
+                label={label}
+                onClick={onClick}
+                isActive={isActive}
+                compact={compact}
+              />
+            )}
+          </React.Fragment>
         ),
       )}
       {isRightPanelShown && (

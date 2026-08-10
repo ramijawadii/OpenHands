@@ -52,6 +52,7 @@ import {
   buildEvidenceLedger,
   exportEvidenceBundle,
   exportEvidenceRecord,
+  CATEGORY_MEANING,
   type EvidenceRecord,
 } from "./remediation-evidence-data";
 
@@ -89,6 +90,7 @@ export function EvidencePane({
 
   const [msg, setMsg] = React.useState<string | null>(null);
   const [stage, setStage] = React.useState("All");
+  const [category, setCategory] = React.useState("All");
   const [kind, setKind] = React.useState("All");
   const [source, setSource] = React.useState("All");
   const [hold, setHold] = React.useState("All");
@@ -102,6 +104,7 @@ export function EvidencePane({
   const rows = items.filter(
     (it) =>
       (stage === "All" || it.stageLabel === stage) &&
+      (category === "All" || it.category === category) &&
       (kind === "All" || it.kind === kind) &&
       (source === "All" || it.source === source) &&
       (hold === "All" ||
@@ -120,6 +123,10 @@ export function EvidencePane({
     () => [
       { field: "chainIndex", headerName: "#", width: 52 },
       { field: "name", headerName: "Artifact", flex: 1, minWidth: 190 },
+      // The taxonomy group. Coarse on purpose — it is the column a reader
+      // sorts by when the question is "what kind of proof is this", before
+      // they care which of the forty artifacts it happens to be.
+      { field: "category", headerName: "Category", width: 108 },
       { field: "kind", headerName: "Kind", width: 158 },
       {
         field: "stage",
@@ -225,10 +232,37 @@ export function EvidencePane({
         />
         <FilterSelect
           variant="tab"
+          label="Category"
+          value={category}
+          onChange={(v) => {
+            setCategory(v);
+            // The kind list is about to change under it; a kind from the old
+            // category would silently filter everything out.
+            setKind("All");
+          }}
+          options={uniq((it) => it.category)}
+        />
+        <FilterSelect
+          variant="tab"
           label="Kind"
           value={kind}
           onChange={setKind}
-          options={uniq((it) => it.kind)}
+          // Narrowed by the chosen category — offering "Exit codes" while the
+          // filter says Changes would produce an empty table and no clue why.
+          options={[
+            ALL,
+            ...[
+              ...new Set(
+                items
+                  .filter(
+                    (it) => category === "All" || it.category === category,
+                  )
+                  .map((it) => it.kind),
+              ),
+            ]
+              .sort()
+              .map((v) => ({ value: v, label: v })),
+          ]}
         />
         <FilterSelect
           variant="tab"
@@ -355,6 +389,7 @@ export function EvidenceRecordView({
     {
       id: record.id,
       name: record.name,
+      category: record.category,
       kind: record.kind,
       stage: record.stage,
       sha256: record.sha256,
@@ -431,6 +466,8 @@ export function EvidenceRecordView({
       >
         <span style={mono}>{record.id}</span>
         <span>·</span>
+        <span>{record.category}</span>
+        <span>·</span>
         <span>{record.kind}</span>
         <span>·</span>
         <span>{(record.bytes / 1024).toFixed(1)} KB</span>
@@ -460,6 +497,21 @@ export function EvidenceRecordView({
           {msg}
         </div>
       )}
+
+      <Section title="Classification" icon={<FileJson size={12} />} open>
+        <IconRow label="Category" icon={<CircleDot size={11} />}>
+          {record.category}
+          <span style={{ color: "var(--cg-text-muted)", marginLeft: 6 }}>
+            — {CATEGORY_MEANING[record.category]}
+          </span>
+        </IconRow>
+        <Row label="Kind" value={record.kind} />
+        <Row label="Format" value={record.format} />
+        <Row
+          label="Produced by"
+          value={`Stage ${record.stage} · ${record.stageLabel}`}
+        />
+      </Section>
 
       <Section title="Integrity" icon={<ShieldCheck size={12} />} open>
         <Row label="Algorithm" value="SHA-256" />

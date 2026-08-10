@@ -3,6 +3,7 @@ import React from "react";
 import { DocumentEditor } from "@onlyoffice/document-editor-react";
 import { Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import { openHands } from "#/api/open-hands-axios";
+import { browserReachableOrigin } from "#/utils/browser-reachable-origin";
 import { useOnlyOfficeLive } from "./use-onlyoffice-live";
 
 /**
@@ -159,7 +160,10 @@ function OnlyOfficeEditor({
   }
 
   const { token, documentServerUrl, config } = state.data;
-  const serverUrl = ENV_SERVER_URL || documentServerUrl;
+  // The backend reports a loopback origin (ONLYOFFICE_SERVER_URL defaults to
+  // 127.0.0.1) — correct on the host, wrong for any other device on the LAN,
+  // where loopback is the visiting device. Repaired at the point of use.
+  const serverUrl = browserReachableOrigin(ENV_SERVER_URL || documentServerUrl);
 
   // The DocumentEditor wants the full config WITH the signed token embedded.
   const editorConfig: OnlyOfficeConfig = {

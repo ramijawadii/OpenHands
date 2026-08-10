@@ -420,11 +420,7 @@ export function RemediationTaskView({
               role="tab"
               aria-selected={on}
               onClick={() => setTab(t.id)}
-              className={
-                on
-                  ? "cg-report-action cg-report-action-primary"
-                  : "cg-report-action"
-              }
+              className={on ? "cg-tab-selected" : "cg-tab-hoverable"}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -434,7 +430,12 @@ export function RemediationTaskView({
                 fontFamily: APP_FONT,
                 fontSize: 12.5,
                 lineHeight: 1,
+                borderRadius: 6,
+                border: "none",
+                background: on ? undefined : "transparent",
+                color: on ? undefined : "var(--cg-text-nav)",
                 fontWeight: on ? 600 : 400,
+                transition: "background-color 0.12s ease, color 0.12s ease",
                 cursor: "pointer",
                 whiteSpace: "nowrap",
               }}

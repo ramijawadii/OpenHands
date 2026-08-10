@@ -9,8 +9,23 @@
   --sidebar-animation-duration: 250ms;
   --sidebar-easing: cubic-bezier(0.77, 0, 0.175, 1);
   --sidebar-header-h: 58px;
-  --sidebar-item-h: 34px; /* min-h-8.5 */
-  --sidebar-radius: 8px; /* rounded-lg */
+  --sidebar-item-h: 30px; /* px-2.5 py-[7px] on a 16px row */
+  /* Reference tint scale: hover is a 5% wash of the opposite ink, active a
+     10% one. Expressed as tokens because they invert with the theme — black
+     on light, white on dark — and every row, chevron and rule reads from
+     them. */
+  --sidebar-wash: rgb(255 255 255 / 5%);
+  --sidebar-wash-strong: rgb(255 255 255 / 10%);
+  --sidebar-rule: rgb(255 255 255 / 5%);
+  /* Selection, app-wide: a raised grey with white ink. Named because the rail,
+     the drawer tab strips and the top-bar menus all need to agree, and three
+     literals in three files is how they stop agreeing. */
+  --cg-selected-bg: #404040;
+  /* The app's hover ground, and the message-bubble surface. One value because
+     they are the same idea: a panel lifted one step off its background. */
+  --cg-hover-bg: rgb(35 35 35);
+  --cg-selected-text: #ffffff;
+  --sidebar-radius: 6px; /* rounded-[6px] */
 
   /* Height of the global top bar AND of the conversation drawer's tab strip.
      One token because the two sit side by side at y=0 — their bottom borders
@@ -33,8 +48,8 @@
 
   /* ── CloudGuard theme tokens — dark (default) ───────────────────────── */
   --cg-bg-page: hsl(60deg, 1.64%, 11.96%);
-  --cg-bg-primary-sidebar: #171716;
-  --cg-bg-sidebar: rgb(31, 31, 30);
+  --cg-bg-primary-sidebar: rgb(10 10 10);
+  --cg-bg-sidebar: rgb(10 10 10);
   --cg-bg-card: #121212;
   --cg-bg-hover: #0d0d0c;
   --cg-bg-active: #0a0a0a;
@@ -314,7 +329,7 @@
     color 0.12s ease;
 }
 .cg-report-action:hover:not(:disabled) {
-  background: var(--cg-tab-hover-bg);
+  background: var(--cg-hover-bg);
   color: var(--cg-text-primary);
 }
 .cg-report-action:active:not(:disabled) {
@@ -361,6 +376,18 @@
  * Naming the state gives every skin one place to answer "what does a selected
  * tab look like", and keeps the pill black in dark mode everywhere.
  */
+
+/* The wash inverts with the theme: black ink on light, white on dark. Only the
+   three tint tokens change — every rule that reads them follows. */
+[data-theme="light"] {
+  --sidebar-wash: rgb(0 0 0 / 5%);
+  --sidebar-wash-strong: rgb(0 0 0 / 8%);
+  --sidebar-rule: rgb(0 0 0 / 5%);
+  --cg-selected-bg: var(--cg-bg-active);
+  --cg-hover-bg: var(--cg-bg-hover);
+  --cg-selected-text: var(--cg-text-primary);
+}
+
 [data-theme="light"] {
   color-scheme: light;
   --cg-bg-page: hsl(48deg, 33.3%, 97.1%);
@@ -747,6 +774,178 @@ code {
    50% opacity, and a single 250ms cubic-bezier(0.77,0,0.175,1) for every
    transition so width, padding and rows move as one gesture. */
 
+/* Every unselected navigation control in the drawer hovers to the same
+   ground: the top tab strip, the secondary bars, the record rail and the
+   nested view switches. Stated as one rule so a new strip inherits the
+   behaviour instead of re-deriving it, and so the panel has exactly one
+   "you could press this" colour.
+
+   `.cg-tab-hoverable` is the opt-in for buttons that are navigation; the
+   selector list below covers the strips that already have their own classes.
+   Deliberately NOT `button:hover` — that would repaint the composer's send
+   button, AG Grid's internal controls and every icon button that manages its
+   own hover. */
+/* `.cg-tab-hoverable` also carries the IDLE state, so a caller never needs an
+   inline background — which would silently outrank the hover rule below. */
+.cg-tab-hoverable {
+  background: transparent;
+  color: var(--cg-text-nav);
+  transition:
+    background-color 0.12s ease,
+    color 0.12s ease;
+}
+
+/* Not scoped to `.cg-drawer-surface`: the class is an explicit opt-in, and
+   requiring an ancestor meant any rail rendered outside the drawer — the
+   artifact settings rail, for one — silently lost its hover. */
+.cg-tab-hoverable:not(:disabled):hover,
+.cg-drawer-surface .cg-rail-tab:not([data-active="true"]):hover,
+.cg-drawer-surface .cg-sb-item:not([data-active="true"]):hover,
+.cg-drawer-surface .cg-sb-sub-item:not([data-active="true"]):hover {
+  /* The sidebar's own wash, not a separate grey. Using the same token means a
+     drawer tab and a sidebar sub-tab respond identically — which is the point:
+     they are the same kind of control at different levels. */
+  background: var(--sidebar-wash-strong);
+  color: var(--cg-text-primary);
+}
+
+/* The drawer's PRIMARY tab strip — Chat · Canvas · Report · Remediation ·
+   Settings. Inverted white, the same weight as the composer's send button,
+   because this strip decides which surface you are on. Everything below it —
+   sub-bars, the record rail, view switches — uses the raised grey instead, so
+   the panel has two ranks of selection rather than one flat one. */
+.cg-drawer-surface .cg-tab-primary-selected {
+  background: var(--cg-text-primary);
+  color: #121212;
+  font-weight: 500;
+}
+.cg-drawer-surface .cg-tab-primary-selected:hover {
+  background: var(--cg-text-primary);
+  opacity: 0.9;
+}
+[data-theme="light"] .cg-drawer-surface .cg-tab-primary-selected {
+  color: hsl(48deg, 33.3%, 97.1%);
+}
+
+/* Selected view/tab buttons across the drawer.
+   A raised grey (#404040) with white text. The previous treatment used
+   `--cg-tab-active-bg`, the DARKEST token, so selection was signalled by being
+   less visible than its neighbours — which is why a hovered inactive tab could
+   read as more selected than the active one. Lifting off the panel rather than
+   sinking into it fixes that, and it is the same step the record rail uses, so
+   every selected control in the drawer reads alike. */
+.cg-drawer-surface .cg-tab-selected {
+  background: var(--cg-selected-bg);
+  color: var(--cg-selected-text);
+  font-weight: 500;
+}
+.cg-drawer-surface .cg-tab-selected:hover {
+  background: #4a4a4a;
+  color: #ffffff;
+}
+[data-theme="light"] .cg-drawer-surface .cg-tab-selected {
+  background: var(--cg-bg-active);
+  color: var(--cg-text-primary);
+}
+[data-theme="light"] .cg-drawer-surface .cg-tab-selected:hover {
+  background: var(--cg-bg-active);
+}
+
+/* The conversation drawer's ground.
+   One scope instead of eleven edits: the drawer's tab strip, its sub-bars and
+   every tab pane inside it read `--cg-bg-page` / `--cg-bg-sidebar`, so
+   redefining those two on the drawer root re-points the whole panel without
+   touching a component. Anything that sets its own surface — the chat
+   transcript at #171717, the composer — still wins, which is what keeps the
+   conversation column distinct from the chrome around it.
+
+   Dark only. Light mode restates the page values so the drawer keeps tracking
+   the theme there rather than inheriting a dark ground. */
+.cg-drawer-surface {
+  --cg-bg-page: #121212;
+  --cg-bg-sidebar: #121212;
+  --cg-bg-primary-sidebar: #121212;
+  background: #121212;
+}
+
+[data-theme="light"] .cg-drawer-surface {
+  --cg-bg-page: hsl(48deg, 33.3%, 97.1%);
+  --cg-bg-sidebar: hsl(53deg, 28.6%, 94.5%);
+  --cg-bg-primary-sidebar: hsl(53deg, 28.6%, 94.5%);
+  background: hsl(48deg, 33.3%, 97.1%);
+}
+
+/* Workspace switcher — the nav's header row.
+   Deliberately borderless: a bordered pill reads as a form control dropped
+   into a nav, where this is the nav's own title. It uses the same wash as the
+   rows below it so the column has one interaction language. */
+.cg-sb-workspace {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  user-select: none;
+  transition: background-color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cg-sb-workspace:hover,
+.cg-sb-workspace:focus-visible {
+  background: var(--sidebar-wash);
+}
+.cg-sb-workspace-avatar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  /* The one inverted element in the column, which is what makes it read as an
+     identity rather than another row. */
+  background: var(--cg-text-primary);
+  color: var(--cg-bg-primary-sidebar);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 18%);
+}
+.cg-sb-workspace-text {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cg-sb-workspace-name {
+  max-width: 120px;
+  margin-bottom: 4px;
+  overflow: hidden;
+  color: var(--cg-text-primary);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cg-sb-workspace-plan {
+  color: var(--cg-text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+.cg-sb-workspace-chevron {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--cg-text-muted) 50%, transparent);
+  transition: color 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.cg-sb-workspace:hover .cg-sb-workspace-chevron {
+  color: color-mix(in srgb, var(--cg-text-primary) 70%, transparent);
+}
+
 /* Row — used by domain buttons and any top-level nav entry. */
 .cg-sb-item {
   position: relative;
@@ -756,28 +955,36 @@ code {
   align-items: center;
   gap: 10px;
   min-height: var(--sidebar-item-h);
-  padding: 0 10px;
-  margin: 1px 0;
+  /* px-2.5 py-[7px], with the extra 10px of left inset the reference sets
+     inline on every top-level row. */
+  padding: 8px 10px;
+  margin: 2px 0;
   border: none;
   border-radius: var(--sidebar-radius);
   background: transparent;
+  /* Full-strength by default. Selection is carried by the wash and the weight
+     step, not by making every other row dimmer — a nav where the idle state is
+     faded reads as mostly-disabled. */
   color: var(--cg-text-primary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
+  letter-spacing: 0.025em;
   line-height: 1.2;
   text-align: left;
   cursor: pointer;
   outline: none;
-  transition:
-    color var(--sidebar-animation-duration) var(--sidebar-easing),
-    background-color var(--sidebar-animation-duration) var(--sidebar-easing);
+  user-select: none;
+  transition: all 200ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 .cg-sb-item:hover,
 .cg-sb-item:focus-visible {
-  background: var(--cg-bg-hover);
+  background: var(--sidebar-wash);
+  color: var(--cg-text-primary);
 }
 .cg-sb-item[data-active="true"] {
-  background: var(--cg-bg-active);
+  background: var(--sidebar-wash-strong);
+  color: var(--cg-text-primary);
+  font-weight: 500;
 }
 /* Collapsed rail: centre the icon and keep the highlight a tidy inset square
    instead of a full-bleed bar touching both borders. */
@@ -811,7 +1018,7 @@ code {
   flex: 1;
   min-width: 0;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   transform: translateX(-3px);
   transition: transform var(--sidebar-animation-duration) var(--sidebar-easing);
 }
@@ -820,7 +1027,17 @@ code {
 }
 .cg-sb-item-icon {
   flex-shrink: 0;
-  opacity: 0.5;
+  /* Tinted rather than faded. Opacity dims the glyph toward the background,
+     which on a washed hover row makes it muddy; a colour step keeps the
+     stroke crisp at every state. */
+  color: color-mix(in srgb, var(--cg-text-primary) 55%, transparent);
+  transition: color 200ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.cg-sb-item:hover .cg-sb-item-icon {
+  color: color-mix(in srgb, var(--cg-text-primary) 70%, transparent);
+}
+.cg-sb-item[data-active="true"] .cg-sb-item-icon {
+  color: var(--cg-text-primary);
 }
 .cg-sb-item-label {
   flex: 1;
@@ -834,13 +1051,16 @@ code {
 .cg-sb-chevron {
   margin-left: auto;
   flex-shrink: 0;
-  opacity: 0.4;
+  width: 14px;
+  height: 14px;
+  opacity: 1;
+  color: color-mix(in srgb, var(--cg-text-muted) 50%, transparent);
   transition:
-    transform 200ms var(--sidebar-easing),
-    opacity 200ms ease;
+    transform 200ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1)),
+    color 200ms ease;
 }
 .cg-sb-item:hover .cg-sb-chevron {
-  opacity: 1;
+  color: color-mix(in srgb, var(--cg-text-primary) 70%, transparent);
 }
 .cg-sb-chevron[data-open="true"] {
   transform: rotate(90deg);
@@ -854,11 +1074,16 @@ code {
 .cg-sb-collapsible {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--sidebar-animation-duration)
-    var(--sidebar-easing);
+  opacity: 0;
+  /* Height and opacity on one 300ms curve. Height alone reads as the list
+     being squeezed; fading with it reads as the list arriving. */
+  transition:
+    grid-template-rows 300ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .cg-sb-collapsible[data-open="true"] {
   grid-template-rows: 1fr;
+  opacity: 1;
 }
 .cg-sb-collapsible > div {
   overflow: hidden;
@@ -878,11 +1103,13 @@ code {
 .cg-sb-sub::before {
   content: "";
   position: absolute;
-  left: 19px;
-  top: 1px;
-  bottom: 1px;
+  /* Aligned to the parent icon's centre line, so the guide reads as dropping
+     out of the row above rather than sitting beside it. */
+  left: 17.5px;
+  top: 0;
+  bottom: 0;
   width: 1px;
-  background: var(--cg-border);
+  background: var(--sidebar-rule);
   z-index: 10;
 }
 .cg-sb-sub-item {
@@ -898,24 +1125,28 @@ code {
   border: none;
   border-radius: var(--sidebar-radius);
   background: transparent;
-  color: var(--cg-text-nav);
-  font-size: 14px;
+  color: var(--cg-text-primary);
+  font-size: 13px;
   font-weight: 400;
+  letter-spacing: 0.025em;
   text-align: left;
   cursor: pointer;
   outline: none;
-  transition:
-    color 150ms var(--sidebar-easing),
-    background-color 150ms var(--sidebar-easing);
+  user-select: none;
+  transition: all 200ms var(--ease-standard, cubic-bezier(0.4, 0, 0.2, 1));
 }
 .cg-sb-sub-item:hover,
 .cg-sb-sub-item:focus-visible {
-  background: var(--cg-bg-hover);
+  background: var(--sidebar-wash);
   color: var(--cg-text-primary);
 }
+/* Children use the SAME wash as a top-level row rather than the accent tint.
+   An accent-filled child under a washed parent read as two different kinds of
+   selection in one tree. */
 .cg-sb-sub-item[data-active="true"] {
-  background: var(--cg-accent-bg);
+  background: var(--sidebar-wash-strong);
   color: var(--cg-text-primary);
+  font-weight: 500;
 }
 .cg-sb-sub-label {
   flex: 1;
@@ -948,11 +1179,15 @@ code {
   min-width: 0;
 }
 .cg-sb-group-label-text {
-  padding: 0 12px;
-  margin: 16px 0 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--cg-text-muted);
+  padding: 0 10px;
+  margin: 16px 0 4px;
+  /* A caption, not a row. Small, spaced and half-strength so it labels the
+     group without competing with the entries under it. */
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--cg-text-muted) 50%, transparent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -993,9 +1228,11 @@ code {
    closes on it smoothly instead of clipping it. */
 .cg-sb-brand {
   display: block;
-  flex: 0 0 auto;
+  /* Grows into the header instead of sitting as a small mark in a wide, empty
+     bar. `flex: 1` lets it take the row; the toggle keeps its own width. */
+  flex: 1 1 auto;
   min-width: 0;
-  max-width: 172px;
+  max-width: 210px;
   overflow: hidden;
   color: var(--cg-text-primary);
   opacity: 1;
@@ -1018,6 +1255,8 @@ code {
 /* Size by HEIGHT so the lockup always fits the 50px header band; width follows
    the 2.65:1 aspect. Driving it by width made it fill the header and crop. */
 .cg-sb-brand svg {
+  width: 100%;
+  height: auto;
   display: block;
   height: 26px;
   width: auto;

@@ -53,6 +53,10 @@ export const T = {
   border: "var(--cg-border)",
   borderStrong: "var(--cg-border-strong)",
   cardBg: "var(--cg-bg-card)",
+  /* Floating chrome — menus, drawers, popovers. The sidebar's ground rather
+     than the card's, so an overlay reads as app chrome rather than as another
+     card lifted off the page. */
+  menuBg: "var(--cg-bg-primary-sidebar)",
   badgeBg: "var(--cg-bg-badge)",
   accent: "var(--cg-accent)",
   purple: "var(--cg-accent-purple)",
@@ -2339,10 +2343,12 @@ export function SideRailPanel({
                 key={sec.id}
                 type="button"
                 onClick={() => onSelect(sec.id)}
-                // Active bg/text come from the theme-aware `.cg-rail-item-active`
-                // CSS rule (dark = white on rgb(11,11,11); light = accent on tint),
-                // so they must NOT be set inline (inline would override the class).
-                className={on ? "cg-rail-item-active" : undefined}
+                // BOTH states come from CSS classes, never inline. An inline
+                // `background: transparent` on the idle row outranks the
+                // `.cg-tab-hoverable:hover` rule, which is why the rail had no
+                // hover at all — the class was applied and then silently beaten
+                // by the style attribute on the same element.
+                className={on ? "cg-rail-item-active" : "cg-tab-hoverable"}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -2353,8 +2359,6 @@ export function SideRailPanel({
                   padding: `0 10px 0 ${indent}px`,
                   borderRadius: 7,
                   border: "none",
-                  background: on ? undefined : "transparent",
-                  color: on ? undefined : T.textNav,
                   fontSize: 12.5,
                   fontWeight: on ? 600 : 400,
                   cursor: "pointer",

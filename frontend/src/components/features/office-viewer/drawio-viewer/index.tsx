@@ -3,14 +3,20 @@ import React from "react";
 import { DrawIoEmbed } from "react-drawio";
 import { Loader2, AlertTriangle, Sparkles } from "lucide-react";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { browserReachableOrigin } from "#/utils/browser-reachable-origin";
 import { useDiagramLive } from "./use-diagram-live";
 
 /** Self-hosted draw.io origin the BROWSER loads the embed iframe from (our own
  *  container on :8085, never embed.diagrams.net). Shared by the Whiteboard and
- *  the Report architecture-diagram viewer. */
-export const DRAWIO_BASE_URL =
+ *  the Report architecture-diagram viewer.
+ *
+ *  Passed through `browserReachableOrigin` so the default loopback value still
+ *  works when the app is opened from another device on the LAN — there,
+ *  `localhost` is the visiting device, not the machine hosting the container. */
+export const DRAWIO_BASE_URL = browserReachableOrigin(
   (import.meta.env.VITE_DRAWIO_SERVER_URL as string | undefined) ||
-  "http://localhost:8085";
+    "http://localhost:8085",
+);
 
 /** Shared draw.io editor configuration for both the Whiteboard and the viewer.
  *  Defaults (white mode, grid off, page view off) live here, plus best-effort
@@ -51,8 +57,7 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
   const [state, setState] = React.useState<State>({ status: "loading" });
   // The embed handle (react-drawio ref: .load({xml})) + the authoritative agent XML.
   // The live co-pilot mutates this copy and re-loads it into the open editor.
-  const drawioRef =
-    React.useRef<React.ElementRef<typeof DrawIoEmbed>>(null);
+  const drawioRef = React.useRef<React.ElementRef<typeof DrawIoEmbed>>(null);
   const xmlRef = React.useRef<string>("");
 
   // Fetch the diagram file; returns its content (used both for the initial open and

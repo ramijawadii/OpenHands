@@ -236,7 +236,11 @@
    class wins). Dark (default): white text on near-black. Light: keep accent-on-tint. */
 .cg-rail-item-active {
   color: #ffffff;
-  background: rgb(11, 11, 11);
+  /* A raised grey, not a near-black. The drawer now sits at #121212, so
+     `rgb(11,11,11)` made the selected row DARKER than the panel behind it —
+     selection reading as a hole rather than as a lift. Shares the app-wide
+     selection token so the rail, the tab strips and the menus agree. */
+  background: var(--cg-selected-bg);
 }
 [data-theme="light"] .cg-rail-item-active {
   color: var(--cg-accent);
