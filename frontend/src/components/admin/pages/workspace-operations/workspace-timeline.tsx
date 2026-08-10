@@ -6,8 +6,6 @@ import {
   Eye,
   Download,
   ShieldCheck,
-  Maximize2,
-  Minimize2,
   Play,
   FileText,
   Waypoints,
@@ -29,11 +27,8 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   StatRow,
   KVGrid,
-  FilterBar,
-  CommandBar,
   HeaderButton,
   Select,
   EmptyState,
@@ -43,6 +38,7 @@ import {
   type CommandItem,
 } from "#/components/admin/admin-kit";
 import { StatStripPlain } from "#/components/admin/settings-kit";
+import { DiscoveryListView } from "#/components/admin/discovery-kit";
 import {
   ResultBadge,
   AuditSection,
@@ -106,7 +102,6 @@ const CAT_TONE: Record<Category, string> = {
   Incidents: T.danger,
   Integrations: T.textNav,
 };
-const CATEGORIES = Object.keys(CAT_ICON) as Category[];
 const WORKSPACES = [
   "Payments Production",
   "Retail Web",
@@ -289,7 +284,6 @@ export function WorkspaceTimelineView() {
   const [search, setSearch] = React.useState("");
   const [fCat, setFCat] = React.useState("");
   const [fResult, setFResult] = React.useState("");
-  const [collapsed, setCollapsed] = React.useState(false);
   const [selId, setSelId] = React.useState<string | null>(null);
 
   const all = React.useMemo(() => buildEvents(workspace), [workspace]);
@@ -305,7 +299,6 @@ export function WorkspaceTimelineView() {
       (!fResult || e.result === fResult)
     );
   });
-  const hasFilters = !!(search || fCat || fResult);
   const clearFilters = () => {
     setSearch("");
     setFCat("");
@@ -329,9 +322,6 @@ export function WorkspaceTimelineView() {
   const security = all.filter((e) => e.category === "Security").length;
   const compliance = all.filter((e) => e.category === "Compliance").length;
   const integrityOk = all.every((e) => e.integrity === "Verified");
-
-  // Group into correlated chains for the "expand correlated events" view.
-  const chains = Array.from(new Set(events.map((e) => e.correlationId)));
 
   const toolbar: CommandItem[] = [
     {
@@ -371,12 +361,6 @@ export function WorkspaceTimelineView() {
       disabled: true,
     },
     {
-      key: "expand",
-      label: collapsed ? "Expand Correlated" : "Collapse Groups",
-      icon: collapsed ? <Maximize2 size={15} /> : <Minimize2 size={15} />,
-      onClick: () => setCollapsed((c) => !c),
-    },
-    {
       key: "verify",
       label: "Verify Integrity",
       icon: <ShieldCheck size={15} />,
@@ -386,52 +370,53 @@ export function WorkspaceTimelineView() {
 
   return (
     <>
-      {/* Workspace picker + summary */}
-      <Card
-        title="Timeline summary"
-        desc="Select a workspace to explore its complete chronological history across lifecycle, governance, security, automation, compliance and operational events."
-        right={
-          <div style={{ minWidth: 220 }}>
-            <Select
-              label="Workspace"
-              value={workspace}
-              onChange={(v) => {
-                setWorkspace(v);
-                setSelId(null);
-              }}
-              options={WORKSPACES.map((w) => ({ value: w, label: w }))}
-            />
-          </div>
-        }
+      {/* Workspace picker — the timeline is scoped to one workspace at a time */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 10,
+          marginBottom: 12,
+        }}
       >
-        <KVGrid
-          cols={3}
-          items={[
-            { k: "Workspace", v: workspace },
-            {
-              k: "First Event",
-              v: `${all[0].time} · ${all[0].event}`,
-              sample: true,
-            },
-            {
-              k: "Latest Event",
-              v: `${all[all.length - 1].time} · ${all[all.length - 1].event}`,
-              sample: true,
-            },
-            {
-              k: "Correlated Chains",
-              v: Array.from(new Set(all.map((e) => e.correlationId))).length,
-              sample: true,
-            },
-            {
-              k: "Timeline Integrity",
-              v: integrityOk ? "Verified" : "Review",
-              sample: true,
-            },
-            { k: "Retention", v: "7 years (immutable)", sample: true },
-          ]}
-        />
-      </Card>
+        <div style={{ minWidth: 240 }}>
+          <Select
+            label="Workspace"
+            value={workspace}
+            onChange={(v) => {
+              setWorkspace(v);
+              setSelId(null);
+            }}
+            options={WORKSPACES.map((w) => ({ value: w, label: w }))}
+          />
+        </div>
+      </div>
+
+      {/* Summary — recreated as framework stat tiles */}
+      <StatStripPlain
+        items={[
+          { label: "Workspace", value: workspace },
+          {
+            label: "First Event",
+            value: `${all[0].time} · ${all[0].event}`,
+          },
+          {
+            label: "Latest Event",
+            value: `${all[all.length - 1].time} · ${all[all.length - 1].event}`,
+          },
+          {
+            label: "Correlated Chains",
+            value: Array.from(new Set(all.map((e) => e.correlationId))).length,
+          },
+          {
+            label: "Timeline Integrity",
+            value: integrityOk ? "Verified" : "Review",
+            tone: integrityOk ? "ok" : "warn",
+          },
+          { label: "Retention", value: "7 years (immutable)" },
+        ]}
+      />
 
       <StatStripPlain
         items={[
@@ -454,231 +439,117 @@ export function WorkspaceTimelineView() {
         ]}
       />
 
-      <Card
+      <DiscoveryListView
         title={`Workspace timeline — ${workspace}`}
         desc="Interactive chronological history. Events are automatically correlated by workflow, resource and execution context."
-      >
-        <CommandBar items={toolbar} />
-        <FilterBar
-          search={search}
-          onSearch={setSearch}
-          searchPlaceholder="Search workspace timeline — event, actor, policy, resource, correlation ID, provisioning/automation job…"
-          count={events.length}
-          total={all.length}
-          showClear={hasFilters}
-          onClear={clearFilters}
-        >
-          <Select
-            label="Category"
-            value={fCat}
-            onChange={setFCat}
-            options={facet(all.map((e) => e.category))}
-          />
-          <Select
-            label="Result"
-            value={fResult}
-            onChange={setFResult}
-            options={facet(all.map((e) => e.result))}
-          />
-        </FilterBar>
-
-        {/* Legend */}
-        <div
-          style={{
-            display: "flex",
-            gap: 14,
-            flexWrap: "wrap",
-            padding: "4px 4px 12px",
-            fontSize: 11.5,
-            color: T.textMuted,
-          }}
-        >
-          {CATEGORIES.slice(0, 8).map((c) => (
-            <span
-              key={c}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                color: CAT_TONE[c],
-              }}
-            >
-              {CAT_ICON[c]} {c}
-            </span>
-          ))}
-        </div>
-
-        {events.length === 0 ? (
+        commands={toolbar}
+        search={search}
+        onSearch={setSearch}
+        searchPlaceholder="Search workspace timeline — event, actor, policy, resource, correlation ID, provisioning/automation job…"
+        count={events.length}
+        pills={[
+          {
+            key: "category",
+            label: "Category",
+            value: fCat,
+            onChange: setFCat,
+            options: facet(all.map((e) => e.category)),
+          },
+          {
+            key: "result",
+            label: "Result",
+            value: fResult,
+            onChange: setFResult,
+            options: facet(all.map((e) => e.result)),
+          },
+        ]}
+        presets={[{ label: "All events", onApply: clearFilters }]}
+        columns={[
+          {
+            key: "time",
+            header: "Time",
+            sortValue: (e) => e.minute,
+            render: (e) => (
+              <span
+                style={{
+                  fontVariantNumeric: "tabular-nums",
+                  color: T.textMuted,
+                }}
+              >
+                {e.time}
+              </span>
+            ),
+          },
+          {
+            key: "event",
+            header: "Event",
+            sortValue: (e) => e.event,
+            render: (e) => (
+              <span
+                style={{
+                  color: T.textPrimary,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span
+                  style={{
+                    color: CAT_TONE[e.category],
+                    display: "inline-flex",
+                  }}
+                >
+                  {CAT_ICON[e.category]}
+                </span>
+                {e.event}
+              </span>
+            ),
+          },
+          {
+            key: "category",
+            header: "Category",
+            sortValue: (e) => e.category,
+            render: (e) => e.category,
+          },
+          {
+            key: "actor",
+            header: "Actor",
+            sortValue: (e) => e.actor,
+            render: (e) => e.actor,
+          },
+          {
+            key: "result",
+            header: "Result",
+            sortValue: (e) => e.result,
+            render: (e) => <ResultBadge result={e.result} />,
+          },
+          {
+            key: "correlationId",
+            header: "Correlation ID",
+            sortValue: (e) => e.correlationId,
+            render: (e) => (
+              <span style={{ fontFamily: "monospace" }}>{e.correlationId}</span>
+            ),
+          },
+          {
+            key: "duration",
+            header: "Duration",
+            sortValue: (e) => e.duration,
+            render: (e) => e.duration,
+          },
+        ]}
+        rows={events}
+        pageSize={12}
+        initialSort={{ key: "time", dir: "asc" }}
+        onRowClick={(e) => setSelId(e.id)}
+        empty={
           <EmptyState
             icon={<Waypoints size={20} />}
             title="No timeline events found."
             hint="Adjust filters to explore the workspace history."
           />
-        ) : collapsed ? (
-          // Collapsed = grouped by correlation chain
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {chains.map((chain) => {
-              const chainEvents = events.filter(
-                (e) => e.correlationId === chain,
-              );
-              return (
-                <div
-                  key={chain}
-                  style={{
-                    border: `1px solid ${T.border}`,
-                    borderRadius: 10,
-                    padding: "10px 14px",
-                    background: T.cardBg,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      marginBottom: 6,
-                    }}
-                  >
-                    <Link2 size={14} color={T.textMuted} />
-                    <span
-                      style={{
-                        fontSize: 12.5,
-                        fontWeight: 600,
-                        color: T.textPrimary,
-                      }}
-                    >
-                      {chain}
-                    </span>
-                    <span style={{ fontSize: 11.5, color: T.textMuted }}>
-                      · {chainEvents.length} correlated events ·{" "}
-                      {chainEvents[0].time}–
-                      {chainEvents[chainEvents.length - 1].time}
-                    </span>
-                  </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {chainEvents.map((e) => (
-                      <span
-                        key={e.id}
-                        style={{
-                          fontSize: 11.5,
-                          color: CAT_TONE[e.category],
-                          border: `1px solid ${CAT_TONE[e.category]}44`,
-                          borderRadius: 99,
-                          padding: "2px 9px",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => setSelId(e.id)}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(k) => {
-                          if (k.key === "Enter") setSelId(e.id);
-                        }}
-                      >
-                        {e.time} · {e.event}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          // Expanded = full vertical timeline
-          <div style={{ position: "relative", paddingLeft: 8 }}>
-            {events.map((e, i) => (
-              <div
-                key={e.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelId(e.id)}
-                onKeyDown={(k) => {
-                  if (k.key === "Enter") setSelId(e.id);
-                }}
-                style={{
-                  display: "flex",
-                  gap: 14,
-                  cursor: "pointer",
-                  padding: "10px 10px",
-                  borderRadius: 8,
-                  background: e.id === selId ? T.badgeBg : "transparent",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: "50%",
-                      background: `${CAT_TONE[e.category]}22`,
-                      color: CAT_TONE[e.category],
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      border: `1px solid ${CAT_TONE[e.category]}66`,
-                    }}
-                  >
-                    {CAT_ICON[e.category]}
-                  </span>
-                  {i < events.length - 1 && (
-                    <span
-                      style={{
-                        width: 2,
-                        flex: 1,
-                        background: T.border,
-                        marginTop: 2,
-                        minHeight: 14,
-                      }}
-                    />
-                  )}
-                </div>
-                <div style={{ flex: 1, paddingBottom: 4 }}>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: T.textMuted,
-                        fontVariantNumeric: "tabular-nums",
-                        minWidth: 40,
-                      }}
-                    >
-                      {e.time}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 13.5,
-                        color: T.textPrimary,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {e.event}
-                    </span>
-                    <ResultBadge result={e.result} />
-                  </div>
-                  <div
-                    style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}
-                  >
-                    {e.category} · {e.actor} · {e.correlationId}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+        }
+      />
 
       {sel && (
         <EventDrawer rec={sel} all={all} onClose={() => setSelId(null)} />
