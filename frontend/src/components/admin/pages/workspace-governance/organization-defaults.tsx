@@ -28,13 +28,11 @@ import {
 import {
   Page,
   PageHeader,
-  Card,
   StatRow,
   CommandBar,
   HeaderButton,
   EmptyState,
   ScopeBadge,
-  InheritedField,
   FloorBadge,
   T,
   type EffectiveValue,
@@ -152,7 +150,56 @@ interface Setting {
   hint?: string;
   ev: EffectiveValue;
 }
-function SettingsCard({
+// Section header (title + description) used in place of a Card frame, so each
+// sub-view reads as a bare framework table rather than chromed cards.
+function SectionHead({
+  title,
+  desc,
+  right,
+}: {
+  title: string;
+  desc: string;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 12,
+        margin: "2px 2px 12px",
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: T.textPrimary }}>
+          {title}
+        </div>
+        <div style={{ fontSize: 12.5, color: T.textMuted, marginTop: 2 }}>
+          {desc}
+        </div>
+      </div>
+      {right && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{right}</div>
+      )}
+    </div>
+  );
+}
+
+function humanLevel(level: string): string {
+  const map: Record<string, string> = {
+    enterprise: "Enterprise",
+    "business-unit": "Business Unit",
+    bu: "Business Unit",
+    template: "Workspace Template",
+    workspace: "Workspace",
+  };
+  return map[level] ?? level.charAt(0).toUpperCase() + level.slice(1);
+}
+
+// Per-domain defaults rendered as a framework table (Setting · Effective Value ·
+// Source · Override · Enforcement) instead of a card of InheritedField rows.
+function SettingsTable({
   title,
   desc,
   settings,
@@ -161,14 +208,56 @@ function SettingsCard({
   desc: string;
   settings: Setting[];
 }) {
+  const rows = settings.map((s) => ({ id: s.label, ...s }));
+  const cols: Column<(typeof rows)[number]>[] = [
+    {
+      key: "label",
+      header: "Setting",
+      sortValue: (r) => r.label,
+      render: (r) => (
+        <span style={{ color: T.textPrimary }}>
+          {r.label}
+          {r.hint && (
+            <div style={{ fontSize: 11.5, color: T.textMuted, marginTop: 2 }}>
+              {r.hint}
+            </div>
+          )}
+        </span>
+      ),
+    },
+    {
+      key: "value",
+      header: "Effective Value",
+      render: (r) => <ValuePill v={r.ev.effective} />,
+    },
+    {
+      key: "source",
+      header: "Source",
+      sortValue: (r) => r.ev.direct?.level ?? "enterprise",
+      render: (r) => humanLevel(r.ev.direct?.level ?? "enterprise"),
+    },
+    {
+      key: "override",
+      header: "Override",
+      sortValue: (r) => (r.ev.overridePermitted ? "Allowed" : "Locked"),
+      render: (r) => (r.ev.overridePermitted ? "Allowed" : "Locked"),
+    },
+    {
+      key: "enforcement",
+      header: "Enforcement",
+      render: (r) =>
+        r.ev.overridePermitted ? (
+          <span style={{ color: T.textMuted }}>Inherited</span>
+        ) : (
+          <FloorBadge />
+        ),
+    },
+  ];
   return (
-    <Card title={title} desc={desc}>
-      {settings.map((s) => (
-        <InheritedField key={s.label} label={s.label} hint={s.hint} ev={s.ev}>
-          <ValuePill v={s.ev.effective} />
-        </InheritedField>
-      ))}
-    </Card>
+    <>
+      <SectionHead title={title} desc={desc} />
+      <DiscoveryTable columns={cols} rows={rows} pageSize={14} />
+    </>
   );
 }
 
@@ -500,7 +589,7 @@ export function OrganizationDefaultsView() {
       />
 
       {curDomain && curDomain.id !== "integration" && (
-        <SettingsCard
+        <SettingsTable
           title={curDomain.title}
           desc={curDomain.desc}
           settings={curDomain.settings}
@@ -570,31 +659,33 @@ function IntegrationDefaults() {
     },
   ];
   return (
-    <Card
-      title="Integration Defaults"
-      desc="Enterprise integrations automatically inherited by every workspace."
-    >
+    <>
+      <SectionHead
+        title="Integration Defaults"
+        desc="Enterprise integrations automatically inherited by every workspace."
+      />
       <DiscoveryTable columns={cols} rows={list} />
-    </Card>
+    </>
   );
 }
 
 // ── Inheritance Preview (spec §Inheritance Preview) ──
 function InheritancePreview() {
   return (
-    <Card
-      title="Inheritance Preview"
-      desc="Visualizes how the enterprise baseline flows down the governance chain to a workspace's effective configuration."
-      right={
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <HeaderButton icon={<Eye size={13} />}>
-            Preview Workspace
-          </HeaderButton>
-          <HeaderButton icon={<GitCompare size={13} />}>Compare</HeaderButton>
-          <HeaderButton icon={<Download size={13} />}>Export</HeaderButton>
-        </div>
-      }
-    >
+    <>
+      <SectionHead
+        title="Inheritance Preview"
+        desc="Visualizes how the enterprise baseline flows down the governance chain to a workspace's effective configuration."
+        right={
+          <>
+            <HeaderButton icon={<Eye size={13} />}>
+              Preview Workspace
+            </HeaderButton>
+            <HeaderButton icon={<GitCompare size={13} />}>Compare</HeaderButton>
+            <HeaderButton icon={<Download size={13} />}>Export</HeaderButton>
+          </>
+        }
+      />
       <OverviewTree data={INHERIT_TREE} height={340} />
       <div style={{ marginTop: 12 }}>
         <StatRow
@@ -616,7 +707,7 @@ function InheritancePreview() {
           sample
         />
       </div>
-    </Card>
+    </>
   );
 }
 
@@ -675,17 +766,18 @@ function OverrideRules() {
     },
   ];
   return (
-    <Card
-      title="Override Rules"
-      desc="Defines which defaults may be overridden — Not Allowed · Allowed · Approval Required · Organization Locked."
-    >
+    <>
+      <SectionHead
+        title="Override Rules"
+        desc="Defines which defaults may be overridden — Not Allowed · Allowed · Approval Required · Organization Locked."
+      />
       <DiscoveryTable
         columns={cols}
         rows={rows}
         pageSize={14}
         initialSort={{ key: "configuration", dir: "asc" }}
       />
-    </Card>
+    </>
   );
 }
 
@@ -733,17 +825,18 @@ function VersionHistory() {
     { key: "summary", header: "Change Summary", render: (r) => r.summary },
   ];
   return (
-    <Card
-      title="Version History"
-      desc="Draft · Published · Archived · Rollback. Compare or restore a prior enterprise baseline."
-      right={
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <HeaderButton icon={<GitCompare size={13} />}>Compare</HeaderButton>
-          <HeaderButton icon={<Undo2 size={13} />}>Restore</HeaderButton>
-          <HeaderButton icon={<Download size={13} />}>Export</HeaderButton>
-        </div>
-      }
-    >
+    <>
+      <SectionHead
+        title="Version History"
+        desc="Draft · Published · Archived · Rollback. Compare or restore a prior enterprise baseline."
+        right={
+          <>
+            <HeaderButton icon={<GitCompare size={13} />}>Compare</HeaderButton>
+            <HeaderButton icon={<Undo2 size={13} />}>Restore</HeaderButton>
+            <HeaderButton icon={<Download size={13} />}>Export</HeaderButton>
+          </>
+        }
+      />
       {versions.length === 0 ? (
         <EmptyState
           icon={<History size={20} />}
@@ -753,6 +846,6 @@ function VersionHistory() {
       ) : (
         <DiscoveryTable columns={cols} rows={versions} />
       )}
-    </Card>
+    </>
   );
 }
