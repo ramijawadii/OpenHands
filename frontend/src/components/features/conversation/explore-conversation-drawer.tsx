@@ -18,11 +18,11 @@ import { ResizeHandle } from "#/components/ui/resize-handle";
 import { Conversation } from "#/api/open-hands.types";
 import { ConversationIdProvider } from "#/context/conversation-id-context";
 import { WsClientProvider } from "#/context/ws-client-provider";
+import { ConversationSendBridge } from "#/components/features/chat/conversation-send-bridge";
 import { ConversationSubscriptionsProvider } from "#/context/conversation-subscriptions-provider";
 import { EventHandler } from "#/wrapper/event-handler";
 import { usePaginatedConversations } from "#/hooks/query/use-paginated-conversations";
 import { useConversationConfig } from "#/hooks/query/use-conversation-config";
-import { useConversationId } from "#/hooks/use-conversation-id";
 import { useActiveConversation } from "#/hooks/query/use-active-conversation";
 import { useStartConversation } from "#/hooks/mutation/use-start-conversation";
 import { useUserProviders } from "#/hooks/use-user-providers";
@@ -250,11 +250,6 @@ function DrawerBody({
   onToggleFullscreen: () => void;
 }) {
   useConversationConfig();
-  // From context (set by the host below), so it is populated on the FIRST
-  // render. `useActiveConversation` only tells us the status, and it is still
-  // fetching initially — passing its undefined id to WsClientProvider trips its
-  // "No conversation ID provided" throw.
-  const { conversationId } = useConversationId();
   // Both read unconditionally — `a() || b()` would short-circuit and change
   // hook order between renders.
   const eventReport = useEventReport();
@@ -330,10 +325,8 @@ function DrawerBody({
   }
 
   return (
-    <WsClientProvider conversationId={conversationId}>
-      <ConversationSubscriptionsProvider>
-        <EventHandler>
-          {/* Fixed to --cg-topbar-h (not padding-derived) so this strip's bottom
+    <>
+      {/* Fixed to --cg-topbar-h (not padding-derived) so this strip's bottom
               border lines up exactly with the global top bar's beside it.
 
               When a report is open the strip adopts the REPORT's surface. The
@@ -346,35 +339,71 @@ function DrawerBody({
               made the strip disagree with the rest of the console. The reports
               no longer carry it either, so `--cg-bg-card` here resolves to the
               same native surface the report itself now uses. */}
-          <div
-            className={cn(
-              // `--cg-bg-page` — the SAME surface the tab content below renders
-              // on, so the strip and the pane read as one drawer rather than as
-              // a header bar sitting on a different sheet. It matched only by
-              // accident in dark (where sidebar and page resolve to the same
-              // #1f1f1e) and visibly disagreed in light.
-              "shrink-0 flex h-[var(--cg-topbar-h)] min-w-0 items-center gap-1 overflow-x-auto border-b border-[var(--cg-border-subtle)] bg-[var(--cg-bg-page)] px-3",
-              hasReport && "bg-[var(--cg-bg-card)]",
-            )}
-          >
-            <ConversationTabs />
-            <FullscreenToggle
-              isFullscreen={isFullscreen}
-              onToggle={onToggleFullscreen}
-            />
-          </div>
-          <div className="flex flex-col flex-1 min-h-0 w-full">
-            {/* The tab components are React.lazy and NOTHING in this tree
+      <div
+        className={cn(
+          // `--cg-bg-page` — the SAME surface the tab content below renders
+          // on, so the strip and the pane read as one drawer rather than as
+          // a header bar sitting on a different sheet. It matched only by
+          // accident in dark (where sidebar and page resolve to the same
+          // #1f1f1e) and visibly disagreed in light.
+          "shrink-0 flex h-[var(--cg-topbar-h)] min-w-0 items-center gap-1 overflow-x-auto border-b border-[var(--cg-border-subtle)] bg-[var(--cg-bg-page)] px-3",
+          hasReport && "bg-[var(--cg-bg-card)]",
+        )}
+      >
+        <ConversationTabs />
+        <FullscreenToggle
+          isFullscreen={isFullscreen}
+          onToggle={onToggleFullscreen}
+        />
+      </div>
+      <div className="flex flex-col flex-1 min-h-0 w-full">
+        {/* The tab components are React.lazy and NOTHING in this tree
                 provided a Suspense boundary — switching tabs in the drawer had
                 nothing to suspend against. The skeleton is the fallback, so a
                 tab swap shows structure instead of a blank panel. */}
-            <React.Suspense fallback={<DrawerSkeleton />}>
-              <ConversationTabContent loadingFallback={<DrawerSkeleton />} />
-            </React.Suspense>
-          </div>
-        </EventHandler>
-      </ConversationSubscriptionsProvider>
-    </WsClientProvider>
+        <React.Suspense fallback={<DrawerSkeleton />}>
+          <ConversationTabContent loadingFallback={<DrawerSkeleton />} />
+        </React.Suspense>
+      </div>
+    </>
+  );
+}
+
+/**
+ * The live conversation, wrapping BOTH drawer states.
+ *
+ * `WsClientProvider` used to sit inside {@link DrawerBody}, which only renders
+ * while the panel is open — so closing the drawer unmounted the socket and
+ * killed the run with it. Closing a panel is a viewing preference; it must not
+ * be able to stop work already in flight.
+ *
+ * Declared at module scope on purpose. Defined inside the host it would be a
+ * new component type on every render, and React would unmount and remount the
+ * whole subtree — dropping the socket each time, which is precisely the bug
+ * this is here to fix.
+ */
+function Live({
+  conversationId,
+  children,
+}: {
+  conversationId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <ConversationIdProvider conversationId={conversationId}>
+      <WsClientProvider conversationId={conversationId}>
+        <ConversationSubscriptionsProvider>
+          <EventHandler>
+            {/* Delivers messages posted by the composers outside the drawer.
+                Inside the socket context and mounted in both branches, so a
+                message sent with the panel closed goes immediately rather than
+                waiting for the panel to open. */}
+            <ConversationSendBridge />
+            {children}
+          </EventHandler>
+        </ConversationSubscriptionsProvider>
+      </WsClientProvider>
+    </ConversationIdProvider>
   );
 }
 
@@ -630,80 +659,82 @@ export function ExploreConversationDrawer() {
   // reopens from its chat header; the explore views have no such header.
   if (!isRightPanelShown) {
     return (
-      <div
-        ref={rootRef}
-        className="hidden md:flex shrink-0 md:-ml-2 flex-col items-center border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] px-1.5 py-2"
-      >
-        <button
-          type="button"
-          aria-label="Open conversation panel"
-          title="Open conversation panel"
-          onClick={() => setHasRightPanelToggled(true)}
-          className="rounded p-1.5 text-[var(--cg-text-muted)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)] transition-colors cursor-pointer"
+      <Live conversationId={conversation.conversation_id}>
+        <div
+          ref={rootRef}
+          className="hidden md:flex shrink-0 md:-ml-2 flex-col items-center border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)] px-1.5 py-2"
         >
-          <PanelRight className="h-4 w-4" />
-        </button>
-      </div>
+          <button
+            type="button"
+            aria-label="Open conversation panel"
+            title="Open conversation panel"
+            onClick={() => setHasRightPanelToggled(true)}
+            className="rounded p-1.5 text-[var(--cg-text-muted)] hover:bg-[var(--cg-bg-hover)] hover:text-[var(--cg-text-primary)] transition-colors cursor-pointer"
+          >
+            <PanelRight className="h-4 w-4" />
+          </button>
+        </div>
+      </Live>
     );
   }
 
   return (
-    // `-ml-2` cancels the root layout's `md:gap-2` so the drawer sits FLUSH
-    // against the page column with only its divider between them; the gap read
-    // as a floating panel rather than a docked one. Hidden below `md`, where the
-    // root layout stacks its children vertically and a side panel makes no sense.
-    <div
-      ref={rootRef}
-      data-mode={mode}
-      className={cn(
-        "hidden md:flex shrink-0 md:-ml-2 min-h-0",
-        // DOCKED is plain layout: the drawer occupies real width and the view
-        // shrinks beside it. OVERLAY/FULLSCREEN lift out of flow so the view
-        // keeps its own width and the drawer paints above it.
-        mode !== "docked" &&
-          "!fixed inset-y-0 right-0 z-[1200] !ml-0 shadow-[0_10px_60px_rgba(0,0,0,0.45)]",
-      )}
-    >
-      {/* Belt-and-braces with pointer capture: a full-viewport shield above the
+    <Live conversationId={conversation.conversation_id}>
+      {/* `-ml-2` cancels the root layout's `md:gap-2` so the drawer sits FLUSH
+          against the page column with only its divider between them; the gap
+          read as a floating panel rather than a docked one. Hidden below `md`,
+          where the root layout stacks its children vertically. */}
+      <div
+        ref={rootRef}
+        data-mode={mode}
+        className={cn(
+          "hidden md:flex shrink-0 md:-ml-2 min-h-0",
+          // DOCKED is plain layout: the drawer occupies real width and the view
+          // shrinks beside it. OVERLAY/FULLSCREEN lift out of flow so the view
+          // keeps its own width and the drawer paints above it.
+          mode !== "docked" &&
+            "!fixed inset-y-0 right-0 z-[1200] !ml-0 shadow-[0_10px_60px_rgba(0,0,0,0.45)]",
+        )}
+      >
+        {/* Belt-and-braces with pointer capture: a full-viewport shield above the
           iframes for the duration of the drag, so nothing below can intercept
           the gesture even if capture is unavailable. Portalled to <body> so no
           ancestor stacking context can trap it under the panel. */}
-      {isDragging &&
-        createPortal(
-          <div
-            aria-hidden
-            style={{
-              position: "fixed",
-              inset: 0,
-              zIndex: 2147483000,
-              cursor: "ew-resize",
-            }}
-          />,
-          document.body,
+        {isDragging &&
+          createPortal(
+            <div
+              aria-hidden
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 2147483000,
+                cursor: "ew-resize",
+              }}
+            />,
+            document.body,
+          )}
+        {/* No grip in fullscreen: there is no edge left to drag. */}
+        {mode !== "fullscreen" && (
+          <ResizeHandle
+            // Hover highlights the GRIP only (handled inside ResizeHandle); the
+            // full-height accent line is reserved for an active drag, so the two
+            // states stay distinguishable.
+            className={cn("shrink-0", isDragging && "bg-[var(--cg-accent)]")}
+            onPointerDown={beginDrag}
+          />
         )}
-      {/* No grip in fullscreen: there is no edge left to drag. */}
-      {mode !== "fullscreen" && (
-        <ResizeHandle
-          // Hover highlights the GRIP only (handled inside ResizeHandle); the
-          // full-height accent line is reserved for an active drag, so the two
-          // states stay distinguishable.
-          className={cn("shrink-0", isDragging && "bg-[var(--cg-accent)]")}
-          onPointerDown={beginDrag}
-        />
-      )}
-      <div
-        className="flex flex-col min-h-0 shrink-0 overflow-hidden border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)]"
-        // Fullscreen deliberately does NOT write to `width` — the dragged width
-        // is preserved and restored on exit rather than being overwritten.
-        style={{ width: mode === "fullscreen" ? "100vw" : width }}
-      >
-        <ConversationIdProvider conversationId={conversation.conversation_id}>
+        <div
+          className="flex flex-col min-h-0 shrink-0 overflow-hidden border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-sidebar)]"
+          // Fullscreen deliberately does NOT write to `width` — the dragged width
+          // is preserved and restored on exit rather than being overwritten.
+          style={{ width: mode === "fullscreen" ? "100vw" : width }}
+        >
           <DrawerBody
             isFullscreen={isFullscreen}
             onToggleFullscreen={() => setIsFullscreen((f) => !f)}
           />
-        </ConversationIdProvider>
+        </div>
       </div>
-    </div>
+    </Live>
   );
 }

@@ -92,7 +92,7 @@ function ChatTab() {
   const label = VIEW_LABEL[view];
 
   return (
-    <div className="cg-chat-embedded flex h-full w-full flex-col overflow-hidden">
+    <div className="cg-chat-embedded cg-chat-surface flex h-full w-full flex-col overflow-hidden">
       {/* view switch — chat ⇄ history ⇄ commands */}
       <div className="flex shrink-0 items-center justify-between gap-2 px-3 pt-2">
         <span className="min-w-0 flex-1 truncate text-[11px] tracking-wide text-[var(--cg-text-muted)] uppercase">

@@ -11,7 +11,6 @@ import { isOpenHandsAction } from "#/types/core/guards";
 import { generateAgentStateChangeEvent } from "#/services/agent-state-service";
 import { FeedbackModal } from "../feedback/feedback-modal";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
-import { TypingIndicator } from "./typing-indicator";
 import { useWsClient } from "#/context/ws-client-provider";
 import { Messages } from "./messages";
 import { ChatSuggestions } from "./chat-suggestions";
@@ -294,7 +293,7 @@ export function ChatInterface() {
 
   return (
     <ScrollProvider value={scrollProviderValue}>
-      <div className="h-full flex flex-col justify-between pr-0 md:pr-4 relative">
+      <div className="cg-chat-surface h-full flex flex-col justify-between pr-0 md:pr-4 relative">
         {!hasSubstantiveAgentActions &&
           !optimisticUserMessage &&
           !userEventsExist && (
@@ -307,23 +306,35 @@ export function ChatInterface() {
         <div
           ref={scrollRef}
           onScroll={(e) => onChatBodyScroll(e.currentTarget)}
-          className="custom-scrollbar-always flex min-h-0 flex-col grow overflow-y-auto overflow-x-hidden px-4 sm:px-6 pt-4 pb-6 gap-5 fast-smooth-scroll"
+          className="custom-scrollbar-always flex min-h-0 grow flex-col items-center overflow-y-auto overflow-x-hidden px-4 sm:px-6 pt-4 pb-6 fast-smooth-scroll"
         >
           {isLoadingMessages && (
-            <div className="flex justify-center">
+            <div className="flex w-full justify-center">
               <LoadingSpinner size="small" />
             </div>
           )}
 
-          {!isLoadingMessages && userEventsExist && (
-            <Messages
-              messages={events}
-              isAwaitingUserConfirmation={
-                curAgentState === AgentState.AWAITING_USER_CONFIRMATION
-              }
-              streamingContent={streamingContent}
-            />
-          )}
+          {/*
+            A measured column, not the full panel width.
+
+            At the drawer's docked width the transcript happens to look right;
+            fullscreen it stretched every bubble edge to edge, so a two-word
+            reply became a full-width bar and the right-aligned user messages
+            stopped reading as a side. Capping the column keeps the structure
+            identical at every width — the panel gets wider, the conversation
+            does not.
+          */}
+          <div className="flex w-full max-w-[820px] flex-col gap-5">
+            {!isLoadingMessages && userEventsExist && (
+              <Messages
+                messages={events}
+                isAwaitingUserConfirmation={
+                  curAgentState === AgentState.AWAITING_USER_CONFIRMATION
+                }
+                streamingContent={streamingContent}
+              />
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-[6px]">
@@ -342,10 +353,6 @@ export function ChatInterface() {
               )}
             </div>
 
-            <div className="absolute left-1/2 transform -translate-x-1/2 bottom-0">
-              {curAgentState === AgentState.RUNNING && <TypingIndicator />}
-            </div>
-
             <div className="flex items-center gap-2">
               {!hitBottom && (
                 <ScrollToBottomButton onClick={scrollDomToBottom} />
@@ -353,32 +360,47 @@ export function ChatInterface() {
             </div>
           </div>
 
-          <CompactionBanner />
-          <FileHistoryPanel />
-          <PlanApprovalBanner />
-          <ConfirmationBanner />
-          <ApprovalBanner />
-          <ClarificationBanner />
-          {errorMessage && <ErrorMessageBanner message={errorMessage} />}
-
-          {pendingDecision && (
-            <MidRunDecision
-              text={pendingDecision.text}
-              onAddToCurrent={decideAddToCurrent}
-              onQueue={decideQueue}
-              onDismiss={decideDismiss}
-            />
-          )}
-
-          <PendingTurns
-            items={pendingTurns}
-            onRunNow={handleRunNow}
-            onCancel={removeTurn}
-          />
-
+          {/*
+            Everything that used to be a card above the transcript now rides
+            the composer's strip. They are all interruptions about the turn you
+            are taking — a queued message, a staged edit, a compaction, an
+            error — so they belong on the box rather than stacked between it
+            and the conversation. Passed as one node so the strip can measure
+            the real height and collapse to nothing when the stack is empty.
+          */}
           <InteractiveChatBox
             onSubmit={handleSendMessage}
             onStop={handleStop}
+            // The conversation surface is the composer's home, so it opens
+            // ready to type rather than costing a click first.
+            defaultExpanded
+            // The mid-run decision is about the message being composed, so it
+            // rides the composer's own strip instead of stacking above the
+            // whole transcript.
+            banner={
+              <>
+                <CompactionBanner />
+                <FileHistoryPanel />
+                <PlanApprovalBanner />
+                <ConfirmationBanner />
+                <ApprovalBanner />
+                <ClarificationBanner />
+                {errorMessage && <ErrorMessageBanner message={errorMessage} />}
+                <PendingTurns
+                  items={pendingTurns}
+                  onRunNow={handleRunNow}
+                  onCancel={removeTurn}
+                />
+                {pendingDecision && (
+                  <MidRunDecision
+                    text={pendingDecision.text}
+                    onAddToCurrent={decideAddToCurrent}
+                    onQueue={decideQueue}
+                    onDismiss={decideDismiss}
+                  />
+                )}
+              </>
+            }
           />
         </div>
 

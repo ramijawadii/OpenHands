@@ -2270,6 +2270,22 @@ export function SideRailPanel({
                   <div key={sec.id} style={headingStyle}>
                     {sec.icon}
                     {sec.label}
+                    {/* The rule starts where the label ends and runs to the
+                        rail's inner edge, so the heading reads as a band across
+                        the group rather than as another short line of text. It
+                        is one pixel in the border token: a separator more visible
+                        than the items it separates inverts the hierarchy it
+                        exists to express. */}
+                    <span
+                      aria-hidden
+                      style={{
+                        flex: 1,
+                        height: 1,
+                        minWidth: 12,
+                        marginLeft: 8,
+                        background: T.border,
+                      }}
+                    />
                   </div>
                 );
 
@@ -2283,10 +2299,25 @@ export function SideRailPanel({
                 >
                   {sec.icon}
                   {sec.label}
+                  {/* The rule starts where the label ends and runs to the
+                      rail's inner edge, so the heading reads as a band across
+                      the group rather than as another short line of text. It
+                      is one pixel in the border token: a separator more visible
+                      than the items it separates inverts the hierarchy it
+                      exists to express. */}
                   <span
                     aria-hidden
                     style={{
-                      marginLeft: "auto",
+                      flex: 1,
+                      height: 1,
+                      minWidth: 12,
+                      marginLeft: 8,
+                      background: T.border,
+                    }}
+                  />
+                  <span
+                    aria-hidden
+                    style={{
                       display: "inline-flex",
                       // Rotation rather than two icons: the arrow animates
                       // between states instead of swapping, which is what makes

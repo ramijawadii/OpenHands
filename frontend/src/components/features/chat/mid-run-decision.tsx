@@ -21,33 +21,30 @@ export function MidRunDecision({
   onDismiss: () => void;
 }) {
   return (
-    <div
-      className="flex flex-col gap-2 rounded-md border px-3 py-2 text-xs"
-      style={{
-        borderColor: "var(--cg-border)",
-        background: "var(--cg-bg-badge)",
-        color: "var(--cg-text-muted)",
-      }}
-    >
-      <span>
+    <div className="flex w-full flex-col gap-2 text-xs">
+      <span style={{ color: "var(--color-muted-foreground)" }}>
         The agent is working. Add this to the current task, or queue it to run
         next?
       </span>
       <div
         className="truncate"
-        style={{ color: "var(--cg-text-nav)" }}
+        style={{ color: "var(--color-foreground)" }}
         title={text}
       >
         {text}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {/* Same vocabulary as the composer's send button: the primary choice
+            is the solid inverted chip, the alternative is an outline. Both
+            follow the composer's own palette rather than the page's, so the
+            banner cannot end up light-on-light when it sits inside the box. */}
         <button
           type="button"
           onClick={onAddToCurrent}
-          className="flex items-center gap-1 rounded px-2 py-1 font-medium"
+          className="flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-opacity hover:opacity-90"
           style={{
-            background: "var(--cg-text-nav)",
-            color: "var(--cg-bg-primary)",
+            background: "var(--color-primary)",
+            color: "var(--color-primary-foreground)",
           }}
         >
           <CornerUpRight size={12} />
@@ -56,10 +53,10 @@ export function MidRunDecision({
         <button
           type="button"
           onClick={onQueue}
-          className="flex items-center gap-1 rounded border px-2 py-1"
+          className="flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold transition-colors"
           style={{
-            borderColor: "var(--cg-border)",
-            color: "var(--cg-text-nav)",
+            borderColor: "var(--color-border)",
+            color: "var(--color-foreground)",
           }}
         >
           <ListPlus size={12} />
@@ -69,8 +66,11 @@ export function MidRunDecision({
           type="button"
           onClick={onDismiss}
           title="Cancel — put the text back in the input"
-          className="rounded border p-1"
-          style={{ borderColor: "var(--cg-border)" }}
+          className="flex size-6 items-center justify-center rounded-full border transition-colors"
+          style={{
+            borderColor: "var(--color-border)",
+            color: "var(--color-muted-foreground)",
+          }}
         >
           <X size={12} />
         </button>

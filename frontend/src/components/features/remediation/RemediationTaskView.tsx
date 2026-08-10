@@ -1,12 +1,9 @@
 /* eslint-disable i18next/no-literal-string -- remediation task detail */
 import React from "react";
 import {
-  ArrowLeft,
   Brain,
   ChevronDown,
-  CircleCheck,
   Check,
-  ChevronRight,
   Copy,
   FileCode2,
   ShieldCheck,
@@ -15,7 +12,12 @@ import {
 } from "lucide-react";
 import { APP_FONT } from "#/components/features/explore/cloudguard-grid/theme";
 import { type RemediationAction } from "./remediation-data";
-import { TimelineDot, TimelineItem } from "./RemediationPanes";
+import {
+  NestedNav,
+  StepTag,
+  TimelineDot,
+  TimelineItem,
+} from "./RemediationPanes";
 import {
   buildCheckpoint,
   buildThoughts,
@@ -117,18 +119,56 @@ function DiffWidget({ diff }: { diff: CodeDiff }) {
 }
 
 /**
- * One executed step, as a notebook cell.
+ * One executed step: the command, and what came back.
  *
- * `In [n]` / `Out [n]` rather than IN/OUT badges: the operator is reading a
- * transcript of things that ran in order, and the notebook convention already
- * encodes that — the number ties an output to the input that produced it, which
- * a pair of coloured labels does not.
+ * Labels are a muted `IN` / `OUT` in a left gutter rather than coloured
+ * `In [n]:` / `Out [n]:` prompts. Colour on this surface means severity — an
+ * output label permanently rendered in critical red trains the eye to ignore
+ * red, which is the one thing it must not do. The only colour here now is an
+ * actual failure.
  *
- * `--cg-code-bg` stays dark in both themes on purpose. This content IS a shell
- * transcript, and a terminal that inverts to white in light mode stops reading
- * as one.
+ * Content WRAPS instead of scrolling horizontally. A long command or a wide JSON
+ * body used to disappear off the right edge of a narrow drawer with no
+ * indication there was more; wrapping makes the cell grow in place, which is the
+ * behaviour the reader expects from a transcript.
+ *
+ * `--cg-code-bg` stays dark in both themes on purpose: this IS a shell
+ * transcript, and a terminal that inverts to white stops reading as one.
  */
-const MAX_LINES = 12;
+const MAX_LINES = 14;
+
+/** Gutter label. Fixed width so IN and OUT content share a left edge. */
+function StreamLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        flexShrink: 0,
+        width: 34,
+        paddingTop: 8,
+        fontFamily: MONO,
+        fontSize: 10,
+        letterSpacing: 0.5,
+        color: "var(--cg-text-muted)",
+        userSelect: "none",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+const streamPre: React.CSSProperties = {
+  margin: 0,
+  padding: "8px 10px 8px 0",
+  fontFamily: MONO,
+  fontSize: 11.5,
+  lineHeight: 1.55,
+  // Wrap, never scroll: content grows the cell rather than hiding off-edge.
+  whiteSpace: "pre-wrap",
+  overflowWrap: "anywhere",
+  flex: 1,
+  minWidth: 0,
+};
 
 function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
   const [copied, setCopied] = React.useState(false);
@@ -149,25 +189,33 @@ function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
         background: "var(--cg-code-bg)",
       }}
     >
-      {/* Header: prompt, the command inline, language and run status. */}
+      {/* Header: a status dot, the interpreter, and the step's identity. */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "5px 10px",
+          padding: "6px 10px",
           borderBottom: "1px solid var(--cg-border-subtle)",
-          fontFamily: MONO,
-          fontSize: 11,
+          fontFamily: APP_FONT,
+          fontSize: 11.5,
           minWidth: 0,
         }}
       >
-        <span style={{ color: "var(--cg-accent)", flexShrink: 0 }}>
-          In [{step.seq}]:
-        </span>
+        <span
+          aria-hidden
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            flexShrink: 0,
+            background: failed ? "var(--cg-danger)" : "var(--cgx-low)",
+          }}
+        />
+        <span style={{ color: "#e6edf3", fontWeight: 600 }}>Bash</span>
         <span
           style={{
-            color: "#e6edf3",
+            color: "var(--cg-text-muted)",
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
@@ -184,35 +232,20 @@ function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
             gap: 8,
             flexShrink: 0,
             color: "var(--cg-text-muted)",
+            fontFamily: MONO,
+            fontSize: 10.5,
           }}
         >
-          <span>bash</span>
-          {failed ? (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 3,
-                color: "var(--cg-danger)",
-              }}
-            >
-              <TriangleAlert size={10} /> exit {output?.exit}
-            </span>
-          ) : (
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 3,
-                color: "var(--cgx-low)",
-              }}
-            >
-              <CircleCheck size={10} /> ok
+          <span>{step.at.toISOString().slice(11, 19)}</span>
+          {failed && (
+            <span style={{ color: "var(--cg-danger)" }}>
+              exit {output?.exit}
             </span>
           )}
           <button
             type="button"
             aria-label="Copy command"
+            title="Copy command"
             onClick={() => {
               navigator.clipboard?.writeText(step.text);
               setCopied(true);
@@ -233,56 +266,22 @@ function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
         </span>
       </div>
 
-      {/* The command again, unwrapped and selectable. */}
-      <pre
-        style={{
-          margin: 0,
-          padding: "8px 10px",
-          color: "#e6edf3",
-          fontFamily: MONO,
-          fontSize: 11.5,
-          lineHeight: 1.55,
-          overflowX: "auto",
-          whiteSpace: "pre",
-        }}
-        className="cg-cmd-scroll"
-      >
-        {step.text}
-      </pre>
+      {/* IN — the command as issued. Shown once; the header carries only a
+          truncated echo for scanning. */}
+      <div style={{ display: "flex", padding: "0 0 0 10px" }}>
+        <StreamLabel>IN</StreamLabel>
+        <pre style={{ ...streamPre, color: "#e6edf3" }}>{step.text}</pre>
+      </div>
 
       {output && (
         <div style={{ borderTop: "1px solid var(--cg-border-subtle)" }}>
-          <div style={{ display: "flex", minWidth: 0 }}>
-            <span
-              style={{
-                flexShrink: 0,
-                padding: "8px 0 8px 10px",
-                fontFamily: MONO,
-                fontSize: 11,
-                color: "var(--cgx-critical)",
-              }}
-            >
-              Out[{output.seq}]:
-            </span>
-            <pre
-              className="cg-cmd-scroll"
-              style={{
-                margin: 0,
-                padding: "8px 10px",
-                color: "#b9c0ca",
-                fontFamily: MONO,
-                fontSize: 11.5,
-                lineHeight: 1.55,
-                overflowX: "auto",
-                whiteSpace: "pre",
-                flex: 1,
-                minWidth: 0,
-              }}
-            >
+          <div style={{ display: "flex", padding: "0 0 0 10px" }}>
+            <StreamLabel>OUT</StreamLabel>
+            <pre style={{ ...streamPre, color: "#b9c0ca" }}>
               {shown.join("\n")}
               {truncated && (
                 <span style={{ color: "var(--cg-text-muted)" }}>
-                  {"\n… output truncated"}
+                  {`\n… ${outLines.length - MAX_LINES} more lines`}
                 </span>
               )}
             </pre>
@@ -298,7 +297,7 @@ function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
                 justifyContent: "center",
                 gap: 5,
                 width: "100%",
-                padding: "4px 0",
+                padding: "5px 0",
                 background: "none",
                 border: "none",
                 borderTop: "1px solid var(--cg-border-subtle)",
@@ -315,7 +314,7 @@ function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
                   transition: "transform .15s ease",
                 }}
               />
-              {expanded ? "collapse" : "expand"}
+              {expanded ? "Collapse" : `Expand (${outLines.length} lines)`}
             </button>
           )}
         </div>
@@ -325,6 +324,14 @@ function CmdCell({ step, output }: { step: TraceStep; output?: TraceStep }) {
     </div>
   );
 }
+
+/** Display case lives here now that the chip no longer shouts. */
+const THOUGHT_LABEL: Record<string, string> = {
+  observation: "Observation",
+  reasoning: "Reasoning",
+  decision: "Decision",
+  rejected: "Rejected",
+};
 
 const THOUGHT_TONE: Record<string, string> = {
   observation: "var(--cg-text-muted)",
@@ -372,62 +379,27 @@ export function RemediationTaskView({
     // Explicit colour: the notebook cells inside set their own light-on-dark
     // type, and without a colour here the surrounding pane inherited it in
     // light mode — white text on a white surface.
-    <div style={{ color: "var(--cg-text-primary)" }}>
+    <div className="cg-nested" style={{ color: "var(--cg-text-primary)" }}>
       {/* Breadcrumb back to the plan — the task is a drill-down, not a route. */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 8,
-          marginBottom: 12,
-        }}
-      >
-        <button
-          type="button"
-          className="cg-report-action"
-          onClick={onBack}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            height: 26,
-            padding: "0 9px",
-            fontSize: 12,
-            fontFamily: APP_FONT,
-            cursor: "pointer",
-          }}
-        >
-          <ArrowLeft size={12} /> Plan
-        </button>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 11.5,
-            color: "var(--cg-text-muted)",
-          }}
-        >
-          {phaseLabel}
-          <ChevronRight size={11} />
-          <span style={{ color: "var(--cg-text-primary)" }}>{taskLabel}</span>
-        </span>
-        <span
-          title="Content-derived task id — stable across plan reordering"
-          style={{
-            marginLeft: "auto",
-            fontFamily: MONO,
-            fontSize: 10.5,
-            color: "var(--cg-text-muted)",
-            border: "1px solid var(--cg-border-subtle)",
-            borderRadius: 3,
-            padding: "1px 6px",
-          }}
-        >
-          {taskIdentifier}
-        </span>
-      </div>
+      <NestedNav
+        trail={[{ label: "Plan", onClick: onBack }, { label: phaseLabel }]}
+        current={taskLabel}
+        right={
+          <span
+            title="Content-derived task id — stable across plan reordering"
+            style={{
+              fontFamily: MONO,
+              fontSize: 10.5,
+              color: "var(--cg-text-muted)",
+              border: "1px solid var(--cg-border-subtle)",
+              borderRadius: 3,
+              padding: "1px 6px",
+            }}
+          >
+            {taskIdentifier}
+          </span>
+        }
+      />
 
       {/*
        * The drawer's own tab pills, not an underline strip — this sits inside
@@ -527,19 +499,10 @@ export function RemediationTaskView({
               last={i === thoughts.length - 1}
             >
               <div style={{ display: "flex", gap: 10, paddingTop: 2 }}>
-                <span
-                  style={{
-                    fontSize: 9.5,
-                    textTransform: "uppercase",
-                    letterSpacing: 0.4,
-                    fontWeight: 700,
-                    color: THOUGHT_TONE[t.kind],
-                    minWidth: 74,
-                    flexShrink: 0,
-                    paddingTop: 2,
-                  }}
-                >
-                  {t.kind}
+                {/* Fixed slot so the reasoning text keeps one left edge;
+                    the chip inside it hugs its own word. */}
+                <span style={{ minWidth: 74, flexShrink: 0, paddingTop: 2 }}>
+                  <StepTag>{THOUGHT_LABEL[t.kind] ?? t.kind}</StepTag>
                 </span>
                 <span
                   style={{
@@ -583,9 +546,7 @@ export function RemediationTaskView({
                 }}
               >
                 <ShieldCheck size={14} style={{ color: "var(--cgx-low)" }} />
-                <span style={{ fontSize: 12.5, fontWeight: 600 }}>
-                  Checkpoint captured before write
-                </span>
+                <StepTag>Checkpoint captured before write</StepTag>
                 <span
                   style={{
                     fontFamily: MONO,
@@ -595,29 +556,35 @@ export function RemediationTaskView({
                 >
                   {checkpoint.id}
                 </span>
+                {/* Same rule as the timeline: the mark carries the tone,
+                    the word is a chip. */}
                 <span
                   style={{
                     marginLeft: "auto",
                     display: "inline-flex",
                     alignItems: "center",
                     gap: 5,
-                    padding: "1px 8px",
-                    borderRadius: 10,
-                    fontSize: 10.5,
-                    border: `1px solid ${checkpoint.rollbackVerified ? "var(--cgx-low)" : "var(--cgx-critical)"}`,
-                    color: checkpoint.rollbackVerified
-                      ? "var(--cgx-low)"
-                      : "var(--cgx-critical)",
                   }}
                 >
-                  {checkpoint.rollbackVerified ? (
-                    <Check size={9} />
-                  ) : (
-                    <TriangleAlert size={9} />
-                  )}
-                  {checkpoint.rollbackVerified
-                    ? "Rollback verified"
-                    : "Rollback UNTESTED"}
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      color: checkpoint.rollbackVerified
+                        ? "var(--cgx-low)"
+                        : "var(--cgx-critical)",
+                    }}
+                  >
+                    {checkpoint.rollbackVerified ? (
+                      <Check size={11} />
+                    ) : (
+                      <TriangleAlert size={11} />
+                    )}
+                  </span>
+                  <StepTag>
+                    {checkpoint.rollbackVerified
+                      ? "Rollback verified"
+                      : "Rollback untested"}
+                  </StepTag>
                 </span>
               </div>
 

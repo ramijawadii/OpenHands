@@ -326,6 +326,21 @@ export interface PlanTask {
   done: boolean;
 }
 
+/**
+ * A control this phase implements.
+ *
+ * Deliberately the DEFENSIVE frameworks — D3FEND countermeasures and the NIST
+ * CSF Respond/Recover functions — not ATT&CK. ATT&CK describes what an
+ * adversary does; it belongs on the finding. A remediation phase is a
+ * countermeasure, and tagging it with an offensive technique is the conflation
+ * that lets products claim MITRE coverage they do not have.
+ */
+export interface PhaseControl {
+  framework: string;
+  ref: string;
+  title: string;
+}
+
 export interface PlanPhase {
   id: string;
   label: string;
@@ -335,7 +350,84 @@ export interface PlanPhase {
   reason: string;
   /** Read-only phases need no gate; write phases are what approvals guard. */
   access: AccessLevel;
+  /** D3FEND countermeasure + NIST response function this phase satisfies. */
+  controls: PhaseControl[];
 }
+
+/**
+ * Phase → defensive control mapping.
+ *
+ * Fixed, not generated: the mapping from "what this phase does" to "which
+ * countermeasure that is" is a property of the workflow, and inventing it per
+ * action would produce citations nobody could verify.
+ */
+const PHASE_CONTROLS: Record<string, PhaseControl[]> = {
+  "pre-checks": [
+    {
+      framework: "MITRE D3FEND",
+      ref: "D3-AI",
+      title: "Asset Inventory — confirm the target still matches the finding",
+    },
+    { framework: "NIST CSF", ref: "RS.AN", title: "Respond · Analysis" },
+    { framework: "NIST SP 800-53", ref: "IR-4", title: "Incident Handling" },
+  ],
+  prepare: [
+    {
+      framework: "MITRE D3FEND",
+      ref: "D3-ACH",
+      title: "Application Configuration Hardening — the proposed change",
+    },
+    { framework: "NIST CSF", ref: "RS.MI", title: "Respond · Mitigation" },
+    {
+      framework: "NIST SP 800-53",
+      ref: "CM-3",
+      title: "Configuration Change Control",
+    },
+  ],
+  apply: [
+    {
+      framework: "MITRE D3FEND",
+      ref: "D3-NTF",
+      title: "Network Traffic Filtering — the enacted countermeasure",
+    },
+    {
+      framework: "NIST CSF",
+      ref: "RS.MI-3",
+      title: "Respond · newly identified vulnerabilities mitigated",
+    },
+    {
+      framework: "NIST SP 800-53",
+      ref: "CM-6",
+      title: "Configuration Settings",
+    },
+  ],
+  validate: [
+    {
+      framework: "MITRE D3FEND",
+      ref: "D3-NTA",
+      title: "Network Traffic Analysis — verify the control holds",
+    },
+    {
+      framework: "NIST CSF",
+      ref: "DE.CM",
+      title: "Detect · Continuous Monitoring",
+    },
+    {
+      framework: "NIST SP 800-53",
+      ref: "CA-7",
+      title: "Continuous Monitoring",
+    },
+  ],
+  close: [
+    {
+      framework: "NIST CSF",
+      ref: "RC.RP",
+      title: "Recover · Recovery Plan Execution",
+    },
+    { framework: "NIST CSF", ref: "RS.IM", title: "Respond · Improvements" },
+    { framework: "NIST SP 800-53", ref: "IR-6", title: "Incident Reporting" },
+  ],
+};
 
 /**
  * The remediation plan, as phases of checkable work.
@@ -394,6 +486,7 @@ export function buildPlan(a: RemediationAction): PlanPhase[] {
     authorization,
     reason,
     access,
+    controls: PHASE_CONTROLS[id] ?? [],
     tasks: labels.map((l, i) => ({
       id: `${id}-${i}`,
       label: l,

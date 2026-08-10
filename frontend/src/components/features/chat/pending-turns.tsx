@@ -20,22 +20,20 @@ export function PendingTurns({
 
   return (
     <div
-      className="flex flex-col gap-1 rounded-md border px-2 py-1.5 text-xs"
-      style={{
-        borderColor: "var(--cg-border)",
-        background: "var(--cg-bg-badge)",
-        color: "var(--cg-text-muted)",
-      }}
+      // Embedded in the composer strip, so no card of its own — the strip is
+      // already the surface. Colours come from the composer's palette.
+      className="flex w-full flex-col gap-1.5 text-xs"
+      style={{ color: "var(--color-muted-foreground)" }}
     >
       <span>Queued ({items.length}) — will run when the agent is free</span>
       {items.map((it) => (
         <div key={it.id} className="flex items-center gap-2">
           {it.priority === "now" && (
             <span
-              className="rounded px-1 text-[10px] font-medium shrink-0"
+              className="shrink-0 rounded-full px-2 text-[10px] font-semibold"
               style={{
-                background: "var(--cg-bg-active)",
-                color: "var(--cg-text-primary)",
+                background: "var(--color-primary)",
+                color: "var(--color-primary-foreground)",
               }}
             >
               now
@@ -43,7 +41,7 @@ export function PendingTurns({
           )}
           <span
             className="truncate flex-1"
-            style={{ color: "var(--cg-text-nav)" }}
+            style={{ color: "var(--color-foreground)" }}
             title={it.text}
           >
             {it.text}
@@ -52,8 +50,11 @@ export function PendingTurns({
             type="button"
             onClick={() => onRunNow(it.id)}
             title="Run now (interrupt the agent)"
-            className="flex items-center gap-0.5 rounded border px-1 py-0.5 hover:opacity-80"
-            style={{ borderColor: "var(--cg-border)" }}
+            className="flex items-center gap-1 rounded-full border px-2.5 py-0.5 font-semibold hover:opacity-80"
+            style={{
+              borderColor: "var(--color-border)",
+              color: "var(--color-foreground)",
+            }}
           >
             <ArrowUp size={11} />
             now
@@ -62,8 +63,11 @@ export function PendingTurns({
             type="button"
             onClick={() => onCancel(it.id)}
             title="Cancel this queued turn"
-            className="rounded border p-0.5 hover:opacity-80"
-            style={{ borderColor: "var(--cg-border)" }}
+            className="flex size-5 items-center justify-center rounded-full border hover:opacity-80"
+            style={{
+              borderColor: "var(--color-border)",
+              color: "var(--color-muted-foreground)",
+            }}
           >
             <X size={11} />
           </button>

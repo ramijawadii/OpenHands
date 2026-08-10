@@ -15,6 +15,7 @@ import { PlanSnapshotMessage } from "./plan-snapshot-message";
 import { buildMessageLookups } from "./message-lookups";
 import { ChatMessage } from "./chat-message";
 import { StreamingMessage } from "./streaming-message";
+import { ThinkingOrbIndicator } from "./thinking-orb-indicator";
 import { useOptimisticUserMessageStore } from "#/stores/optimistic-user-message-store";
 import { LaunchMicroagentModal } from "./microagent/launch-microagent-modal";
 import { useUserConversation } from "#/hooks/query/use-user-conversation";
@@ -342,6 +343,10 @@ export const Messages: React.FC<MessagesProps> = React.memo(
         {optimisticUserMessage && (
           <ChatMessage type="user" message={optimisticUserMessage} />
         )}
+
+        {/* Last in the column, so it occupies the slot the reply will take and
+            is replaced in place by the first token. */}
+        <ThinkingOrbIndicator streaming={Boolean(streamingContent)} />
         {conversation?.selected_repository &&
           showLaunchMicroagentModal &&
           selectedEventId &&

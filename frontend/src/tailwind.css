@@ -16,6 +16,255 @@
   color: hsl(0deg, 0%, 15%);
 }
 
+/* ── Prompt-input surface tokens ───────────────────────────────────────────
+   The chat composer is written against the shadcn colour vocabulary
+   (`bg-card`, `border-border`, `text-muted-foreground`, …). Rather than
+   restyle it — which would mean re-deriving every class by hand and losing
+   the component's identity — the vocabulary is mapped onto the app's own
+   `--cg-*` palette. The composer keeps its markup verbatim and still follows
+   the product's theme, in both light and dark, because the `--cg-*` tokens
+   already invert.
+
+   `--color-primary` is deliberately NOT redefined here: it is already white
+   app-wide, which is exactly what the send button wants. Only its foreground
+   is added. */
+@theme {
+  --color-border: var(--cg-border);
+  --color-card: var(--cg-bg-card);
+  --color-muted: var(--cg-bg-hover);
+  --color-muted-foreground: var(--cg-text-muted);
+  --color-foreground: var(--cg-text-primary);
+  --color-background: var(--cg-bg-page);
+  --color-accent: var(--cg-bg-hover);
+  --color-ring: var(--cg-accent);
+  --color-primary-foreground: var(--cg-bg-page);
+}
+
+/* The composer pins its own colour vocabulary rather than inheriting the
+   page's. Tailwind 4 utilities compile to `var(--color-*)`, so redefining the
+   variables on the composer's scope re-points every utility inside it without
+   touching a single class.
+
+   It has to be stated twice because the composer inverts with the theme in the
+   opposite direction to everything else: dark page → black box with a white
+   send button, light page → white box with a black one. Leaving it on the
+   shared tokens gave near-black text on near-black and a white arrow on a
+   white button. */
+.cg-composer {
+  /* The same surface the recommendation cards sit on, so the composer reads as
+     another card in the conversation rather than a hole punched through it.
+     `--cg-bg-card` is #121212 on dark and #ffffff on light, which is also why
+     the light block below only has to restate what genuinely inverts. */
+  --color-card: var(--cg-bg-card);
+  --color-background: var(--cg-bg-card);
+  --color-foreground: #ededed;
+  --color-muted: #171717;
+  --color-muted-foreground: #8b8b8b;
+  --color-border: #2c2c2c;
+  --color-accent: #1f1f1f;
+  --color-primary: #ffffff;
+  --color-primary-foreground: #0a0a0a;
+}
+
+[data-theme="light"] .cg-composer {
+  --color-foreground: #18181b;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #6b7280;
+  --color-border: #e4e4e7;
+  --color-accent: #f4f4f5;
+  --color-primary: #0a0a0a;
+  --color-primary-foreground: #ffffff;
+}
+
+/* Space for the floating composer.
+   The composer is `fixed`, so it takes no layout space and sits on top of
+   whatever is at the bottom of the page — the last table rows, the foot of a
+   chart. Padding the scroll container is what gives the page somewhere to end:
+   padding-bottom on an `overflow-auto` element counts toward scroll height, so
+   scrolling to the bottom now lands past the composer instead of under it.
+
+   The value is published by the composer itself and measured, not guessed, so
+   it stays correct as the box grows while you type. It is 0 whenever the
+   composer is not on screen, which is why every page can carry the rule
+   unconditionally. */
+#root-outlet {
+  padding-bottom: var(--cg-composer-gutter, 0px);
+  transition: padding-bottom 0.2s ease-out;
+}
+
+/* The conversation surface.
+   Dark mode gets its own ground (#171717) rather than the page colour, so the
+   transcript reads as a distinct area from the chrome around it. Light mode is
+   deliberately left alone — it already works, and forcing a dark ground there
+   would need every message restyled to stay legible. */
+.cg-chat-surface {
+  background: #171717;
+}
+
+[data-theme="light"] .cg-chat-surface {
+  background: transparent;
+}
+
+/* Message text. The same family the composer's controls use, so a reply and
+   the box you reply from are visibly one product. White on dark, black on
+   light — stated rather than inherited, because the dark ground above is fixed
+   and would otherwise take near-black text with it in light mode. */
+.cg-chat-surface,
+.cg-chat-surface article,
+.cg-chat-surface .md-vscode--chat,
+.cg-chat-surface .md-vscode--chat p,
+.cg-chat-surface .md-vscode--chat li,
+.cg-chat-surface .md-vscode--chat span {
+  font-family:
+    -apple-system, "SF Pro", BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  color: #ededed;
+}
+
+[data-theme="light"] .cg-chat-surface,
+[data-theme="light"] .cg-chat-surface article,
+[data-theme="light"] .cg-chat-surface .md-vscode--chat,
+[data-theme="light"] .cg-chat-surface .md-vscode--chat p,
+[data-theme="light"] .cg-chat-surface .md-vscode--chat li,
+[data-theme="light"] .cg-chat-surface .md-vscode--chat span {
+  color: #18181b;
+}
+
+/* Code keeps its own colours — forcing the body colour through a highlighted
+   block would flatten the syntax highlighting to one tone. */
+.cg-chat-surface code,
+.cg-chat-surface pre,
+.cg-chat-surface pre span {
+  color: revert;
+}
+
+/* A soft focus behind the floating composer.
+   Only the floating placement needs it: docked in the drawer the composer sits
+   on a panel, but over a dashboard it floats on live content — tables, charts,
+   dense text — and a hard edge against that reads as a sticker. A little blur
+   behind it separates the two planes without dimming the page.
+
+   Masked so the blur fades out rather than ending on a rectangle: an
+   unfeathered `backdrop-filter` box has a visible seam, which is worse than no
+   blur at all. Inset larger than the composer so the softening starts before
+   its edge. */
+.cg-composer-halo {
+  position: absolute;
+  inset: -18px -26px -22px;
+  border-radius: 34px;
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(
+    120% 130% at 50% 55%,
+    #000 45%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    120% 130% at 50% 55%,
+    #000 45%,
+    transparent 78%
+  );
+}
+
+/* The composer moving between its two homes.
+   Docked in the drawer and floating over the page are two different elements
+   in two different subtrees, so there is nothing to animate BETWEEN — the old
+   one unmounts and the new one appears. Each arrival plays a short settle from
+   the direction the other one was in, which reads as the box travelling rather
+   than blinking. Cheap, and it cannot desync from real state the way a shared
+   layout animation can. */
+@keyframes cg-composer-settle-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cg-composer-arrive {
+  animation: cg-composer-settle-up 0.34s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-composer-arrive {
+    animation: none;
+  }
+}
+
+/* A light sweeping across the task name while the agent works.
+   Text-only on purpose: a spinner beside the label would be a second thing to
+   look at, where the point is that the label itself is live. `background-clip`
+   paints the gradient through the glyphs, so the motion IS the text. */
+@keyframes cg-task-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.cg-task-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    var(--color-muted-foreground) 0%,
+    var(--color-muted-foreground) 35%,
+    var(--color-foreground) 50%,
+    var(--color-muted-foreground) 65%,
+    var(--color-muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: cg-task-shimmer 2.4s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cg-task-shimmer {
+    animation: none;
+    color: var(--color-foreground);
+  }
+}
+
+/* The composer's entrance animations. `tailwindcss-animate` is not installed
+   and pulling it in for four keyframes would be a dependency for a thumbnail,
+   so the one animation the attachment strip uses is declared here. */
+@keyframes prompt-thumb-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.prompt-thumb-in {
+  animation: prompt-thumb-in 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes prompt-text-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.prompt-text-in {
+  animation: prompt-text-in 0.3s ease-out;
+}
+
 /* OLD TAILWIND STYLES */
 @theme {
   --color-primary: #ffffff;
@@ -45,6 +294,27 @@
 
 .heading {
   @apply text-[28px] leading-8 -tracking-[0.02em] font-bold text-content-2;
+}
+
+/* Prompt-input scrollbar — invisible until hover, so the composer stays clean
+   while idle but is still scrollable once the text runs past 160px. */
+.prompt-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+  background: transparent;
+}
+
+.prompt-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.prompt-scrollbar::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 4px;
+}
+
+.prompt-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: var(--cg-text-muted);
 }
 
 /* Custom Chat Input */

@@ -6,6 +6,7 @@ import { TabContainer } from "./tab-container";
 import { TabContentArea } from "./tab-content-area";
 import { TabErrorBoundary } from "./tab-error-boundary";
 import { useConversationStore } from "#/state/conversation-store";
+import { DockedComposer } from "#/components/features/chat/docked-composer";
 
 // Human labels for the boundary message (keys are historical — see below).
 const TAB_LABELS: Record<string, string> = {
@@ -83,6 +84,9 @@ export function ConversationTabContent({
           </TabWrapper>
         ))}
       </TabContentArea>
+      {/* Every tab except Chat gets the composer at its foot. Chat has its own
+          — a second one there would be two inputs for one conversation. */}
+      {!isTerminalActive && <DockedComposer placement="docked" />}
       {shouldShownAgentLoading && (
         <div className="absolute inset-0 z-20 bg-[var(--cg-bg-page)]">
           {loadingFallback ?? <ConversationLoading />}

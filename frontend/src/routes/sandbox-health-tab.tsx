@@ -1,28 +1,29 @@
 /* eslint-disable i18next/no-literal-string */
-import { Activity } from "lucide-react";
+import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
+import { ArtifactSettingsView } from "#/components/features/artifact-settings/ArtifactSettingsView";
 
-/** Sandbox Health — OS, CPU/memory/disk/bandwidth and running processes for the
- *  isolated execution sandbox. Placeholder.
+/**
+ * The drawer's Settings tab.
  *
- *  Deliberately empty: the metrics must come from inside the sandbox (a /metrics
- *  endpoint on action_execution_server, reading cgroup limits), NOT from the
- *  control plane's psutil, which measures the app container instead. Showing the
- *  latter would be confidently wrong data. Also gated on edge auth — OS and
- *  process listings are recon-grade and must be tenant-scoped. */
+ * Five views — AI · Runtime · Context · Sharing · Maintenance — in the same
+ * `SideRailPanel` shell the Remediation record and the event report use.
+ *
+ * Scope note worth keeping: Platform Settings own what is permitted and
+ * Workspace Settings the team default. This tab is **operational** — it decides
+ * how THIS artifact runs within both, and every control shows where its value
+ * came from and what its ceiling is. See docs/settings/artifact-drawer/.
+ *
+ * The file keeps its historical name because the drawer's tab key is `sandbox`
+ * and the persisted selection in localStorage resolves through it; renaming the
+ * route without a migration would drop returning users onto an empty panel.
+ */
 function SandboxHealthTab() {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 px-6 text-center">
-      <div className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--cg-accent-purple-bg)] text-[var(--cg-accent-purple)]">
-        <Activity className="h-5 w-5" />
+    <SurfaceErrorBoundary surface="explore" name="Artifact settings">
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        <ArtifactSettingsView />
       </div>
-      <div className="text-[14px] font-medium text-[var(--cg-text-primary)]">
-        Sandbox Health
-      </div>
-      <p className="max-w-xs text-[12px] leading-relaxed text-[var(--cg-text-muted)]">
-        OS, CPU, memory, disk, bandwidth and running processes for the isolated
-        sandbox. Awaiting the in-sandbox metrics endpoint. Not built yet.
-      </p>
-    </div>
+    </SurfaceErrorBoundary>
   );
 }
 

@@ -1,148 +1,59 @@
-import { isFileImage } from "#/utils/is-file-image";
-import { displayErrorToast } from "#/utils/custom-toast-handlers";
-import { validateFiles } from "#/utils/file-validation";
-import { CustomChatInput } from "./custom-chat-input";
-import { AgentState } from "#/types/agent-state";
-import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { useLocation } from "react-router";
+import { PromptInput } from "./prompt-input";
+import { viewLabel } from "./docked-composer";
 import { useConversationStore } from "#/state/conversation-store";
-import { useAgentStore } from "#/stores/agent-store";
-import { processFiles, processImages } from "#/utils/file-processing";
 
 interface InteractiveChatBoxProps {
   onSubmit: (message: string, images: File[], files: File[]) => void;
+  /**
+   * Kept on the contract deliberately. The new composer does not render a
+   * stop-runtime control yet, but every caller still supplies this and the
+   * control is coming back — dropping it would churn the call sites twice.
+   */
+  // eslint-disable-next-line react/no-unused-prop-types
   onStop: () => void;
+  defaultExpanded?: boolean;
+  banner?: React.ReactNode;
 }
 
+/**
+ * The chat composer.
+ *
+ * The upload/validation pipeline that used to live here belonged to the old
+ * input, which owned neither its attachments nor its own file chooser. The new
+ * composer does both, so it hands the images back on submit and this component
+ * is only the seam between it and the conversation store.
+ */
 export function InteractiveChatBox({
   onSubmit,
-  onStop,
+  defaultExpanded,
+  banner,
 }: InteractiveChatBoxProps) {
-  const {
-    images,
-    files,
-    addImages,
-    addFiles,
-    clearAllFiles,
-    addFileLoading,
-    removeFileLoading,
-    addImageLoading,
-    removeImageLoading,
-  } = useConversationStore();
-  const { curAgentState } = useAgentStore();
-  const { data: conversation } = useActiveConversation();
-
-  // Helper function to validate and filter files
-  const validateAndFilterFiles = (selectedFiles: File[]) => {
-    const validation = validateFiles(selectedFiles, [...images, ...files]);
-
-    if (!validation.isValid) {
-      displayErrorToast(`Error: ${validation.errorMessage}`);
-      return null;
-    }
-
-    const validFiles = selectedFiles.filter((f) => !isFileImage(f));
-    const validImages = selectedFiles.filter((f) => isFileImage(f));
-
-    return { validFiles, validImages };
-  };
-
-  // Helper function to show loading indicators for files
-  const showLoadingIndicators = (validFiles: File[], validImages: File[]) => {
-    validFiles.forEach((file) => addFileLoading(file.name));
-    validImages.forEach((image) => addImageLoading(image.name));
-  };
-
-  // Helper function to handle successful file processing results
-  const handleSuccessfulFiles = (fileResults: { successful: File[] }) => {
-    if (fileResults.successful.length > 0) {
-      addFiles(fileResults.successful);
-      fileResults.successful.forEach((file) => removeFileLoading(file.name));
-    }
-  };
-
-  // Helper function to handle successful image processing results
-  const handleSuccessfulImages = (imageResults: { successful: File[] }) => {
-    if (imageResults.successful.length > 0) {
-      addImages(imageResults.successful);
-      imageResults.successful.forEach((image) =>
-        removeImageLoading(image.name),
-      );
-    }
-  };
-
-  // Helper function to handle failed file processing results
-  const handleFailedFiles = (
-    fileResults: { failed: { file: File; error: Error }[] },
-    imageResults: { failed: { file: File; error: Error }[] },
-  ) => {
-    fileResults.failed.forEach(({ file, error }) => {
-      removeFileLoading(file.name);
-      displayErrorToast(
-        `Failed to process file ${file.name}: ${error.message}`,
-      );
-    });
-
-    imageResults.failed.forEach(({ file, error }) => {
-      removeImageLoading(file.name);
-      displayErrorToast(
-        `Failed to process image ${file.name}: ${error.message}`,
-      );
-    });
-  };
-
-  // Helper function to clear loading states on error
-  const clearLoadingStates = (validFiles: File[], validImages: File[]) => {
-    validFiles.forEach((file) => removeFileLoading(file.name));
-    validImages.forEach((image) => removeImageLoading(image.name));
-  };
-
-  const handleUpload = async (selectedFiles: File[]) => {
-    // Step 1: Validate and filter files
-    const result = validateAndFilterFiles(selectedFiles);
-    if (!result) return;
-
-    const { validFiles, validImages } = result;
-
-    // Step 2: Show loading indicators immediately
-    showLoadingIndicators(validFiles, validImages);
-
-    // Step 3: Process files using REAL FileReader
-    try {
-      const [fileResults, imageResults] = await Promise.all([
-        processFiles(validFiles),
-        processImages(validImages),
-      ]);
-
-      // Step 4: Handle successful results
-      handleSuccessfulFiles(fileResults);
-      handleSuccessfulImages(imageResults);
-
-      // Step 5: Handle failed results
-      handleFailedFiles(fileResults, imageResults);
-    } catch (error) {
-      // Clear loading states and show error
-      clearLoadingStates(validFiles, validImages);
-      displayErrorToast("An unexpected error occurred while processing files");
-    }
-  };
-
-  const handleSubmit = (message: string) => {
-    onSubmit(message, images, files);
-    clearAllFiles();
-  };
-
-  const isDisabled =
-    curAgentState === AgentState.LOADING ||
-    curAgentState === AgentState.AWAITING_USER_CONFIRMATION;
+  const { pathname } = useLocation();
+  /*
+   * No store consumer here any more.
+   *
+   * This component only exists while the drawer is open, so consuming the
+   * posted-message channel from inside it meant a message sent with the drawer
+   * closed sat unhandled until the drawer mounted. `ConversationSendBridge`
+   * owns that channel now and is mounted at layout level.
+   */
+  const { files, clearAllFiles } = useConversationStore();
 
   return (
-    <div data-testid="interactive-chat-box">
-      <CustomChatInput
-        disabled={isDisabled}
-        onSubmit={handleSubmit}
-        onStop={onStop}
-        onFilesPaste={handleUpload}
-        conversationStatus={conversation?.status || null}
+    <div data-testid="interactive-chat-box" className="flex justify-center">
+      <PromptInput
+        placeholder="Ask anything"
+        defaultExpanded={defaultExpanded}
+        tag={viewLabel(pathname) ?? undefined}
+        banner={banner}
+        onSubmit={(message, meta) => {
+          // The composer owns its own image attachments, so they arrive with
+          // the submission rather than through the conversation store. Files
+          // added by drag/paste still come from the store.
+          onSubmit(message, meta.attachments, files);
+          clearAllFiles();
+        }}
       />
     </div>
   );

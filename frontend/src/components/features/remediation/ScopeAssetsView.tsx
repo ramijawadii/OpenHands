@@ -6,12 +6,10 @@ import {
   type ColDef,
 } from "ag-grid-community";
 import { AgGridReact } from "ag-grid-react";
-import { ArrowLeft, ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { NestedNav } from "./RemediationPanes";
 import { useTheme } from "#/context/theme-context";
-import {
-  APP_FONT,
-  eventsThemeFor,
-} from "#/components/features/explore/cloudguard-grid/theme";
+import { eventsThemeFor } from "#/components/features/explore/cloudguard-grid/theme";
 import { CountryFlag } from "#/components/features/explore/cloudguard-grid/flags";
 import {
   EnvBadge,
@@ -140,54 +138,35 @@ export function ScopeAssetsView({
   );
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 10,
-          marginBottom: 10,
-        }}
-      >
-        <button
-          type="button"
-          className="cg-report-action"
-          onClick={onBack}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 6,
-            height: 26,
-            padding: "0 9px",
-            fontSize: 12,
-            fontFamily: APP_FONT,
-            cursor: "pointer",
-          }}
-        >
-          <ArrowLeft size={12} /> Overview
-        </button>
-        <span style={{ fontSize: 13.5, fontWeight: 600 }}>Scope</span>
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 11.5,
-            color: "var(--cg-text-muted)",
-          }}
-        >
-          {assets.length} asset{assets.length === 1 ? "" : "s"}
-          <ProviderBadge provider={action.provider} />
+    <div
+      className="cg-nested"
+      style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+    >
+      <NestedNav
+        trail={[{ label: "Overview", onClick: onBack }]}
+        current="Scope"
+        right={
           <span
-            style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              fontSize: 11.5,
+              color: "var(--cg-text-muted)",
+            }}
           >
-            <CountryFlag code={country} width={14} />
-            {action.region}
+            {assets.length} asset{assets.length === 1 ? "" : "s"}
+            <ProviderBadge provider={action.provider} />
+            <span
+              style={{ display: "inline-flex", alignItems: "center", gap: 5 }}
+            >
+              <CountryFlag code={country} width={14} />
+              {action.region}
+            </span>
+            <EnvBadge value={action.environment} />
           </span>
-          <EnvBadge value={action.environment} />
-        </span>
-      </div>
+        }
+      />
 
       {/* Sized to content up to a ceiling: a fixed height leaves dead space for
           three assets and clips at thirty. */}

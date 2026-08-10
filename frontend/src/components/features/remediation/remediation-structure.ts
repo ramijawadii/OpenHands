@@ -19,9 +19,21 @@ export interface RemediationGroup {
   fields: string[];
 }
 
+/**
+ * The three phases of handling an action, in the order they happen.
+ *
+ * The rail was eight flat destinations, which said nothing about why any of
+ * them sat next to any other. Grouping them names the shift in what the reader
+ * is doing: understanding the problem, doing something about it, then proving
+ * what was done. That last group also has a different audience — Evidence and
+ * Audit are read by people who were not part of the work.
+ */
+export type ViewGroup = "Investigate" | "Operate" | "Govern";
+
 export interface RemediationView {
   id: string;
   label: string;
+  group: ViewGroup;
   /** Present only on Lifecycle: ordered stages, each a group of fields. */
   stages?: RemediationGroup[];
   /** Present on every other view: the groups shown in the pane. */
@@ -145,11 +157,32 @@ export const LIFECYCLE_STAGES: RemediationGroup[] = [
 export const REMEDIATION_VIEWS: RemediationView[] = [
   {
     id: "overview",
+    group: "Investigate",
     label: "Overview",
     groups: [g("Summary", ["Summary", "Scope", "Risk Reduction", "Lifecycle"])],
   },
   {
+    id: "simulation-results",
+    group: "Investigate",
+    label: "Simulation results",
+    groups: [
+      g("Blast radius", [
+        "Predicted impact",
+        "Reachability delta",
+        "Confidence",
+        "Environment fingerprint",
+      ]),
+      g("Shadow run", [
+        "Dry-run output",
+        "Predicted changes",
+        "Divergence",
+        "Gate",
+      ]),
+    ],
+  },
+  {
     id: "related-findings",
+    group: "Investigate",
     label: "Related Findings",
     groups: [
       g("Findings", ["Findings"]),
@@ -158,9 +191,42 @@ export const REMEDIATION_VIEWS: RemediationView[] = [
       g("Frameworks", ["Frameworks"]),
     ],
   },
-  { id: "lifecycle", label: "Lifecycle", stages: LIFECYCLE_STAGES },
+  {
+    id: "lifecycle",
+    label: "Lifecycle",
+    group: "Operate",
+    stages: LIFECYCLE_STAGES,
+  },
+  {
+    id: "rollback",
+    label: "Rollback",
+    group: "Operate",
+    groups: [
+      g("Undo journal", [
+        "Entry state",
+        "Drift gate",
+        "Inverse action",
+        "Dependencies",
+      ]),
+      g("Recovery", ["Halt", "Revert scope", "Artifacts", "Retention"]),
+    ],
+  },
+  {
+    id: "tickets",
+    group: "Operate",
+    label: "Tickets",
+    groups: [
+      g("Linked tickets", [
+        "Change request",
+        "Incident",
+        "Pull request",
+        "Sync state",
+      ]),
+    ],
+  },
   {
     id: "approvals",
+    group: "Operate",
     label: "Approvals",
     groups: [
       g("Approvals", [
@@ -175,19 +241,8 @@ export const REMEDIATION_VIEWS: RemediationView[] = [
     ],
   },
   {
-    id: "activity",
-    label: "Activity",
-    groups: [
-      g("Activity", [
-        "Timeline",
-        "User Actions",
-        "Automation Events",
-        "System Events",
-      ]),
-    ],
-  },
-  {
     id: "evidence",
+    group: "Govern",
     label: "Evidence",
     groups: [
       g("Evidence", [
@@ -203,6 +258,7 @@ export const REMEDIATION_VIEWS: RemediationView[] = [
   },
   {
     id: "audit",
+    group: "Govern",
     label: "Audit",
     groups: [
       g("Audit", [

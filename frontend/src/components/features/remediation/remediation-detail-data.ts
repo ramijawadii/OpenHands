@@ -443,21 +443,6 @@ export function buildActivity(a: RemediationAction): ActivityEvent[] {
  * Evidence — integrity first
  * ------------------------------------------------------------------ */
 
-export interface EvidenceItem {
-  id: string;
-  name: string;
-  type: string;
-  source: string;
-  sha256: string;
-  bytes: number;
-  collectedAt: Date;
-  collector: string;
-  chainIndex: number;
-  retention: string;
-  legalHold: boolean;
-  redacted: boolean;
-}
-
 /**
  * Deterministic 64-hex.
  *
@@ -470,36 +455,6 @@ export function digest(seed: string): string {
   for (let i = 0; out.length < 64; i += 1)
     out += hash(`${seed}:${i}`).toString(16).padStart(8, "0");
   return out.slice(0, 64);
-}
-
-const EVIDENCE: [string, string, string][] = [
-  ["detection.json", "Scan result", "cspm-scanner"],
-  ["blast-radius.json", "Simulation", "simulator"],
-  ["terraform.plan.json", "IaC diff", "github"],
-  ["cloudtrail-window.jsonl", "Cloud events", "cloudtrail"],
-  ["run-log.txt", "Execution log", "executor"],
-  ["rescan.json", "Validation report", "cspm-scanner"],
-  ["approval-chain.json", "Approval record", "platform"],
-];
-
-export function buildEvidence(a: RemediationAction): EvidenceItem[] {
-  return EVIDENCE.map(([name, type, source], i) => {
-    const seed = `${a.id}ev${i}`;
-    return {
-      id: `EV-${num(seed, 1000, 9999)}`,
-      name,
-      type,
-      source,
-      sha256: digest(seed),
-      bytes: num(seed, 900, 480000),
-      collectedAt: new Date(EPOCH - num(seed, 1, 120) * 3600000),
-      collector: source === "platform" ? "platform" : pick(OWNERS, seed),
-      chainIndex: i + 1,
-      retention: a.environment === "prod" ? "7 years" : "1 year",
-      legalHold: hash(`${seed}lh`) % 11 === 0,
-      redacted: name.includes("cloudtrail") || name.includes("run-log"),
-    };
-  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -611,4 +566,136 @@ export function buildAccessLog(a: RemediationAction): AccessEntry[] {
       scope: i === 0 ? "Full record" : "Evidence only",
     };
   }).sort((x, y) => y.at.getTime() - x.at.getTime());
+}
+
+/* ------------------------------------------------------------------ *
+ * Lifecycle field values
+ * ------------------------------------------------------------------ */
+
+/**
+ * What a lifecycle field actually holds.
+ *
+ * Every field previously rendered the literal string `Recorded` — ninety-odd
+ * rows asserting that something exists without showing it. An operator opens a
+ * stage, learns nothing, and stops opening stages. A field with no value is now
+ * omitted entirely rather than filled with a placeholder: a shorter honest list
+ * beats a long one that says nothing.
+ */
+export function stageFieldValue(
+  a: RemediationAction,
+  stageIndex: number,
+  field: string,
+): string | null {
+  const seed = `${a.id}:st${stageIndex}:${field}`;
+  const direct: Record<string, string> = {
+    /* 1 Discovery */
+    "Detection Details": `${a.title} on ${a.resource}`,
+    "Discovery Source": pick(
+      ["cspm-scanner", "iam-analyzer", "config-drift"],
+      seed,
+    ),
+    "Initial Evidence": `detection.json · ${num(seed, 2, 40)} KB`,
+    "Affected Resources": `${a.assets} asset(s)`,
+
+    /* 2 Triage */
+    "Asset Context": `${a.environment} · ${a.team}`,
+    "Business Context": `Owner ${a.owner}`,
+    "Exposure Analysis":
+      a.environment === "prod" ? "Internet-facing" : "Internal only",
+    "Compliance Mapping": "NIST SC-7 · CIS AWS 5.2",
+
+    /* 3 Risk Assessment */
+    "Risk Score": `${a.riskBefore} / 100`,
+    "Business Impact": a.severity === "Critical" ? "Severe" : "Moderate",
+    Exploitability: pick(["High", "Moderate", "Low"], `${seed}x`),
+    "Data Sensitivity": pick(
+      ["Restricted", "Confidential", "Internal"],
+      `${seed}d`,
+    ),
+    "Compliance Impact": "2 controls failing",
+    "Risk Justification": `Scored by risk-model v3.2`,
+
+    /* 4 Investigation */
+    "Root Cause": `Misconfiguration introduced in ${a.environment}`,
+    "Event Timeline": `${num(seed, 4, 22)} events`,
+    "MITRE ATT&CK": "T1190 · Exploit Public-Facing Application",
+    "Related Assets": `${num(seed, 1, 12)} neighbour(s)`,
+    "Attack Path": `${num(seed, 1, 4)} path(s) to a sensitive sink`,
+    "Logs & Events": `${num(seed, 40, 900)} log lines`,
+    "Supporting Evidence": "cloudtrail-window.jsonl",
+
+    /* 5 Blast Radius */
+    "Impacted Resources": `${num(seed, 3, a.assets)} resource(s)`,
+    "Dependency Graph": "See the graph below",
+    "Connected Identities": `${num(seed, 1, 14)} identity(ies)`,
+    "Network Reachability": `${a.environment} · ${a.region}`,
+    "Upstream Services": `${num(seed, 0, 5)}`,
+    "Downstream Services": `${num(seed, 0, 8)}`,
+    "Potential Service Disruption": a.auto ? "None expected" : "Brief",
+    "Estimated Downtime": a.auto ? "None" : "< 5 min",
+    "Rollback Risk": a.severity === "Critical" ? "Elevated" : "Low",
+    "Risk Comparison (Before / After)": `${a.riskBefore} → ${a.riskAfter}`,
+
+    /* 6 Plan */
+    "Recommended Fix": a.auto
+      ? "Apply the catalog operation"
+      : "Raise an IaC pull request",
+    "Auto Remediation": a.auto ? "Enabled" : "Disabled",
+    "Manual Steps": a.auto ? "None" : `${num(seed, 2, 6)} step(s)`,
+    "IaC Changes": "terraform/modules/network/security_group.tf",
+    "Rollback Plan": a.auto ? "Snapshot revert" : "Revert merged commit",
+    "Maintenance Window": a.environment === "prod" ? "Sat 02:00 UTC" : "Any",
+    Dependencies: `${num(seed, 0, 3)} blocking`,
+    "Assigned Teams": a.team,
+    "Success Criteria": "Rescan returns zero findings",
+
+    /* 7 Execution */
+    Tasks: `${num(seed, 3, 12)} task(s)`,
+    "Automation Runs": a.auto ? `${num(seed, 1, 3)} run(s)` : "None",
+    "Change Requests":
+      a.environment === "prod"
+        ? `CHG-${num(seed, 1000, 9999)}`
+        : "Not required",
+    "Jira / GitHub": `SEC-${num(seed, 100, 999)}`,
+    Progress: `Stage ${a.stage} of 10`,
+    Approvals: a.approvals,
+    "Activity Feed": "See Activity",
+
+    /* 8 Results */
+    "Execution Status": a.status,
+    "Successful Actions": `${num(seed, 1, 9)}`,
+    "Failed Actions": a.status === "Failed" ? `${num(seed, 1, 3)}` : "0",
+    "Partial Success": a.status === "Failed" ? "Yes" : "No",
+    "Resource Changes": `${num(seed, 1, 6)} changed`,
+    "Configuration Diff": "1 changed, 0 added, 0 destroyed",
+    "Policy Changes": "None",
+    "Error Logs": a.status === "Failed" ? "run-log.txt" : "None",
+    "Rollback Status":
+      a.status === "Rolled back" ? "Rolled back" : "Not required",
+    "Automation Output": a.auto ? "executor stdout captured" : "n/a",
+
+    /* 9 Validation */
+    "Rescan Results": a.stage >= 9 ? "0 findings" : "Pending",
+    "Before / After Comparison": `${a.riskBefore} → ${a.riskAfter}`,
+    "Compliance Verification": a.stage >= 9 ? "2 controls passing" : "Pending",
+    "Runtime Verification": a.stage >= 9 ? "Healthy" : "Pending",
+    "Regression Checks": a.stage >= 9 ? "No regressions" : "Pending",
+    "Remaining Findings": a.stage >= 10 ? "0" : `${num(seed, 0, 4)}`,
+    "Validation Evidence": "rescan.json",
+
+    /* 10 Closure */
+    "Resolution Summary": `${a.title} resolved on ${a.resource}`,
+    "Final Risk Reduction": `${a.riskBefore - a.riskAfter} points`,
+    "Audit Evidence": "approval-chain.json",
+    "Lessons Learned": "Detection tuned; rule version bumped",
+    "Linked Incidents": `INC-${num(seed, 1000, 9999)}`,
+    "Linked Change Requests": `CHG-${num(seed, 1000, 9999)}`,
+    "Linked Pull Requests": `#${num(seed, 100, 999)}`,
+    "Exception History": "No exceptions recorded",
+    "Closure Report": `${a.id}-closure.docx`,
+  };
+
+  if (direct[field]) return direct[field];
+  // Genuinely nothing for this field yet — omit it rather than pad it.
+  return null;
 }

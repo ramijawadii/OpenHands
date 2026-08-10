@@ -33,6 +33,7 @@ import { cn } from "#/utils/utils";
 import { ThemeProvider } from "#/context/theme-context";
 import MemoryHud from "#/components/features/dev/memory-hud";
 import { ExploreConversationDrawer } from "#/components/features/conversation/explore-conversation-drawer";
+import { FloatingComposer } from "#/components/features/chat/floating-composer";
 import { SurfaceErrorBoundary } from "#/components/features/reliability/surface-error-boundary";
 
 export function ErrorBoundary() {
@@ -267,6 +268,7 @@ export default function MainApp() {
             shell — sidebar, top bar and page — over one panel's bug. */}
         <SurfaceErrorBoundary surface="drawer" name="Conversation panel">
           <ExploreConversationDrawer />
+          <FloatingComposer />
         </SurfaceErrorBoundary>
 
         {renderAuthModal && (
