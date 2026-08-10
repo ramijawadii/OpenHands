@@ -15,15 +15,20 @@ import {
   ClipboardList,
 } from "lucide-react";
 import {
-  Page,
-  PageHeader,
-  Tabs,
-  SubTabStrip,
   EmptyState,
   ScopeBadge,
-  type StripIcon,
   useTabParam,
 } from "#/components/admin/admin-kit";
+import {
+  DiscoveryPage,
+  DiscoveryTabs,
+  DiscoveryPills,
+} from "#/components/admin/discovery-kit";
+import { type Leaf } from "#/components/admin/pages/workspace-operations/ops-leaf";
+import { CATALOG_LEAVES } from "#/components/admin/pages/workspace-operations/catalog-discovery";
+import { REQUESTS_LEAVES } from "#/components/admin/pages/workspace-operations/requests-approvals";
+import { AUTOMATION_LEAVES } from "#/components/admin/pages/workspace-operations/automation";
+import { ALERTS_LEAVES } from "#/components/admin/pages/workspace-operations/alerts";
 import { WorkspaceTimelineView } from "#/components/admin/pages/workspace-operations/workspace-timeline";
 import { AdministrativeActivityView } from "#/components/admin/pages/workspace-operations/administrative-activity";
 import { ConfigurationChangesView } from "#/components/admin/pages/workspace-operations/configuration-changes";
@@ -39,31 +44,60 @@ import { ExportEvidenceView } from "#/components/admin/pages/workspace-operation
  *
  * Navigation model (3 levels), identical to Workspace Governance:
  *   sidebar console (Operations)
- *     → first-level VIEW tabs = the 5 sub-sections (Catalog & Discovery · Requests & Approvals ·
- *       Automation · Alerts · Workspace Audit) — underline Tabs
- *       → second-level pill SubTabStrip = that sub-section's leaves (each leaf is a full embeddable
- *         `…View`; its own status/type sub-nav is the leaf's internal pill strip)
+ *     → first-level VIEW tabs (DiscoveryTabs) = the 5 sub-sections (Catalog & Discovery ·
+ *       Requests & Approvals · Automation · Alerts · Workspace Audit)
+ *       → second-level pill strip (DiscoveryPills) = that sub-section's leaves (each leaf is a full
+ *         embeddable `…View`; its own status/type sub-nav is the leaf's internal pill strip)
  *
- * Workspace Audit is fully built out per spec (7 leaves). The other four sub-sections are on the build
- * roadmap and show a per-section placeholder so the entire information architecture is navigable.
+ * Catalog & Discovery, Requests & Approvals, Automation and Alerts are generated from the shared
+ * ops-leaf framework engine (config-driven — the systematic rollout). Workspace Audit's seven leaves
+ * are bespoke immutable-record views.
  */
 
-interface Leaf {
-  id: string;
-  label: string;
-  Icon: StripIcon;
-  render?: () => React.ReactNode; // omit → coming-soon placeholder (spec view being built)
-}
-
-// ── Workspace Audit ────────────────────────────────────────────────────────────────────────────────
+// ── Workspace Audit (bespoke immutable-record leaves) ────────────────────────────────────────────
 const AUDIT_LEAVES: Leaf[] = [
-  { id: "workspace-timeline", label: "Workspace Timeline", Icon: Waypoints, render: () => <WorkspaceTimelineView /> },
-  { id: "administrative-activity", label: "Administrative Activity", Icon: UserCog, render: () => <AdministrativeActivityView /> },
-  { id: "configuration-changes", label: "Configuration Changes", Icon: FileDiff, render: () => <ConfigurationChangesView /> },
-  { id: "policy-changes", label: "Policy Changes", Icon: FileCheck2, render: () => <PolicyChangesView /> },
-  { id: "approval-history", label: "Approval History", Icon: Stamp, render: () => <ApprovalHistoryView /> },
-  { id: "lifecycle-events", label: "Lifecycle Events", Icon: Repeat, render: () => <LifecycleEventsView /> },
-  { id: "export-evidence", label: "Export & Evidence", Icon: Package, render: () => <ExportEvidenceView /> },
+  {
+    id: "workspace-timeline",
+    label: "Workspace Timeline",
+    Icon: Waypoints,
+    render: () => <WorkspaceTimelineView />,
+  },
+  {
+    id: "administrative-activity",
+    label: "Administrative Activity",
+    Icon: UserCog,
+    render: () => <AdministrativeActivityView />,
+  },
+  {
+    id: "configuration-changes",
+    label: "Configuration Changes",
+    Icon: FileDiff,
+    render: () => <ConfigurationChangesView />,
+  },
+  {
+    id: "policy-changes",
+    label: "Policy Changes",
+    Icon: FileCheck2,
+    render: () => <PolicyChangesView />,
+  },
+  {
+    id: "approval-history",
+    label: "Approval History",
+    Icon: Stamp,
+    render: () => <ApprovalHistoryView />,
+  },
+  {
+    id: "lifecycle-events",
+    label: "Lifecycle Events",
+    Icon: Repeat,
+    render: () => <LifecycleEventsView />,
+  },
+  {
+    id: "export-evidence",
+    label: "Export & Evidence",
+    Icon: Package,
+    render: () => <ExportEvidenceView />,
+  },
 ];
 
 function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
@@ -71,8 +105,13 @@ function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
   const cur = leaves.find((l) => l.id === leaf) ?? leaves[0];
   return (
     <>
-      <SubTabStrip
-        tabs={leaves.map(({ id, label, Icon }) => ({ id, label, Icon }))}
+      <DiscoveryPills
+        label="Views"
+        items={leaves.map(({ id, label, Icon }) => ({
+          id,
+          label,
+          icon: <Icon size={14} />,
+        }))}
         active={cur.id}
         onChange={setLeaf}
       />
@@ -82,7 +121,7 @@ function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
         <EmptyState
           icon={<ClipboardList size={20} />}
           title={`${cur.label} — on the build roadmap`}
-          hint="This operations leaf's full spec view (dashboard · toolbar · filters · datatable · detail drawer) is being implemented. Its second-level sub-navigation will appear here."
+          hint="This operations leaf's full spec view (dashboard · toolbar · filters · datatable · detail drawer) is being implemented."
         />
       )}
     </>
@@ -91,38 +130,39 @@ function LeafSubsection({ leaves }: { leaves: Leaf[] }) {
 
 // First-level views (spec: Workspace Operations sub-sections).
 const SUBSECTIONS = [
-  { id: "catalog", label: "Catalog & Discovery", icon: <Compass size={13} /> },
-  { id: "requests", label: "Requests & Approvals", icon: <Inbox size={13} /> },
-  { id: "automation", label: "Automation", icon: <Cog size={13} /> },
-  { id: "alerts", label: "Alerts", icon: <BellRing size={13} /> },
-  { id: "audit", label: "Workspace Audit", icon: <ClipboardList size={13} /> },
+  { id: "catalog", label: "Catalog & Discovery", icon: <Compass size={14} /> },
+  { id: "requests", label: "Requests & Approvals", icon: <Inbox size={14} /> },
+  { id: "automation", label: "Automation", icon: <Cog size={14} /> },
+  { id: "alerts", label: "Alerts", icon: <BellRing size={14} /> },
+  { id: "audit", label: "Workspace Audit", icon: <ClipboardList size={14} /> },
 ];
 
-function SectionPlaceholder({ label }: { label: string }) {
-  return (
-    <EmptyState
-      icon={<ClipboardList size={20} />}
-      title={`${label} — on the build roadmap`}
-      hint="This Workspace Operations sub-section's leaf views and second-level sub-navigation will appear here. Workspace Audit is fully built."
-    />
-  );
-}
-
 export function WorkspaceOperationsPage() {
-  const [tab, setTab] = useTabParam("audit");
+  const [tab, setTab] = useTabParam("catalog");
   return (
-    <Page>
-      <PageHeader
-        title="Workspace Operations"
-        subtitle="Catalog and discovery, requests and approvals, automation, alerts and the immutable workspace audit trail across every workspace in the organization."
-        actions={<ScopeBadge scope="Organization" />}
+    <DiscoveryPage>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 10,
+          margin: "0 10px 8px",
+        }}
+      >
+        <ScopeBadge scope="Organization" />
+      </div>
+      <DiscoveryTabs
+        tabs={SUBSECTIONS}
+        active={tab}
+        onChange={setTab}
+        label="Workspace Operations views"
       />
-      <Tabs tabs={SUBSECTIONS} active={tab} onChange={setTab} />
-      {tab === "catalog" && <SectionPlaceholder label="Catalog & Discovery" />}
-      {tab === "requests" && <SectionPlaceholder label="Requests & Approvals" />}
-      {tab === "automation" && <SectionPlaceholder label="Automation" />}
-      {tab === "alerts" && <SectionPlaceholder label="Alerts" />}
+      {tab === "catalog" && <LeafSubsection leaves={CATALOG_LEAVES} />}
+      {tab === "requests" && <LeafSubsection leaves={REQUESTS_LEAVES} />}
+      {tab === "automation" && <LeafSubsection leaves={AUTOMATION_LEAVES} />}
+      {tab === "alerts" && <LeafSubsection leaves={ALERTS_LEAVES} />}
       {tab === "audit" && <LeafSubsection leaves={AUDIT_LEAVES} />}
-    </Page>
+    </DiscoveryPage>
   );
 }

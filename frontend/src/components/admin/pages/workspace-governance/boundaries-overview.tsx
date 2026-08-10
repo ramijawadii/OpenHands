@@ -80,24 +80,32 @@ export function BoundariesOverviewView() {
         ]}
       />
 
-      <ChartCard
-        title="Cloud accounts & clusters by provider"
-        desc="Tenancy boundaries across the enterprise estate."
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+          gap: 16,
+        }}
       >
-        <OverviewBar
-          items={PROVIDER_SPREAD.map((d) => ({
-            ...d,
-            color: d.value >= 20 ? "#5470c6" : "#91cc75",
-          }))}
-        />
-      </ChartCard>
+        <ChartCard
+          title="Cloud accounts & clusters by provider"
+          desc="Tenancy boundaries across the enterprise estate."
+        >
+          <OverviewBar
+            items={PROVIDER_SPREAD.map((d) => ({
+              ...d,
+              color: d.value >= 20 ? "#5470c6" : "#91cc75",
+            }))}
+          />
+        </ChartCard>
 
-      <ChartCard
-        title="Resources by ownership status"
-        desc="Accountability coverage — orphaned resources need an owner."
-      >
-        <OverviewBar items={OWNERSHIP_SPLIT} />
-      </ChartCard>
+        <ChartCard
+          title="Resources by ownership status"
+          desc="Accountability coverage — orphaned resources need an owner."
+        >
+          <OverviewBar items={OWNERSHIP_SPLIT} />
+        </ChartCard>
+      </div>
     </>
   );
 }
