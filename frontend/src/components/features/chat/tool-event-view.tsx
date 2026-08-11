@@ -6,6 +6,7 @@ import { OpenHandsObservation } from "#/types/core/observations";
 import { isOpenHandsAction, isOpenHandsObservation } from "#/types/core/guards";
 import { Terminal } from "#/components/tool-ui/terminal";
 import { CodeDiff } from "#/components/tool-ui/code-diff";
+import { ToolError } from "#/components/tool-ui/elements/tool-error";
 import {
   ToolFallbackRoot,
   ToolFallbackTrigger,
@@ -36,7 +37,15 @@ import { cn } from "#/utils/utils";
  */
 const COLLAPSED_LINES = 5;
 
-export type ToolEventKind = "terminal" | "diff" | "tool";
+/**
+ * The dispatch vocabulary.
+ *
+ * One union, one switch, one place a widget is chosen. Frontier assistants do
+ * the same thing: the model calls a tool and the CLIENT decides how the result
+ * renders — there is deliberately no widget vocabulary the agent can address,
+ * so scan output can never steer what an analyst sees.
+ */
+export type ToolEventKind = "terminal" | "diff" | "tool" | "error";
 
 type Extras = Record<string, unknown>;
 
@@ -62,8 +71,17 @@ const formatToolCall = (name: string, args: unknown): string => {
  */
 export const getToolEventKind = (
   event: OpenHandsAction | OpenHandsObservation,
+  // Optional so the existing `!== null` probe in the message wrapper keeps
+  // working: whether an event renders at all does not depend on success.
+  success?: boolean,
 ): ToolEventKind | null => {
   const key = isOpenHandsAction(event) ? event.action : event.observation;
+  // A failed command is not a terminal transcript with red text in it — it is
+  // an error with a cause worth surfacing. Checked before the switch so it
+  // applies to every executing kind rather than being repeated per case.
+  if (success === false && (key === "run" || key === "run_ipython")) {
+    return "error";
+  }
   switch (key) {
     case "run":
     case "run_ipython":
@@ -307,7 +325,8 @@ export function ToolEventView({
   const [fullOpen, setFullOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
   const [host, setHost] = React.useState<HTMLElement | null>(null);
-  const kind = getToolEventKind(event);
+  // `success` is passed so a failed run dispatches to the error Element.
+  const kind = getToolEventKind(event, success);
   const id = String((event as { id?: number }).id ?? "tool-event");
 
   // Resolved on open rather than on mount: the chat surface is the closest
@@ -330,6 +349,28 @@ export function ToolEventView({
   const title = useDiff
     ? (diff?.filename ?? "diff")
     : (term?.command.split("\n")[0] ?? "");
+
+  // A failed command. The terminal card showed the same body whether a command
+  // succeeded or not, leaving the reader to notice a non-zero exit buried in
+  // the transcript. This states it: what ran, what it touched, and why it
+  // failed. Retry/skip are omitted deliberately — re-running a cloud command
+  // is the agent's decision under the permission gate, not a UI affordance.
+  if (kind === "error") {
+    const failed = toTerminalFields(event, success);
+    const command = failed?.command ?? "";
+    return (
+      <div ref={rootRef} className={cn("cg-tool-card", className)}>
+        <ToolError
+          name={command.split(/\s+/)[0] || "command"}
+          target={command}
+          message={failed?.stdout || "Command failed with no output."}
+          attempt={1}
+          maxAttempts={1}
+          retrying={false}
+        />
+      </div>
+    );
+  }
 
   // MCP tool calls render as an assistant-ui Element rather than a terminal
   // card. Returned before the terminal/diff body is assembled — every hook
