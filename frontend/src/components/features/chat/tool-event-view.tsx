@@ -432,10 +432,14 @@ export function ToolEventView({
       // one CRITICAL outweighs a pile of LOWs, so a count alone would flatter
       // a bad result. Unknown severities score 0 rather than being dropped —
       // an unclassified finding is still a finding and must stay visible.
+      // Risk points deducted from a 100-point posture score. CRITICAL is
+      // weighted to dominate deliberately: a single unauthenticated public
+      // bucket is not "one finding among six", and a linear scale lets a pile
+      // of LOWs read the same as a breach path.
       const WEIGHT: Record<string, number> = {
-        CRITICAL: 10,
-        HIGH: 5,
-        MEDIUM: 2,
+        CRITICAL: 40,
+        HIGH: 15,
+        MEDIUM: 5,
         LOW: 1,
       };
       const bySeverity = new Map<string, number>();
@@ -452,6 +456,13 @@ export function ToolEventView({
           note: `${count} finding${count === 1 ? "" : "s"}`,
         }));
       const risk = criteria.reduce((sum, c) => sum + c.score * c.weight, 0);
+      // Presented as a POSTURE SCORE, not a risk total. The Element fills its
+      // bar as total/outOf, so passing risk directly rendered 25/25 — a full
+      // bar, which reads as a perfect result while the verdict said "critical
+      // exposure". Inverting it means a worse estimate shows a shorter bar,
+      // which is the direction an operator expects. Floored at 0 so a badly
+      // exposed account cannot wrap into a negative.
+      const posture = Math.max(0, 100 - risk);
       return (
         <div ref={rootRef} className={cn("cg-tool-card", className)}>
           <ScoreBreakdown
@@ -462,8 +473,8 @@ export function ToolEventView({
                   ? "Needs attention"
                   : "Within tolerance"
             }
-            total={risk}
-            outOf={risk}
+            total={posture}
+            outOf={100}
             criteria={criteria}
             // Every severity band is shown at once: the observation has landed,
             // and a partially revealed risk breakdown would understate it.
