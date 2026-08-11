@@ -763,3 +763,52 @@
     }
   }
 }
+/* Markdown tables, in the Elements' visual language.
+   `elements-data-table` cannot be reused directly — it takes three fixed
+   columns (name/context/cost) for a model-usage demo, so it can render neither
+   a findings table nor anything else with arbitrary headers. Rather than
+   shoehorn our data into its shape, the same surface vocabulary it uses
+   (`bg-popover` ground, hairline rules, tight mono figures) is applied to the
+   tables the agent actually emits, so both read as one system.
+
+   Scoped to `.markdown-body` so it lands on agent prose only, never on AG Grid
+   or the admin tables, which own their own chrome. */
+.markdown-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--cg-border);
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 13px;
+  /* The screenshot showed Severity clipped at the right edge: the table was
+     wider than the column and had nowhere to go. Letting it scroll inside its
+     own box keeps every column reachable without widening the transcript. */
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.markdown-body table th {
+  background: var(--cg-bg-hover);
+  color: var(--cg-text-muted);
+  font-weight: 600;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--cg-border);
+}
+.markdown-body table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--cg-border-subtle);
+  color: var(--cg-text-primary);
+}
+/* No rule under the final row — the container border already closes the box,
+   and doubling them reads as a misaligned seam. */
+.markdown-body table tr:last-child td {
+  border-bottom: none;
+}
+/* The first column is the identifier (a control id, a resource arn); mono
+   figures make them scannable down the column. */
+.markdown-body table td:first-child {
+  font-family: ui-monospace, "IBM Plex Mono", monospace;
+  font-size: 12px;
+}
