@@ -48,8 +48,11 @@
 
   /* ── CloudGuard theme tokens — dark (default) ───────────────────────── */
   --cg-bg-page: hsl(60deg, 1.64%, 11.96%);
-  --cg-bg-primary-sidebar: rgb(10 10 10);
-  --cg-bg-sidebar: rgb(10 10 10);
+  /* The app sidebar sits on the same ground as the drawer (#141414) rather
+     than a near-black of its own — one chrome colour across the shell, so the
+     sidebar and the drawer read as the same surface instead of two panels. */
+  --cg-bg-primary-sidebar: #141414;
+  --cg-bg-sidebar: #141414;
   --cg-bg-card: #121212;
   --cg-bg-hover: #0d0d0c;
   --cg-bg-active: #0a0a0a;
@@ -862,10 +865,10 @@ code {
    Dark only. Light mode restates the page values so the drawer keeps tracking
    the theme there rather than inheriting a dark ground. */
 .cg-drawer-surface {
-  --cg-bg-page: #121212;
-  --cg-bg-sidebar: #121212;
-  --cg-bg-primary-sidebar: #121212;
-  background: #121212;
+  --cg-bg-page: #141414;
+  --cg-bg-sidebar: #141414;
+  --cg-bg-primary-sidebar: #141414;
+  background: #141414;
 }
 
 [data-theme="light"] .cg-drawer-surface {

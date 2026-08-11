@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-shimmer";
 
 @plugin '../hero.ts';
 @config "../tailwind.config.js";
@@ -38,6 +39,35 @@
   --color-accent: var(--cg-bg-hover);
   --color-ring: var(--cg-accent);
   --color-primary-foreground: var(--cg-bg-page);
+
+  /* ── shadcn vocabulary completion (assistant-ui Elements) ─────────────────
+     The nine tokens above cover flat surfaces and text. Elements that layer,
+     take input, or signal danger reach for a wider vocabulary, and any token
+     left undefined silently falls back to Tailwind's stock palette — which is
+     how a dropped-in component ends up looking like it came from a different
+     product. Every one below points at an existing --cg-* token, so Elements
+     inherit CloudGuard's theme and invert with it for free.
+
+     Popover/dialog surfaces sit ABOVE the page, so they take the card ground
+     rather than the page ground — without this, menus render on a transparent
+     or stock-white plate over our dark chrome. */
+  --color-popover: var(--cg-bg-card);
+  --color-popover-foreground: var(--cg-text-primary);
+  --color-card-foreground: var(--cg-text-primary);
+
+  /* Secondary = the quiet button/badge fill. Our hover ground doubles as it. */
+  --color-secondary: var(--cg-bg-hover);
+  --color-secondary-foreground: var(--cg-text-primary);
+
+  /* Destructive drives approval-card "reject", delete confirmations and error
+     states — the Elements most likely to appear in a security console. */
+  --color-destructive: var(--cg-danger);
+  --color-destructive-foreground: var(--cg-text-primary);
+
+  /* Inputs carry their own ground/border in our system; shadcn's --color-input
+     is the BORDER colour, not the fill. */
+  --color-input: var(--cg-input-border);
+  --color-accent-foreground: var(--cg-text-primary);
 }
 
 /* The composer pins its own colour vocabulary rather than inheriting the
@@ -51,12 +81,16 @@
    shared tokens gave near-black text on near-black and a white arrow on a
    white button. */
 .cg-composer {
-  /* The same surface the recommendation cards sit on, so the composer reads as
-     another card in the conversation rather than a hole punched through it.
-     `--cg-bg-card` is #121212 on dark and #ffffff on light, which is also why
-     the light block below only has to restate what genuinely inverts. */
-  --color-card: var(--cg-bg-card);
-  --color-background: var(--cg-bg-card);
+  /* #232323 — the same ground as the message bubbles (`--cg-hover-bg`), so the
+     box you type into reads as one more surface in the conversation rather
+     than a card of its own. It also has to sit ABOVE the drawer ground
+     (#141414): when both were #121212 the composer vanished into the panel,
+     and with the drawer now lighter it would otherwise read as a recess.
+
+     Light mode keeps the light chrome — `--cg-bg-card` is #ffffff there, and
+     the block below restates only what genuinely inverts. */
+  --color-card: var(--cg-hover-bg);
+  --color-background: var(--cg-hover-bg);
   --color-foreground: #ededed;
   --color-muted: #171717;
   --color-muted-foreground: #8b8b8b;
@@ -76,6 +110,24 @@
   --color-primary-foreground: #ffffff;
 }
 
+/* Tool cards (terminal / code-diff) scope their own surface, the same trick the
+   composer uses: redefining the variables here re-points every `bg-card`
+   utility inside the card without touching the shared tokens.
+
+   Dark is the default direction, so the requested #232323 is stated on the bare
+   class and only the light theme has to restate the inversion. The card sits a
+   step ABOVE the page rather than below it, which is what separates a command
+   block from the transcript now that the internal divider rules are gone. */
+.cg-tool-card {
+  --color-card: #232323;
+  --color-border: #323232;
+}
+
+[data-theme="light"] .cg-tool-card {
+  --color-card: #ffffff;
+  --color-border: var(--cg-border);
+}
+
 /* Space for the floating composer.
    The composer is `fixed`, so it takes no layout space and sits on top of
    whatever is at the bottom of the page — the last table rows, the foot of a
@@ -93,16 +145,18 @@
 }
 
 /* The conversation surface.
-   Dark mode gets its own ground (#171717) rather than the page colour, so the
-   transcript reads as a distinct area from the chrome around it. Light mode is
-   deliberately left alone — it already works, and forcing a dark ground there
-   would need every message restyled to stay legible. */
+   Transparent in both themes, so the transcript sits on whatever ground the
+   drawer sets (#141414 dark). It previously painted its own colour; that is
+   what the note below is arguing against. */
 .cg-chat-surface {
-  /* The same ground as the rest of the drawer. It was #171717 to separate the
-     transcript from the chrome, but with the panel unified at #121212 that one
-     lighter column was the only seam left in it. Bubbles carry their own
-     surface, so they still stand off the ground without it. */
-  background: #121212;
+  /* No ground of its own, in either theme.
+
+     It painted #121212 to sit level with the drawer, which worked until the
+     transcript was short: the area below the last message read as a separate
+     dark SECTION with the composer parked in it, rather than as the page the
+     conversation happens on. Cards and bubbles carry their own surface, so
+     nothing is lost by letting the panel behind show through. */
+  background: transparent;
 }
 
 [data-theme="light"] .cg-chat-surface {
@@ -645,4 +699,67 @@
 
 .api-configuration-modal {
   box-shadow: 0 183px 51px 0 rgba(0, 0, 0, 0.00), 0 117px 47px 0 rgba(0, 0, 0, 0.01), 0 66px 40px 0 rgba(0, 0, 0, 0.03), 0 29px 29px 0 rgba(0, 0, 0, 0.04), 0 7px 16px 0 rgba(0, 0, 0, 0.05);
+}
+
+/* ── Light mode legibility for the tool cards ──────────────────────────────
+   The tool blocks (terminal, code-diff, data-table) pin their own surface via
+   `.cg-tool-card` so the dark theme can hit #232323. Without the matching
+   light values the card kept the dark surface under light-mode text, which is
+   the unreadable black-on-black in the reported screenshot. Stated here rather
+   than inside the components: a component that hardcodes a colour cannot
+   invert, and that is the bug being fixed.
+
+   `color-scheme` matters too — it is what makes the nested scrollbars, which
+   these cards always have, render light instead of as dark troughs on a white
+   card. */
+[data-theme="light"] .cg-tool-card {
+  color-scheme: light;
+  --color-card: #ffffff;
+  --color-background: #ffffff;
+  --color-foreground: #18181b;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #52525b;
+  --color-border: #e4e4e7;
+  --color-accent: #f4f4f5;
+}
+
+.cg-tool-card {
+  color-scheme: dark;
+}
+
+/* Syntax-highlighted code inside a light tool card. `rehype-highlight` ships a
+   dark theme whose token colours assume a dark ground; on white they drop to
+   near-invisible. Neutralising the background and inheriting the text colour
+   keeps the tokens readable without shipping a second highlight theme. */
+[data-theme="light"] .cg-tool-card pre,
+[data-theme="light"] .cg-tool-card code {
+  background: transparent;
+}
+
+[data-theme="light"] .cg-tool-card .hljs {
+  color: #18181b;
+  background: transparent;
+}
+
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+
+@theme inline {
+  @keyframes collapsible-down {
+  from {
+    height: 0;
+    }
+  to {
+    height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+  }
+  @keyframes collapsible-up {
+  from {
+    height: var(--radix-collapsible-content-height, var(--collapsible-panel-height, auto));
+    }
+  to {
+    height: 0;
+    }
+  }
 }

@@ -13,6 +13,8 @@ import { FeedbackModal } from "../feedback/feedback-modal";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
 import { useWsClient } from "#/context/ws-client-provider";
 import { Messages } from "./messages";
+import { OpenHandsAssistantRuntime } from "#/components/tool-ui/elements/openhands-runtime";
+
 import { ChatSuggestions } from "./chat-suggestions";
 import { ScrollProvider } from "#/context/scroll-context";
 import { useInitialQueryStore } from "#/stores/initial-query-store";
@@ -35,6 +37,7 @@ import { useConversationStore } from "#/state/conversation-store";
 import { CompactionBanner } from "./compaction-banner";
 import { ApprovalBanner } from "./approval-banner";
 import { ClarificationBanner } from "./clarification-banner";
+import { PlanBanner, usePlanPolling } from "./plan-banner";
 import { PlanApprovalBanner } from "./plan-approval-banner";
 import { ConfirmationBanner } from "./confirmation-banner";
 import { FileHistoryPanel } from "./file-history-panel";
@@ -88,7 +91,7 @@ export function ChatInterface() {
   } = useScrollToBottom(scrollRef);
   const { data: config } = useConfig();
 
-  const { curAgentState } = useAgentStore();
+  const { curAgentState, setCurrentAgentState } = useAgentStore();
   const {
     queue: allTurns,
     enqueue: enqueueTurn,
@@ -268,6 +271,16 @@ export function ChatInterface() {
 
   const handleStop = () => {
     posthog.capture("stop_button_clicked");
+    /*
+      Stop twice: locally first, then on the wire.
+
+      The websocket round-trip is what actually halts the agent, but the button
+      has to answer the click NOW — waiting for the server to echo STOPPED back
+      left the composer showing a live run for as long as the current step took
+      to notice, which reads as a stop that did not work. The optimistic state
+      is corrected by the server's own agent_state_changed either way.
+    */
+    setCurrentAgentState(AgentState.STOPPED);
     send(generateAgentStateChangeEvent(AgentState.STOPPED));
   };
 
@@ -291,9 +304,19 @@ export function ChatInterface() {
 
   const userEventsExist = hasUserEvent(events);
 
+  // Feeds the shared plan store that the composer's indicator and PlanBanner
+  // both read. Mounted here, once, rather than inside either consumer.
+  usePlanPolling();
+
   return (
     <ScrollProvider value={scrollProviderValue}>
-      <div className="cg-chat-surface h-full flex flex-col justify-between pr-0 md:pr-4 relative">
+      {/* `data-chat-surface` marks the overlay host: a tool card's full view
+          mounts here and covers the conversation only, never the dashboard
+          around it (see tool-event-view.tsx). */}
+      <div
+        data-chat-surface
+        className="cg-chat-surface h-full flex flex-col justify-between pr-0 md:pr-4 relative"
+      >
         {!hasSubstantiveAgentActions &&
           !optimisticUserMessage &&
           !userEventsExist && (
@@ -324,17 +347,34 @@ export function ChatInterface() {
             identical at every width — the panel gets wider, the conversation
             does not.
           */}
-          <div className="flex w-full max-w-[820px] flex-col gap-5">
-            {!isLoadingMessages && userEventsExist && (
-              <Messages
-                messages={events}
-                isAwaitingUserConfirmation={
-                  curAgentState === AgentState.AWAITING_USER_CONFIRMATION
-                }
-                streamingContent={streamingContent}
-              />
-            )}
-          </div>
+          {/*
+            The runtime wraps the transcript only.
+
+            assistant-ui's Tool-use Elements read their state out of context, so
+            anything rendering one has to sit inside a provider. Scoping it here
+            rather than at the app root keeps it off every other surface — the
+            composer still sends through `useWsClient`, and no page outside this
+            transcript gains a runtime it does not use.
+
+            It is fed `parsedEvents`, the same array `Messages` renders, so the
+            two can never disagree about what happened.
+          */}
+          <OpenHandsAssistantRuntime
+            events={events}
+            isRunning={curAgentState === AgentState.RUNNING}
+          >
+            <div className="flex w-full max-w-[820px] flex-col gap-5">
+              {!isLoadingMessages && userEventsExist && (
+                <Messages
+                  messages={events}
+                  isAwaitingUserConfirmation={
+                    curAgentState === AgentState.AWAITING_USER_CONFIRMATION
+                  }
+                  streamingContent={streamingContent}
+                />
+              )}
+            </div>
+          </OpenHandsAssistantRuntime>
         </div>
 
         <div className="flex flex-col gap-[6px]">
@@ -381,6 +421,7 @@ export function ChatInterface() {
               <>
                 <CompactionBanner />
                 <FileHistoryPanel />
+                <PlanBanner />
                 <PlanApprovalBanner />
                 <ConfirmationBanner />
                 <ApprovalBanner />
