@@ -16,20 +16,21 @@ const POLL_MS = 3000;
 function DiffView({ diff }: { diff?: string }) {
   if (!diff) {
     return (
-      <pre className="rounded bg-neutral-900/70 p-2 text-[11px] text-neutral-400">
+      <pre className="border-border text-muted-foreground rounded-md border bg-transparent p-2 text-[11px]">
         (no diff available)
       </pre>
     );
   }
   const lineClass = (l: string): string => {
-    if (l.startsWith("+++") || l.startsWith("---")) return "text-neutral-500";
+    if (l.startsWith("+++") || l.startsWith("---"))
+      return "text-muted-foreground";
     if (l.startsWith("@@")) return "text-cyan-300/80";
     if (l.startsWith("+")) return "bg-green-900/30 text-green-200";
     if (l.startsWith("-")) return "bg-red-900/30 text-red-200";
-    return "text-neutral-300";
+    return "text-foreground";
   };
   return (
-    <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded bg-neutral-900/70 p-2 text-[11px] leading-snug">
+    <pre className="border-border max-h-64 overflow-auto rounded-md border bg-transparent p-2 text-[11px] leading-snug whitespace-pre-wrap">
       {diff.split("\n").map((l, i) => (
         // eslint-disable-next-line react/no-array-index-key
         <div key={i} className={lineClass(l)}>
@@ -92,21 +93,21 @@ export function ApprovalBanner() {
   };
 
   return (
-    <div className="flex flex-col gap-2 px-3 py-2 text-xs text-neutral-300 border border-neutral-700 bg-neutral-800/60 rounded-md">
+    <div className="cg-tool-card border-border bg-card flex w-full flex-col gap-2.5 rounded-lg border px-3 py-2.5 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="flex items-center gap-2">
-          <span aria-hidden className="text-neutral-500">
+          <span aria-hidden className="text-muted-foreground">
             ✎
           </span>
           <span>
             Approve write to{" "}
-            <b className="text-neutral-100">{ctx.path ?? "a file"}</b>
+            <b className="text-foreground">{ctx.path ?? "a file"}</b>
             {ctx.summary ? ` (${ctx.summary})` : ""}?
           </span>
         </span>
         <button
           type="button"
-          className="underline text-neutral-400 hover:text-neutral-200"
+          className="text-muted-foreground hover:text-foreground shrink-0 underline transition-colors"
           onClick={() => setShowDiff((s) => !s)}
         >
           {showDiff ? "Hide" : "View more"}
@@ -120,7 +121,7 @@ export function ApprovalBanner() {
           <button
             type="button"
             disabled={busy}
-            className="rounded bg-neutral-200 px-2 py-1 font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+            className="bg-foreground text-background rounded-full px-3 py-1 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
             onClick={() => decide(true)}
           >
             Approve
@@ -128,7 +129,7 @@ export function ApprovalBanner() {
           <button
             type="button"
             disabled={busy}
-            className="rounded bg-neutral-700 px-2 py-1 text-neutral-100 hover:bg-neutral-600 disabled:opacity-50"
+            className="border-border text-foreground hover:bg-muted/60 rounded-full border px-3 py-1 transition-colors disabled:opacity-50"
             onClick={() => decide(false)}
           >
             Reject
@@ -136,7 +137,7 @@ export function ApprovalBanner() {
           <button
             type="button"
             disabled={busy}
-            className="rounded border border-neutral-600 px-2 py-1 text-neutral-300 hover:bg-neutral-700/50 disabled:opacity-50"
+            className="text-muted-foreground hover:text-foreground rounded-full px-3 py-1 transition-colors disabled:opacity-50"
             onClick={() => setOther(true)}
           >
             Other…
@@ -145,7 +146,7 @@ export function ApprovalBanner() {
       ) : (
         <div className="flex flex-col gap-1">
           <textarea
-            className="rounded bg-neutral-900/70 p-2 text-neutral-200"
+            className="border-border text-foreground placeholder:text-muted-foreground focus-visible:border-foreground/40 w-full rounded-md border bg-transparent px-2 py-1 outline-none"
             rows={2}
             placeholder="Tell the agent what to do instead…"
             value={otherText}
@@ -155,14 +156,14 @@ export function ApprovalBanner() {
             <button
               type="button"
               disabled={busy || !otherText.trim()}
-              className="rounded bg-neutral-200 px-2 py-1 font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
+              className="bg-foreground text-background rounded-full px-3 py-1 font-medium transition-opacity hover:opacity-90 disabled:opacity-50"
               onClick={() => decide(false, otherText.trim())}
             >
               Send instruction
             </button>
             <button
               type="button"
-              className="rounded border border-neutral-600 px-2 py-1 text-neutral-300 hover:bg-neutral-700/50"
+              className="text-muted-foreground hover:text-foreground rounded-full px-3 py-1 transition-colors"
               onClick={() => setOther(false)}
             >
               Cancel

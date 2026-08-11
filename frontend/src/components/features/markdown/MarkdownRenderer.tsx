@@ -5,6 +5,7 @@ import remarkBreaks from "remark-breaks";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
 import type { Components } from "react-markdown";
+import { MarkdownDataTable } from "./markdown-data-table";
 import "./MarkdownRenderer.css";
 
 interface MarkdownRendererProps {
@@ -35,7 +36,9 @@ function ensureXmlns(svg: string): string {
 }
 
 /** Split content into alternating [markdown, svg, markdown, svg, ...] segments */
-function splitOnSvg(content: string): Array<{ type: "md" | "svg"; text: string }> {
+function splitOnSvg(
+  content: string,
+): Array<{ type: "md" | "svg"; text: string }> {
   const parts = content.split(SVG_RE);
   return parts
     .filter((p) => p.length > 0)
@@ -61,6 +64,18 @@ function SvgBlobImage({ svg }: { svg: string }) {
       style={{ maxWidth: "100%", display: "block", height: "auto" }}
     />
   );
+}
+
+/**
+ * A GFM table becomes the shared data-table block — sortable, aligned, and
+ * scrolling inside its own card instead of stretching the message column.
+ *
+ * Defined at module scope, not inside the renderer: a component identity that
+ * changes every render would remount every table on every token of a stream.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderMarkdownTable({ node, children }: any) {
+  return <MarkdownDataTable node={node} fallback={<table>{children}</table>} />;
 }
 
 function extractNodeText(node: unknown): string {
@@ -100,6 +115,7 @@ export function MarkdownRenderer({
   const remarkPlugins = breaks ? [remarkGfm, remarkBreaks] : [remarkGfm];
 
   const components: Components = {
+    table: renderMarkdownTable,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     code({ node, className: cls, children, ...props }: any) {
       const match = /language-(\w+)/.exec(cls ?? "");
@@ -107,7 +123,10 @@ export function MarkdownRenderer({
       const inline = !cls;
       const hastText = node ? extractNodeText(node) : "";
       // || not ?? — empty string from HAST fallback must also try children
-      const code = (hastText || (typeof children === "string" ? children : String(children ?? ""))).replace(/\n$/, "");
+      const code = (
+        hastText ||
+        (typeof children === "string" ? children : String(children ?? ""))
+      ).replace(/\n$/, "");
 
       if (!inline && codeRenderer) {
         const custom = codeRenderer({ language, code, inline: false });

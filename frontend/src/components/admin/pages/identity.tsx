@@ -216,6 +216,40 @@ const GROUP_BY_PARAM: Record<string, string> = {
   "iam-graph": "IAM Graph",
 };
 
+// Framework icons for the Identity & Access tab strip — one meaningful SVG per
+// tab, keyed by tab id (distinct within each group). Rendered by DiscoveryTabs.
+const TAB_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  // Identity
+  users: Users,
+  service: Server,
+  providers: Plug,
+  auth: KeyRound,
+  sessions: Activity,
+  // Access
+  groups: UsersRound,
+  roles: Shield,
+  assignments: GitBranch,
+  privileged: ShieldAlert,
+  reviews: BadgeCheck,
+  // Alerts
+  "alerts-active": Bell,
+  "alerts-risks": ShieldAlert,
+  "alerts-gov": Scale,
+  "alerts-config": SlidersHorizontal,
+  "alerts-history": History,
+  // IAM Graph
+  "graph-explorer": Network,
+  "graph-impact": Shield,
+  "graph-aggregate": Boxes,
+  "graph-trees": GitBranch,
+  "graph-heatmap": Activity,
+  "graph-sankey": Network,
+};
+const tabIcon = (id: string) => {
+  const I = TAB_ICONS[id];
+  return I ? <I size={14} /> : undefined;
+};
+
 const ROLE_OPTS = [
   "Organization Owner",
   "Enterprise Security Administrator",
@@ -295,7 +329,7 @@ export function IdentityPage({ scope }: { scope: "workspace" | "enterprise" }) {
         />
       </div>
       <DiscoveryTabs
-        tabs={groupDef.tabs}
+        tabs={groupDef.tabs.map((t) => ({ ...t, icon: tabIcon(t.id) }))}
         active={tab}
         onChange={setTab}
         label={`${groupId} views`}
@@ -7123,6 +7157,9 @@ function DetailDrawer({
                     type="button"
                     onClick={() => onSub(i)}
                     style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 7,
                       padding: "12px 12px 10px",
                       background: "transparent",
                       border: "none",
@@ -7134,6 +7171,17 @@ function DetailDrawer({
                       cursor: "pointer",
                     }}
                   >
+                    <span
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                        opacity: on ? 1 : 0.5,
+                      }}
+                    >
+                      {railIcon(label)}
+                    </span>
                     {label}
                   </button>
                 );

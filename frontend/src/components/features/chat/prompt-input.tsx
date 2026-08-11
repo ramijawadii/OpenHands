@@ -3,7 +3,9 @@ import * as React from "react";
 import { useRef, useState, useEffect, useCallback } from "react";
 import { cn } from "#/utils/utils";
 import { ContextRingIndicator } from "./context-ring-indicator";
+import { PlanIndicatorButton } from "./plan-indicator-button";
 import { PillSelect, MorphingText } from "./pill-select";
+import { useExecutionMode } from "./use-execution-mode";
 
 // ----------------------------------------------------------------------
 // Transition Physics
@@ -116,6 +118,18 @@ function ArrowUpIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+/**
+ * Stop. A filled square, the universal transport glyph — deliberately not a
+ * cross, which reads as "dismiss this" rather than "halt the work".
+ */
+function StopIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <rect x="0" y="0" width="10" height="10" rx="2" fill="currentColor" />
     </svg>
   );
 }
@@ -462,6 +476,10 @@ export interface PromptInputProps {
    * compete with the transcript.
    */
   banner?: React.ReactNode;
+  /** The agent is working, so the send control becomes a stop control. */
+  busy?: boolean;
+  /** Cancel the run. Must take effect in the UI immediately. */
+  onStop?: () => void;
 }
 
 export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
@@ -479,13 +497,22 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
       defaultExpanded = false,
       tag,
       banner,
+      busy = false,
+      onStop,
     },
     ref,
   ) => {
     const [expanded, setExpanded] = useState(defaultExpanded);
     const [isSmoothResize, setIsSmoothResize] = useState(false);
     const [localValue, setLocalValue] = useState(defaultValue);
-    const [selectedMode, setSelectedMode] = useState(modes[0]);
+    /*
+      The mode pill is the backend's execution mode, not a local preference —
+      see use-execution-mode.ts. `modes[0]` is only the value shown until the
+      backend answers with the posture it is actually running under.
+    */
+    const { label: selectedMode, change: setSelectedMode } = useExecutionMode(
+      modes[0],
+    );
     const [effortIndex, setEffortIndex] = useState(1);
 
     const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -803,7 +830,18 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
                   ? "transform 0.15s ease-out, opacity 0.15s ease-out"
                   : "transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease-out",
               }}
-              className="border border-border border-b-0 bg-muted rounded-t-2xl px-3 pt-2.5 pb-3.5 flex flex-col items-stretch gap-2 overflow-x-auto prompt-scrollbar"
+              /*
+                No surface of its own.
+
+                The strip used to be a `bg-muted` slab with a border and
+                rounded top, sliding out from behind the composer. Because it
+                is absolutely positioned inside an `overflow-hidden` wrapper,
+                what you actually saw was a coloured band clipped mid-way — a
+                shape that belonged to no component. Every banner that rides
+                this strip already draws its own card, so the strip only needs
+                to be a transparent stack.
+              */
+              className="px-3 pt-2.5 pb-3.5 flex flex-col items-stretch gap-2 overflow-x-auto prompt-scrollbar"
             >
               <div ref={bannerRef} className="flex flex-col gap-2">
                 {banner}
@@ -972,6 +1010,12 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
                 </span>
               </button>
 
+              {/* The plan indicator. It appears only once a plan exists, so the
+                  row is unchanged for a conversation that never invoked one,
+                  and it opens the task list on the banner strip rather than
+                  pushing a second panel into the transcript. */}
+              <PlanIndicatorButton />
+
               {/* Where you are, in the same shape as the mode control so the
                   row reads as one set of chips rather than a control strip
                   with a label bolted on. */}
@@ -1005,19 +1049,27 @@ export const PromptInput = React.forwardRef<HTMLDivElement, PromptInputProps>(
               </span>
             </div>
 
+            {/*
+              One control, two jobs. While the agent is working the send button
+              IS the stop button: the thing you want at that moment is under the
+              cursor you just clicked with, rather than somewhere else in the
+              chrome. It is never disabled while busy — a stop you cannot press
+              is the one case where a disabled control is unacceptable.
+            */}
             <button
               type="button"
               onMouseDown={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              onClick={onActionButtonClick}
-              aria-label="Send prompt"
-              disabled={!hasValue}
+              onClick={busy ? onStop : onActionButtonClick}
+              aria-label={busy ? "Stop the agent" : "Send prompt"}
+              title={busy ? "Stop" : undefined}
+              disabled={busy ? false : !hasValue}
               style={{ borderRadius: 9999 }}
               className="absolute right-2 bottom-2 z-[10] flex h-8 w-8 items-center justify-center bg-primary text-primary-foreground transition-all duration-300 hover:opacity-90 outline-none focus-visible:ring-2 focus-visible:ring-ring cursor-default disabled:opacity-40 disabled:pointer-events-none"
             >
-              <ArrowUpIcon />
+              {busy ? <StopIcon /> : <ArrowUpIcon />}
             </button>
           </div>
         </div>

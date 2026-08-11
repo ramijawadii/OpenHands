@@ -1,7 +1,10 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
 import { useParams } from "react-router";
+import { HelpCircle } from "lucide-react";
 import { openHands } from "#/api/open-hands-axios";
+import { Button } from "#/components/ui/button";
+import { cn } from "#/utils/utils";
 
 interface Question {
   header?: string;
@@ -78,34 +81,47 @@ export function ClarificationBanner() {
     (_, i) => answers[i] || otherText[i],
   );
 
+  /*
+    Themed with the same tokens as every other card on the strip.
+
+    It used to hardcode `neutral-*` greys, so it read as a foreign panel pasted
+    onto the composer — wrong surface in dark mode and unreadable in light,
+    because those greys do not invert with the theme.
+  */
   return (
-    <div className="flex flex-col gap-2 px-3 py-2 text-xs text-neutral-300 border border-neutral-700 bg-neutral-800/60 rounded-md">
-      <span className="flex items-center gap-2">
-        <span aria-hidden className="text-neutral-500">
-          ?
-        </span>
-        <span>The agent needs a quick clarification:</span>
+    <div className="cg-tool-card border-border bg-card flex w-full flex-col gap-3 rounded-lg border px-3 py-2.5 text-xs">
+      <span className="text-muted-foreground flex items-center gap-2">
+        <HelpCircle className="size-3.5 shrink-0" aria-hidden />
+        <span>The agent needs a quick clarification</span>
       </span>
+
       {current.questions.map((q, qi) => (
-        <div key={qi} className="flex flex-col gap-1">
-          <span className="text-neutral-100">{q.question}</span>
-          <div className="flex flex-wrap items-center gap-1">
+        <div key={q.question} className="flex flex-col gap-1.5">
+          {q.header && (
+            <span className="text-muted-foreground text-[11px] font-medium tracking-wide uppercase">
+              {q.header}
+            </span>
+          )}
+          <span className="text-foreground text-sm">{q.question}</span>
+          <div className="flex flex-wrap items-center gap-1.5">
             {(q.options ?? []).map((opt) => (
               <button
                 type="button"
                 key={opt}
-                className={`rounded px-2 py-1 ${
+                aria-pressed={answers[qi] === opt}
+                className={cn(
+                  "rounded-full px-2.5 py-1 transition-colors",
                   answers[qi] === opt
-                    ? "bg-neutral-200 font-medium text-neutral-900"
-                    : "border border-neutral-600 text-neutral-300 hover:bg-neutral-700/50"
-                }`}
+                    ? "bg-foreground text-background font-medium"
+                    : "border-border text-foreground hover:bg-muted/60 border",
+                )}
                 onClick={() => pick(qi, opt)}
               >
                 {opt}
               </button>
             ))}
             <input
-              className="rounded bg-neutral-900/70 px-2 py-1 text-neutral-200"
+              className="border-border text-foreground placeholder:text-muted-foreground focus-visible:border-foreground/40 min-w-32 flex-1 rounded-full border bg-transparent px-2.5 py-1 outline-none"
               placeholder="Other…"
               value={otherText[qi] ?? ""}
               onChange={(e) => {
@@ -116,15 +132,11 @@ export function ClarificationBanner() {
           </div>
         </div>
       ))}
-      <div>
-        <button
-          type="button"
-          disabled={busy || !allAnswered}
-          className="rounded bg-neutral-200 px-2 py-1 font-medium text-neutral-900 hover:bg-white disabled:opacity-50"
-          onClick={submit}
-        >
+
+      <div className="flex justify-end">
+        <Button size="sm" disabled={busy || !allAnswered} onClick={submit}>
           Send answer
-        </button>
+        </Button>
       </div>
     </div>
   );

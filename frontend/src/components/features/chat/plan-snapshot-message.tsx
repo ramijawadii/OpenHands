@@ -1,22 +1,19 @@
-/* eslint-disable i18next/no-literal-string */
 import React from "react";
-import { ListChecks } from "lucide-react";
-import { TaskListSection } from "./task-tracking/task-list-section";
+import { Plan } from "#/components/tool-ui/plan";
+import type { PlanTodo } from "#/components/tool-ui/plan/schema";
 
 /**
  * CloudGuard plan snapshot rendered ALWAYS-VISIBLE in the chat flow.
  *
- * The kernel emits the whole plan as a `[CLOUDGUARD_PLAN]…[/CLOUDGUARD_PLAN]` markdown
- * checklist on every task change. Rendered only via the (collapsed) cell-observation it
- * stays buried; this renders the LAST such block of a cell as a standalone gray
- * checklist message (one per task change → persistent, scrolls with history).
+ * The kernel emits the whole plan as a `[CLOUDGUARD_PLAN]…[/CLOUDGUARD_PLAN]`
+ * markdown checklist on every task change. Rendered only via the (collapsed)
+ * cell observation it stays buried; this renders the LAST such block of a cell
+ * as a standalone message, one per task change, so it scrolls with history.
+ *
+ * The rendering itself is `@tool-ui/plan` — the same block the rest of the
+ * transcript's tool output uses, instead of the hand-rolled rail + checklist
+ * this file used to draw.
  */
-
-interface PlanItem {
-  id: string;
-  title: string;
-  status: "todo" | "in_progress" | "done";
-}
 
 const PLAN_RE = /\[CLOUDGUARD_PLAN\]\s*([\s\S]*?)\s*\[\/CLOUDGUARD_PLAN\]/g;
 
@@ -33,57 +30,47 @@ export function extractPlanMarkdown(content: string | undefined): string {
   return last;
 }
 
-/** Parse `- [x] subject` / `- [ ] subject _(in progress)_` lines into task items. */
-function parsePlan(md: string): PlanItem[] {
-  const items: PlanItem[] = [];
+/** Parse `- [x] subject` / `- [ ] subject _(in progress)_` lines into plan todos. */
+export function parsePlanTodos(md: string): PlanTodo[] {
+  const items: PlanTodo[] = [];
   md.split("\n").forEach((raw, i) => {
     const line = raw.trim();
-    const match = line.match(/^-\s*\[([ xX])\]\s*(.*)$/);
+    const match = line.match(/^-\s*\[([ xX~])\]\s*(.*)$/);
     if (!match) return;
-    const checked = match[1].toLowerCase() === "x";
-    let title = match[2].trim();
-    let status: PlanItem["status"] = checked ? "done" : "todo";
-    if (!checked && /_\(in progress\)_/.test(title)) {
+    const mark = match[1].toLowerCase();
+    let label = match[2].trim();
+    let status: PlanTodo["status"] = mark === "x" ? "completed" : "pending";
+    // Both spellings occur: `[~]` from the task-tracking observation, and the
+    // `_(in progress)_` suffix from the kernel's markdown snapshot.
+    if (mark === "~" || /_\(in progress\)_/.test(label)) {
       status = "in_progress";
-      title = title.replace(/_\(in progress\)_/g, "").trim();
+      label = label.replace(/_\(in progress\)_/g, "").trim();
     }
-    items.push({ id: String(i + 1), title, status });
+    if (!label) return;
+    items.push({ id: String(i + 1), label, status });
   });
   return items;
 }
+
+/** How many steps show before the block folds the rest behind its own expander. */
+const MAX_VISIBLE_TODOS = 5;
 
 export function PlanSnapshotMessage({
   planMarkdown,
 }: {
   planMarkdown: string;
 }) {
-  const items = parsePlan(planMarkdown);
-  if (!items.length) return null;
-  const done = items.filter((i) => i.status === "done").length;
+  const todos = parsePlanTodos(planMarkdown);
+  if (!todos.length) return null;
 
   return (
-    <div className="flex w-full">
-      <div className="w-[20px] flex flex-col items-center shrink-0" aria-hidden>
-        <div
-          className="w-px flex-1"
-          style={{ background: "var(--cg-border)" }}
-        />
-        <ListChecks
-          size={16}
-          className="shrink-0 my-[3px]"
-          style={{ color: "var(--cg-text-muted)" }}
-        />
-        <div
-          className="w-px flex-1"
-          style={{ background: "var(--cg-border)" }}
-        />
-      </div>
-      <div className="min-w-0 pl-2 py-1.5 flex-1">
-        <div className="text-sm mb-1" style={{ color: "var(--cg-text-nav)" }}>
-          Task plan · {done}/{items.length} done
-        </div>
-        <TaskListSection taskList={items} />
-      </div>
+    <div className="cg-tool-card w-full">
+      <Plan
+        id="plan-snapshot"
+        title="Task plan"
+        todos={todos}
+        maxVisibleTodos={MAX_VISIBLE_TODOS}
+      />
     </div>
   );
 }

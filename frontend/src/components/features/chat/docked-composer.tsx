@@ -244,8 +244,14 @@ export function DockedComposer({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center px-3 pb-3">
         <div
           ref={measureRef}
-          className="cg-composer-arrive pointer-events-auto"
+          className="cg-composer-arrive pointer-events-auto relative"
         >
+          {/* Same feathered separation the floating placement gets. Docked, the
+              composer sits over a scrolling transcript, so it needs the same
+              soft plane break — without it the box reads as pasted onto the
+              messages that run underneath it. `relative` is required here: the
+              halo is absolutely positioned against this wrapper. */}
+          <span aria-hidden className="cg-composer-halo" />
           {composer}
         </div>
       </div>

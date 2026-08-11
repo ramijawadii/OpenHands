@@ -2,15 +2,12 @@ import { useLocation } from "react-router";
 import { PromptInput } from "./prompt-input";
 import { viewLabel } from "./docked-composer";
 import { useConversationStore } from "#/state/conversation-store";
+import { useAgentStore } from "#/stores/agent-store";
+import { AgentState } from "#/types/agent-state";
 
 interface InteractiveChatBoxProps {
   onSubmit: (message: string, images: File[], files: File[]) => void;
-  /**
-   * Kept on the contract deliberately. The new composer does not render a
-   * stop-runtime control yet, but every caller still supplies this and the
-   * control is coming back — dropping it would churn the call sites twice.
-   */
-  // eslint-disable-next-line react/no-unused-prop-types
+  /** Cancel the current run — wired to the composer's stop control. */
   onStop: () => void;
   defaultExpanded?: boolean;
   banner?: React.ReactNode;
@@ -26,9 +23,21 @@ interface InteractiveChatBoxProps {
  */
 export function InteractiveChatBox({
   onSubmit,
+  onStop,
   defaultExpanded,
   banner,
 }: InteractiveChatBoxProps) {
+  const { curAgentState } = useAgentStore();
+  /*
+   * "Working" for the purposes of the stop control.
+   *
+   * Deliberately broader than RUNNING: a run that is starting up, or paused
+   * waiting on a confirmation, is still a run the user may want to abandon, and
+   * a stop button that disappears between states is worse than none.
+   */
+  const busy =
+    curAgentState === AgentState.RUNNING ||
+    curAgentState === AgentState.AWAITING_USER_CONFIRMATION;
   const { pathname } = useLocation();
   /*
    * No store consumer here any more.
@@ -47,6 +56,8 @@ export function InteractiveChatBox({
         defaultExpanded={defaultExpanded}
         tag={viewLabel(pathname) ?? undefined}
         banner={banner}
+        busy={busy}
+        onStop={onStop}
         onSubmit={(message, meta) => {
           // The composer owns its own image attachments, so they arrive with
           // the submission rather than through the conversation store. Files
