@@ -13,7 +13,6 @@ import { FeedbackModal } from "../feedback/feedback-modal";
 import { useScrollToBottom } from "#/hooks/use-scroll-to-bottom";
 import { useWsClient } from "#/context/ws-client-provider";
 import { Messages } from "./messages";
-import { OpenHandsAssistantRuntime } from "#/components/tool-ui/elements/openhands-runtime";
 
 import { ChatSuggestions } from "./chat-suggestions";
 import { ScrollProvider } from "#/context/scroll-context";
@@ -347,22 +346,6 @@ export function ChatInterface() {
             identical at every width — the panel gets wider, the conversation
             does not.
           */}
-          {/*
-            The runtime wraps the transcript only.
-
-            assistant-ui's Tool-use Elements read their state out of context, so
-            anything rendering one has to sit inside a provider. Scoping it here
-            rather than at the app root keeps it off every other surface — the
-            composer still sends through `useWsClient`, and no page outside this
-            transcript gains a runtime it does not use.
-
-            It is fed `parsedEvents`, the same array `Messages` renders, so the
-            two can never disagree about what happened.
-          */}
-          <OpenHandsAssistantRuntime
-            events={events}
-            isRunning={curAgentState === AgentState.RUNNING}
-          >
             <div className="flex w-full max-w-[820px] flex-col gap-5">
               {!isLoadingMessages && userEventsExist && (
                 <Messages
@@ -374,7 +357,7 @@ export function ChatInterface() {
                 />
               )}
             </div>
-          </OpenHandsAssistantRuntime>
+
         </div>
 
         <div className="flex flex-col gap-[6px]">
