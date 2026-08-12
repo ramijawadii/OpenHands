@@ -1,3 +1,4 @@
+import type { TurnArtifact } from "./messages";
 import React from "react";
 import { OpenHandsAction } from "#/types/core/actions";
 import {
@@ -39,7 +40,7 @@ interface EventMessageProps {
     onClick: () => void;
     tooltip?: string;
   }>;
-  toolBadges?: ConversationTab[];
+  toolBadges?: TurnArtifact[];
   isInLast10Actions: boolean;
 }
 

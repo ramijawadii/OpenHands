@@ -42,32 +42,78 @@ import type { IPythonAction } from "#/types/core/actions";
 const RENDER_WINDOW = 60;
 const LOAD_CHUNK = 100;
 
-function computeToolBadges(
+/**
+ * What this turn PRODUCED, as artifacts.
+ *
+ * Previously this advertised surfaces, and the mapping had drifted: a shell
+ * `run` resolved to the "terminal" key, which TAB_META labels "Chat" — so
+ * executing a command told the operator it had produced a conversation. File
+ * writes, the one thing that really is an output, were labelled "Commands".
+ *
+ * An output is a FILE the analyst can open: a document, a sheet, a notebook, a
+ * diagram. A shell command is how work gets done, not a deliverable, so it no
+ * longer appears here at all — it is already visible as its own tool card.
+ */
+export interface TurnArtifact {
+  tab: ConversationTab;
+  title: string;
+  meta: string;
+}
+
+/** Extension → what the analyst is actually being handed. */
+const ARTIFACT_KIND: { match: RegExp; meta: string; tab: ConversationTab }[] = [
+  { match: /\.ipynb$/i, meta: "Notebook · Python", tab: "jupyter" },
+  { match: /\.(drawio|excalidraw)$/i, meta: "Architecture diagram", tab: "diagrams" },
+  { match: /\.mmd$/i, meta: "Mermaid diagram", tab: "diagrams" },
+  { match: /\.(docx|doc|odt)$/i, meta: "Word document", tab: "diagrams" },
+  { match: /\.(xlsx|xls|csv|ods)$/i, meta: "Spreadsheet", tab: "diagrams" },
+  { match: /\.pdf$/i, meta: "PDF report", tab: "diagrams" },
+  { match: /\.(md|markdown)$/i, meta: "Markdown document", tab: "diagrams" },
+  { match: /\.(tex|latex)$/i, meta: "LaTeX source", tab: "diagrams" },
+];
+
+function computeTurnArtifacts(
   msgs: (OpenHandsAction | OpenHandsObservation)[],
   msgIndex: number,
-): ConversationTab[] {
-  const tabs = new Set<ConversationTab>();
+): TurnArtifact[] {
+  const byTitle = new Map<string, TurnArtifact>();
   let i = msgIndex - 1;
   while (i >= 0) {
     const evt = msgs[i];
     if (isAssistantMessage(evt)) break;
     if (isOpenHandsAction(evt) && evt.source === "agent") {
-      if (evt.action === "run") {
-        tabs.add("terminal");
-      } else if (evt.action === "run_ipython") {
+      if (evt.action === "run_ipython") {
         const code = (evt as IPythonAction).args.code ?? "";
-        tabs.add(
-          code.includes("_safe_diagram") || code.includes("_safe_page")
-            ? "diagrams"
-            : "jupyter",
-        );
+        const isDiagram =
+          code.includes("_safe_diagram") || code.includes("_safe_page");
+        const title = isDiagram ? "Architecture diagram" : "Analysis notebook";
+        byTitle.set(title, {
+          tab: isDiagram ? "diagrams" : "jupyter",
+          title,
+          meta: isDiagram ? "Rendered · Canvas" : "Notebook · Python",
+        });
       } else if (evt.action === "write" || evt.action === "edit") {
-        tabs.add("editor");
+        // The real filename, not a surface name: "posture-2026-08.pdf" tells an
+        // analyst what they are opening; "Commands" does not.
+        const path = (evt.args as { path?: string }).path ?? "";
+        const name = path.split("/").filter(Boolean).pop() ?? path;
+        if (!name) {
+          i -= 1;
+          continue;
+        }
+        const kind = ARTIFACT_KIND.find((k) => k.match.test(name));
+        // Files we have no opener for are skipped rather than offered: an
+        // "Open" that lands nowhere is worse than no card.
+        if (kind) {
+          byTitle.set(name, { tab: kind.tab, title: name, meta: kind.meta });
+        }
       }
     }
     i -= 1;
   }
-  return [...tabs];
+  // Reversed: the map was filled walking BACKWARD, so this restores the order
+  // the agent produced them in.
+  return [...byTitle.values()].reverse();
 }
 
 const isErrorEvent = (evt: unknown): evt is { error: true; message: string } =>
@@ -323,7 +369,7 @@ export const Messages: React.FC<MessagesProps> = React.memo(
                 }
                 toolBadges={
                   isAssistantMessage(message)
-                    ? computeToolBadges(messages, index)
+                    ? computeTurnArtifacts(messages, index)
                     : undefined
                 }
                 isInLast10Actions={messages.length - 1 - index < 10}

@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { OpenHandsAction } from "#/types/core/actions";
 import { isUserMessage, isAssistantMessage } from "#/types/core/guards";
+import { ArtifactCard } from "#/components/tool-ui/elements/artifact-card";
+import type { TurnArtifact } from "../messages";
 import { ChatMessage } from "../chat-message";
 import { ImageCarousel } from "../../images/image-carousel";
 import { FileList } from "../../files/file-list";
@@ -24,54 +26,18 @@ import {
 
 // ── Tool badge row ────────────────────────────────────────────────────────────
 
-const TAB_META: Record<
-  ConversationTab,
-  {
-    icon: React.ComponentType<{ className?: string }>;
-    label: string;
-    subtitle: string;
-  }
-> = {
-  // Keys are historical: "terminal" = Chat, "editor" = Commands,
-  // "diagrams" = Report, "states" = Logs.
-  terminal: {
-    icon: TerminalSquare,
-    label: "Chat",
-    subtitle: "Conversation",
-  },
-  jupyter: {
-    icon: FileTerminal,
-    label: "Jupyter Notebook",
-    subtitle: "Python · Interactive",
-  },
-  editor: {
-    icon: GitMerge,
-    label: "Commands",
-    subtitle: "Shell · In/Out",
-  },
-  diagrams: {
-    icon: StickyNote,
-    label: "Report",
-    subtitle: "Document · Pages",
-  },
-  states: {
-    icon: History,
-    label: "Logs",
-    subtitle: "Audit · Executions",
-  },
-  remediation: {
-    icon: History,
-    label: "Remediation Workflow",
-    subtitle: "Gated · Approval",
-  },
-  sandbox: {
-    icon: History,
-    label: "Sandbox Health",
-    subtitle: "Resources · Processes",
-  },
-};
-
-function ToolBadgesRow({ tabs }: { tabs: ConversationTab[] }) {
+/**
+ * Artifacts produced by a turn.
+ *
+ * Was a stack of full-width surface rows — icon box, label, subtitle, Open
+ * button — one per tab the agent had touched, including "Chat", which is not
+ * an output. Three of those under a two-line reply dominated the transcript.
+ *
+ * Now an ArtifactCard per FILE: the name the analyst will open and what it is.
+ * Compact, so a turn that produced a report and a diagram reads as two
+ * deliverables rather than a menu.
+ */
+function ToolBadgesRow({ tabs }: { tabs: TurnArtifact[] }) {
   const { setSelectedTab, setHasRightPanelToggled } = useConversationStore();
 
   if (tabs.length === 0) return null;
@@ -82,48 +48,17 @@ function ToolBadgesRow({ tabs }: { tabs: ConversationTab[] }) {
   };
 
   return (
-    <div className="flex flex-col gap-2 mt-3 pt-3 border-t border-white/5">
-      {tabs.map((tab) => {
-        const meta = TAB_META[tab];
-        if (!meta) return null;
-        const Icon = meta.icon;
-        return (
-          <div
-            key={tab}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-[var(--cg-border)] cursor-pointer hover:border-[var(--cg-border-strong)] transition-colors"
-            style={{ backgroundColor: "var(--cg-input-bg)" }}
-            onClick={() => openTab(tab)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => e.key === "Enter" && openTab(tab)}
-          >
-            {/* Icon box */}
-            <div className="w-10 h-10 rounded-lg bg-[var(--cg-bg-badge)] border border-[var(--cg-border)] flex items-center justify-center flex-shrink-0">
-              <Icon className="w-5 h-5 text-[var(--cg-text-muted)]" />
-            </div>
-            {/* Labels */}
-            <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-sm font-medium text-[var(--cg-text-primary)] leading-tight">
-                {meta.label}
-              </span>
-              <span className="text-xs text-[var(--cg-text-muted)] leading-tight mt-0.5">
-                {meta.subtitle}
-              </span>
-            </div>
-            {/* Open button */}
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openTab(tab);
-              }}
-              className="flex-shrink-0 px-3 py-1.5 rounded-lg border border-[var(--cg-border)] text-xs text-[var(--cg-text-muted)] hover:text-[var(--cg-text-primary)] hover:border-[var(--cg-border-strong)] hover:bg-[var(--cg-bg-badge)] transition-colors"
-            >
-              Open
-            </button>
-          </div>
-        );
-      })}
+    <div className="mt-3 flex flex-wrap gap-2 border-t border-white/5 pt-3">
+      {tabs.map((artifact) => (
+        <button
+          key={artifact.title}
+          type="button"
+          onClick={() => openTab(artifact.tab)}
+          className="text-left"
+        >
+          <ArtifactCard title={artifact.title} meta={artifact.meta} />
+        </button>
+      ))}
     </div>
   );
 }
@@ -141,7 +76,7 @@ interface UserAssistantEventMessageProps {
     onClick: () => void;
     tooltip?: string;
   }>;
-  toolBadges?: ConversationTab[];
+  toolBadges?: TurnArtifact[];
   isLastMessage: boolean;
   isInLast10Actions: boolean;
   config?: { APP_MODE?: string } | null;
