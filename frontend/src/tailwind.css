@@ -763,52 +763,18 @@
     }
   }
 }
-/* Markdown tables, in the Elements' visual language.
-   `elements-data-table` cannot be reused directly — it takes three fixed
-   columns (name/context/cost) for a model-usage demo, so it can render neither
-   a findings table nor anything else with arbitrary headers. Rather than
-   shoehorn our data into its shape, the same surface vocabulary it uses
-   (`bg-popover` ground, hairline rules, tight mono figures) is applied to the
-   tables the agent actually emits, so both read as one system.
+/* Markdown tables.
+   These do NOT render as a plain <table>: MarkdownRenderer swaps them for our
+   own DataTable, which brings sorting and its own chrome. An earlier revision
+   styled `.markdown-body table` as if it were raw markup — that landed on
+   DataTable's internal <table> and fought it, forcing `display:block` and
+   `nowrap` onto a component that manages its own overflow.
 
-   Scoped to `.markdown-body` so it lands on agent prose only, never on AG Grid
-   or the admin tables, which own their own chrome. */
-.markdown-body table {
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  border: 1px solid var(--cg-border);
-  border-radius: 12px;
-  overflow: hidden;
-  font-size: 13px;
-  /* The screenshot showed Severity clipped at the right edge: the table was
-     wider than the column and had nowhere to go. Letting it scroll inside its
-     own box keeps every column reachable without widening the transcript. */
-  display: block;
+   So the only rule here is the one DataTable cannot apply to itself: letting a
+   wide table scroll sideways inside the transcript instead of clipping its last
+   column, which is what cut off "Severity". The fallback path — a table too
+   malformed to parse, rendered as plain markup — inherits it too. */
+.markdown-body .cg-tool-card {
+  max-width: 100%;
   overflow-x: auto;
-  white-space: nowrap;
-}
-.markdown-body table th {
-  background: var(--cg-bg-hover);
-  color: var(--cg-text-muted);
-  font-weight: 600;
-  text-align: left;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--cg-border);
-}
-.markdown-body table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--cg-border-subtle);
-  color: var(--cg-text-primary);
-}
-/* No rule under the final row — the container border already closes the box,
-   and doubling them reads as a misaligned seam. */
-.markdown-body table tr:last-child td {
-  border-bottom: none;
-}
-/* The first column is the identifier (a control id, a resource arn); mono
-   figures make them scannable down the column. */
-.markdown-body table td:first-child {
-  font-family: ui-monospace, "IBM Plex Mono", monospace;
-  font-size: 12px;
 }
