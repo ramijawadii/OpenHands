@@ -85,3 +85,41 @@ describe("segmentEvents", () => {
     expect(segmentEvents([])).toEqual([]);
   });
 });
+
+describe("richness rule", () => {
+  const rich = (id: number, cause: number) =>
+    ({
+      id,
+      observation: "mcp",
+      source: "agent",
+      cause,
+      extras: { name: "kb_search" },
+      content: JSON.stringify([
+        { control: "CIS AWS 2.1.1", title: "Deny HTTP", severity: "HIGH" },
+      ]),
+    }) as never;
+
+  it("does not swallow a result that renders as its own widget", () => {
+    // Four calls would normally group. The third returns a control list, which
+    // is the answer the operator asked for — folding it into a row of tool
+    // names would hide exactly what this work exists to surface.
+    const segs = segmentEvents([
+      call(1),
+      result(2, 1),
+      call(3),
+      result(4, 3),
+      call(5),
+      rich(6, 5),
+      call(7),
+      result(8, 7),
+    ]);
+    const flat = segs.flatMap((s) => (s.type === "group" ? s.events : [s.event]));
+    // Still every event, exactly once.
+    expect(flat).toHaveLength(8);
+    // The rich observation is never inside a group.
+    const grouped = segs
+      .filter((s) => s.type === "group")
+      .flatMap((s) => (s.type === "group" ? s.events : []));
+    expect(grouped.some((e) => (e as { id: number }).id === 6)).toBe(false);
+  });
+});

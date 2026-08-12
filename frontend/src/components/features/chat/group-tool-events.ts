@@ -14,14 +14,31 @@
 
 import { OpenHandsAction } from "#/types/core/actions";
 import { OpenHandsObservation } from "#/types/core/observations";
-import { isOpenHandsAction } from "#/types/core/guards";
+import { isOpenHandsAction, isOpenHandsObservation } from "#/types/core/guards";
+import { matchPayload } from "#/components/tool-ui/elements/payload-dispatch";
 
 type Ev = OpenHandsAction | OpenHandsObservation;
 
-/** Only MCP calls group. Shell and file edits stay individually legible. */
+/**
+ * Only MCP calls group, and only the ones with nothing better to show.
+ *
+ * A result that resolves to its own widget — a control list, a schema sheet, a
+ * risk breakdown — is the answer the operator asked for. Folding it into a row
+ * of tool names would hide the very thing this work exists to surface. So
+ * richness is checked here: noisy plumbing collapses, findings do not.
+ *
+ * Shell commands and file edits never group; those are audited line by line.
+ */
 const isGroupable = (e: Ev): boolean => {
   const key = isOpenHandsAction(e) ? e.action : e.observation;
-  return key === "call_tool_mcp" || key === "mcp";
+  if (key !== "call_tool_mcp" && key !== "mcp") return false;
+
+  if (isOpenHandsObservation(e)) {
+    const toolName = (e.extras as { name?: string } | undefined)?.name;
+    // Renders as a widget → keep it out of the group.
+    if (matchPayload(toolName, e.content).kind !== null) return false;
+  }
+  return true;
 };
 
 export type Segment =
