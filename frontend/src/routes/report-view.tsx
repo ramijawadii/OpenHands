@@ -25,6 +25,7 @@ import { useConversationId } from "#/hooks/use-conversation-id";
 import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
+import { mermaidCodeRenderer } from "#/components/features/markdown/mermaid-code-renderer";
 import { EventReport } from "#/components/features/explore/cloudguard-grid/EventReport";
 import {
   clearEventReport,
@@ -477,9 +478,12 @@ function ArtifactViewer({
       </div>
     );
   }
+  // Mermaid must be intercepted explicitly: MarkdownRenderer only draws
+  // diagrams when handed a codeRenderer, and this view was calling it bare —
+  // so a report full of ```mermaid chapters rendered as walls of source text.
   return (
     <div className="cg-scroll h-full w-full overflow-y-auto px-4 py-3">
-      <MarkdownRenderer content={content} />
+      <MarkdownRenderer content={content} codeRenderer={mermaidCodeRenderer} />
     </div>
   );
 }

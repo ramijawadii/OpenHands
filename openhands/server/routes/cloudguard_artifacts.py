@@ -29,9 +29,34 @@ _KIND_BY_EXT: dict[str, str] = {
 }
 
 
+# Directories holding INTERMEDIATE work. A long report is written as one
+# markdown chapter per section (often with mermaid), then converted through a
+# template into the deliverable. Those chapters are the agent's working
+# material — the analyst wants the finished report, not fourteen drafts of its
+# parts sitting beside it. The agent is told to write them under one of these.
+_DRAFT_DIRS = frozenset({
+    "drafts", "draft", "chapters", "sections", "parts", "_build", "_sources",
+})
+
+# Extensions that are SOURCE for a conversion rather than a deliverable. They
+# are shown only when nothing was built from them — an unconverted draft is
+# still the best thing available, but the moment a PDF exists it supersedes it.
+_SOURCE_EXTS = frozenset({"md", "markdown", "tex", "latex", "mmd"})
+
+# What a source can be compiled INTO. Presence of any of these, sharing the
+# source's stem, hides the source.
+_BUILT_EXTS = ("pdf", "docx", "xlsx", "odt")
+
+
 def _kind(path: str) -> str | None:
     ext = path.rsplit(".", 1)[-1].lower() if "." in path else ""
     return _KIND_BY_EXT.get(ext)
+
+
+def _is_draft(rel: str) -> bool:
+    """True when the file is intermediate work, not a deliverable."""
+    parts = rel.replace("\\", "/").split("/")
+    return any(seg.lower() in _DRAFT_DIRS for seg in parts[:-1])
 
 
 @router.get("")
@@ -93,7 +118,10 @@ async def list_artifacts(conversation_id: str):
             except Exception:  # noqa: BLE001
                 pass
 
-    artifacts = []
+    artifacts: list[dict] = []
+    # Stems that have a COMPILED output, so their markdown/LaTeX source can be
+    # suppressed. Collected in the same pass to avoid a second walk.
+    built_stems: set[str] = set()
     prefix = root.rstrip("/") + "/"
     for line in text.splitlines():
         parts = line.split("\t")
@@ -104,6 +132,13 @@ async def list_artifacts(conversation_id: str):
         kind = _kind(rel)
         if kind is None:
             continue
+        # Intermediate chapters never reach the analyst-facing tab.
+        if _is_draft(rel):
+            continue
+        ext = rel.rsplit(".", 1)[-1].lower() if "." in rel else ""
+        stem = rel.rsplit(".", 1)[0] if "." in rel else rel
+        if ext in _BUILT_EXTS:
+            built_stems.add(stem)
         try:
             artifacts.append(
                 {
@@ -111,10 +146,26 @@ async def list_artifacts(conversation_id: str):
                     "size": int(size_s),
                     "mtime": float(mtime_s),
                     "kind": kind,
+                    # Carried so the supersede pass below does not re-parse.
+                    "_ext": ext,
+                    "_stem": stem,
                 }
             )
         except ValueError:
             continue
+
+    # A source whose deliverable exists is noise: report.md beside report.pdf
+    # tells the analyst nothing they cannot get from the PDF, and doubles the
+    # tab. Done as a second pass because the build may be listed before its
+    # source, depending on walk order.
+    artifacts = [
+        a
+        for a in artifacts
+        if not (a["_ext"] in _SOURCE_EXTS and a["_stem"] in built_stems)
+    ]
+    for a in artifacts:
+        a.pop("_ext", None)
+        a.pop("_stem", None)
 
     artifacts.sort(key=lambda a: a["mtime"], reverse=True)
     return {"artifacts": artifacts}
