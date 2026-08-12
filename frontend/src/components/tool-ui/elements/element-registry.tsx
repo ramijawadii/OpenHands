@@ -29,6 +29,14 @@ import { FileTree } from "./file-tree";
 import { TodoList } from "./todo-list";
 import { Timeline } from "./timeline";
 import { MemoryChips } from "./memory-chips";
+import { AgentPlan } from "./agent-plan";
+import { NumberTicker } from "./number-ticker";
+import { GuardrailNotice } from "./guardrail-notice";
+import { ConfidenceMarker } from "./confidence-marker";
+import { MathBlock } from "./math-block";
+import { TraceWaterfall } from "./trace-waterfall";
+import { QuotaBanner } from "./quota-banner";
+import { ArtifactCard } from "./artifact-card";
 
 export interface ElementEntry {
   /** Element id — matches the file name, so a route is traceable to its source. */
@@ -317,6 +325,206 @@ export const ELEMENTS: readonly ElementEntry[] = [
     },
   },
 
+  {
+    id: "agent-plan",
+    tools: ["plan_steps", "kg_plan_outline"],
+    schema: z.object({
+      steps: z.array(z.string()).min(1),
+      active: z.number().optional(),
+    }),
+    render: (data) => {
+      const d = data as { steps: string[]; active?: number };
+      return (
+        <AgentPlan
+          steps={d.steps}
+          // Absent an explicit cursor the plan is treated as not yet started,
+          // which is safer than implying progress the payload never claimed.
+          activeIndex={d.active ?? 0}
+        />
+      );
+    },
+  },
+  {
+    id: "number-ticker",
+    tools: ["kg_count", "resource_count"],
+    schema: z.object({ value: z.number(), label: z.string() }),
+    render: (data) => {
+      const d = data as { value: number; label: string };
+      return <NumberTicker value={d.value} label={d.label} />;
+    },
+  },
+  {
+    id: "guardrail-notice",
+    tools: ["policy_block", "gate_denied"],
+    schema: z.object({
+      title: z.string(),
+      explanation: z.string(),
+      policy: z.string(),
+      alternatives: z.array(z.string()).optional(),
+    }),
+    render: (data) => {
+      const d = data as {
+        title: string;
+        explanation: string;
+        policy: string;
+        alternatives?: string[];
+      };
+      return (
+        <GuardrailNotice
+          title={d.title}
+          explanation={d.explanation}
+          policy={d.policy}
+          alternatives={d.alternatives ?? []}
+          // Suggested alternatives are read-only here: acting on one is a new
+          // command that must go through the permission gate, not a click that
+          // bypasses the block being explained.
+          onPick={undefined}
+        />
+      );
+    },
+  },
+  {
+    id: "confidence-marker",
+    tools: ["kg_claims", "evidence_confidence"],
+    schema: z
+      .array(
+        z.object({
+          text: z.string(),
+          confidence: z.enum(["grounded", "inferred", "uncertain"]),
+          basis: z.string().optional(),
+        }),
+      )
+      .min(1),
+    render: (data) => {
+      const rows = data as {
+        text: string;
+        confidence: "grounded" | "inferred" | "uncertain";
+        basis?: string;
+      }[];
+      return (
+        <ConfidenceMarker
+          claims={rows.map((c, i) => ({
+            id: String(i),
+            text: c.text,
+            confidence: c.confidence,
+            // An unstated basis is shown as such rather than left blank: a
+            // claim with no evidence behind it is the thing worth noticing.
+            basis: c.basis ?? "no basis recorded",
+          }))}
+          // Nothing is hovered on first paint; the Element owns hover from
+          // there, so the transcript does not hold interaction state.
+          hoveredId=""
+          onHover={() => {}}
+        />
+      );
+    },
+  },
+  {
+    id: "math-block",
+    tools: ["risk_calculation", "kg_score_math"],
+    schema: z.object({
+      label: z.string(),
+      steps: z.array(z.object({ expression: z.string(), note: z.string().optional() })).min(1),
+    }),
+    render: (data) => {
+      const d = data as {
+        label: string;
+        steps: { expression: string; note?: string }[];
+      };
+      return (
+        <MathBlock
+          label={d.label}
+          steps={d.steps}
+          visibleSteps={d.steps.length}
+        />
+      );
+    },
+  },
+  {
+    id: "trace-waterfall",
+    tools: ["trace_spans", "kg_query_trace"],
+    schema: z.object({
+      totalMs: z.number(),
+      spans: z
+        .array(
+          z.object({
+            name: z.string(),
+            depth: z.number().optional(),
+            startMs: z.number(),
+            durationMs: z.number(),
+            status: z.enum(["running", "completed", "failed"]).optional(),
+          }),
+        )
+        .min(1),
+    }),
+    render: (data) => {
+      const d = data as {
+        totalMs: number;
+        spans: {
+          name: string;
+          depth?: number;
+          startMs: number;
+          durationMs: number;
+          status?: "running" | "completed" | "failed";
+        }[];
+      };
+      return (
+        <TraceWaterfall
+          spans={d.spans.map((sp, i) => ({
+            id: String(i),
+            name: sp.name,
+            depth: sp.depth ?? 0,
+            startMs: sp.startMs,
+            durationMs: sp.durationMs,
+            // A span with no status has already returned, or it would
+            // not be in a completed trace.
+            status: sp.status ?? "completed",
+          }))}
+          totalMs={d.totalMs}
+          visibleCount={d.spans.length}
+        />
+      );
+    },
+  },
+  {
+    id: "quota-banner",
+    tools: ["quota_status", "budget_status"],
+    schema: z.object({
+      used: z.number(),
+      limit: z.number(),
+      unit: z.string().optional(),
+      resetsIn: z.string().optional(),
+    }),
+    render: (data) => {
+      const d = data as {
+        used: number;
+        limit: number;
+        unit?: string;
+        resetsIn?: string;
+      };
+      return (
+        <QuotaBanner
+          used={d.used}
+          limit={d.limit}
+          unit={d.unit ?? "calls"}
+          resetsIn={d.resetsIn ?? "unknown"}
+          // No upgrade path is offered from a transcript: budget is an
+          // account-level decision, not something to action mid-assessment.
+          upgradeLabel=""
+          onUpgrade={undefined}
+        />
+      );
+    },
+  },
+  {
+    id: "artifact-card",
+    tools: ["artifact_created", "report_generated"],
+    schema: z.object({ title: z.string(), meta: z.string().optional() }),
+    render: (data) => {
+      const d = data as { title: string; meta?: string };
+      return <ArtifactCard title={d.title} meta={d.meta ?? ""} />;
+    },
+  },
 ];
 
 /** Index by tool name. Built once — the list is static. */
