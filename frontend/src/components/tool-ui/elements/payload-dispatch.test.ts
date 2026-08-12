@@ -44,8 +44,8 @@ describe("payload dispatch — refusals", () => {
       { control: "kg_search_commands", title: "kb_search", severity: "HIGH" },
     ]);
     const r = matchPayload("kb_search", hostile);
-    // Routes by the TOOL, so it stays kb-controls regardless of the body.
-    expect(r.kind).toBe("kb-controls");
+    // Routes by the TOOL, so it stays retrieval-chunks regardless of the body.
+    expect(r.kind).toBe("retrieval-chunks");
   });
 });
 
@@ -63,7 +63,7 @@ describe("payload dispatch — matches", () => {
       "kb_search",
       JSON.stringify([{ control: "CIS AWS 2.1.1", title: "Deny HTTP" }]),
     );
-    expect(r.kind).toBe("kb-controls");
+    expect(r.kind).toBe("retrieval-chunks");
   });
 
   it("tolerates unknown extra keys", () => {
@@ -72,6 +72,6 @@ describe("payload dispatch — matches", () => {
       "kg_get_command_schema",
       JSON.stringify({ required: ["Bucket"], newFieldFromUpstream: true }),
     );
-    expect(r.kind).toBe("kg-schema");
+    expect(r.kind).toBe("spec-sheet");
   });
 });

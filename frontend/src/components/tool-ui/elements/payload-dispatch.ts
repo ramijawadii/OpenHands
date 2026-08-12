@@ -25,13 +25,22 @@
  */
 
 import { z } from "zod";
+import { ELEMENT_BY_TOOL } from "./element-registry";
 
 /** Kinds a validated payload can resolve to. Extend with the schema, together. */
+/**
+ * Kinds a validated payload can resolve to.
+ *
+ * Registry ids are also PayloadKinds, so declaring an Element is enough to make
+ * it dispatchable — there is no second list to keep in step. The literals below
+ * are the pre-registry routes kept for their tests.
+ */
 export type PayloadKind =
   | "kg-commands"
   | "kg-schema"
   | "kb-controls"
-  | "findings";
+  | "findings"
+  | (string & {});
 
 /**
  * Schemas are deliberately LOOSE about extra keys and STRICT about the fields
@@ -103,7 +112,12 @@ export const matchPayload = (
 ): PayloadMatch => {
   if (!toolName) return { kind: null, reason: "unknown-tool" };
 
-  const entry = BY_TOOL[toolName];
+  // The registry is consulted first: it is where Elements are declared, and a
+  // tool must never resolve differently here than it does at render time.
+  const registryEntry = ELEMENT_BY_TOOL.get(toolName);
+  const entry = registryEntry
+    ? { kind: registryEntry.id as PayloadKind, schema: registryEntry.schema }
+    : BY_TOOL[toolName];
   if (!entry) return { kind: null, reason: "unknown-tool" };
 
   let parsed: unknown;

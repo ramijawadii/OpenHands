@@ -7,10 +7,8 @@ import { isOpenHandsAction, isOpenHandsObservation } from "#/types/core/guards";
 import { Terminal } from "#/components/tool-ui/terminal";
 import { CodeDiff } from "#/components/tool-ui/code-diff";
 import { ToolError } from "#/components/tool-ui/elements/tool-error";
-import { RetrievalChunks } from "#/components/tool-ui/elements/retrieval-chunks";
-import { SpecSheet } from "#/components/tool-ui/elements/spec-sheet";
-import { ScoreBreakdown } from "#/components/tool-ui/elements/score-breakdown";
 import { matchPayload } from "#/components/tool-ui/elements/payload-dispatch";
+import { ELEMENT_BY_TOOL } from "#/components/tool-ui/elements/element-registry";
 import {
   ToolFallbackRoot,
   ToolFallbackTrigger,
@@ -378,11 +376,11 @@ export function ToolEventView({
 
   // Tier 2: a validated MCP payload renders as its own widget.
   //
-  // Gated by matchPayload, which dispatches on the TOOL NAME and requires the
-  // body to satisfy a schema. Tool results carry attacker-supplied text —
-  // resource tags, IAM names, scanner output — so the body never chooses the
-  // widget. Anything unrecognised falls through to the plain tool card below,
-  // which is the honest answer rather than a guess.
+  // One branch for every Element. The registry declares which tools trigger a
+  // widget, the schema its payload must satisfy, and how to draw it — so
+  // adding a widget is a registry entry, never another branch here. This stays
+  // the single place a widget is chosen, which is the property that keeps
+  // attacker-supplied payload text from ever selecting its own renderer.
   if (kind === "tool") {
     const toolName =
       (isOpenHandsObservation(event)
@@ -392,126 +390,12 @@ export function ToolEventView({
       toolName,
       isOpenHandsObservation(event) ? event.content : undefined,
     );
+    const entry = toolName ? ELEMENT_BY_TOOL.get(toolName) : undefined;
 
-    if (payload.kind === "kb-controls") {
-      const controls = payload.data as {
-        control: string;
-        title: string;
-        severity?: string;
-      }[];
+    if (entry && payload.kind !== null) {
       return (
         <div ref={rootRef} className={cn("cg-tool-card", className)}>
-          <RetrievalChunks
-            query={toolName ?? "kb_search"}
-            chunks={controls.map((c, idx) => ({
-              id: `${c.control}-${idx}`,
-              source: c.control,
-              locator: c.severity ?? "",
-              // The KB returns ranked controls without a numeric score; rank
-              // order is the only signal we have, so it is shown as that
-              // rather than invented as a confidence value.
-              score: 1 - idx / Math.max(controls.length, 1),
-              text: c.title,
-            }))}
-            // The observation has already arrived by the time this renders, so
-            // every chunk is visible and nothing is still searching.
-            visibleCount={controls.length}
-            searching={false}
-          />
-        </div>
-      );
-    }
-
-    if (payload.kind === "findings") {
-      const findings = payload.data as {
-        severity: string;
-        title?: string;
-        resource?: string;
-      }[];
-      // Severity weights follow the posture model already used in reporting:
-      // one CRITICAL outweighs a pile of LOWs, so a count alone would flatter
-      // a bad result. Unknown severities score 0 rather than being dropped —
-      // an unclassified finding is still a finding and must stay visible.
-      // Risk points deducted from a 100-point posture score. CRITICAL is
-      // weighted to dominate deliberately: a single unauthenticated public
-      // bucket is not "one finding among six", and a linear scale lets a pile
-      // of LOWs read the same as a breach path.
-      const WEIGHT: Record<string, number> = {
-        CRITICAL: 40,
-        HIGH: 15,
-        MEDIUM: 5,
-        LOW: 1,
-      };
-      const bySeverity = new Map<string, number>();
-      for (const f of findings) {
-        const sev = (f.severity || "UNKNOWN").toUpperCase();
-        bySeverity.set(sev, (bySeverity.get(sev) ?? 0) + 1);
-      }
-      const criteria = [...bySeverity.entries()]
-        .sort((a, b) => (WEIGHT[b[0]] ?? 0) - (WEIGHT[a[0]] ?? 0))
-        .map(([sev, count]) => ({
-          label: sev,
-          score: count,
-          weight: WEIGHT[sev] ?? 0,
-          note: `${count} finding${count === 1 ? "" : "s"}`,
-        }));
-      const risk = criteria.reduce((sum, c) => sum + c.score * c.weight, 0);
-      // Presented as a POSTURE SCORE, not a risk total. The Element fills its
-      // bar as total/outOf, so passing risk directly rendered 25/25 — a full
-      // bar, which reads as a perfect result while the verdict said "critical
-      // exposure". Inverting it means a worse estimate shows a shorter bar,
-      // which is the direction an operator expects. Floored at 0 so a badly
-      // exposed account cannot wrap into a negative.
-      const posture = Math.max(0, 100 - risk);
-      return (
-        <div ref={rootRef} className={cn("cg-tool-card", className)}>
-          <ScoreBreakdown
-            verdict={
-              bySeverity.has("CRITICAL")
-                ? "Critical exposure"
-                : bySeverity.has("HIGH")
-                  ? "Needs attention"
-                  : "Within tolerance"
-            }
-            total={posture}
-            outOf={100}
-            criteria={criteria}
-            // Every severity band is shown at once: the observation has landed,
-            // and a partially revealed risk breakdown would understate it.
-            visibleCount={criteria.length}
-          />
-        </div>
-      );
-    }
-
-    if (payload.kind === "kg-schema") {
-      const schema = payload.data as {
-        required?: string[];
-        optional?: string[];
-        returns?: string;
-      };
-      return (
-        <div ref={rootRef} className={cn("cg-tool-card", className)}>
-          <SpecSheet
-            title={toolName ?? "schema"}
-            subtitle={schema.returns}
-            rows={[
-              // Required params are emphasised: omitting one is the failure
-              // an operator actually hits.
-              ...(schema.required ?? []).map((r) => ({
-                label: r,
-                value: "required",
-                emphasis: true,
-              })),
-              ...(schema.optional ?? []).map((o) => ({
-                label: o,
-                value: "optional",
-              })),
-            ]}
-            visibleCount={
-              (schema.required?.length ?? 0) + (schema.optional?.length ?? 0)
-            }
-          />
+          {entry.render(payload.data, { toolName: toolName as string })}
         </div>
       );
     }
