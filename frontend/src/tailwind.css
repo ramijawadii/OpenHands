@@ -778,3 +778,77 @@
   max-width: 100%;
   overflow-x: auto;
 }
+
+/* Mermaid architecture icons.
+   The converted draw.io stencils draw with `currentColor`, so the icon colour
+   is inherited rather than baked in. Monochrome (default) lets them take the
+   diagram's text colour, which is what keeps them legible in BOTH themes —
+   the previous build pinned mermaid to its dark theme, so a light page drew
+   light icons onto white.
+
+   Colour mode tints per vendor instead. It is a tint, not the original
+   multi-colour artwork: draw.io colours these stencils through its own style
+   strings, which are not part of the shape geometry we converted. */
+.cg-mmd[data-colored="true"] [class*="node"] svg,
+.cg-mmd[data-colored="true"] .icon svg {
+  color: #ff9900; /* AWS orange — the dominant pack */
+}
+.cg-mmd[data-colored="true"] g[id*="azure"] svg,
+.cg-mmd[data-colored="true"] g[id*="mscae"] svg {
+  color: #0078d4;
+}
+.cg-mmd[data-colored="true"] g[id*="gcp"] svg {
+  color: #4285f4;
+}
+.cg-mmd[data-colored="true"] g[id*="kubernetes"] svg,
+.cg-mmd[data-colored="true"] g[id*="k8s"] svg {
+  color: #326ce5;
+}
+
+/* Architecture icon colour.
+   mermaid injects its own stylesheet into the SVG and colours icon groups from
+   an internal variable that does NOT follow the theme we pass to initialize —
+   measured at rgb(236,237,238) in both light and dark, i.e. near-white icons
+   on a white page. Our converted icons draw with `currentColor`, so setting
+   the inherited colour here is enough to correct it, and `--cg-text-primary`
+   already inverts with the theme. */
+.cg-mmd svg g svg,
+.cg-mmd svg [id*="icon"],
+.cg-mmd svg .node-icon,
+.cg-mmd svg g[class*="icon"] {
+  /* The BASE colour, in both modes. mermaid injects its own near-white icon
+     colour that ignores the theme, so this has to override it — but WITHOUT
+     !important, so the inline white set on tiled icons still wins.
+     Scoping this to monochrome was wrong: mermaid's built-in icons (cloud,
+     server, database) have no catalogue colour, so in colour mode they had no
+     rule at all and reverted to near-white — invisible on a light page. */
+  color: var(--cg-text-primary);
+}
+
+/* Architecture diagrams draw on a forced white plate, so icon colour must
+   follow the PLATE, not the app theme. Inheriting --cg-text-primary meant
+   near-white stencil icons on white — invisible in dark mode, which is why
+   only the azure2x pack (real artwork with baked colours) showed up. */
+.cg-mmd[data-arch="true"] svg g svg,
+.cg-mmd[data-arch="true"] svg [id*="icon"],
+.cg-mmd[data-arch="true"] svg .node-icon,
+.cg-mmd[data-arch="true"] svg g[class*="icon"] {
+  color: #232f3e;
+}
+
+/* Diagram labels on the forced-white canvas.
+   mermaid bakes label colour from its theme, and on architecture diagrams the
+   canvas is white regardless of the app theme — so a dark-theme render put
+   light-grey labels on white. Pinning them here keeps text legible without
+   re-rendering on every theme change. */
+.cg-mmd svg text,
+.cg-mmd svg .nodeLabel,
+.cg-mmd svg .edgeLabel,
+.cg-mmd svg foreignObject div {
+  fill: #1f2937 !important;
+  color: #1f2937 !important;
+}
+.cg-mmd svg .cluster-label text,
+.cg-mmd svg .cluster text {
+  fill: #4b5563 !important;
+}

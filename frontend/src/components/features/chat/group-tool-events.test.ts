@@ -19,7 +19,7 @@ describe("segmentEvents", () => {
   });
 
   it("groups a run at the threshold", () => {
-    const evs = [];
+    const evs: (ReturnType<typeof call> | ReturnType<typeof result>)[] = [];
     for (let i = 0; i < MIN_GROUP; i += 1) {
       evs.push(call(i * 2 + 1), result(i * 2 + 2, i * 2 + 1));
     }
@@ -113,7 +113,9 @@ describe("richness rule", () => {
       call(7),
       result(8, 7),
     ]);
-    const flat = segs.flatMap((s) => (s.type === "group" ? s.events : [s.event]));
+    const flat = segs.flatMap((s) =>
+      s.type === "group" ? s.events : [s.event],
+    );
     // Still every event, exactly once.
     expect(flat).toHaveLength(8);
     // The rich observation is never inside a group.
