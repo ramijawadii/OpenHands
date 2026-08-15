@@ -1,12 +1,6 @@
 /* eslint-disable i18next/no-literal-string */
 import React from "react";
-import {
-  StickyNote,
-  FileTerminal,
-  GitMerge,
-  TerminalSquare,
-  History,
-} from "lucide-react";
+
 import { OpenHandsAction } from "#/types/core/actions";
 import { isUserMessage, isAssistantMessage } from "#/types/core/guards";
 import { ArtifactCard } from "#/components/tool-ui/elements/artifact-card";
@@ -17,6 +11,7 @@ import { FileList } from "../../files/file-list";
 import { ConfirmationButtons } from "#/components/shared/buttons/confirmation-buttons";
 import { MicroagentStatusWrapper } from "./microagent-status-wrapper";
 import { LikertScaleWrapper } from "./likert-scale-wrapper";
+import { MessageActionsRow } from "./message-actions-row";
 import { parseMessageFromEvent } from "../event-content-helpers/parse-message-from-event";
 import { MicroagentStatus } from "#/types/microagent-status";
 import {
@@ -129,6 +124,9 @@ export function UserAssistantEventMessage({
         microagentPRUrl={microagentPRUrl}
         actions={actions}
       />
+      {isAssistantMessage(event) && event.action === "message" && (
+        <MessageActionsRow eventId={event.id} message={message} />
+      )}
       {isAssistantMessage(event) && event.action === "message" && (
         <LikertScaleWrapper
           event={event}

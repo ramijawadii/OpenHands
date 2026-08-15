@@ -1,3 +1,6 @@
+/* eslint-disable react/jsx-props-no-spreading -- presentational element: it
+   extends ComponentProps<"div"> so callers can pass through native attributes */
+
 "use client";
 
 import type { ComponentProps } from "react";
@@ -14,17 +17,18 @@ import { ghostButton, iconSwap, iconSwapIn, iconSwapOut } from "./surfaces";
 
 export type Reaction = "up" | "down" | null;
 
-export interface MessageActionsProps extends Omit<
-  ComponentProps<"div">,
-  "children"
-> {
+export interface MessageActionsProps
+  extends Omit<ComponentProps<"div">, "children"> {
   copied: boolean;
   reaction: Reaction;
-  regenerating: boolean;
+  regenerating?: boolean;
   onCopy: () => void;
   onReactionChange: (reaction: Reaction) => void;
-  onRegenerate: () => void;
-  onMore: () => void;
+  /** Omit to hide the button. A control with nothing behind it is worse than
+   *  no control, and this product has no regenerate endpoint yet. */
+  onRegenerate?: () => void;
+  /** Omit to hide the button. */
+  onMore?: () => void;
 }
 
 export function MessageActions({
@@ -44,7 +48,6 @@ export function MessageActions({
     <div
       data-slot="message-actions"
       className={cn("flex items-center gap-1", className)}
-
       {...props}
     >
       <button
@@ -98,27 +101,31 @@ export function MessageActions({
       >
         <ThumbsDownIcon className="size-3.5" />
       </button>
-      <button
-        type="button"
-        aria-label="Regenerate response"
-        onClick={onRegenerate}
-        className={buttonClassName}
-      >
-        <RefreshCwIcon
-          className={cn(
-            "size-3.5",
-            regenerating && "animate-spin motion-reduce:animate-none",
-          )}
-        />
-      </button>
-      <button
-        type="button"
-        aria-label="More response actions"
-        onClick={onMore}
-        className={buttonClassName}
-      >
-        <EllipsisIcon className="size-3.5" />
-      </button>
+      {onRegenerate && (
+        <button
+          type="button"
+          aria-label="Regenerate response"
+          onClick={onRegenerate}
+          className={buttonClassName}
+        >
+          <RefreshCwIcon
+            className={cn(
+              "size-3.5",
+              regenerating && "animate-spin motion-reduce:animate-none",
+            )}
+          />
+        </button>
+      )}
+      {onMore && (
+        <button
+          type="button"
+          aria-label="More response actions"
+          onClick={onMore}
+          className={buttonClassName}
+        >
+          <EllipsisIcon className="size-3.5" />
+        </button>
+      )}
     </div>
   );
 }
