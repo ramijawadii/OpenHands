@@ -64,7 +64,10 @@ describe("env_* Elements render live payloads", () => {
       ],
     });
     expect(screen.getByText("Risk distribution")).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("4 findings")).toBeInTheDocument();
+    // Categories are labelled: bars alone cannot say which severity is which.
+    expect(screen.getByText("CRITICAL")).toBeInTheDocument();
+    expect(screen.getByText("LOW")).toBeInTheDocument();
   });
 
   it("env_health -> resource count", () => {

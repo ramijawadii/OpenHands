@@ -1,3 +1,6 @@
+/* eslint-disable react/jsx-props-no-spreading -- presentational element:
+   extends ComponentProps<"div"> so callers can pass native attributes */
+
 "use client";
 
 import type { ComponentProps } from "react";
@@ -23,6 +26,8 @@ export function Chart({
   value,
   delta,
   points,
+  categories,
+  highlightIndex,
   visibleCount,
   variant = "area",
   className,
@@ -34,6 +39,8 @@ export function Chart({
   | "value"
   | "delta"
   | "points"
+  | "categories"
+  | "highlightIndex"
   | "visibleCount"
   | "variant"
 > & {
@@ -41,6 +48,15 @@ export function Chart({
   value: string;
   delta?: string;
   points: readonly number[];
+  /**
+   * Axis labels, one per point. Bars without them are unreadable when the
+   * points are categories rather than a series over time — the caller ends up
+   * smuggling the key into `delta`, which is not what that field is for.
+   */
+  categories?: readonly string[];
+  /** Which bar to emphasise. Defaults to the last, which suits a time series
+   *  and actively misleads for a category breakdown. */
+  highlightIndex?: number;
   visibleCount: number;
   variant?: ChartVariant;
 }) {
@@ -67,7 +83,6 @@ export function Chart({
         "flex w-full max-w-sm flex-col gap-3 rounded-2xl p-4",
         className,
       )}
-
       {...props}
     >
       <div className="flex items-baseline justify-between">
@@ -111,6 +126,14 @@ export function Chart({
           shown.map((p, i) => {
             const top = y(p);
             const barWidth = Math.max(2, step * 0.55);
+            // A zero category has no bar. Forcing a 1px minimum drew a sliver
+            // that read as a real value — and when it landed on the emphasised
+            // index it was a bright mark for the emptiest bucket.
+            if (p <= 0) return null;
+            const emphasised =
+              highlightIndex === undefined
+                ? i === lastIndex
+                : i === highlightIndex;
             return (
               <rect
                 key={i}
@@ -121,7 +144,7 @@ export function Chart({
                 rx="1.5"
                 className={cn(
                   "fade-in animate-in fill-mode-both duration-300",
-                  i === lastIndex
+                  emphasised
                     ? "fill-blue-500 dark:fill-blue-400"
                     : "fill-foreground/25",
                 )}
@@ -157,6 +180,31 @@ export function Chart({
           </>
         )}
       </svg>
+
+      {variant === "bars" && categories && (
+        // Laid out with the same fractional positions as the bars rather than
+        // inside the svg: the svg uses preserveAspectRatio="none", which would
+        // stretch text horizontally along with the geometry.
+        <div className="relative h-4 w-full">
+          {take(categories, clamp(visibleCount, 1, categories.length)).map(
+            (category, i) => (
+              <span
+                key={category}
+                className={cn(
+                  mono,
+                  "text-foreground/35 absolute -translate-x-1/2 text-[10px] whitespace-nowrap",
+                  (highlightIndex === undefined
+                    ? i === lastIndex
+                    : i === highlightIndex) && "text-foreground/70",
+                )}
+                style={{ left: `${(x(i) / W) * 100}%` }}
+              >
+                {category}
+              </span>
+            ),
+          )}
+        </div>
+      )}
     </div>
   );
 }

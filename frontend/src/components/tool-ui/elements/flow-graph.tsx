@@ -29,10 +29,10 @@ export interface FlowEdge {
   label?: string;
 }
 
-const COL_W = 96;
-const ROW_H = 58;
-const NODE_W = 78;
-const NODE_H = 30;
+const COL_W = 150;
+const ROW_H = 96;
+const NODE_W = 118;
+const NODE_H = 44;
 
 export function FlowGraph({
   nodes,
@@ -99,10 +99,13 @@ export function FlowGraph({
                 {edge.label && (
                   <text
                     x={midX}
-                    y={(a.y + b.y) / 2 - 4}
+                    y={(a.y + b.y) / 2 - 7}
                     textAnchor="middle"
+                    paintOrder="stroke"
+                    strokeWidth="3.5"
+                    strokeLinejoin="round"
                     className={cn(
-                      "fill-foreground/45 text-[9.5px] transition-opacity duration-500 motion-reduce:transition-none",
+                      "fill-foreground/55 stroke-[var(--cg-workspace-bg,theme(colors.background))] text-[9px] transition-opacity duration-500 motion-reduce:transition-none",
                       !live && "opacity-30",
                     )}
                   >
@@ -133,7 +136,14 @@ export function FlowGraph({
               height: NODE_H,
             }}
           >
-            <span className={cn(mono, "px-2")}>{node.label}</span>
+            <span
+              className={cn(
+                mono,
+                "w-full overflow-hidden px-1.5 text-[10px] leading-[1.25] break-all whitespace-pre-line",
+              )}
+            >
+              {node.label}
+            </span>
           </div>
         ))}
       </div>

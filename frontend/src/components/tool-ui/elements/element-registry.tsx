@@ -89,6 +89,23 @@ function hopState(col: number, length: number): "done" | "active" | "pending" {
   return "pending";
 }
 
+/** Columns that hold an ARN or resource id, which are long enough to need a cap. */
+function isIdColumn(key: string): boolean {
+  return key === "id" || key === "arn" || key.endsWith("_id");
+}
+
+/**
+ * The distinguishing tail of a resource identifier.
+ *
+ * An ARN's prefix (`arn:aws:s3:::`) is identical for every resource of that
+ * type in the account, so a truncated-from-the-right label reads as several
+ * copies of the same thing. Keep the last segment, which is the name.
+ */
+function shortId(id: string): string {
+  const tail = id.split(/[/:]/).filter(Boolean).at(-1) ?? id;
+  return tail.length > 18 ? `…${tail.slice(-17)}` : tail;
+}
+
 /** Headline verdict, worst severity first. */
 function verdictFor(counts: Map<string, number>): string {
   if (counts.has("CRITICAL")) return "Critical exposure";
@@ -235,8 +252,7 @@ export const ELEMENTS: readonly ElementEntry[] = [
       const nodes = paths.flatMap((path, row) =>
         path.nodes.map((n, col) => ({
           id: `p${path.index}-${col}`,
-          label: `${n.label}
-${n.id}`,
+          label: `${n.label}\n${shortId(n.id)}`,
           column: col,
           row,
           state: hopState(col, path.nodes.length),
@@ -268,12 +284,16 @@ ${n.id}`,
       const order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
       const points = order.map((lvl) => risk[lvl] ?? 0);
       const total = points.reduce((a, b) => a + b, 0);
+      // Emphasise the worst severity that actually has findings. The default
+      // is the last bar, which here would spotlight LOW.
+      const worst = points.findIndex((n) => n > 0);
       return (
         <Chart
           label="Risk distribution"
-          value={String(total)}
-          delta={order.map((l, i) => `${l[0]}${points[i]}`).join(" ")}
+          value={`${total} finding${total === 1 ? "" : "s"}`}
           points={points}
+          categories={order}
+          highlightIndex={worst === -1 ? undefined : worst}
           visibleCount={points.length}
           variant="bars"
         />
@@ -308,7 +328,16 @@ ${n.id}`,
       return (
         <DataTable
           id={`cg-${toolName}`}
-          columns={t.columns.map((key) => ({ key, label: key }))}
+          columns={t.columns.map((key) => ({
+            key,
+            label: key,
+            // Identifiers are ARNs. Cells are nowrap by design, so without a
+            // width and truncation a single ARN ran straight over the next
+            // column instead of widening its own.
+            ...(isIdColumn(key)
+              ? { width: "16rem", truncate: true }
+              : { truncate: true }),
+          }))}
           data={rows}
           rowIdKey="__id"
         />
