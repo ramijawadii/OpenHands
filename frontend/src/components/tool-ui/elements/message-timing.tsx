@@ -1,3 +1,6 @@
+/* eslint-disable react/jsx-props-no-spreading -- presentational element:
+   extends ComponentProps<"div"> so callers can pass native attributes */
+
 "use client";
 
 import type { ComponentProps } from "react";
@@ -25,7 +28,6 @@ export function MessageTiming({
         "fade-in animate-in flex w-full max-w-sm flex-wrap items-center gap-x-3 gap-y-1 duration-500",
         className,
       )}
-
       {...props}
     >
       {stats.map((stat) => (

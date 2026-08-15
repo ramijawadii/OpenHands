@@ -12,6 +12,7 @@ import { ConfirmationButtons } from "#/components/shared/buttons/confirmation-bu
 import { MicroagentStatusWrapper } from "./microagent-status-wrapper";
 import { LikertScaleWrapper } from "./likert-scale-wrapper";
 import { MessageActionsRow } from "./message-actions-row";
+import { MessageTimingRow } from "./message-timing-row";
 import { parseMessageFromEvent } from "../event-content-helpers/parse-message-from-event";
 import { MicroagentStatus } from "#/types/microagent-status";
 import {
@@ -125,7 +126,10 @@ export function UserAssistantEventMessage({
         actions={actions}
       />
       {isAssistantMessage(event) && event.action === "message" && (
-        <MessageActionsRow eventId={event.id} message={message} />
+        <>
+          <MessageTimingRow timestamp={event.timestamp} />
+          <MessageActionsRow eventId={event.id} message={message} />
+        </>
       )}
       {isAssistantMessage(event) && event.action === "message" && (
         <LikertScaleWrapper
