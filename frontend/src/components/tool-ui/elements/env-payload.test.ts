@@ -81,6 +81,18 @@ describe("env_* structured payloads", () => {
     expect(matchPayload("env_summary", raw).kind).toBe("chart-risk");
   });
 
+  it("matches env_find_resources and env_graph_query", () => {
+    const raw = JSON.stringify({
+      text: "Found 1 ES3Bucket resource(s):",
+      rows: [{ id: "arn:aws:s3:::demo", name: "demo", risk: "CRITICAL" }],
+      columns: ["id", "name", "risk"],
+    });
+    expect(matchPayload("env_find_resources", raw).kind).toBe(
+      "data-table-rows",
+    );
+    expect(matchPayload("env_graph_query", raw).kind).toBe("data-table-rows");
+  });
+
   it("falls back rather than guessing when the envelope is prose", () => {
     // What every env_* tool returned before 2026-08-15.
     const match = matchPayload("env_risk_findings", "No resources found");

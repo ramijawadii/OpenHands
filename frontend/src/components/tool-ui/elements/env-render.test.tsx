@@ -113,4 +113,23 @@ describe("env_* Elements render live payloads", () => {
     });
     expect(screen.getByText("CAN_ACCESS")).toBeInTheDocument();
   });
+
+  it("env_find_resources -> data table", () => {
+    renderTool("env_find_resources", {
+      text: "Found 2 resource(s):",
+      rows: [
+        {
+          id: "arn:aws:s3:::demo-public-logs",
+          name: "demo-public-logs",
+          risk: "CRITICAL",
+        },
+        { id: "i-demo0000000001", name: "demo-bastion", risk: "HIGH" },
+      ],
+      columns: ["id", "name", "risk"],
+    });
+    // The table renders each value in both its desktop and narrow layouts, so
+    // a value legitimately appears more than once.
+    expect(screen.getAllByText("demo-public-logs").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("demo-bastion").length).toBeGreaterThan(0);
+  });
 });

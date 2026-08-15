@@ -33,6 +33,7 @@ import { AgentPlan } from "./agent-plan";
 import { NumberTicker } from "./number-ticker";
 import { FlowGraph } from "./flow-graph";
 import { Chart } from "./chart";
+import { DataTable } from "../data-table";
 import { GuardrailNotice } from "./guardrail-notice";
 import { ConfidenceMarker } from "./confidence-marker";
 import { MathBlock } from "./math-block";
@@ -275,6 +276,41 @@ ${n.id}`,
           points={points}
           visibleCount={points.length}
           variant="bars"
+        />
+      );
+    },
+  },
+  {
+    // Resource lookups and Cypher results are already tabular; the prose
+    // flattened them to `key: value` lines, which is the one shape a table
+    // reads worse than the data it came from.
+    id: "data-table-rows",
+    tools: ["env_find_resources", "env_graph_query"],
+    schema: z.object({
+      text: z.string(),
+      rows: z.array(z.record(z.string(), z.unknown())).min(1),
+      columns: z.array(z.string()).min(1),
+    }),
+    render: (data, { toolName }) => {
+      const t = data as {
+        rows: Record<string, unknown>[];
+        columns: string[];
+      };
+      // Values are stringified rather than passed through: a payload field must
+      // never reach the DOM as anything but text.
+      const rows = t.rows.map((row, i) => {
+        const flat: Record<string, string> = { __id: String(i) };
+        for (const key of t.columns) {
+          flat[key] = row[key] === undefined ? "" : String(row[key]);
+        }
+        return flat;
+      });
+      return (
+        <DataTable
+          id={`cg-${toolName}`}
+          columns={t.columns.map((key) => ({ key, label: key }))}
+          data={rows}
+          rowIdKey="__id"
         />
       );
     },
