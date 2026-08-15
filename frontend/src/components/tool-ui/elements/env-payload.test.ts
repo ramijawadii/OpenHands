@@ -53,6 +53,34 @@ describe("env_* structured payloads", () => {
     expect(matchPayload("env_health", raw).kind).toBe("number-ticker-health");
   });
 
+  it("matches env_find_paths", () => {
+    const raw = JSON.stringify({
+      text: "Found 1 path(s)",
+      paths: [
+        {
+          index: 1,
+          hops: 1,
+          nodes: [
+            { label: "EEC2Instance", id: "i-1" },
+            { label: "ES3Bucket", id: "arn:s3" },
+          ],
+          edges: ["CAN_ACCESS"],
+        },
+      ],
+    });
+    expect(matchPayload("env_find_paths", raw).kind).toBe("flow-graph-paths");
+  });
+
+  it("matches env_summary", () => {
+    const raw = JSON.stringify({
+      text: "=== ENVIRONMENT INTELLIGENCE SUMMARY ===",
+      layers: [],
+      risk: { CRITICAL: 2, HIGH: 1, MEDIUM: 0, LOW: 0 },
+      critical: [],
+    });
+    expect(matchPayload("env_summary", raw).kind).toBe("chart-risk");
+  });
+
   it("falls back rather than guessing when the envelope is prose", () => {
     // What every env_* tool returned before 2026-08-15.
     const match = matchPayload("env_risk_findings", "No resources found");

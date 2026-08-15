@@ -31,6 +31,8 @@ import { Timeline } from "./timeline";
 import { MemoryChips } from "./memory-chips";
 import { AgentPlan } from "./agent-plan";
 import { NumberTicker } from "./number-ticker";
+import { FlowGraph } from "./flow-graph";
+import { Chart } from "./chart";
 import { GuardrailNotice } from "./guardrail-notice";
 import { ConfidenceMarker } from "./confidence-marker";
 import { MathBlock } from "./math-block";
@@ -74,6 +76,17 @@ const Findings = z
 // returned formatted prose only until 2026-08-15, which is why no entry below
 // could ever validate.
 const FindingsEnvelope = z.object({ text: z.string(), findings: Findings });
+
+/**
+ * Where a hop sits on an attack path. The source is where an attacker starts
+ * and the last node is what they reach; the hops between are the ones worth
+ * breaking.
+ */
+function hopState(col: number, length: number): "done" | "active" | "pending" {
+  if (col === 0) return "done";
+  if (col === length - 1) return "active";
+  return "pending";
+}
 
 /** Headline verdict, worst severity first. */
 function verdictFor(counts: Map<string, number>): string {
@@ -185,6 +198,83 @@ export const ELEMENTS: readonly ElementEntry[] = [
         <NumberTicker
           value={h.total}
           label={h.status === "ok" ? "resources in graph" : `graph ${h.status}`}
+        />
+      );
+    },
+  },
+  {
+    // A blast radius is the one result that genuinely wants drawing. The prose
+    // rendered each path as a single `(Label) id -[REL]-> (Label) id` string.
+    id: "flow-graph-paths",
+    tools: ["env_find_paths"],
+    schema: z.object({
+      text: z.string(),
+      paths: z
+        .array(
+          z.object({
+            index: z.number(),
+            hops: z.number(),
+            nodes: z.array(z.object({ label: z.string(), id: z.string() })),
+            edges: z.array(z.string()),
+          }),
+        )
+        .min(1),
+    }),
+    render: (data) => {
+      const { paths } = data as {
+        paths: {
+          index: number;
+          hops: number;
+          nodes: { label: string; id: string }[];
+          edges: string[];
+        }[];
+      };
+      // One row per path, one column per hop, so parallel routes to the same
+      // target read as parallel rather than as one tangled chain.
+      const nodes = paths.flatMap((path, row) =>
+        path.nodes.map((n, col) => ({
+          id: `p${path.index}-${col}`,
+          label: `${n.label}
+${n.id}`,
+          column: col,
+          row,
+          state: hopState(col, path.nodes.length),
+        })),
+      );
+      const edges = paths.flatMap((path) =>
+        path.edges.map((label, i) => ({
+          from: `p${path.index}-${i}`,
+          to: `p${path.index}-${i + 1}`,
+          label,
+        })),
+      );
+      return (
+        <FlowGraph nodes={nodes} edges={edges} visibleCount={nodes.length} />
+      );
+    },
+  },
+  {
+    // Risk distribution was drawn as a bar of block characters because prose
+    // was the only channel; these are the same counts as numbers.
+    id: "chart-risk",
+    tools: ["env_summary"],
+    schema: z.object({
+      text: z.string(),
+      risk: z.record(z.string(), z.number()),
+    }),
+    render: (data) => {
+      const { risk } = data as { risk: Record<string, number> };
+      const order = ["CRITICAL", "HIGH", "MEDIUM", "LOW"];
+      const points = order.map((lvl) => risk[lvl] ?? 0);
+      const total = points.reduce((a, b) => a + b, 0);
+      return (
+        <Chart
+          label="Risk distribution"
+          value={String(total)}
+          delta={order.map((l, i) => `${l[0]}${points[i]}`).join(" ")}
+          points={points}
+          visibleCount={points.length}
+          variant="bars"
         />
       );
     },
