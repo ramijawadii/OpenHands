@@ -69,6 +69,19 @@ const Findings = z
   )
   .min(1);
 
+// Every env_* tool answers with an envelope — prose under `text`, data beside
+// it — so a schema matches the envelope, never the bare collection. The tools
+// returned formatted prose only until 2026-08-15, which is why no entry below
+// could ever validate.
+const FindingsEnvelope = z.object({ text: z.string(), findings: Findings });
+
+/** Headline verdict, worst severity first. */
+function verdictFor(counts: Map<string, number>): string {
+  if (counts.has("CRITICAL")) return "Critical exposure";
+  if (counts.has("HIGH")) return "Needs attention";
+  return "Within tolerance";
+}
+
 // Risk points deducted from a 100-point posture score. CRITICAL dominates
 // deliberately: a linear scale lets a pile of LOWs read like a breach path.
 const SEVERITY_WEIGHT: Record<string, number> = {
@@ -99,6 +112,79 @@ export const ELEMENTS: readonly ElementEntry[] = [
           }))}
           visibleCount={rows.length}
           searching={false}
+        />
+      );
+    },
+  },
+  {
+    // A resource's own properties, plus the edges it sits on. env_get_resource
+    // could only render those edges as `-[REL]-> (Label) id`, which the
+    // transcript would have had to parse back out of prose.
+    id: "spec-sheet-resource",
+    tools: ["env_get_resource"],
+    schema: z.object({
+      text: z.string(),
+      labels: z.array(z.string()),
+      properties: z.record(z.string(), z.unknown()),
+      relationships: z.array(
+        z.object({
+          type: z.string(),
+          target_label: z.string(),
+          target_id: z.string(),
+        }),
+      ),
+    }),
+    render: (data) => {
+      const r = data as {
+        labels: string[];
+        properties: Record<string, unknown>;
+        relationships: {
+          type: string;
+          target_label: string;
+          target_id: string;
+        }[];
+      };
+      const propRows = Object.entries(r.properties).map(([label, value]) => ({
+        label,
+        value: String(value),
+        // Risk is the property an operator scans for first.
+        emphasis: label === "risk_level",
+      }));
+      const edgeRows = r.relationships.map((e) => ({
+        label: e.type,
+        value: `(${e.target_label}) ${e.target_id}`,
+      }));
+      const rows = [...propRows, ...edgeRows];
+      return (
+        <SpecSheet
+          title={r.labels[0] ?? "Resource"}
+          subtitle={
+            r.relationships.length
+              ? `${r.relationships.length} relationship${r.relationships.length === 1 ? "" : "s"}`
+              : undefined
+          }
+          rows={rows}
+          visibleCount={rows.length}
+        />
+      );
+    },
+  },
+  {
+    // Graph size at a glance. `status` is carried so an empty graph reads as
+    // empty rather than as a zero that might mean "not scanned".
+    id: "number-ticker-health",
+    tools: ["env_health"],
+    schema: z.object({
+      text: z.string(),
+      status: z.string(),
+      total: z.number(),
+    }),
+    render: (data) => {
+      const h = data as { status: string; total: number };
+      return (
+        <NumberTicker
+          value={h.total}
+          label={h.status === "ok" ? "resources in graph" : `graph ${h.status}`}
         />
       );
     },
@@ -138,17 +224,19 @@ export const ELEMENTS: readonly ElementEntry[] = [
   },
   {
     id: "score-breakdown",
-    tools: ["kg_get_findings", "kg_posture_summary"],
-    schema: Findings,
+    tools: ["env_risk_findings"],
+    schema: FindingsEnvelope,
     render: (data) => {
-      const findings = data as z.infer<typeof Findings>;
+      const { findings } = data as z.infer<typeof FindingsEnvelope>;
       const counts = new Map<string, number>();
       for (const f of findings) {
         const sev = (f.severity || "UNKNOWN").toUpperCase();
         counts.set(sev, (counts.get(sev) ?? 0) + 1);
       }
       const criteria = [...counts.entries()]
-        .sort((a, b) => (SEVERITY_WEIGHT[b[0]] ?? 0) - (SEVERITY_WEIGHT[a[0]] ?? 0))
+        .sort(
+          (a, b) => (SEVERITY_WEIGHT[b[0]] ?? 0) - (SEVERITY_WEIGHT[a[0]] ?? 0),
+        )
         .map(([sev, n]) => ({
           label: sev,
           score: n,
@@ -162,13 +250,7 @@ export const ELEMENTS: readonly ElementEntry[] = [
       const posture = Math.max(0, 100 - risk);
       return (
         <ScoreBreakdown
-          verdict={
-            counts.has("CRITICAL")
-              ? "Critical exposure"
-              : counts.has("HIGH")
-                ? "Needs attention"
-                : "Within tolerance"
-          }
+          verdict={verdictFor(counts)}
           total={posture}
           outOf={100}
           criteria={criteria}
@@ -243,7 +325,9 @@ export const ELEMENTS: readonly ElementEntry[] = [
             path: f.path,
             name: f.path.split("/").filter(Boolean).pop() ?? f.path,
             depth: Math.max(0, f.path.split("/").filter(Boolean).length - 1),
-            kind: f.path.endsWith("/") ? ("folder" as const) : ("file" as const),
+            kind: f.path.endsWith("/")
+              ? ("folder" as const)
+              : ("file" as const),
           }))}
           visibleCount={rows.length}
           // A listing is not a changeset: nothing was added or removed, so the
@@ -300,7 +384,6 @@ export const ELEMENTS: readonly ElementEntry[] = [
       );
     },
   },
-
 
   {
     id: "memory-chips",
@@ -424,7 +507,11 @@ export const ELEMENTS: readonly ElementEntry[] = [
     tools: ["risk_calculation", "kg_score_math"],
     schema: z.object({
       label: z.string(),
-      steps: z.array(z.object({ expression: z.string(), note: z.string().optional() })).min(1),
+      steps: z
+        .array(
+          z.object({ expression: z.string(), note: z.string().optional() }),
+        )
+        .min(1),
     }),
     render: (data) => {
       const d = data as {
