@@ -1,3 +1,6 @@
+/* eslint-disable react/jsx-props-no-spreading -- presentational element:
+   extends ComponentProps<"div"> so callers can pass native attributes */
+
 "use client";
 
 import type { ComponentProps } from "react";
@@ -18,6 +21,12 @@ export interface FlowNode {
 export interface FlowEdge {
   from: string;
   to: string;
+  /**
+   * What the edge represents. Optional, but on an attack path it is the point:
+   * "EC2 -> S3" says two things are connected, "EC2 -CAN_ACCESS-> S3" says how,
+   * which is the hop an operator would break.
+   */
+  label?: string;
 }
 
 const COL_W = 96;
@@ -59,7 +68,6 @@ export function FlowGraph({
         "w-full max-w-md overflow-x-auto rounded-2xl p-4",
         className,
       )}
-
       {...props}
     >
       <div className="relative" style={{ width, height, minWidth: width }}>
@@ -78,16 +86,30 @@ export function FlowGraph({
             const b = center(to);
             const midX = (a.x + b.x) / 2;
             return (
-              <path
-                key={`${edge.from}-${edge.to}`}
-                d={`M ${a.x + NODE_W / 2} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${b.x - NODE_W / 2} ${b.y}`}
-                fill="none"
-                strokeWidth="1.5"
-                className={cn(
-                  "transition-opacity duration-500 motion-reduce:transition-none",
-                  live ? "stroke-foreground/20" : "stroke-foreground/5",
+              <g key={`${edge.from}-${edge.to}`}>
+                <path
+                  d={`M ${a.x + NODE_W / 2} ${a.y} C ${midX} ${a.y}, ${midX} ${b.y}, ${b.x - NODE_W / 2} ${b.y}`}
+                  fill="none"
+                  strokeWidth="1.5"
+                  className={cn(
+                    "transition-opacity duration-500 motion-reduce:transition-none",
+                    live ? "stroke-foreground/20" : "stroke-foreground/5",
+                  )}
+                />
+                {edge.label && (
+                  <text
+                    x={midX}
+                    y={(a.y + b.y) / 2 - 4}
+                    textAnchor="middle"
+                    className={cn(
+                      "fill-foreground/45 text-[9.5px] transition-opacity duration-500 motion-reduce:transition-none",
+                      !live && "opacity-30",
+                    )}
+                  >
+                    {edge.label}
+                  </text>
                 )}
-              />
+              </g>
             );
           })}
         </svg>
