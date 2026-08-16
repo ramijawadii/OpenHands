@@ -291,3 +291,114 @@ describe("remediation step splitting", () => {
     expect(m.kind).toBe("todo-list-remediation");
   });
 });
+
+describe("the last twelve kg_* / env_scan tools", () => {
+  // Every fixture below is a real response captured from the live server.
+  it("health-style tools share one status sheet", () => {
+    expect(
+      matchPayload(
+        "kg_health",
+        JSON.stringify({ text: "KG: GREEN", status: "GREEN", commands: 17517 }),
+      ).kind,
+    ).toBe("spec-sheet-status");
+    expect(
+      matchPayload(
+        "kg_system_health",
+        JSON.stringify({ text: "System health: DOWN", status: "DEGRADED" }),
+      ).kind,
+    ).toBe("spec-sheet-status");
+    expect(
+      matchPayload(
+        "env_scan",
+        JSON.stringify({ text: "Scanned 3 regions", status: "ok" }),
+      ).kind,
+    ).toBe("spec-sheet-status");
+  });
+
+  it("execute and undo report an outcome, not just prose", () => {
+    expect(
+      matchPayload(
+        "kg_execute_command",
+        JSON.stringify({ text: "ERROR: refused", executed: false }),
+      ).kind,
+    ).toBe("spec-sheet-status");
+    expect(
+      matchPayload(
+        "kg_undo_last",
+        JSON.stringify({
+          text: "UndoStack is empty",
+          undone: false,
+          reason: "empty-stack",
+        }),
+      ).kind,
+    ).toBe("spec-sheet-status");
+  });
+
+  it("job queues share one checklist", () => {
+    expect(
+      matchPayload(
+        "kg_bg_jobs",
+        JSON.stringify({
+          text: "Background jobs: 1 active / 1 total",
+          jobs: [
+            {
+              title: "scan [abc123]",
+              done: false,
+              status: "running",
+              stuck: true,
+            },
+          ],
+        }),
+      ).kind,
+    ).toBe("todo-list-jobs");
+    expect(
+      matchPayload(
+        "kg_assessments",
+        JSON.stringify({
+          text: "Assessments: 1/4 running",
+          jobs: [{ job_id: "a1b2c3d4", status: "running" }],
+          reachable: true,
+        }),
+      ).kind,
+    ).toBe("todo-list-jobs");
+  });
+
+  it("cell history -> timeline, enum values -> chips, notebooks -> artifact", () => {
+    expect(
+      matchPayload(
+        "kg_cell_history",
+        JSON.stringify({
+          text: "Last 2 code cells",
+          cells: [{ label: "import pandas as pd", at: "In[1]" }],
+        }),
+      ).kind,
+    ).toBe("timeline-cells");
+    expect(
+      matchPayload(
+        "kg_get_enum_values",
+        JSON.stringify({
+          text: "Allowed values",
+          values: ["private", "public-read"],
+        }),
+      ).kind,
+    ).toBe("memory-chips-enums");
+    expect(
+      matchPayload(
+        "kg_save_notebook",
+        JSON.stringify({
+          text: "Notebook saved",
+          artifact: { title: "analysis.ipynb", meta: "Notebook - 3 cells" },
+        }),
+      ).kind,
+    ).toBe("artifact-card-notebook");
+  });
+
+  it("an empty job list falls back rather than drawing an empty checklist", () => {
+    expect(
+      matchPayload(
+        "kg_bg_jobs",
+        JSON.stringify({ text: "No background jobs", jobs: [] }),
+      ).kind,
+    ).toBeNull();
+  });
+});

@@ -100,6 +100,33 @@ function splitSteps(text: string): string[] {
   return parts.length > 1 ? parts : [text.trim()];
 }
 
+/**
+ * The headline state for a status sheet.
+ *
+ * Health tools report a status string; the action tools report a boolean
+ * outcome instead, and "executed" vs "refused" is the distinction that matters
+ * — a refusal is not a failure.
+ */
+function outcomeOf(d: {
+  status?: string;
+  executed?: boolean;
+  undone?: boolean;
+}): string {
+  if (d.status !== undefined) return d.status;
+  if (d.executed !== undefined) return d.executed ? "executed" : "refused";
+  return d.undone ? "undone" : "not undone";
+}
+
+/** A job's checklist state. Stuck reads as active, never as quietly pending. */
+function jobStatus(j: {
+  done?: boolean;
+  stuck?: boolean;
+  status?: string;
+}): "pending" | "active" | "done" {
+  if (j.stuck) return "active";
+  return (j.done ?? j.status === "completed") ? "done" : "pending";
+}
+
 /** Sparse boolean security properties, collapsed into a single flags column. */
 function isFlagColumn(key: string): boolean {
   return /_(enabled|accessible|blocked|inbound)$/.test(key);
@@ -180,6 +207,169 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 };
 
 export const ELEMENTS: readonly ElementEntry[] = [
+  {
+    // Every health-style tool answers with a status flag and a rendered report.
+    // One entry covers them all: the shape is identical and a second widget
+    // would only differ by title.
+    id: "spec-sheet-status",
+    tools: [
+      "kg_health",
+      "kg_system_health",
+      "kg_kernel_status",
+      "env_scan",
+      "kg_execute_command",
+      "kg_undo_last",
+    ],
+    schema: z.union([
+      z.object({ text: z.string(), status: z.string() }),
+      z.object({ text: z.string(), executed: z.boolean() }),
+      z.object({ text: z.string(), undone: z.boolean() }),
+    ]),
+    render: (data, { toolName }) => {
+      const d = data as {
+        text: string;
+        status?: string;
+        commands?: number;
+        executed?: boolean;
+        undone?: boolean;
+        reason?: string;
+      };
+      // A boolean outcome is the headline for the action tools; a status
+      // string is the headline for the health ones.
+      const state = outcomeOf(d);
+      const rows = [
+        { label: "state", value: state, emphasis: true },
+        ...(d.reason ? [{ label: "reason", value: d.reason }] : []),
+        ...(d.commands !== undefined
+          ? [{ label: "commands", value: d.commands.toLocaleString() }]
+          : []),
+      ];
+      return (
+        <SpecSheet
+          title={toolName}
+          // The report itself is the detail; its first line is the summary.
+          subtitle={d.text.split("\n")[0].slice(0, 90)}
+          rows={rows}
+          visibleCount={rows.length}
+        />
+      );
+    },
+  },
+  {
+    // Background work and assessment runs are both job queues.
+    id: "todo-list-jobs",
+    tools: ["kg_bg_jobs", "kg_assessments"],
+    schema: z.union([
+      z.object({
+        text: z.string(),
+        jobs: z
+          .array(
+            z.object({
+              title: z.string(),
+              done: z.boolean().optional(),
+              stuck: z.boolean().optional(),
+            }),
+          )
+          .min(1),
+      }),
+      z.object({
+        text: z.string(),
+        jobs: z
+          .array(z.object({ job_id: z.string(), status: z.string() }))
+          .min(1),
+      }),
+    ]),
+    render: (data) => {
+      const d = data as {
+        jobs: {
+          title?: string;
+          done?: boolean;
+          stuck?: boolean;
+          job_id?: string;
+          status?: string;
+        }[];
+      };
+      return (
+        <TodoList
+          items={d.jobs.map((j, i) => ({
+            id: String(i),
+            // TodoStatus is pending | active | done, with no blocked state, so
+            // stuckness is carried in the text. Flattening it into "pending"
+            // would hide the one condition worth surfacing.
+            text: `${j.stuck ? "STUCK - " : ""}${j.title ?? `${j.status} [${j.job_id}]`}`,
+            status: jobStatus(j),
+          }))}
+          revision={d.jobs.length}
+        />
+      );
+    },
+  },
+  {
+    // Notebook cells in execution order are a timeline.
+    id: "timeline-cells",
+    tools: ["kg_cell_history"],
+    schema: z.object({
+      text: z.string(),
+      cells: z
+        .array(z.object({ label: z.string(), at: z.string().optional() }))
+        .min(1),
+    }),
+    render: (data) => {
+      const d = data as { cells: { label: string; at?: string }[] };
+      return (
+        <Timeline
+          events={d.cells.map((c, i) => ({
+            id: String(i),
+            // Cell history is already executed, so every entry is past.
+            when: "past" as const,
+            time: c.at ?? "",
+            title: c.label,
+          }))}
+          visibleCount={d.cells.length}
+        />
+      );
+    },
+  },
+  {
+    // The allowed set IS the answer; a chip per value beats an indented list.
+    id: "memory-chips-enums",
+    tools: ["kg_get_enum_values"],
+    schema: z.object({
+      text: z.string(),
+      values: z.array(z.string()).min(1),
+    }),
+    render: (data) => {
+      const d = data as { values: string[] };
+      return (
+        <MemoryChips
+          chips={d.values.map((v, i) => ({
+            id: String(i),
+            text: v,
+            // These are the values the API already accepts, not a change set.
+            change: "existing" as const,
+          }))}
+        />
+      );
+    },
+  },
+  {
+    // A notebook that was written or run is a deliverable, not a log line.
+    id: "artifact-card-notebook",
+    tools: ["kg_save_notebook", "kg_run_notebook"],
+    schema: z.object({
+      text: z.string(),
+      artifact: z.object({
+        title: z.string(),
+        meta: z.string().optional(),
+      }),
+    }),
+    render: (data) => {
+      const d = data as { artifact: { title: string; meta?: string } };
+      return (
+        <ArtifactCard title={d.artifact.title} meta={d.artifact.meta ?? ""} />
+      );
+    },
+  },
   {
     // Remediation arrives as one numbered blob of prose. Split on the numbering
     // the KB already uses, so a fix reads as a checklist an analyst can work
