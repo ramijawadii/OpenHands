@@ -130,3 +130,43 @@ describe("mermaid label sanitiser", () => {
     expect(mmLabel("x".repeat(200)).length).toBeLessThanOrEqual(40);
   });
 });
+
+describe("KB tools re-keyed onto real names", () => {
+  // These entries used to name kb_search / kb_cite, which do not exist on the
+  // live server. Fixtures below are real kb_* responses.
+  it("kb_nist_search -> retrieval chunks", () => {
+    const raw = JSON.stringify({
+      query: "s3 public access",
+      matches: [
+        {
+          value: {
+            publication: "SP.800-146",
+            title: "Cloud Computing Synopsis",
+            locator: "4.6",
+            heading: "4.6 The Public Cloud Scenario",
+            excerpt: "Figure 7 depicts a public cloud.",
+          },
+        },
+      ],
+    });
+    expect(matchPayload("kb_nist_search", raw).kind).toBe("retrieval-chunks");
+  });
+
+  it("kb_technique -> sources, carrying provenance and trust", () => {
+    const raw = JSON.stringify({
+      value: { technique: "T1078" },
+      provenance: {
+        source_url: "https://attack.mitre.org/techniques/T1078",
+        basis: "mitre-official",
+      },
+      trust: { tier: "AUTHORITATIVE", confidence: 0.98 },
+    });
+    expect(matchPayload("kb_technique", raw).kind).toBe("sources");
+  });
+
+  it("does not fire on the tool names that never existed", () => {
+    const raw = JSON.stringify({ query: "x", matches: [{ value: {} }] });
+    expect(matchPayload("kb_search", raw).kind).toBeNull();
+    expect(matchPayload("kb_cite", raw).kind).toBeNull();
+  });
+});

@@ -27,7 +27,7 @@ describe("payload dispatch — refusals", () => {
   });
 
   it("refuses prose rather than throwing", () => {
-    const r = matchPayload("kb_search", "connection reset by peer");
+    const r = matchPayload("kb_nist_search", "connection reset by peer");
     expect(r.kind).toBeNull();
     if (r.kind === null) expect(r.reason).toBe("unparseable");
   });
@@ -40,10 +40,13 @@ describe("payload dispatch — refusals", () => {
   it("does not let attacker-controlled TEXT change the routing", () => {
     // A resource tag that names another tool must not redirect dispatch: the
     // tool name is ours, the content is theirs.
-    const hostile = JSON.stringify([
-      { control: "kg_search_commands", title: "kb_search", severity: "HIGH" },
-    ]);
-    const r = matchPayload("kb_search", hostile);
+    const hostile = JSON.stringify({
+      query: "kg_search_commands",
+      matches: [
+        { value: { publication: "kg_get_findings", title: "env_scan" } },
+      ],
+    });
+    const r = matchPayload("kb_nist_search", hostile);
     // Routes by the TOOL, so it stays retrieval-chunks regardless of the body.
     expect(r.kind).toBe("retrieval-chunks");
   });
@@ -53,15 +56,21 @@ describe("payload dispatch — matches", () => {
   it("routes kg_search_commands to a table", () => {
     const r = matchPayload(
       "kg_search_commands",
-      JSON.stringify([{ command: "aws s3api get-bucket-policy", service: "s3" }]),
+      JSON.stringify([
+        { command: "aws s3api get-bucket-policy", service: "s3" },
+      ]),
     );
     expect(r.kind).toBe("kg-commands");
   });
 
-  it("routes kb_search to controls", () => {
+  it("routes kb_nist_search to retrieval chunks", () => {
+    // Was keyed to `kb_search`, which does not exist on the live KB server.
     const r = matchPayload(
-      "kb_search",
-      JSON.stringify([{ control: "CIS AWS 2.1.1", title: "Deny HTTP" }]),
+      "kb_nist_search",
+      JSON.stringify({
+        query: "s3 public access",
+        matches: [{ value: { publication: "SP.800-146", locator: "4.6" } }],
+      }),
     );
     expect(r.kind).toBe("retrieval-chunks");
   });

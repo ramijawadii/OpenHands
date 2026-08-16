@@ -52,16 +52,6 @@ export interface ElementEntry {
 
 /* ── shared shapes ───────────────────────────────────────────────────────── */
 
-const Controls = z
-  .array(
-    z.object({
-      control: z.string(),
-      title: z.string(),
-      severity: z.string().optional(),
-    }),
-  )
-  .min(1);
-
 const Findings = z
   .array(
     z.object({
@@ -114,6 +104,25 @@ function flagLabel(key: string, value: string): string {
   return off ? `no ${name}` : name;
 }
 
+/**
+ * The host of a payload URL, as text.
+ *
+ * Parsed rather than pattern-matched so a malformed or non-http value yields
+ * nothing instead of something that merely looks like a domain. The result is
+ * only ever rendered as text -- this must not become an href.
+ */
+function hostOf(url?: string): string {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:"
+      ? parsed.hostname
+      : "";
+  } catch {
+    return "";
+  }
+}
+
 /** Columns that hold an ARN or resource id, which are long enough to need a cap. */
 function isIdColumn(key: string): boolean {
   return key === "id" || key === "arn" || key.endsWith("_id");
@@ -157,24 +166,55 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 
 export const ELEMENTS: readonly ElementEntry[] = [
   {
+    // kb_nist_search already answers with structured matches, so this needed
+    // no backend change -- only a key onto the tool that actually exists.
+    // `kb_search` and `kb_get_control`, which this used to name, do not.
     id: "retrieval-chunks",
-    tools: ["kb_search", "kb_get_control"],
-    schema: Controls,
-    render: (data, { toolName }) => {
-      const rows = data as z.infer<typeof Controls>;
+    tools: ["kb_nist_search"],
+    schema: z.object({
+      query: z.string(),
+      matches: z
+        .array(
+          z.object({
+            value: z.object({
+              publication: z.string().optional(),
+              title: z.string().optional(),
+              locator: z.string().optional(),
+              heading: z.string().optional(),
+              excerpt: z.string().optional(),
+              score: z.number().optional(),
+            }),
+          }),
+        )
+        .min(1),
+    }),
+    render: (data) => {
+      const r = data as {
+        query: string;
+        matches: {
+          value: {
+            publication?: string;
+            title?: string;
+            locator?: string;
+            heading?: string;
+            excerpt?: string;
+            score?: number;
+          };
+        }[];
+      };
       return (
         <RetrievalChunks
-          query={toolName}
-          chunks={rows.map((c, i) => ({
-            id: `${c.control}-${i}`,
-            source: c.control,
-            locator: c.severity ?? "",
-            // The KB ranks without scoring, so rank order is shown as-is
-            // rather than dressed up as a confidence value.
-            score: 1 - i / Math.max(rows.length, 1),
-            text: c.title,
+          query={r.query}
+          chunks={r.matches.map((m, i) => ({
+            id: `${m.value.publication ?? "match"}-${m.value.locator ?? i}`,
+            source: m.value.publication ?? m.value.title ?? "",
+            locator: m.value.locator ?? "",
+            // Rank order stands in when the KB returns no score, rather than
+            // dressing position up as a confidence value.
+            score: m.value.score ?? 1 - i / Math.max(r.matches.length, 1),
+            text: m.value.excerpt ?? m.value.heading ?? m.value.title ?? "",
           }))}
-          visibleCount={rows.length}
+          visibleCount={r.matches.length}
           searching={false}
         />
       );
@@ -475,20 +515,51 @@ export const ELEMENTS: readonly ElementEntry[] = [
     },
   },
   {
+    // Every KB lookup carries where the answer came from and how far it is
+    // trusted. That provenance was previously invisible -- the agent read it
+    // and the analyst never saw it.
     id: "sources",
-    tools: ["kb_cite", "kb_sources"],
-    schema: z
-      .array(z.object({ title: z.string(), url: z.string().optional() }))
-      .min(1),
+    tools: ["kb_technique", "kb_weakness", "kb_threat_actor", "kb_nist"],
+    schema: z.object({
+      provenance: z.object({
+        source_url: z.string().optional(),
+        basis: z.string().optional(),
+      }),
+      trust: z
+        .object({
+          tier: z.string().optional(),
+          confidence: z.number().optional(),
+        })
+        .optional(),
+    }),
     render: (data) => {
-      const rows = data as { title: string; url?: string }[];
+      const r = data as {
+        provenance: { source_url?: string; basis?: string };
+        trust?: { tier?: string; confidence?: number };
+      };
+      const tier = r.trust?.tier;
+      const confidence = r.trust?.confidence;
+      const rows = [
+        {
+          title: [
+            r.provenance.basis,
+            tier,
+            confidence !== undefined
+              ? `${Math.round(confidence * 100)}%`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          url: r.provenance.source_url,
+        },
+      ];
       return (
         <Sources
           sources={rows.map((s) => ({
             title: s.title,
-            // Compliance citations are document references, not live links.
-            // The domain is shown when present and never linked out from here.
-            domain: s.url ?? "",
+            // Shown as TEXT, never linked: the value is attacker-reachable and
+            // an href would make it navigable.
+            domain: hostOf(s.url),
           }))}
           // Expanded: a citation the operator has to click to see is a
           // citation they will not check.
