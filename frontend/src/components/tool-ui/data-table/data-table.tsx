@@ -228,7 +228,12 @@ function DataTableLayout({
               // LOCAL EDIT (CloudGuard): no box border — the card the table
               // sits in already draws one, and two nested rules read as a
               // frame around a frame.
-              "bg-card relative w-full overflow-clip overflow-y-auto rounded-lg",
+              // overflow-x must SCROLL, not clip. Cells are nowrap by design,
+              // so a table wider than its panel simply lost its right-hand
+              // columns — the data was rendered and then hidden, with nothing
+              // to tell the reader it was there. `touch-pan-x` below already
+              // assumed horizontal panning was possible.
+              "bg-card relative w-full overflow-x-auto overflow-y-auto rounded-lg",
               "touch-pan-x",
               maxHeight && "max-h-[--max-height]",
             )}
@@ -488,6 +493,10 @@ function DataTableHead({
     <TableHead
       scope="col"
       className={cn(
+        // Headers carry a sort affordance, so they must never wrap: a broken
+        // header label puts the arrow on its own line and the column reads as
+        // two.
+        "whitespace-nowrap",
         alignClass,
         isFirstColumn && "pl-1",
         isLastColumn && "pr-1",
@@ -652,7 +661,19 @@ function DataTableCell({
   const alignClass = getAlignmentClass(align);
 
   return (
-    <TableCell className={cn("px-5 py-3", alignClass, className)}>
+    <TableCell
+      className={cn(
+        // Was px-5 py-3. On an eight-column findings table that padding
+        // consumed the width the CONTENT needed, so "SecurityGroup" broke
+        // mid-word into "SecurityGro / up" while the row still had dead space
+        // around it. Tighter cells plus nowrap let each column size to its
+        // text; the container already scrolls sideways when the total exceeds
+        // the panel.
+        "px-3 py-2 whitespace-nowrap",
+        alignClass,
+        className,
+      )}
+    >
       {displayValue}
     </TableCell>
   );

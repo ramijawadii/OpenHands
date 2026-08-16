@@ -89,9 +89,36 @@ function hopState(col: number, length: number): "done" | "active" | "pending" {
   return "pending";
 }
 
+/** Sparse boolean security properties, collapsed into a single flags column. */
+function isFlagColumn(key: string): boolean {
+  return /_(enabled|accessible|blocked|inbound)$/.test(key);
+}
+
+/**
+ * A flag as a short chip: `imdsv1_enabled=True` -> `imdsv1`,
+ * `mfa_enabled=False` -> `no mfa`.
+ *
+ * `key=value` pairs were long enough that the column clipped mid-word, which
+ * loses the value — the part that decides whether the flag is a problem.
+ * Dropping the suffix and moving falsity to a prefix keeps both visible.
+ */
+function flagLabel(key: string, value: string): string {
+  const name = key.replace(/_(enabled|accessible|blocked|inbound)$/, "");
+  const off = /^(false|0|no)$/i.test(value);
+  return off ? `no ${name}` : name;
+}
+
 /** Columns that hold an ARN or resource id, which are long enough to need a cap. */
 function isIdColumn(key: string): boolean {
   return key === "id" || key === "arn" || key.endsWith("_id");
+}
+
+/** Column widths, so no nowrap cell can grow over its neighbour. */
+function columnWidth(key: string): string {
+  if (isIdColumn(key)) return "13rem";
+  if (key === "flags") return "9rem";
+  if (key === "risk" || key === "severity") return "6rem";
+  return "11rem";
 }
 
 /**
@@ -318,25 +345,47 @@ export const ELEMENTS: readonly ElementEntry[] = [
       };
       // Values are stringified rather than passed through: a payload field must
       // never reach the DOM as anything but text.
+      // Security properties are sparse: `publicly_accessible` is set on one row,
+      // `mfa_enabled` on another. As columns they were four mostly-empty
+      // headers that together overflowed the panel — and the container clips
+      // horizontally rather than scrolling, so the headers overlapped instead.
+      // Collapsed into one "flags" column, each row shows only what it has.
+      const CORE = t.columns.filter((c) => !isFlagColumn(c)).slice(0, 3);
+      const FLAGS = t.columns.filter(isFlagColumn);
+
       const rows = t.rows.map((row, i) => {
         const flat: Record<string, string> = { __id: String(i) };
-        for (const key of t.columns) {
-          flat[key] = row[key] === undefined ? "" : String(row[key]);
+        for (const key of CORE) {
+          const raw = row[key] === undefined ? "" : String(row[key]);
+          // A full ARN widened its column until it ran over the next one, and
+          // the colgroup width is only a hint without a fixed table layout.
+          // The untruncated value is still in the tool's own text output.
+          flat[key] = isIdColumn(key) ? shortId(raw) : raw;
+        }
+        if (FLAGS.length) {
+          flat.flags = FLAGS.filter(
+            (f) => row[f] !== undefined && String(row[f]) !== "",
+          )
+            .map((f) => flagLabel(f, String(row[f])))
+            .join(" · ");
         }
         return flat;
       });
+      const columnKeys = FLAGS.length ? [...CORE, "flags"] : CORE;
       return (
         <DataTable
           id={`cg-${toolName}`}
-          columns={t.columns.map((key) => ({
+          columns={columnKeys.map((key) => ({
             key,
             label: key,
             // Identifiers are ARNs. Cells are nowrap by design, so without a
             // width and truncation a single ARN ran straight over the next
             // column instead of widening its own.
-            ...(isIdColumn(key)
-              ? { width: "16rem", truncate: true }
-              : { truncate: true }),
+            // Every column needs a width. The colgroup hint is what stops a
+            // nowrap cell widening until it runs over its neighbour; leaving
+            // `name` unsized let it collide with `risk`.
+            width: columnWidth(key),
+            truncate: true,
           }))}
           data={rows}
           rowIdKey="__id"
