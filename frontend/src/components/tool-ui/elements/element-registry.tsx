@@ -296,7 +296,9 @@ export const ELEMENTS: readonly ElementEntry[] = [
   {
     // A blast radius is the one result that genuinely wants drawing. The prose
     // rendered each path as a single `(Label) id -[REL]-> (Label) id` string.
-    id: "flow-graph-paths",
+    // No matching file: this one renders through MermaidBlock rather than a
+    // component in this directory, so the id names what it draws.
+    id: "attack-path",
     tools: ["env_find_paths"],
     schema: z.object({
       text: z.string(),
@@ -383,7 +385,7 @@ export const ELEMENTS: readonly ElementEntry[] = [
     // flattened them to `key: value` lines, which is the one shape a table
     // reads worse than the data it came from.
     id: "data-table-rows",
-    tools: ["env_find_resources", "env_graph_query"],
+    tools: ["env_find_resources", "env_graph_query", "kg_search_commands"],
     schema: z.object({
       text: z.string(),
       rows: z.array(z.record(z.string(), z.unknown())).min(1),
@@ -600,11 +602,22 @@ export const ELEMENTS: readonly ElementEntry[] = [
     },
   },
   {
+    // Two shapes reach the same widget: `list_files` answers with a bare
+    // array, kg_list_notebooks with the {text, files} envelope every converted
+    // tool uses. Normalising here beats a second near-identical entry.
     id: "file-tree",
-    tools: ["list_files", "kg_list_artifacts"],
-    schema: z.array(z.object({ path: z.string() })).min(1),
+    tools: ["list_files", "kg_list_artifacts", "kg_list_notebooks"],
+    schema: z.union([
+      z.array(z.object({ path: z.string() })).min(1),
+      z.object({
+        text: z.string(),
+        files: z.array(z.object({ path: z.string() })).min(1),
+      }),
+    ]),
     render: (data) => {
-      const rows = data as { path: string }[];
+      const rows = Array.isArray(data)
+        ? (data as { path: string }[])
+        : (data as { files: { path: string }[] }).files;
       return (
         <FileTree
           nodes={rows.map((f) => ({

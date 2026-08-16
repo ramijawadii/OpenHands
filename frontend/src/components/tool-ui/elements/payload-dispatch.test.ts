@@ -34,7 +34,12 @@ describe("payload dispatch — refusals", () => {
 
   it("refuses an empty result set", () => {
     // An empty table is a worse answer than the plain tool card.
-    expect(matchPayload("kg_search_commands", "[]").kind).toBeNull();
+    expect(
+      matchPayload(
+        "kg_search_commands",
+        JSON.stringify({ text: "none", rows: [], columns: [] }),
+      ).kind,
+    ).toBeNull();
   });
 
   it("does not let attacker-controlled TEXT change the routing", () => {
@@ -54,13 +59,17 @@ describe("payload dispatch — refusals", () => {
 
 describe("payload dispatch — matches", () => {
   it("routes kg_search_commands to a table", () => {
+    // The tool now answers with the {text, rows, columns} envelope every
+    // converted tool uses; the bare array it used to return is gone.
     const r = matchPayload(
       "kg_search_commands",
-      JSON.stringify([
-        { command: "aws s3api get-bucket-policy", service: "s3" },
-      ]),
+      JSON.stringify({
+        text: "Found 1 command(s):",
+        rows: [{ service: "s3", command: "get-bucket-policy", docs: "" }],
+        columns: ["service", "command", "docs"],
+      }),
     );
-    expect(r.kind).toBe("kg-commands");
+    expect(r.kind).toBe("data-table-rows");
   });
 
   it("routes kb_nist_search to retrieval chunks", () => {

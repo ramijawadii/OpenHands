@@ -69,7 +69,7 @@ describe("env_* structured payloads", () => {
         },
       ],
     });
-    expect(matchPayload("env_find_paths", raw).kind).toBe("flow-graph-paths");
+    expect(matchPayload("env_find_paths", raw).kind).toBe("attack-path");
   });
 
   it("matches env_summary", () => {
@@ -168,5 +168,29 @@ describe("KB tools re-keyed onto real names", () => {
     const raw = JSON.stringify({ query: "x", matches: [{ value: {} }] });
     expect(matchPayload("kb_search", raw).kind).toBeNull();
     expect(matchPayload("kb_cite", raw).kind).toBeNull();
+  });
+});
+
+describe("kg_* tools converted to structured payloads", () => {
+  it("kg_list_notebooks -> file tree, and the bare list_files shape still works", () => {
+    const envelope = JSON.stringify({
+      text: "Notebooks in /workspace (52 found):",
+      files: [{ path: "chart_notebook.ipynb", size_kb: 1.9 }],
+    });
+    expect(matchPayload("kg_list_notebooks", envelope).kind).toBe("file-tree");
+    // The older bare-array shape must keep matching: one widget, two inputs.
+    const bare = JSON.stringify([{ path: "reports/posture.md" }]);
+    expect(matchPayload("list_files", bare).kind).toBe("file-tree");
+  });
+
+  it("kg_search_commands -> data table", () => {
+    const raw = JSON.stringify({
+      text: "Found 3 command(s):",
+      rows: [{ service: "s3", command: "get-bucket-policy", docs: "" }],
+      columns: ["service", "command", "docs"],
+    });
+    expect(matchPayload("kg_search_commands", raw).kind).toBe(
+      "data-table-rows",
+    );
   });
 });
