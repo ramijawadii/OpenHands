@@ -140,3 +140,66 @@ describe("env_* Elements render live payloads", () => {
     expect(screen.getAllByText("demo-bastion").length).toBeGreaterThan(0);
   });
 });
+
+describe("kb_* Elements render live payloads", () => {
+  it("kb_remediation -> checklist, one item per numbered step", () => {
+    renderTool("kb_remediation", {
+      commands: [
+        {
+          value: {
+            remediation:
+              "1. Identify a dedicated member account. 2. Navigate to the Organizations console. 3. Enable the delegated administrator.",
+          },
+        },
+      ],
+    });
+    // The blob is one paragraph in the KB; as one checklist item it would
+    // defeat the point of a checklist.
+    expect(
+      screen.getByText(/Identify a dedicated member account/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Enable the delegated administrator/),
+    ).toBeInTheDocument();
+  });
+
+  it("kb_cli_spec -> spec sheet with one row per flag", () => {
+    renderTool("kb_cli_spec", {
+      value: {
+        cmd: "aws s3api put-bucket-policy",
+        service: "aws/s3",
+        method: "PUT",
+        path: "/{Bucket}?policy",
+        flags: "--bucket --policy",
+        summary: "Applies a policy to a bucket.",
+      },
+    });
+    expect(screen.getByText("aws s3api put-bucket-policy")).toBeInTheDocument();
+    expect(screen.getByText("--bucket")).toBeInTheDocument();
+    expect(screen.getByText("--policy")).toBeInTheDocument();
+  });
+
+  it("kb_coverage -> page count", () => {
+    renderTool("kb_coverage", {
+      provider: "aws",
+      status: "COVERED",
+      pages: 211942,
+    });
+    expect(screen.getByText(/pages indexed/)).toBeInTheDocument();
+  });
+
+  it("kb_ccm_control -> control sheet with its assurance questions", () => {
+    renderTool("kb_ccm_control", {
+      value: {
+        control: "IAM-01",
+        name: "Identity and Access Management Policy",
+        domain: "Identity & Access Management",
+        caiq_questions: [
+          { id: "IAM-01.1", question: "Are policies documented?" },
+        ],
+      },
+    });
+    expect(screen.getByText("IAM-01")).toBeInTheDocument();
+    expect(screen.getByText("IAM-01.1")).toBeInTheDocument();
+  });
+});

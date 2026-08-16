@@ -85,6 +85,21 @@ export function mmLabel(value: string): string {
     .slice(0, 40);
 }
 
+/**
+ * Split a numbered remediation blob into steps.
+ *
+ * The KB stores a fix as one paragraph numbered "1. ... 2. ...". Rendering
+ * that as a single checklist item defeats the point of a checklist, and
+ * splitting on sentences would cut mid-instruction.
+ */
+function splitSteps(text: string): string[] {
+  const parts = text
+    .split(/(?=\b\d{1,2}\.\s)/g)
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return parts.length > 1 ? parts : [text.trim()];
+}
+
 /** Sparse boolean security properties, collapsed into a single flags column. */
 function isFlagColumn(key: string): boolean {
   return /_(enabled|accessible|blocked|inbound)$/.test(key);
@@ -165,6 +180,237 @@ const SEVERITY_WEIGHT: Record<string, number> = {
 };
 
 export const ELEMENTS: readonly ElementEntry[] = [
+  {
+    // Remediation arrives as one numbered blob of prose. Split on the numbering
+    // the KB already uses, so a fix reads as a checklist an analyst can work
+    // through rather than a paragraph they have to parse.
+    id: "todo-list-remediation",
+    tools: ["kb_remediation"],
+    schema: z.object({
+      commands: z
+        .array(z.object({ value: z.object({ remediation: z.string() }) }))
+        .min(1),
+    }),
+    render: (data) => {
+      const r = data as { commands: { value: { remediation: string } }[] };
+      const steps = r.commands.flatMap((c) => splitSteps(c.value.remediation));
+      return (
+        <TodoList
+          items={steps.map((text, i) => ({
+            id: String(i),
+            text,
+            status: "pending" as const,
+          }))}
+          revision={steps.length}
+        />
+      );
+    },
+  },
+  {
+    // A CLI spec is exactly a spec sheet: the flags are what an operator needs
+    // before running anything.
+    id: "spec-sheet-cli",
+    tools: ["kb_cli_spec"],
+    schema: z.object({
+      value: z.object({
+        cmd: z.string(),
+        service: z.string().optional(),
+        method: z.string().optional(),
+        path: z.string().optional(),
+        flags: z.string().optional(),
+        summary: z.string().optional(),
+      }),
+    }),
+    render: (data) => {
+      const v = (
+        data as {
+          value: {
+            cmd: string;
+            service?: string;
+            method?: string;
+            path?: string;
+            flags?: string;
+            summary?: string;
+          };
+        }
+      ).value;
+      const rows = [
+        { label: "service", value: v.service },
+        { label: "method", value: v.method },
+        { label: "path", value: v.path },
+      ]
+        .filter((row) => row.value)
+        .map((row) => ({ label: row.label, value: String(row.value) }))
+        .concat(
+          // One row per flag: a single space-separated string is unreadable at
+          // the width these cards render.
+          (v.flags ?? "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .map((f) => ({ label: f, value: "" })),
+        );
+      return (
+        <SpecSheet
+          title={v.cmd}
+          subtitle={v.summary}
+          rows={rows}
+          visibleCount={rows.length}
+        />
+      );
+    },
+  },
+  {
+    // The benchmark control and its parent safeguards. Two KB tools answer with
+    // different envelopes for the same idea, so one entry normalises both.
+    id: "spec-sheet-control",
+    tools: ["kb_ground_control", "kb_ccm_control"],
+    schema: z.union([
+      z.object({
+        control: z.string(),
+        benchmark: z.string().optional(),
+        cis_v8_safeguards: z.array(z.string()).optional(),
+      }),
+      z.object({
+        value: z.object({
+          control: z.string(),
+          name: z.string().optional(),
+          domain: z.string().optional(),
+          caiq_questions: z
+            .array(z.object({ id: z.string(), question: z.string() }))
+            .optional(),
+        }),
+      }),
+    ]),
+    render: (data) => {
+      const d = data as Record<string, unknown>;
+      if ("value" in d) {
+        const v = d.value as {
+          control: string;
+          name?: string;
+          domain?: string;
+          caiq_questions?: { id: string; question: string }[];
+        };
+        const rows = [
+          ...(v.domain ? [{ label: "domain", value: v.domain }] : []),
+          ...(v.caiq_questions ?? []).map((q) => ({
+            label: q.id,
+            value: q.question,
+          })),
+        ];
+        return (
+          <SpecSheet
+            title={v.control}
+            subtitle={v.name}
+            rows={rows}
+            visibleCount={rows.length}
+          />
+        );
+      }
+      const g = d as {
+        control: string;
+        benchmark?: string;
+        cis_v8_safeguards?: string[];
+      };
+      const rows = (g.cis_v8_safeguards ?? []).map((sg) => ({
+        label: "CIS v8",
+        value: sg,
+      }));
+      return (
+        <SpecSheet
+          title={g.control}
+          subtitle={g.benchmark}
+          rows={rows}
+          visibleCount={rows.length}
+        />
+      );
+    },
+  },
+  {
+    // Cross-framework mappings are a table in the KB and stay one on the way out.
+    id: "data-table-mappings",
+    tools: ["kb_map_frameworks"],
+    schema: z.object({
+      mappings: z
+        .array(
+          z.object({
+            value: z.object({
+              framework: z.string(),
+              id: z.string(),
+            }),
+          }),
+        )
+        .min(1),
+    }),
+    render: (data) => {
+      const r = data as {
+        mappings: { value: { framework: string; id: string } }[];
+      };
+      return (
+        <DataTable
+          id="cg-kb-mappings"
+          columns={[
+            {
+              key: "framework",
+              label: "framework",
+              width: "10rem",
+              truncate: true,
+            },
+            { key: "id", label: "control", width: "20rem", truncate: true },
+          ]}
+          data={r.mappings.map((m, i) => ({
+            __id: String(i),
+            framework: m.value.framework,
+            id: m.value.id,
+          }))}
+          rowIdKey="__id"
+        />
+      );
+    },
+  },
+  {
+    // How much of a provider the KB actually covers. Without it, "the KB says
+    // nothing about X" and "the KB has not indexed X" look identical.
+    id: "number-ticker-coverage",
+    tools: ["kb_coverage"],
+    schema: z.object({
+      provider: z.string(),
+      status: z.string(),
+      pages: z.number(),
+    }),
+    render: (data) => {
+      const c = data as { provider: string; status: string; pages: number };
+      return (
+        <NumberTicker
+          value={c.pages}
+          label={`pages indexed - ${c.provider} ${c.status.toLowerCase()}`}
+        />
+      );
+    },
+  },
+  {
+    id: "spec-sheet-kb-health",
+    tools: ["kb_health"],
+    schema: z.object({
+      status: z.string(),
+      version: z.union([z.string(), z.number()]).optional(),
+    }),
+    render: (data) => {
+      const h = data as { status: string; version?: string | number };
+      const rows = [
+        { label: "status", value: h.status, emphasis: true },
+        ...(h.version !== undefined
+          ? [{ label: "version", value: String(h.version) }]
+          : []),
+      ];
+      return (
+        <SpecSheet
+          title="Knowledge base"
+          rows={rows}
+          visibleCount={rows.length}
+        />
+      );
+    },
+  },
   {
     // kb_nist_search already answers with structured matches, so this needed
     // no backend change -- only a key onto the tool that actually exists.

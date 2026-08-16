@@ -194,3 +194,100 @@ describe("kg_* tools converted to structured payloads", () => {
     );
   });
 });
+
+describe("kb_* tools wired to widgets", () => {
+  // Fixtures below are real responses captured from the live KB server.
+  it("kb_remediation -> a remediation checklist", () => {
+    const raw = JSON.stringify({
+      commands: [
+        {
+          value: {
+            remediation:
+              "1. Identify a dedicated member account. 2. Navigate to AWS Organizations console. 3. Enable the delegated administrator.",
+          },
+        },
+      ],
+    });
+    expect(matchPayload("kb_remediation", raw).kind).toBe(
+      "todo-list-remediation",
+    );
+  });
+
+  it("kb_cli_spec -> a command spec sheet", () => {
+    const raw = JSON.stringify({
+      value: {
+        cmd: "aws s3api put-bucket-policy",
+        service: "aws/s3",
+        method: "PUT",
+        path: "/{Bucket}?policy",
+        flags: "--bucket --policy",
+        summary: "Applies a policy to a bucket.",
+      },
+    });
+    expect(matchPayload("kb_cli_spec", raw).kind).toBe("spec-sheet-cli");
+  });
+
+  it("kb_ground_control and kb_ccm_control share one entry, two envelopes", () => {
+    const benchmark = JSON.stringify({
+      control: "Ensure delegated admin manages AWS Organizations policies",
+      benchmark: "CIS Amazon Web Services Foundations Benchmark",
+      cis_v8_safeguards: ["6.8", "5.4"],
+    });
+    const ccm = JSON.stringify({
+      value: {
+        control: "IAM-01",
+        name: "Identity and Access Management Policy",
+        domain: "Identity & Access Management",
+        caiq_questions: [
+          { id: "IAM-01.1", question: "Are policies documented?" },
+        ],
+      },
+    });
+    expect(matchPayload("kb_ground_control", benchmark).kind).toBe(
+      "spec-sheet-control",
+    );
+    expect(matchPayload("kb_ccm_control", ccm).kind).toBe("spec-sheet-control");
+  });
+
+  it("kb_map_frameworks -> a mapping table", () => {
+    const raw = JSON.stringify({
+      mappings: [
+        { value: { framework: "ExternalControl", id: "ISO 27001:2022|8.3" } },
+      ],
+    });
+    expect(matchPayload("kb_map_frameworks", raw).kind).toBe(
+      "data-table-mappings",
+    );
+  });
+
+  it("kb_coverage -> indexed page count", () => {
+    const raw = JSON.stringify({
+      provider: "aws",
+      status: "COVERED",
+      pages: 211942,
+      kb_version: 6,
+    });
+    expect(matchPayload("kb_coverage", raw).kind).toBe(
+      "number-ticker-coverage",
+    );
+  });
+
+  it("kb_health -> a status sheet", () => {
+    const raw = JSON.stringify({
+      status: "GREEN",
+      checked_at: "2026-08-16T11:36:55Z",
+      version: 6,
+    });
+    expect(matchPayload("kb_health", raw).kind).toBe("spec-sheet-kb-health");
+  });
+});
+
+describe("remediation step splitting", () => {
+  it("splits on the numbering the KB uses", () => {
+    const raw = JSON.stringify({
+      commands: [{ value: { remediation: "1. First step. 2. Second step." } }],
+    });
+    const m = matchPayload("kb_remediation", raw);
+    expect(m.kind).toBe("todo-list-remediation");
+  });
+});
