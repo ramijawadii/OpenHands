@@ -31,7 +31,7 @@ import { Timeline } from "./timeline";
 import { MemoryChips } from "./memory-chips";
 import { AgentPlan } from "./agent-plan";
 import { NumberTicker } from "./number-ticker";
-import { FlowGraph } from "./flow-graph";
+import { MermaidBlock } from "#/components/features/markdown/mermaid-block";
 import { Chart } from "./chart";
 import { DataTable } from "../data-table";
 import { GuardrailNotice } from "./guardrail-notice";
@@ -79,14 +79,20 @@ const Findings = z
 const FindingsEnvelope = z.object({ text: z.string(), findings: Findings });
 
 /**
- * Where a hop sits on an attack path. The source is where an attacker starts
- * and the last node is what they reach; the hops between are the ones worth
- * breaking.
+ * A payload string made safe to embed in mermaid SOURCE.
+ *
+ * Everywhere else in this registry a payload value becomes a text node, where
+ * React escapes it. Here it becomes diagram source, so a quote, bracket or
+ * newline could close the label and inject further mermaid directives --
+ * including click handlers. Allow only the characters that appear in resource
+ * names and collapse everything else.
  */
-function hopState(col: number, length: number): "done" | "active" | "pending" {
-  if (col === 0) return "done";
-  if (col === length - 1) return "active";
-  return "pending";
+export function mmLabel(value: string): string {
+  return value
+    .replace(/[^A-Za-z0-9 ._:/-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
 }
 
 /** Sparse boolean security properties, collapsed into a single flags column. */
@@ -274,27 +280,32 @@ export const ELEMENTS: readonly ElementEntry[] = [
           edges: string[];
         }[];
       };
-      // One row per path, one column per hop, so parallel routes to the same
-      // target read as parallel rather than as one tangled chain.
-      const nodes = paths.flatMap((path, row) =>
-        path.nodes.map((n, col) => ({
-          id: `p${path.index}-${col}`,
-          label: `${n.label}\n${shortId(n.id)}`,
-          column: col,
-          row,
-          state: hopState(col, path.nodes.length),
-        })),
+      // Drawn by the transcript's own mermaid renderer rather than a bespoke
+      // SVG. Mermaid lays a graph out properly, so hops space themselves and
+      // edge labels stop colliding with the boxes they sit between — and an
+      // attack path then looks like every other diagram in the product.
+      const lines = ["flowchart LR"];
+      paths.forEach((path) => {
+        path.nodes.forEach((n, col) => {
+          lines.push(
+            `  p${path.index}n${col}["${mmLabel(n.label)}<br/>${mmLabel(shortId(n.id))}"]`,
+          );
+        });
+        path.edges.forEach((label, i) => {
+          lines.push(
+            `  p${path.index}n${i} -->|${mmLabel(label)}| p${path.index}n${i + 1}`,
+          );
+        });
+        // The first node is where an attacker starts and the last is what they
+        // reach; those two ends are what a reader looks for first.
+        lines.push(`  class p${path.index}n0 src`);
+        lines.push(`  class p${path.index}n${path.nodes.length - 1} tgt`);
+      });
+      lines.push(
+        "  classDef src fill:#1e3a5f,stroke:#3b82f6,color:#e6edf5",
+        "  classDef tgt fill:#4a1d1d,stroke:#ef4444,color:#f5e6e6",
       );
-      const edges = paths.flatMap((path) =>
-        path.edges.map((label, i) => ({
-          from: `p${path.index}-${i}`,
-          to: `p${path.index}-${i + 1}`,
-          label,
-        })),
-      );
-      return (
-        <FlowGraph nodes={nodes} edges={edges} visibleCount={nodes.length} />
-      );
+      return <MermaidBlock code={lines.join("\n")} />;
     },
   },
   {

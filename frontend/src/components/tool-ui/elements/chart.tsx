@@ -65,6 +65,15 @@ export function Chart({
   const step = points.length > 1 ? (W - PAD * 2) / (points.length - 1) : 0;
   const x = (i: number) => PAD + i * step;
 
+  // Bars need a BAND scale, not the point scale a line uses. On the point
+  // scale the first sample sits at x=PAD and the last at x=W-PAD, so a bar
+  // centred on either was half outside the viewBox — the leading bar rendered
+  // clipped against the left edge and its label hung off the card. A band
+  // gives each category its own slot with the bar centred inside it.
+  const band = (W - PAD * 2) / Math.max(points.length, 1);
+  const barX = (i: number) => PAD + band * (i + 0.5);
+  const barWidth = Math.max(2, band * 0.5);
+
   const coords = shown.map((p, i) => ({ x: x(i), y: y(p) }));
   const line = coords.map((c) => `${c.x},${c.y}`).join(" ");
   const last = coords.at(-1);
@@ -125,7 +134,6 @@ export function Chart({
         {variant === "bars" ? (
           shown.map((p, i) => {
             const top = y(p);
-            const barWidth = Math.max(2, step * 0.55);
             // A zero category has no bar. Forcing a 1px minimum drew a sliver
             // that read as a real value — and when it landed on the emphasised
             // index it was a bright mark for the emptiest bucket.
@@ -137,7 +145,7 @@ export function Chart({
             return (
               <rect
                 key={i}
-                x={x(i) - barWidth / 2}
+                x={barX(i) - barWidth / 2}
                 y={top}
                 width={barWidth}
                 height={Math.max(1, H - PAD - top)}
@@ -197,7 +205,7 @@ export function Chart({
                     ? i === lastIndex
                     : i === highlightIndex) && "text-foreground/70",
                 )}
-                style={{ left: `${(x(i) / W) * 100}%` }}
+                style={{ left: `${(barX(i) / W) * 100}%` }}
               >
                 {category}
               </span>

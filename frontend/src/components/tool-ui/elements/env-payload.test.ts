@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { matchPayload } from "./payload-dispatch";
+import { mmLabel } from "./element-registry";
 
 describe("env_* structured payloads", () => {
   it("matches env_risk_findings", () => {
@@ -104,5 +105,28 @@ describe("env_* structured payloads", () => {
   it("falls back when findings are absent", () => {
     const raw = JSON.stringify({ text: "No resources found", findings: [] });
     expect(matchPayload("env_risk_findings", raw).kind).toBeNull();
+  });
+});
+
+describe("mermaid label sanitiser", () => {
+  // In the attack-path entry a payload value becomes diagram SOURCE, not a
+  // text node, so React does not escape it. A quote or bracket could close the
+  // label and inject further mermaid directives, including click handlers.
+  it("strips characters that could break out of a label", () => {
+    const out = mmLabel('evil"] ; click x "javascript:alert(1)');
+    expect(out).not.toContain('"');
+    expect(out).not.toContain("]");
+    expect(out).not.toContain(";");
+    expect(out).not.toContain("(");
+  });
+
+  it("keeps the characters real resource names use", () => {
+    expect(mmLabel("arn:aws:s3:::demo-public_logs.v2/path")).toBe(
+      "arn:aws:s3:::demo-public_logs.v2/path",
+    );
+  });
+
+  it("caps length so one label cannot dominate the diagram", () => {
+    expect(mmLabel("x".repeat(200)).length).toBeLessThanOrEqual(40);
   });
 });

@@ -114,7 +114,11 @@ describe("env_* Elements render live payloads", () => {
         },
       ],
     });
-    expect(screen.getByText("CAN_ACCESS")).toBeInTheDocument();
+    // Mermaid renders into a ref asynchronously and its container carries only
+    // inline styles, so there is no source or class in the DOM to assert on.
+    // The block's own affordance is the stable proof it mounted; the label
+    // sanitiser is unit-tested separately.
+    expect(screen.getByText("View Diagram")).toBeInTheDocument();
   });
 
   it("env_find_resources -> data table", () => {
