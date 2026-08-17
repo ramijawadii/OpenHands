@@ -402,3 +402,53 @@ describe("the last twelve kg_* / env_scan tools", () => {
     ).toBeNull();
   });
 });
+
+describe("the MCP envelope a REAL agent run produces", () => {
+  // Captured verbatim from conversation d3974d6b, where the agent called
+  // env_summary through MCP. OpenHands stores the whole MCP result, not the
+  // tool's own JSON: the payload sits in content[0].text as a JSON string.
+  // Every seeded fixture had used the inner payload directly, so this shape
+  // was never exercised and no widget could render from a real turn.
+  const REAL_ENVELOPE = {
+    meta: null,
+    content: [
+      {
+        type: "text",
+        text: '{"text": "=== ENVIRONMENT INTELLIGENCE SUMMARY ===", "layers": [{"layer": "Layer 0 \\u2014 Org & Accounts", "total": 2, "breakdown": {"EAccount": 2}}], "risk": {"CRITICAL": 1, "HIGH": 2, "MEDIUM": 1, "LOW": 0}, "critical": [{"severity": "CRITICAL", "title": "demo-public-logs", "resource": "ES3Bucket"}]}',
+      },
+    ],
+    isError: false,
+  };
+
+  it("unwraps the envelope and routes to the widget", () => {
+    const m = matchPayload("env_summary", JSON.stringify(REAL_ENVELOPE));
+    expect(m.kind).toBe("chart-risk");
+  });
+
+  it("still accepts a bare tool payload", () => {
+    // Older events and direct calls carry the inner shape; both must work.
+    const bare = JSON.stringify({
+      text: "summary",
+      risk: { CRITICAL: 1, HIGH: 0, MEDIUM: 0, LOW: 0 },
+    });
+    expect(matchPayload("env_summary", bare).kind).toBe("chart-risk");
+  });
+
+  it("refuses an envelope the tool itself failed", () => {
+    const failed = JSON.stringify({
+      meta: null,
+      content: [{ type: "text", text: "Error executing tool env_summary" }],
+      isError: true,
+    });
+    expect(matchPayload("env_summary", failed).kind).toBeNull();
+  });
+
+  it("refuses an envelope whose inner content is prose", () => {
+    const prose = JSON.stringify({
+      meta: null,
+      content: [{ type: "text", text: "KG: GREEN" }],
+      isError: false,
+    });
+    expect(matchPayload("kg_health", prose).kind).toBeNull();
+  });
+});

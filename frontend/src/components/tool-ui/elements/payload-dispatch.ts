@@ -40,7 +40,9 @@ export type PayloadKind =
   | "kg-schema"
   | "kb-controls"
   | "findings"
-  | (string & {});
+  // Keeps autocomplete for the literals above while still accepting any
+  // registry id. `string & {}` says the same thing but trips ban-types.
+  | (string & Record<never, never>);
 
 /**
  * Schemas are deliberately LOOSE about extra keys and STRICT about the fields
@@ -99,6 +101,47 @@ export type PayloadMatch =
   | { kind: PayloadKind; data: unknown }
   | { kind: null; reason: "unknown-tool" | "unparseable" | "schema-mismatch" };
 
+/** Sentinel: a well-formed MCP envelope that reports the tool itself failed. */
+const MCP_ERROR = Symbol("mcp-error");
+
+/**
+ * Unwrap the MCP result envelope, if that is what arrived.
+ *
+ * A REAL agent run does not hand us the tool's own JSON. OpenHands stores the
+ * whole MCP result — `{meta, content: [{type, text}], isError}` — and the tool
+ * payload sits inside `content[0].text` as a JSON *string*. Validating the
+ * envelope against an element schema therefore failed every time, so no widget
+ * could ever render from an actual agent turn. (Seeded fixtures written with
+ * the inner payload directly hid this completely: they matched, real traffic
+ * did not.)
+ *
+ * A payload that is not an envelope passes through untouched, so both shapes
+ * work and older events keep rendering.
+ */
+function unwrapMcp(parsed: unknown): unknown {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  const env = parsed as {
+    content?: unknown;
+    isError?: unknown;
+    text?: unknown;
+  };
+  // `text` present means this is already a tool payload, not an envelope.
+  if (env.text !== undefined || !Array.isArray(env.content)) return parsed;
+
+  // A failed tool is not a widget: its payload describes the failure, not the
+  // shape the element expects.
+  if (env.isError === true) return MCP_ERROR;
+
+  const first = env.content[0] as { text?: unknown } | undefined;
+  if (!first || typeof first.text !== "string") return parsed;
+  try {
+    return JSON.parse(first.text);
+  } catch {
+    // Inner content is prose — a tool that has not been converted yet.
+    return MCP_ERROR;
+  }
+}
+
 /**
  * Resolve a tool result to a widget, or explain why it could not be.
  *
@@ -129,7 +172,10 @@ export const matchPayload = (
     return { kind: null, reason: "unparseable" };
   }
 
-  const result = entry.schema.safeParse(parsed);
+  const unwrapped = unwrapMcp(parsed);
+  if (unwrapped === MCP_ERROR) return { kind: null, reason: "schema-mismatch" };
+
+  const result = entry.schema.safeParse(unwrapped);
   if (!result.success) return { kind: null, reason: "schema-mismatch" };
 
   return { kind: entry.kind, data: result.data };
