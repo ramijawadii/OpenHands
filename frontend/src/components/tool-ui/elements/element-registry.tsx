@@ -24,21 +24,14 @@ import { RetrievalChunks } from "./retrieval-chunks";
 import { SpecSheet } from "./spec-sheet";
 import { ScoreBreakdown } from "./score-breakdown";
 import { Sources } from "./sources";
-import { WebSearch } from "./web-search";
 import { FileTree } from "./file-tree";
 import { TodoList } from "./todo-list";
 import { Timeline } from "./timeline";
 import { MemoryChips } from "./memory-chips";
-import { AgentPlan } from "./agent-plan";
 import { NumberTicker } from "./number-ticker";
 import { MermaidBlock } from "#/components/features/markdown/mermaid-block";
 import { Chart } from "./chart";
 import { DataTable } from "../data-table";
-import { GuardrailNotice } from "./guardrail-notice";
-import { ConfidenceMarker } from "./confidence-marker";
-import { MathBlock } from "./math-block";
-import { TraceWaterfall } from "./trace-waterfall";
-import { QuotaBanner } from "./quota-banner";
 import { ArtifactCard } from "./artifact-card";
 
 export interface ElementEntry {
@@ -205,6 +198,36 @@ const SEVERITY_WEIGHT: Record<string, number> = {
   MEDIUM: 5,
   LOW: 1,
 };
+
+/*
+ * RETIRED 2026-08-17 — entries removed because no live tool serves them.
+ *
+ * Each of these rendered correctly but was keyed to a tool name that does not
+ * exist on either MCP server, so it could only ever appear behind a hand-made
+ * fixture. A registry that lists capability the product does not have is worse
+ * than a short one: it reads as done.
+ *
+ *   web-search         web_search, threat_intel_search
+ *   todo-list          kg_get_remediation_plan, plan_status
+ *   timeline           kg_get_timeline, kg_change_history
+ *   memory-chips       memory_recall, working_set
+ *   agent-plan         plan_steps, kg_plan_outline
+ *   number-ticker      kg_count, resource_count
+ *   guardrail-notice   policy_block, gate_denied
+ *   confidence-marker  kg_claims, evidence_confidence
+ *   math-block         risk_calculation, kg_score_math
+ *   trace-waterfall    trace_spans, kg_query_trace
+ *   quota-banner       quota_status, budget_status
+ *   artifact-card      artifact_created, report_generated
+ *
+ * The components remain on disk. Two have a plausible data source if anyone
+ * wants to build the tool: trace-waterfall could be fed from the traces query
+ * hook, and quota-banner from cloudguard/metrics. The rest need data that does
+ * not exist anywhere yet.
+ *
+ * TodoList, Timeline, MemoryChips, NumberTicker and ArtifactCard are still
+ * rendered — by the entries that DO have a tool behind them.
+ */
 
 export const ELEMENTS: readonly ElementEntry[] = [
   {
@@ -1008,41 +1031,11 @@ export const ELEMENTS: readonly ElementEntry[] = [
     },
   },
   {
-    id: "web-search",
-    tools: ["web_search", "threat_intel_search"],
-    schema: z
-      .object({
-        query: z.string(),
-        results: z
-          .array(z.object({ title: z.string(), host: z.string().optional() }))
-          .min(1),
-      })
-      .strip(),
-    render: (data) => {
-      const d = data as {
-        query: string;
-        results: { title: string; host?: string }[];
-      };
-      return (
-        <WebSearch
-          query={d.query}
-          results={d.results.map((r) => ({
-            title: r.title,
-            domain: r.host ?? "",
-          }))}
-          visibleResults={d.results.length}
-          searching={false}
-          cycle={0}
-        />
-      );
-    },
-  },
-  {
     // Two shapes reach the same widget: `list_files` answers with a bare
     // array, kg_list_notebooks with the {text, files} envelope every converted
     // tool uses. Normalising here beats a second near-identical entry.
     id: "file-tree",
-    tools: ["list_files", "kg_list_artifacts", "kg_list_notebooks"],
+    tools: ["list_files", "kg_list_notebooks"],
     schema: z.union([
       z.array(z.object({ path: z.string() })).min(1),
       z.object({
@@ -1071,280 +1064,6 @@ export const ELEMENTS: readonly ElementEntry[] = [
           totalDeletions={0}
         />
       );
-    },
-  },
-  {
-    id: "todo-list",
-    tools: ["kg_get_remediation_plan", "plan_status"],
-    schema: z
-      .array(z.object({ title: z.string(), done: z.boolean().optional() }))
-      .min(1),
-    render: (data) => {
-      const rows = data as { title: string; done?: boolean }[];
-      return (
-        <TodoList
-          items={rows.map((t, i) => ({
-            id: String(i),
-            text: t.title,
-            status: t.done ? ("done" as const) : ("pending" as const),
-          }))}
-          // The Element animates on revision change; a plan snapshot has no
-          // version of its own, so the item count stands in — it moves exactly
-          // when the list does.
-          revision={rows.length}
-        />
-      );
-    },
-  },
-  {
-    id: "timeline",
-    tools: ["kg_get_timeline", "kg_change_history"],
-    schema: z
-      .array(z.object({ label: z.string(), at: z.string().optional() }))
-      .min(1),
-    render: (data) => {
-      const rows = data as { label: string; at?: string }[];
-      return (
-        <Timeline
-          events={rows.map((e, i) => ({
-            id: String(i),
-            // Everything the graph returns has already happened; "now" is the
-            // reader's position, not a datum in the payload.
-            when: "past" as const,
-            time: e.at ?? "",
-            title: e.label,
-          }))}
-          visibleCount={rows.length}
-        />
-      );
-    },
-  },
-
-  {
-    id: "memory-chips",
-    tools: ["memory_recall", "working_set"],
-    schema: z.array(z.object({ label: z.string() })).min(1),
-    render: (data) => {
-      const rows = data as { label: string }[];
-      return (
-        <MemoryChips
-          chips={rows.map((c, i) => ({
-            id: String(i),
-            text: c.label,
-            // The payload says what is in the working set, not how it got
-            // there, so nothing is claimed as newly added.
-            change: "existing" as const,
-          }))}
-          // Forgetting is a server-side operation on the working set, not a
-          // transcript affordance — the chips are a read-only view here.
-          onForget={undefined}
-        />
-      );
-    },
-  },
-
-  {
-    id: "agent-plan",
-    tools: ["plan_steps", "kg_plan_outline"],
-    schema: z.object({
-      steps: z.array(z.string()).min(1),
-      active: z.number().optional(),
-    }),
-    render: (data) => {
-      const d = data as { steps: string[]; active?: number };
-      return (
-        <AgentPlan
-          steps={d.steps}
-          // Absent an explicit cursor the plan is treated as not yet started,
-          // which is safer than implying progress the payload never claimed.
-          activeIndex={d.active ?? 0}
-        />
-      );
-    },
-  },
-  {
-    id: "number-ticker",
-    tools: ["kg_count", "resource_count"],
-    schema: z.object({ value: z.number(), label: z.string() }),
-    render: (data) => {
-      const d = data as { value: number; label: string };
-      return <NumberTicker value={d.value} label={d.label} />;
-    },
-  },
-  {
-    id: "guardrail-notice",
-    tools: ["policy_block", "gate_denied"],
-    schema: z.object({
-      title: z.string(),
-      explanation: z.string(),
-      policy: z.string(),
-      alternatives: z.array(z.string()).optional(),
-    }),
-    render: (data) => {
-      const d = data as {
-        title: string;
-        explanation: string;
-        policy: string;
-        alternatives?: string[];
-      };
-      return (
-        <GuardrailNotice
-          title={d.title}
-          explanation={d.explanation}
-          policy={d.policy}
-          alternatives={d.alternatives ?? []}
-          // Suggested alternatives are read-only here: acting on one is a new
-          // command that must go through the permission gate, not a click that
-          // bypasses the block being explained.
-          onPick={undefined}
-        />
-      );
-    },
-  },
-  {
-    id: "confidence-marker",
-    tools: ["kg_claims", "evidence_confidence"],
-    schema: z
-      .array(
-        z.object({
-          text: z.string(),
-          confidence: z.enum(["grounded", "inferred", "uncertain"]),
-          basis: z.string().optional(),
-        }),
-      )
-      .min(1),
-    render: (data) => {
-      const rows = data as {
-        text: string;
-        confidence: "grounded" | "inferred" | "uncertain";
-        basis?: string;
-      }[];
-      return (
-        <ConfidenceMarker
-          claims={rows.map((c, i) => ({
-            id: String(i),
-            text: c.text,
-            confidence: c.confidence,
-            // An unstated basis is shown as such rather than left blank: a
-            // claim with no evidence behind it is the thing worth noticing.
-            basis: c.basis ?? "no basis recorded",
-          }))}
-          // Nothing is hovered on first paint; the Element owns hover from
-          // there, so the transcript does not hold interaction state.
-          hoveredId=""
-          onHover={() => {}}
-        />
-      );
-    },
-  },
-  {
-    id: "math-block",
-    tools: ["risk_calculation", "kg_score_math"],
-    schema: z.object({
-      label: z.string(),
-      steps: z
-        .array(
-          z.object({ expression: z.string(), note: z.string().optional() }),
-        )
-        .min(1),
-    }),
-    render: (data) => {
-      const d = data as {
-        label: string;
-        steps: { expression: string; note?: string }[];
-      };
-      return (
-        <MathBlock
-          label={d.label}
-          steps={d.steps}
-          visibleSteps={d.steps.length}
-        />
-      );
-    },
-  },
-  {
-    id: "trace-waterfall",
-    tools: ["trace_spans", "kg_query_trace"],
-    schema: z.object({
-      totalMs: z.number(),
-      spans: z
-        .array(
-          z.object({
-            name: z.string(),
-            depth: z.number().optional(),
-            startMs: z.number(),
-            durationMs: z.number(),
-            status: z.enum(["running", "completed", "failed"]).optional(),
-          }),
-        )
-        .min(1),
-    }),
-    render: (data) => {
-      const d = data as {
-        totalMs: number;
-        spans: {
-          name: string;
-          depth?: number;
-          startMs: number;
-          durationMs: number;
-          status?: "running" | "completed" | "failed";
-        }[];
-      };
-      return (
-        <TraceWaterfall
-          spans={d.spans.map((sp, i) => ({
-            id: String(i),
-            name: sp.name,
-            depth: sp.depth ?? 0,
-            startMs: sp.startMs,
-            durationMs: sp.durationMs,
-            // A span with no status has already returned, or it would
-            // not be in a completed trace.
-            status: sp.status ?? "completed",
-          }))}
-          totalMs={d.totalMs}
-          visibleCount={d.spans.length}
-        />
-      );
-    },
-  },
-  {
-    id: "quota-banner",
-    tools: ["quota_status", "budget_status"],
-    schema: z.object({
-      used: z.number(),
-      limit: z.number(),
-      unit: z.string().optional(),
-      resetsIn: z.string().optional(),
-    }),
-    render: (data) => {
-      const d = data as {
-        used: number;
-        limit: number;
-        unit?: string;
-        resetsIn?: string;
-      };
-      return (
-        <QuotaBanner
-          used={d.used}
-          limit={d.limit}
-          unit={d.unit ?? "calls"}
-          resetsIn={d.resetsIn ?? "unknown"}
-          // No upgrade path is offered from a transcript: budget is an
-          // account-level decision, not something to action mid-assessment.
-          upgradeLabel=""
-          onUpgrade={undefined}
-        />
-      );
-    },
-  },
-  {
-    id: "artifact-card",
-    tools: ["artifact_created", "report_generated"],
-    schema: z.object({ title: z.string(), meta: z.string().optional() }),
-    render: (data) => {
-      const d = data as { title: string; meta?: string };
-      return <ArtifactCard title={d.title} meta={d.meta ?? ""} />;
     },
   },
 ];
