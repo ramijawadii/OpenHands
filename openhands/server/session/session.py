@@ -18,6 +18,7 @@ from openhands.core.config.condenser_config import (
 )
 from openhands.core.config.mcp_config import (
     MCPSHTTPServerConfig,
+    MCPStdioServerConfig,
     OpenHandsMCPConfigImpl,
 )
 from openhands.core.exceptions import MicroagentValidationError
@@ -264,6 +265,36 @@ class WebSession:
             self.logger.debug(
                 f'Added CloudGuard {_mcp_name} MCP server to config: {_mcp_url}'
             )
+
+        # CloudGuard: document/spreadsheet authoring tools (office_write_sheet,
+        # office_write_workbook, office_write_doc, office_append_section,
+        # office_report, office_convert, office_templates, office_live_*).
+        #
+        # STDIO, not SHTTP: these tools write .docx/.xlsx into /workspace, which
+        # only exists inside the runtime container, and the module reads its
+        # conversation id and save-back token from the runtime's own init env.
+        # Stdio servers are started by the MCP router INSIDE that container, so
+        # this is the only transport where the files land where Canvas can open
+        # them.
+        #
+        # The system prompt already instructs the agent to call these tools and
+        # forbids hand-rolling openpyxl/python-docx, so without this block the
+        # agent is told to use a toolset it does not have and denied the
+        # fallback — it cannot produce a spreadsheet at all.
+        _office_disabled = (
+            _os_cg.environ.get('CLOUDGUARD_OFFICE_MCP_DISABLED') or ''
+        ).strip().lower() in ('1', 'true', 'yes')
+        if not _office_disabled and not any(
+            s.name == 'cloudguard-office' for s in self.config.mcp.stdio_servers
+        ):
+            self.config.mcp.stdio_servers.append(
+                MCPStdioServerConfig(
+                    name='cloudguard-office',
+                    command='python',
+                    args=['-m', 'cloudguard.office.mcp_server'],
+                )
+            )
+            self.logger.debug('Added CloudGuard office MCP server (stdio) to config')
 
         self.logger.debug(
             f'MCP configuration after setup - self.config.mcp: {self.config.mcp}'

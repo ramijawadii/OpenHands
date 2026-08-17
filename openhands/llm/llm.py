@@ -191,10 +191,40 @@ class LLM(RetryMixin, DebugMixin):
         # Anthropic constraint: Opus models cannot accept both temperature and top_p
         # Prefer temperature (drop top_p) if both are specified.
         _model_lower = self.config.model.lower()
-        # Limit to Opus 4.1 specifically to avoid changing behavior of other Anthropic models
+        # Opus 4.1 rejects temperature+top_p TOGETHER, so dropping top_p only when
+        # both are present is enough there.
         if ('claude-opus-4-1' in _model_lower) and (
             'temperature' in kwargs and 'top_p' in kwargs
         ):
+            kwargs.pop('top_p', None)
+
+        # Extended thinking constrains top_p on the Anthropic/Bedrock path:
+        #   ValidationException: `top_p` must be greater than or equal to 0.95
+        #   or unset when thinking is enabled or in adaptive mode.
+        # Verified directly against the upstream API: an identical request
+        # succeeds with top_p omitted and 400s with top_p=0.9, on BOTH
+        # claude-opus-4-8 and claude-opus-5. This is a thinking-mode rule, not a
+        # per-model quirk, so key it off the thinking config rather than a model
+        # string — a model-name allowlist is exactly what let this slip through
+        # (the guard above only matched 'claude-opus-4-1').
+        _thinking = kwargs.get('thinking')
+        if (
+            isinstance(_thinking, dict)
+            and _thinking.get('type') != 'disabled'
+            and kwargs.get('top_p') is not None
+            and kwargs['top_p'] < 0.95
+        ):
+            kwargs.pop('top_p', None)
+
+        # top_p=1.0 means "consider every token" — it is the default and
+        # constrains nothing, so sending it conveys no information at all.
+        # Newer Anthropic models served over Bedrock now reject the parameter
+        # outright:
+        #   ValidationException: `top_p` is deprecated for this model
+        # which 400s the request before a single tool call is made. The guard
+        # above only fires below 0.95, so a default config sailed straight into
+        # that error. Dropping a no-op parameter is safe on every provider.
+        if kwargs.get('top_p') == 1.0:
             kwargs.pop('top_p', None)
 
         # Store thinking config for latch helpers (Layer 7)
