@@ -221,6 +221,111 @@ def _vfs_for(resolved: tuple[str, str]):
     return VFS(lambda ctx: driver, audit=sink)
 
 
+# ── the artifact store (Seafile) ─────────────────────────────────────────────
+# A SECOND store, not a replacement. The sandbox is the agent's live working
+# directory and stays that; this is where finished artifacts land to be kept,
+# versioned and audited. Selecting between them is `?store=`, defaulting to
+# sandbox so every existing caller is unaffected.
+#
+# The library is never mounted into a container the agent can execute code in —
+# see deploy/seafile/README.md, and commit 0f25e703 for why that boundary exists.
+_STORES = ("sandbox", "artifacts")
+_ARTIFACT_VFS = None
+
+
+class _ArtifactStoreUnconfigured(Exception):
+    """The artifact store was asked for but no Seafile library is configured."""
+
+
+async def _artifact_vfs():
+    """Build (once) the VFS bound to the Seafile artifact library.
+
+    Pipeline is Cache → Reliable → Seafile. Deliberately NO BufferingDriver:
+    the buffer's drainer (_drain_one) rebuilds a SandboxWorkspaceDriver from the
+    namespace, so a buffered artifact write would be drained into a sandbox
+    container instead of the library. Buffering this store needs the drainer to
+    learn about drivers first; until then a Seafile outage surfaces as 503 rather
+    than being silently misfiled.
+    """
+    global _ARTIFACT_VFS
+    if _ARTIFACT_VFS is not None:
+        return _ARTIFACT_VFS
+
+    import os
+
+    from cloudguard.vfs import VFS, ReliableDriver
+    from cloudguard.vfs.drivers import CachingDriver
+    from cloudguard.vfs.drivers.seafile import SeafileDriver, authenticate
+
+    base_url = (os.environ.get('CLOUDGUARD_SEAFILE_URL') or 'http://seafile').rstrip('/')
+    repo_id = (os.environ.get('CLOUDGUARD_SEAFILE_REPO_ID') or '').strip()
+    token = (os.environ.get('CLOUDGUARD_SEAFILE_TOKEN') or '').strip()
+    user = (os.environ.get('CLOUDGUARD_SEAFILE_USER') or '').strip()
+    password = (os.environ.get('CLOUDGUARD_SEAFILE_PASSWORD') or '').strip()
+    content_url = (os.environ.get('CLOUDGUARD_SEAFILE_CONTENT_URL') or '').strip() or None
+
+    # Fail closed and SAY WHAT IS MISSING. An artifact store that silently falls
+    # back to the sandbox would put durable deliverables in a container that is
+    # deleted when the conversation ends.
+    if not repo_id:
+        raise _ArtifactStoreUnconfigured('CLOUDGUARD_SEAFILE_REPO_ID is not set')
+    if not token and not (user and password):
+        raise _ArtifactStoreUnconfigured(
+            'set CLOUDGUARD_SEAFILE_TOKEN, or CLOUDGUARD_SEAFILE_USER + _PASSWORD'
+        )
+
+    if not token:
+        token = await authenticate(user, password, base_url=base_url)
+
+    # The envelope is sized to MEASURED latency, not to the sandbox's.
+    # Seafile answers an API call in ~4-8s on this deployment and a write is
+    # several calls (mkdir, upload-link, upload, sidecar read, sidecar write,
+    # stat), so writes were measured at 17-30s. ReliableDriver's 30s default
+    # killed correct operations — the first live wiring test failed with
+    # "driver timeout" on a write that was working. 180s is deliberately far
+    # above the observed worst case: this bound exists to catch a HUNG store, and
+    # a bound that also kills healthy-but-slow calls tells you nothing.
+    #
+    # The driver's own per-request timeout (30s) stays well under it, so a single
+    # stuck call fails and is retried inside the envelope rather than consuming
+    # it. Sizing them equally would make the inner timeout unreachable.
+    driver = CachingDriver(
+        ReliableDriver(
+            SeafileDriver(repo_id, token, base_url=base_url, content_url=content_url),
+            timeout=180.0,
+        ),
+        _read_cache(),
+        namespace=f'seafile:{repo_id}',
+    )
+    _ARTIFACT_VFS = VFS(lambda ctx: driver, audit=_audit_sink())
+    _ensure_flusher()
+    return _ARTIFACT_VFS
+
+
+async def _run_store(store: str, conversation_id: str, coro_factory):
+    """Dispatch one op to the selected store, mapping errors identically."""
+    if store not in _STORES:
+        raise HTTPException(
+            status_code=400, detail=f'unknown store {store!r} (expected one of {_STORES})'
+        )
+    if store == 'sandbox':
+        return await _run(conversation_id, coro_factory)
+
+    try:
+        vfs = await _artifact_vfs()
+    except _ArtifactStoreUnconfigured as exc:
+        raise HTTPException(
+            status_code=503, detail=f'artifact store unavailable: {exc}'
+        ) from exc
+
+    try:
+        return await coro_factory(vfs)
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise _map_error(exc) from exc
+
+
 async def surface_read(conversation_id: str, path: str) -> bytes:
     """Read a workspace file THROUGH the VFS (read-your-writes aware). A surface
     that both writes and reads via the VFS (SRE-1b) uses this so a reopen after a
@@ -268,6 +373,10 @@ class WriteRequest(BaseModel):
     text: str | None = Field(default=None)
     content_b64: str | None = Field(default=None)
     mime: str | None = Field(default=None, max_length=128)
+    # "sandbox" (default, unchanged behaviour) or "artifacts" (durable Seafile
+    # library). Kept a body field rather than a query param so a write names its
+    # destination in the same payload as its bytes.
+    store: str = Field(default="sandbox", max_length=32)
 
 
 async def _run(conversation_id: str, coro_factory):
@@ -326,17 +435,21 @@ async def surface_write(
 
 
 @router.get("/read")
-async def vfs_read(conversation_id: str, path: str, _p=Depends(require_principal)):
-    data = await _run(
-        conversation_id, lambda vfs: vfs.read(_ctx(conversation_id, _p), path)
+async def vfs_read(
+    conversation_id: str, path: str, store: str = "sandbox", _p=Depends(require_principal)
+):
+    data = await _run_store(
+        store, conversation_id, lambda vfs: vfs.read(_ctx(conversation_id, _p), path)
     )
     return Response(content=data, media_type="application/octet-stream")
 
 
 @router.get("/stat")
-async def vfs_stat(conversation_id: str, path: str, _p=Depends(require_principal)):
-    e = await _run(
-        conversation_id, lambda vfs: vfs.stat(_ctx(conversation_id, _p), path)
+async def vfs_stat(
+    conversation_id: str, path: str, store: str = "sandbox", _p=Depends(require_principal)
+):
+    e = await _run_store(
+        store, conversation_id, lambda vfs: vfs.stat(_ctx(conversation_id, _p), path)
     )
     return JSONResponse(_entry_json(e))
 
@@ -346,9 +459,11 @@ async def vfs_list(
     conversation_id: str,
     prefix: str = "",
     recursive: bool = True,
+    store: str = "sandbox",
     _p=Depends(require_principal),
 ):
-    entries = await _run(
+    entries = await _run_store(
+        store,
         conversation_id,
         lambda vfs: vfs.list(_ctx(conversation_id, _p), prefix, recursive=recursive),
     )
@@ -367,7 +482,8 @@ async def vfs_write(body: WriteRequest = Body(...), _p=Depends(require_principal
     else:
         raise HTTPException(status_code=400, detail="provide text or content_b64")
 
-    e = await _run(
+    e = await _run_store(
+        body.store,
         body.conversation_id,
         # dedup=False → one docker round-trip (no idempotency pre-stat); the sandbox
         # driver makes each round-trip expensive, and saves usually change content.
