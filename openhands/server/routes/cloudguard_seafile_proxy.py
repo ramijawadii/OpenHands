@@ -26,6 +26,7 @@ lets these paths win over the frontend router.
 
 from __future__ import annotations
 
+import asyncio
 import os
 from urllib.parse import urlsplit
 
@@ -60,6 +61,72 @@ def _upstream_origin() -> str | None:
     return f'{parts.scheme}://{parts.netloc}'
 
 
+# Server-side Seafile session, shared by everyone the app has already
+# authenticated. Cached because logging in costs two round trips and the cookie
+# is valid for a day.
+_session_cookie: str | None = None
+_session_lock = asyncio.Lock()
+
+
+async def _server_session(origin: str) -> str | None:
+    """A Seafile session cookie obtained on the user's behalf.
+
+    The analyst is already authenticated to CloudGuard; making them log in AGAIN
+    to a service they did not know they were using is the wrong seam. ONLYOFFICE is
+    handed a JWT and JupyterLab a token, both minted server-side — Seafile was
+    the odd one out only because it authenticates with a session cookie instead
+    of a query parameter.
+
+    Returns None when no credentials are configured, in which case the frame
+    falls back to Seafile's own login page rather than breaking.
+    """
+    global _session_cookie
+
+    user = (os.environ.get('CLOUDGUARD_SEAFILE_USER') or '').strip()
+    password = (os.environ.get('CLOUDGUARD_SEAFILE_PASSWORD') or '').strip()
+    if not user or not password:
+        return None
+
+    async with _session_lock:
+        if _session_cookie:
+            return _session_cookie
+
+        login_url = f'{origin}/seafile/accounts/login/'
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+                page = await client.get(login_url)
+                token = ''
+                for chunk in page.text.split('name="csrfmiddlewaretoken"'):
+                    if 'value="' in chunk[:80]:
+                        token = chunk.split('value="', 1)[1].split('"', 1)[0]
+                        break
+                posted = await client.post(
+                    login_url,
+                    data={
+                        'csrfmiddlewaretoken': token,
+                        'login': user,
+                        'password': password,
+                    },
+                    # Django checks Referer/Origin on the login POST; send the
+                    # page's own URL so it validates the way a browser would.
+                    headers={'Referer': login_url, 'Origin': origin},
+                    cookies=page.cookies,
+                )
+                sid = posted.cookies.get('sessionid') or client.cookies.get('sessionid')
+                if sid and posted.status_code in (301, 302):
+                    _session_cookie = sid
+                    return sid
+        except httpx.HTTPError:
+            return None
+    return None
+
+
+def _invalidate_session() -> None:
+    """Drop the cached session so the next request logs in again."""
+    global _session_cookie
+    _session_cookie = None
+
+
 async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
     origin = _upstream_origin()
     if not origin:
@@ -81,6 +148,17 @@ async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
         url = f'{url}?{request.url.query}'
 
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_REQUEST}
+
+    # Single sign-on, in effect. If the browser has no Seafile session of its
+    # own, attach the app's — the analyst authenticated to CloudGuard already,
+    # and a second login prompt for a service they did not choose is the wrong
+    # seam. A session the browser DOES carry always wins, so anyone who signs in
+    # as themselves keeps their own identity in Seafile's history.
+    if 'sessionid=' not in headers.get('cookie', ''):
+        sid = await _server_session(origin)
+        if sid:
+            existing = headers.get('cookie', '')
+            headers['cookie'] = f'{existing}; sessionid={sid}'.lstrip('; ')
 
     client = httpx.AsyncClient(timeout=_TIMEOUT, follow_redirects=False)
     try:
