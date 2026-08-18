@@ -550,4 +550,21 @@ except Exception as _cg_exc:  # noqa: BLE001 — never block server start on thi
         "CloudGuard VFS routes unavailable: %s", _cg_exc
     )
 
+# CloudGuard: same-origin proxy for the embedded Seafile library view. Must be
+# registered before the SPA's catch-all mount at "/" (listen.py) or /seafile/*
+# falls through to the frontend router, which has no such route and renders its
+# own 404 inside the frame.
+try:
+    from openhands.server.routes.cloudguard_seafile_proxy import (
+        router as cloudguard_seafile_proxy_router,
+    )
+
+    app.include_router(cloudguard_seafile_proxy_router)
+except Exception as _cg_exc:  # noqa: BLE001 — never block server start on this
+    import logging as _logging
+
+    _logging.getLogger("openhands").warning(
+        "CloudGuard Seafile proxy unavailable: %s", _cg_exc
+    )
+
 add_health_endpoints(app)

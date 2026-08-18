@@ -344,10 +344,13 @@ export default function ReportView() {
           src={store.library_url}
           title="Artifact library"
           className="min-h-0 w-full flex-1 border-0"
-          // The store is a separate origin we do not control the markup of.
-          // Same-origin access is not needed — the frame is only ever navigated
-          // by the user — so withhold it rather than grant it by default.
-          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
+          // No sandbox attribute, deliberately. The store is proxied onto OUR
+          // origin so its SameSite=Lax session cookie is first-party — which is
+          // the only way the frame works at all. Given that, `allow-scripts`
+          // plus `allow-same-origin` is the combination the browser warns
+          // "can escape its sandboxing": it would grant the frame our origin
+          // while looking like a restriction. An honest absence beats a
+          // sandbox that protects nothing.
           referrerPolicy="no-referrer"
         />
       </div>
