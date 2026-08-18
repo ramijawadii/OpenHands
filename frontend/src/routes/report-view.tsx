@@ -26,6 +26,7 @@ import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
 import { mermaidCodeRenderer } from "#/components/features/markdown/mermaid-code-renderer";
+import { MermaidCanvas } from "#/components/features/markdown/mermaid-canvas";
 import { EventReport } from "#/components/features/explore/cloudguard-grid/EventReport";
 import {
   clearEventReport,
@@ -51,7 +52,7 @@ const DrawioViewer = React.lazy(
   () => import("#/components/features/office-viewer/drawio-viewer"),
 );
 
-type Kind = "pdf" | "document" | "sheet" | "markdown" | "diagram";
+type Kind = "pdf" | "document" | "sheet" | "markdown" | "diagram" | "mermaid";
 
 interface Artifact {
   path: string;
@@ -80,10 +81,20 @@ const KIND_META: Record<
   markdown: { label: "Markdown", icon: SiMarkdown, color: "#9CA3AF" },
   // Neutral diagram glyph (no vendor brand mark). See docs/rebranding/.
   diagram: { label: "Diagrams", icon: Share2, color: "#F59E0B" },
+  // Kept separate from "Diagrams" (.drawio): a .mmd is text the agent wrote,
+  // opened as a graph canvas, not a draw.io document.
+  mermaid: { label: "Flow diagrams", icon: Share2, color: "#F59E0B" },
 };
 
 // Section order = the order the groups appear in the list.
-const KIND_ORDER: Kind[] = ["document", "sheet", "pdf", "markdown", "diagram"];
+const KIND_ORDER: Kind[] = [
+  "document",
+  "sheet",
+  "pdf",
+  "mermaid",
+  "markdown",
+  "diagram",
+];
 
 function basename(path: string): string {
   return path.replace(/\\/g, "/").split("/").pop() ?? path;
@@ -118,6 +129,18 @@ export default function ReportView() {
     Record<string, { version: number }>
   >({});
   const [publishing, setPublishing] = React.useState<string | null>(null);
+  /**
+   * The durable store's browser-reachable UI. Seafile's own library view gives
+   * per-file revision history, restore, trash recovery, share links and
+   * previews — all real features of the store we would otherwise be
+   * reimplementing badly. `available` is false when the store is unconfigured,
+   * and then the view is hidden rather than framing a page that cannot load.
+   */
+  const [store, setStore] = React.useState<{
+    available: boolean;
+    library_url: string;
+  } | null>(null);
+  const [view, setView] = React.useState<"files" | "library">("files");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -210,6 +233,23 @@ export default function ReportView() {
     refresh();
   }, [refresh]);
 
+  React.useEffect(() => {
+    let cancelled = false;
+    openHands
+      .get<{ available: boolean; library_url: string }>(
+        "/api/cloudguard/vfs/artifact-store",
+      )
+      .then(({ data }) => {
+        if (!cancelled) setStore(data);
+      })
+      .catch(() => {
+        if (!cancelled) setStore({ available: false, library_url: "" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return artifacts
@@ -283,11 +323,46 @@ export default function ReportView() {
     );
   }
 
+  // ── Library view — Seafile's own UI, framed ─────────────────────────────────
+  // Not a reimplementation: revision history, restore, trash recovery, share
+  // links and previews already exist in the store, and rebuilding them against
+  // its API would be strictly worse than showing the real thing.
+  if (view === "library" && store?.available) {
+    return (
+      <div className="cg-conv-compact flex h-full w-full flex-col">
+        <div className="flex items-center gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-2">
+          {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
+          <ViewSwitch view={view} onChange={setView} />
+          <span className="truncate text-[11px] text-[var(--cg-text-muted)]">
+            Durable artifact library — versions, restore and recovery live here
+          </span>
+        </div>
+        <iframe
+          // Keyed so switching back and forth remounts rather than showing a
+          // stale frame from a previous session.
+          key={store.library_url}
+          src={store.library_url}
+          title="Artifact library"
+          className="min-h-0 w-full flex-1 border-0"
+          // The store is a separate origin we do not control the markup of.
+          // Same-origin access is not needed — the frame is only ever navigated
+          // by the user — so withhold it rather than grant it by default.
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
+          referrerPolicy="no-referrer"
+        />
+      </div>
+    );
+  }
+
   // ── Discovery list — same shell/toolbar/sections as conversation-history ────
   return (
     <div className="cg-conv-compact flex h-full w-full flex-col">
       {/* toolbar — mirrors conversation-history's */}
       <div className="flex items-center gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-2">
+        {store?.available && (
+          // eslint-disable-next-line @typescript-eslint/no-use-before-define
+          <ViewSwitch view={view} onChange={setView} />
+        )}
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cg-text-muted)]" />
           <input
@@ -448,6 +523,37 @@ export default function ReportView() {
   );
 }
 
+/** Working files vs the durable library. Two genuinely different things — one is
+ *  the sandbox that dies with the conversation, the other is the store that does
+ *  not — so this is a view switch, not a filter. */
+function ViewSwitch({
+  view,
+  onChange,
+}: {
+  view: "files" | "library";
+  onChange: (v: "files" | "library") => void;
+}) {
+  return (
+    <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-[var(--cg-border-subtle)]">
+      {(["files", "library"] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => onChange(v)}
+          className={cn(
+            "cursor-pointer px-2 py-1 text-[11px] transition-colors",
+            view === v
+              ? "bg-[var(--cg-bg-hover)] text-[var(--cg-text-primary)]"
+              : "text-[var(--cg-text-nav)] hover:text-[var(--cg-text-primary)]",
+          )}
+        >
+          {v === "files" ? "Working files" : "Library"}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 /** Same section header as conversation-history (title + count pill). */
 function Section({
   title,
@@ -486,7 +592,7 @@ function ArtifactViewer({
   const [buffer, setBuffer] = React.useState<ArrayBuffer | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
 
-  const needsText = artifact.kind === "markdown";
+  const needsText = artifact.kind === "markdown" || artifact.kind === "mermaid";
   const needsBinary = artifact.kind === "pdf";
 
   React.useEffect(() => {
@@ -564,6 +670,15 @@ function ArtifactViewer({
       </div>
     );
   }
+  // A .mmd is the diagram itself, so render it directly rather than wrapping it
+  // in markdown just to have a fence to intercept. Every mermaid grammar is
+  // supported because this is mermaid proper, not a partial reimplementation.
+  if (artifact.kind === "mermaid") {
+    // No scroll wrapper and no padding beyond the canvas's own: the diagram
+    // fills the pane rather than sitting in a card inside it.
+    return <MermaidCanvas code={content} />;
+  }
+
   // Mermaid must be intercepted explicitly: MarkdownRenderer only draws
   // diagrams when handed a codeRenderer, and this view was calling it bare —
   // so a report full of ```mermaid chapters rendered as walls of source text.

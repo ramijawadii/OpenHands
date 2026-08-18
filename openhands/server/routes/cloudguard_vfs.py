@@ -571,6 +571,35 @@ async def vfs_publish(body: PublishRequest = Body(...), _p=Depends(require_princ
     return JSONResponse({'source': body.path, 'dest': dest, **_entry_json(entry)})
 
 
+@router.get("/artifact-store")
+async def vfs_artifact_store(_p=Depends(require_principal)):
+    """What the Files surface needs to know about the durable store.
+
+    `browse_url` is a BROWSER-reachable origin, which is not the same value the
+    driver uses: the driver talks to `http://seafile` over the compose network,
+    a name that means nothing in the analyst's browser. Kept a separate setting
+    rather than derived, because guessing it produces an embed that silently
+    fails to load with no clue why.
+
+    `available` is false when the store is not configured. The surface uses that
+    to hide the library view instead of framing a broken page.
+    """
+    import os
+
+    repo_id = (os.environ.get('CLOUDGUARD_SEAFILE_REPO_ID') or '').strip()
+    browse_url = (os.environ.get('CLOUDGUARD_SEAFILE_BROWSE_URL') or '').strip().rstrip('/')
+    return JSONResponse(
+        {
+            'available': bool(repo_id and browse_url),
+            'repo_id': repo_id,
+            'browse_url': browse_url,
+            # Deep link straight to the library, so the frame opens on the
+            # artifacts rather than on Seafile's dashboard.
+            'library_url': f'{browse_url}/library/{repo_id}/' if (repo_id and browse_url) else '',
+        }
+    )
+
+
 @router.get("/cache-stats")
 async def vfs_cache_stats(_p=Depends(require_principal)):
     return JSONResponse(_read_cache().stats())
