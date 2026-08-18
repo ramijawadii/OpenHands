@@ -296,6 +296,37 @@ class WebSession:
             )
             self.logger.debug('Added CloudGuard office MCP server (stdio) to config')
 
+        # CloudGuard: notebook + kernel control (nb_cell_insert/overwrite/edit/
+        # delete/move, nb_execute_cell/all, nb_run_code, kernel_start/stop/
+        # restart/interrupt, terminal_send, nb_live_edit).
+        #
+        # Also stdio, and for a stronger reason than office: these tools EXECUTE
+        # code. Running them in the runtime is what keeps agent execution inside
+        # the sandbox — the same mistake made the other way round is why
+        # kg_run_notebook had to be disabled, since it ran agent-authored
+        # notebooks in the control plane next to the Docker socket.
+        #
+        # The interpreter is pinned to the poetry env deliberately: it is the
+        # only one in the image carrying nbformat, which jupyter_tools imports
+        # transitively. `python` resolves to /usr/local/bin/python, which does
+        # not have it, and the server would die on import.
+        _jupyter_disabled = (
+            _os_cg.environ.get('CLOUDGUARD_JUPYTER_MCP_DISABLED') or ''
+        ).strip().lower() in ('1', 'true', 'yes')
+        if not _jupyter_disabled and not any(
+            s.name == 'cloudguard-jupyter' for s in self.config.mcp.stdio_servers
+        ):
+            self.config.mcp.stdio_servers.append(
+                MCPStdioServerConfig(
+                    name='cloudguard-jupyter',
+                    command=(
+                        '/openhands/poetry/openhands-ai-5O4_aCHf-py3.12/bin/python'
+                    ),
+                    args=['-m', 'cloudguard.kernel.jupyter_mcp'],
+                )
+            )
+            self.logger.debug('Added CloudGuard jupyter MCP server (stdio) to config')
+
         self.logger.debug(
             f'MCP configuration after setup - self.config.mcp: {self.config.mcp}'
         )
