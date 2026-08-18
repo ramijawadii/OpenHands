@@ -13,7 +13,7 @@ const TAB_LABELS: Record<string, string> = {
   editor: "Commands",
   jupyter: "Canvas",
   terminal: "Chat",
-  diagrams: "Report",
+  diagrams: "Files",
   remediation: "Remediation",
   sandbox: "Settings",
 };
@@ -22,14 +22,15 @@ const TAB_LABELS: Record<string, string> = {
 //
 // The store keys are HISTORICAL and no longer match their labels — they are kept
 // so tab selections already persisted in localStorage keep resolving:
-//   "terminal" = Chat, "jupyter" = Canvas, "diagrams" = Report, "sandbox" = Settings.
+//   "terminal" = Chat, "jupyter" = Canvas, "diagrams" = Files, "sandbox" = Settings.
 // Communication moved OUT of the drawer to the sidebar (replacing "Issues"), so
 // the "states" key is retired here; communication-tab.tsx is reused by the page.
 const EditorTab = lazy(() => import("#/routes/commands-tab"));
 const ChatTab = lazy(() => import("#/routes/chat-tab"));
 // Canvas: Documents · Sheet · Notebook (JupyterLab IDE) · Whiteboard.
 const CanvasTab = lazy(() => import("#/routes/canvas-tab"));
-// Report: artifact discovery (filter by type/date) + open-by-type viewers.
+// Files: the filesystem surface — working files in the sandbox plus what has
+// been published to the durable artifact library, with open-by-type viewers.
 const ReportTab = lazy(() => import("#/routes/report-view"));
 const RemediationTab = lazy(() => import("#/routes/remediation-tab"));
 const SandboxHealthTab = lazy(() => import("#/routes/sandbox-health-tab"));

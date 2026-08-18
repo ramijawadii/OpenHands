@@ -137,10 +137,10 @@ export function ConversationTabs() {
   const isTabActive = (tab: ConversationTab) =>
     isRightPanelShown && selectedTab === tab;
 
-  // Chat · Canvas · Report · Remediation · Communication · Settings.
+  // Chat · Canvas · Files · Remediation · Communication · Settings.
   // The store keys are HISTORICAL and no longer match their labels — they are
   // kept so tab selections already persisted in localStorage keep resolving:
-  //   "terminal" = Chat, "jupyter" = Canvas, "diagrams" = Report,
+  //   "terminal" = Chat, "jupyter" = Canvas, "diagrams" = Files,
   //   "states" = Communication (freed when the Logs tab was removed),
   //   "sandbox" = Settings.
   const tabs = [
@@ -163,10 +163,10 @@ export function ConversationTabs() {
     {
       isActive: isTabActive("diagrams"),
       icon: StickyNote,
-      label: "Report",
+      label: "Files",
       onClick: () => onTabSelected("diagrams"),
-      tooltipContent: "Report — saved reports, artifacts and diagrams",
-      tooltipAriaLabel: "Report",
+      tooltipContent: "Files — working files and published artifacts",
+      tooltipAriaLabel: "Files",
     },
     {
       isActive: isTabActive("remediation"),

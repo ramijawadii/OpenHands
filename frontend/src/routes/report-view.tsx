@@ -112,6 +112,12 @@ function fmtRelative(epochSeconds: number): string {
 export default function ReportView() {
   const { conversationId } = useConversationId();
   const [artifacts, setArtifacts] = React.useState<Artifact[]>([]);
+  // Which working files also exist in the durable artifact library, keyed by the
+  // SOURCE path so a row can answer "is this published, and at what version".
+  const [published, setPublished] = React.useState<
+    Record<string, { version: number }>
+  >({});
+  const [publishing, setPublishing] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -152,7 +158,53 @@ export default function ReportView() {
     } finally {
       setLoading(false);
     }
+
+    // The durable library, listed separately and NEVER fatal. The artifact store
+    // is optional: a deployment without Seafile configured answers 503, and this
+    // tab must still show the working files rather than break because durable
+    // storage is absent.
+    const prefix = `conversations/${conversationId}/`;
+    try {
+      const { data } = await openHands.get<{
+        entries: { path: string; version: number }[];
+      }>("/api/cloudguard/vfs/list", {
+        params: {
+          conversation_id: conversationId,
+          store: "artifacts",
+          prefix,
+          recursive: true,
+        },
+      });
+      const map: Record<string, { version: number }> = {};
+      (data.entries ?? []).forEach((e) => {
+        if (e.path.startsWith(prefix)) {
+          map[e.path.slice(prefix.length)] = { version: e.version };
+        }
+      });
+      setPublished(map);
+    } catch {
+      setPublished({});
+    }
   }, [conversationId]);
+
+  const publish = React.useCallback(
+    async (path: string) => {
+      if (!conversationId) return;
+      setPublishing(path);
+      try {
+        await openHands.post("/api/cloudguard/vfs/publish", {
+          conversation_id: conversationId,
+          path,
+        });
+        await refresh();
+      } catch {
+        setError("Could not publish — the artifact store is not reachable.");
+      } finally {
+        setPublishing(null);
+      }
+    },
+    [conversationId, refresh],
+  );
 
   React.useEffect(() => {
     refresh();
@@ -329,7 +381,7 @@ export default function ReportView() {
                     }}
                   >
                     {/* Title row — real file icon replaces the status dot */}
-                    <div className="flex min-h-[20px] w-full items-center justify-between">
+                    <div className="flex min-h-[20px] w-full items-center justify-between gap-2">
                       <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden">
                         <Icon
                           className="h-3.5 w-3.5 shrink-0"
@@ -339,6 +391,40 @@ export default function ReportView() {
                           {basename(a.path)}
                         </span>
                       </div>
+                      {/* Durability, stated rather than implied. A working file
+                          lives in the sandbox container and goes away with the
+                          conversation; a published one is in the artifact
+                          library and outlives it. The badge is always visible
+                          because it is a fact about the file, while the action
+                          appears on hover so the list stays quiet. */}
+                      {published[a.path] ? (
+                        <span
+                          title={`Published to the artifact library (version ${published[a.path].version})`}
+                          className="shrink-0 rounded-md border border-[var(--cg-border-subtle)] px-1.5 py-0.5 text-[10px] text-[var(--cg-text-nav)]"
+                        >
+                          Published v{published[a.path].version}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={publishing === a.path}
+                          title="Publish to the durable artifact library"
+                          onClick={(e) => {
+                            // The row itself opens the viewer.
+                            e.stopPropagation();
+                            publish(a.path);
+                          }}
+                          className={cn(
+                            "shrink-0 cursor-pointer rounded-md border border-[var(--cg-border-subtle)] px-1.5 py-0.5 text-[10px]",
+                            "text-[var(--cg-text-nav)] transition-opacity hover:text-[var(--cg-text-primary)]",
+                            publishing === a.path
+                              ? "opacity-100"
+                              : "opacity-0 group-hover:opacity-100",
+                          )}
+                        >
+                          {publishing === a.path ? "Publishing…" : "Publish"}
+                        </button>
+                      )}
                     </div>
                     {/* Footer row — path left, relative time right */}
                     <div className="mt-1 flex flex-row items-center justify-between">
