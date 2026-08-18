@@ -494,6 +494,83 @@ async def vfs_write(body: WriteRequest = Body(...), _p=Depends(require_principal
     return JSONResponse(_entry_json(e))
 
 
+class PublishRequest(BaseModel):
+    conversation_id: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    # Where it lands in the library. Default is derived, see _artifact_dest.
+    dest: str | None = Field(default=None, max_length=4096)
+    mime: str | None = Field(default=None, max_length=128)
+
+
+def _artifact_dest(conversation_id: str, path: str, dest: str | None) -> str:
+    """Where a published artifact lands.
+
+    Namespaced by conversation by DEFAULT, because the library is one shared
+    store: two conversations that both produce `reports/final.md` would otherwise
+    silently overwrite each other, and the loser would never know. An explicit
+    `dest` is honoured for the case where a caller genuinely wants a shared name;
+    the driver still guards it.
+
+    (Conversation is the narrowest identity this route actually has. Tenant is
+    the layer that should own this prefix, but _TENANT is still the placeholder
+    "default" here — when tenancy is wired at this route, the prefix moves.)
+    """
+    if dest:
+        return dest.lstrip('/')
+    return f'conversations/{conversation_id}/{path.lstrip("/")}'
+
+
+@router.post("/publish")
+async def vfs_publish(body: PublishRequest = Body(...), _p=Depends(require_principal)):
+    """Copy a file from the conversation's sandbox into the durable artifact store.
+
+    Both halves run through the VFS pipeline, so the read is audited against the
+    sandbox and the write is audited against the library — a published artifact
+    has a record on both sides rather than appearing in the store from nowhere.
+
+    The sandbox is ephemeral: its container is deleted when the conversation
+    ends. This is the operation that makes a deliverable outlive the run.
+
+    On verification: the returned entry's content_hash is sha256 of the bytes we
+    read, so it does confirm the two halves agree. A stronger check — reading the
+    file BACK out of the library and hashing that — is deliberately NOT done here,
+    because it would be theatre: the artifact VFS wraps the driver in a
+    CachingDriver that is write-through, so the read-back would be served from
+    the cache entry the write just populated and could not detect a storage-side
+    problem at all. A real end-to-end verification has to bypass the cache, and
+    is worth adding as an explicit audit operation rather than pretending here.
+    """
+    ctx = _ctx(body.conversation_id, _p)
+    data = await _run_store(
+        'sandbox', body.conversation_id, lambda vfs: vfs.read(ctx, body.path)
+    )
+
+    dest = _artifact_dest(body.conversation_id, body.path, body.dest)
+    entry = await _run_store(
+        'artifacts',
+        body.conversation_id,
+        # dedup=True on purpose, unlike the sandbox write path: publishing the
+        # same bytes twice should be a no-op returning the existing entry, not a
+        # new version. A version bump is a claim that the artifact CHANGED, and
+        # the extra stat costs little against a store this side of the network.
+        lambda vfs: vfs.write(ctx, dest, data, mime=body.mime, dedup=True),
+    )
+
+    import hashlib
+
+    source_hash = hashlib.sha256(data).hexdigest()
+    if entry.content_hash != source_hash:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f'publish integrity check failed: source {source_hash[:12]} != '
+                f'stored {entry.content_hash[:12]}'
+            ),
+        )
+
+    return JSONResponse({'source': body.path, 'dest': dest, **_entry_json(entry)})
+
+
 @router.get("/cache-stats")
 async def vfs_cache_stats(_p=Depends(require_principal)):
     return JSONResponse(_read_cache().stats())
