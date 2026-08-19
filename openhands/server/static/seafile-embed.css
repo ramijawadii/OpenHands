@@ -4,109 +4,125 @@
  * STOCK: nothing is patched inside the container, so an upgrade cannot silently
  * revert this and we are not maintaining a fork of seahub's templates.
  *
- * Everything here is either (a) making the frame belong to the console visually,
- * or (b) removing an affordance that only makes sense for a standalone Seafile
- * deployment — a second settings system, a second brand, a second identity, or a
- * way to move a file outside the console entirely.
+ * THE APPROACH: Seafile 13 themes itself with Bootstrap CSS variables — 800 uses
+ * of --bs-body-bg, 304 of --bs-hover-bg, and so on. So this file REMAPS THOSE
+ * VARIABLES to the console's palette rather than chasing individual rules with
+ * !important. That is why hover, popovers, table rows and headers come out right
+ * without a rule for each: they were already themed, just to someone else's
+ * colours. Overriding symptoms one at a time is what left the earlier version
+ * with hovers that flashed Seafile's grey inside a dark drawer.
  */
 
-/* ── Theme ──────────────────────────────────────────────────────────────────
- * The frame must be indistinguishable from the drawer it sits in, so these are
- * the console's own token values rather than an approximation. `cg-light` is
- * set by the proxy from the theme the app passes, because a frame cannot read
- * the parent's CSS variables across a document boundary.
+/* ── Palette ────────────────────────────────────────────────────────────────
+ * The console's own token values, so the frame is indistinguishable from the
+ * drawer around it. `cg-light` is set by the proxy from the theme the app
+ * passes, because a framed document cannot read the parent's CSS variables
+ * across the document boundary.
  */
-:root {
+:root,
+html.cg-dark {
   --id-bg-page: hsl(60deg, 1.64%, 11.96%);
   --id-bg-card: #121212;
-  --id-bg-hover: #0d0d0c;
+  --id-bg-hover: #1c1c1b;
+  --id-bg-active: #232322;
   --id-text: #f7f7f2;
   --id-text-muted: #a3a3a3;
   --id-border: rgba(222, 220, 206, 0.07);
+
+  /* Seafile's own theme contract, repointed. */
+  --bs-body-bg: var(--id-bg-page);
+  --bs-body-color: var(--id-text);
+  --bs-bg-color: var(--id-bg-page);
+  --bs-header-bg: var(--id-bg-page);
+  --bs-body-secondary-bg: var(--id-bg-card);
+  --bs-body-secondary-color: var(--id-text-muted);
+  --bs-secondary-color: var(--id-text-muted);
+  --bs-emphasis-color: var(--id-text);
+  --bs-border-color: var(--id-border);
+  --bs-border-secondary-color: var(--id-border);
+  --bs-border-tertiary-color: var(--id-border);
+  --bs-hover-bg: var(--id-bg-hover);
+  --bs-nav-hover-bg: var(--id-bg-hover);
+  --bs-nav-active-bg: var(--id-bg-active);
+  --bs-tr-hover-bg: var(--id-bg-hover);
+  --bs-tr-active-secondary-bg: var(--id-bg-active);
+  --bs-th-bg: var(--id-bg-page);
+  --bs-popover-bg: var(--id-bg-card);
+  --bs-icon-color: var(--id-text-muted);
+  --bs-icon-secondary-color: var(--id-text-muted);
+  --bs-icon-hover-color: var(--id-text);
 }
+
 html.cg-light {
   --id-bg-page: hsl(48deg, 33.3%, 97.1%);
   --id-bg-card: #ffffff;
   --id-bg-hover: hsl(50deg, 20.7%, 91%);
+  --id-bg-active: hsl(50deg, 20.7%, 87%);
   --id-text: hsl(0deg, 0%, 7%);
   --id-text-muted: #6b6b6b;
   --id-border: rgba(30, 20, 10, 0.07);
 }
 
-html, body,
-#wrapper, #main, .main-panel, .side-panel, .main-panel-north, .cur-view-container,
-.side-nav, .side-nav-con, .sf-heading, .main-panel-center, .content,
-.cur-view-path, .cur-view-content, .path-container, .repo-file-list {
-  background: var(--id-bg-page) !important;
-  color: var(--id-text) !important;
+/* Surfaces Seafile paints with a literal colour rather than a variable. */
+html, body, #wrapper, #main,
+.main-panel, .side-panel, .main-panel-center, .cur-view-container,
+.side-nav, .side-nav-con, .cur-view-path, .cur-view-content {
+  background-color: var(--id-bg-page) !important;
+  color: var(--id-text);
   border-color: var(--id-border) !important;
 }
 
 .side-panel, .side-nav { border-right: 1px solid var(--id-border) !important; }
-.main-panel-north, .cur-view-path { border-bottom: 1px solid var(--id-border) !important; }
 
-a, .sf2-icon-caret-down, .item-name, .dirent-name, .normal { color: var(--id-text) !important; }
-.sf-dropdown-toggle, .dropdown-menu, .modal-content, .sf-popover, .item-toggle {
-  background: var(--id-bg-card) !important;
-  color: var(--id-text) !important;
-  border-color: var(--id-border) !important;
-}
-tr:hover, .dropdown-item:hover, .side-nav li a:hover, .grid-item:hover {
+/* Hardcoded hovers — the few Seafile did NOT route through a variable. */
+.op-btn:hover,
+.metadata-slider-container .metadata-slider-icon-button:hover {
   background: var(--id-bg-hover) !important;
 }
-.dirent-table-container th, .table thead th, .cur-view-path .path-item {
-  background: var(--id-bg-page) !important;
-  color: var(--id-text-muted) !important;
-}
+
+/* ── The top bar ────────────────────────────────────────────────────────────
+ * It holds only a theme toggle and a notification bell. Theme is owned by the
+ * console (the frame is told which palette to paint), and notifications belong
+ * to the console's own notification surface — two competing controls for things
+ * the console already decides.
+ */
+.top-header, .common-toolbar { display: none !important; }
 
 /* ── Second brand ───────────────────────────────────────────────────────────
- * One product, one brand. The store is an implementation detail of the console,
- * so its logo and name are removed rather than co-branded.
+ * One product, one brand. The store is an implementation detail of the console.
  */
-#logo, .top-logo, .logo, img.avatar[src*="seafile"],
-a[href$="/seafile/"] > img, .sf-logo, #header-logo {
+#logo, .top-logo, .logo, .sf-logo, #header-logo,
+a[href$="/seafile/"] > img {
   display: none !important;
 }
 
 /* ── Help and resources ─────────────────────────────────────────────────────
- * Help, Clients and About point at a product the analyst is not using and
- * cannot install. Support belongs to the console.
+ * The heading is text-identified, so seafile-embed.js removes it; this covers
+ * the footer block, which does have a stable class.
  */
-.side-nav-footer,
-#help-resources,
-.side-nav .side-nav-title:last-of-type,
-a[href*="/help/"], a[href*="/download/"], a[href*="/about"],
-li a[href*="seafile.com"] {
-  display: none !important;
-}
+.side-nav-footer { display: none !important; }
 
 /* ── Personal settings ──────────────────────────────────────────────────────
  * Settings are defined and ENFORCED by the console (org → workspace → team →
  * access admin). A second, per-user settings system inside the frame can only
- * disagree with that, and a user changing them here would be changing something
- * the console never granted.
+ * disagree with that.
  */
-a[href*="/profile/"], a[href*="/settings/"],
-#user-info-popover a[href*="profile"], .sf-dropdown-item[href*="settings"] {
-  display: none !important;
-}
+a[href*="/profile/"], a[href*="/settings/"] { display: none !important; }
 
 /* ── Sharing outside the console ────────────────────────────────────────────
- * No external share links, no third-party destinations, no opening a file in a
- * standalone page. An artifact that leaves through a side door leaves the audit
- * trail behind with it.
+ * Belt and braces only: the real control is the `can_generate_share_link` role
+ * permission, which makes the SERVER answer 403. Hiding a button that still
+ * works would not be a control, so this is cosmetic tidying, not enforcement.
  */
-.share-link, .share-link-panel, #share-link, .op-icon[title*="Share"],
-.sf2-icon-share, .share-btn, a[href*="/shared-link"],
-.file-external-link, .op-icon[title*="Open in New Tab"],
-a[target="_blank"]:not(.id-keep) {
+.share-link, .share-link-panel, #share-link,
+.op-icon[title*="Share"], .sf2-icon-share, a[href*="/shared-link"] {
   display: none !important;
 }
 
 /* ── Profile images ─────────────────────────────────────────────────────────
  * Avatars are user-uploaded raster images from a system that does not own
- * identity here. Replaced with a neutral glyph so the frame cannot render
- * arbitrary uploaded content as a person.
+ * identity here, so the frame cannot render arbitrary uploaded content as a
+ * person. Replaced with the lucide `user` glyph the console uses elsewhere.
  */
 img.avatar, .avatar img, .user-avatar, #user-info img {
   visibility: hidden !important;
@@ -119,7 +135,6 @@ img.avatar::after, .avatar img::after, .user-avatar::after {
   inset: 0;
   border-radius: 50%;
   background: var(--id-bg-hover);
-  /* lucide `user` — the same icon set the console uses everywhere else. */
   -webkit-mask: center/60% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>");
   mask: center/60% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>");
 }
