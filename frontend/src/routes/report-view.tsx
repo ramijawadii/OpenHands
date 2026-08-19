@@ -140,12 +140,25 @@ export default function ReportView() {
     available: boolean;
     library_url: string;
   } | null>(null);
-  /** The console's current palette, handed to the framed store so it matches. */
-  const theme =
+  /** The console's current palette, handed to the framed store so it matches.
+   *  Watched rather than read once: the frame is keyed on it, so toggling the
+   *  console theme reloads the frame in the new palette instead of leaving it
+   *  in the old one until the tab is reopened. */
+  const [theme, setTheme] = React.useState<"light" | "dark">(() =>
     typeof document !== "undefined" &&
     document.documentElement.classList.contains("light")
       ? "light"
-      : "dark";
+      : "dark",
+  );
+  React.useEffect(() => {
+    const root = document.documentElement;
+    const sync = () =>
+      setTheme(root.classList.contains("light") ? "light" : "dark");
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 

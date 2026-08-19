@@ -138,3 +138,121 @@ img.avatar::after, .avatar img::after, .user-avatar::after {
   -webkit-mask: center/60% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>");
   mask: center/60% no-repeat url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>");
 }
+
+/* ══ Sidebar — rebuilt to the console's Settings-tab rail ═══════════════════
+ * Same metrics as ArtifactSettingsView's nav, taken from the source rather than
+ * eyeballed: 28px rows, 12.5px text, 6px gap, 13px icons, 6px radius, and the
+ * app font stack. The point is that a user moving between the Settings tab and
+ * the Files tab should not be able to tell they changed applications.
+ */
+:root, html.cg-dark { --id-bg-rail: #121212; }
+html.cg-light { --id-bg-rail: #ffffff; }
+
+.side-panel, .side-nav, .side-nav-con {
+  background-color: var(--id-bg-rail) !important;
+  font-family: -apple-system, "SF Pro", BlinkMacSystemFont, "Segoe UI", Roboto,
+    Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+}
+
+.side-nav .nav-item { margin: 0 6px; }
+
+.side-nav .nav-item .nav-link {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px !important;
+  font-size: 12.5px;
+  line-height: 1;
+  border-radius: 6px;
+  color: var(--id-text-muted) !important;
+  transition: background-color .12s ease, color .12s ease;
+}
+
+.side-nav .nav-item .nav-link:hover {
+  background-color: var(--id-bg-hover) !important;
+  color: var(--id-text) !important;
+}
+
+/* Active is a filled rounded row, matching the Settings rail's selected item. */
+.side-nav .nav-item .nav-link.active {
+  background-color: var(--id-bg-active) !important;
+  color: var(--id-text) !important;
+  font-weight: 500;
+}
+
+/* Group headings ("Workspace") — quieter than the items they label. */
+.side-nav h2, .side-nav .heading {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: .02em;
+  color: var(--id-text-muted) !important;
+  padding: 0 12px !important;
+}
+
+/* ── Icons ──────────────────────────────────────────────────────────────────
+ * Seafile draws its icons with an icon FONT (sf3-font-*/sf2-icon-*). Each glyph
+ * is replaced by the lucide equivalent the console uses, as a mask painted in
+ * `currentColor` — so an icon inherits the row's colour and needs no separate
+ * dark/light treatment. The glyph itself is collapsed to zero, not merely
+ * hidden, or it would still take its own width beside the mask.
+ */
+.side-nav [class*="sf3-font-"],
+.side-nav [class*="sf2-icon-"] {
+  font-size: 0 !important;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  display: inline-block;
+  background-color: currentColor;
+  -webkit-mask: center / 13px 13px no-repeat var(--id-icon, none);
+  mask: center / 13px 13px no-repeat var(--id-icon, none);
+}
+
+/* lucide `user` — My Libraries */
+.side-nav .sf3-font-mine {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>");
+}
+/* lucide `users` — Shared with me */
+.side-nav .sf3-font-share-with-me {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>");
+}
+/* lucide `globe` — Shared with all */
+.side-nav .sf3-font-share-with-all {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/><path d='M2 12h20'/></svg>");
+}
+/* lucide `star` — Favorites */
+.side-nav .sf3-font-starred, .side-nav .sf3-font-star {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
+}
+/* lucide `wrench` — Share Admin */
+.side-nav .sf3-font-wrench {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/></svg>");
+}
+/* lucide `plus` — New Group */
+.side-nav .sf2-icon-plus {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/><path d='M12 5v14'/></svg>");
+}
+/* lucide `history` — Activities */
+.side-nav .sf3-font-activities, .side-nav .sf3-font-clock {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M12 7v5l4 2'/></svg>");
+}
+/* lucide `chevron-down` — expand/collapse carets */
+.side-nav .sf3-font-down {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
+}
+
+/* ── Collapsed rail ─────────────────────────────────────────────────────────
+ * Folded, the sidebar is icons only, so the row becomes a centred square and the
+ * label is dropped rather than clipped mid-word.
+ */
+.side-nav.folded .nav-item .nav-link {
+  justify-content: center;
+  padding: 0 !important;
+  width: 28px;
+}
+.side-nav.folded .nav-item .nav-link .nav-text,
+.side-nav.folded h2,
+.side-nav.folded .heading {
+  display: none !important;
+}
