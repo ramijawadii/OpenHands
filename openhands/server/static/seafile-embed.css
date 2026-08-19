@@ -414,3 +414,97 @@ html.cg-light { color-scheme: light; }
   font-size: 11px !important;
   color: var(--id-text-muted) !important;
 }
+
+/* ══ Unified surfaces ═══════════════════════════════════════════════════════
+ * Audited in the browser: content was rgb(31,31,30) while the sidebar was
+ * rgb(18,18,18), which is the "colour cut off" — a hard seam down the middle of
+ * one panel. The drawer this frame sits in is one surface, so the frame is one
+ * surface too: everything takes the rail colour and only BORDERS separate
+ * regions. The detail drawer was the worst of it at rgb(255,255,255) — pure
+ * white inside a dark frame.
+ */
+html, body, #wrapper, #main,
+.main-panel, .main-panel-center, .main-panel-north,
+.cur-view-container, .cur-view-content, .cur-view-path,
+.side-panel, .side-nav, .side-nav-con,
+.cur-view-detail, .cur-view-detail-small, .detail-body, .dirent-info,
+.tree-section, .tree-view, .dir-content-nav {
+  background-color: var(--id-bg-rail) !important;
+}
+.cur-view-detail, .cur-view-detail-small {
+  border-left: 1px solid var(--id-border) !important;
+  color: var(--id-text) !important;
+}
+.detail-body, .dirent-info, .detail-header, .detail-title { color: var(--id-text) !important; }
+
+/* ── The sidebar stays open at ANY width ────────────────────────────────────
+ * Seafile folds it below Bootstrap's md breakpoint. That is right for a browser
+ * window and wrong for a drawer, which is often narrower than 768px and would
+ * otherwise show an icon rail with no way to expand it — the fold control was
+ * removed, so a collapsed sidebar here is a dead end.
+ */
+.side-panel {
+  width: 240px !important;
+  min-width: 240px !important;
+  transform: none !important;
+  position: relative !important;
+  left: 0 !important;
+}
+.side-panel.side-panel-hidden, .side-nav.side-nav-hidden { display: flex !important; }
+
+/* ── Nothing orange ─────────────────────────────────────────────────────────
+ * Audited: `.usage` still painted rgb(237,113,9), and the activity tabs mark the
+ * selected one with an orange underline. Selection is shown the console's way —
+ * a light row or a light underline — so there is one visual language, not two.
+ */
+.usage, .progress-bar, .usage-bar { background-color: var(--id-text-muted) !important; }
+.nav-tabs .nav-item .nav-link.active,
+.tab-nav .nav-link.active,
+.ui-tabs .ui-tabs-active {
+  border-bottom-color: var(--id-text) !important;
+  color: var(--id-text) !important;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────────
+ * Primary actions match the chatbox send button: a white pill with dark text,
+ * the same affordance the analyst already knows from the composer.
+ */
+.btn-primary, .btn-submit, button[type="submit"], .submit-btn, .sf-btn-primary {
+  background-color: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #121212 !important;
+  border-radius: 9999px !important;
+  font-weight: 500;
+}
+.btn-primary:hover, button[type="submit"]:hover, .sf-btn-primary:hover {
+  background-color: rgba(255, 255, 255, 0.88) !important;
+  color: #121212 !important;
+}
+.btn-secondary, .btn-outline-primary {
+  background-color: transparent !important;
+  border-color: var(--id-border) !important;
+  color: var(--id-text) !important;
+  border-radius: 9999px !important;
+}
+
+/* ── Menus ──────────────────────────────────────────────────────────────────
+ * Softer corners than the first pass (16px read as a card, not a menu) and room
+ * for a leading icon, which seafile-embed.js fills in per item.
+ */
+.dropdown-menu, .context-menu, .dropdown-menu-container, .sf-popover {
+  border-radius: 10px !important;
+}
+.dropdown-item, .dropdown-menu-item, .context-menu-item {
+  border-radius: 6px !important;
+  gap: 10px !important;
+}
+.id-menu-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: inline-block;
+  background-color: currentColor;
+  opacity: .75;
+  -webkit-mask: center / 14px 14px no-repeat var(--id-icon, none);
+  mask: center / 14px 14px no-repeat var(--id-icon, none);
+}
