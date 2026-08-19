@@ -140,7 +140,12 @@ export default function ReportView() {
     available: boolean;
     library_url: string;
   } | null>(null);
-  const [view, setView] = React.useState<"files" | "library">("files");
+  /** The console's current palette, handed to the framed store so it matches. */
+  const theme =
+    typeof document !== "undefined" &&
+    document.documentElement.classList.contains("light")
+      ? "light"
+      : "dark";
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -327,21 +332,18 @@ export default function ReportView() {
   // Not a reimplementation: revision history, restore, trash recovery, share
   // links and previews already exist in the store, and rebuilding them against
   // its API would be strictly worse than showing the real thing.
-  if (view === "library" && store?.available) {
+  if (store?.available) {
     return (
       <div className="cg-conv-compact flex h-full w-full flex-col">
-        <div className="flex items-center gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-2">
-          {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
-          <ViewSwitch view={view} onChange={setView} />
-          <span className="truncate text-[11px] text-[var(--cg-text-muted)]">
-            Durable artifact library — versions, restore and recovery live here
-          </span>
-        </div>
         <iframe
           // Keyed so switching back and forth remounts rather than showing a
           // stale frame from a previous session.
-          key={store.library_url}
-          src={store.library_url}
+          key={`${store.library_url}${theme}`}
+          // The theme rides on the URL because a framed document cannot read
+          // the parent's CSS variables across the document boundary — the proxy
+          // reads it and injects the matching palette, so the frame paints in
+          // the console's colours instead of flashing the store's own.
+          src={`${store.library_url}?cg_theme=${theme}`}
           title="Artifact library"
           className="min-h-0 w-full flex-1 border-0"
           // No sandbox attribute, deliberately. The store is proxied onto OUR
@@ -362,10 +364,6 @@ export default function ReportView() {
     <div className="cg-conv-compact flex h-full w-full flex-col">
       {/* toolbar — mirrors conversation-history's */}
       <div className="flex items-center gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-2">
-        {store?.available && (
-          // eslint-disable-next-line @typescript-eslint/no-use-before-define
-          <ViewSwitch view={view} onChange={setView} />
-        )}
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--cg-text-muted)]" />
           <input
@@ -529,34 +527,6 @@ export default function ReportView() {
 /** Working files vs the durable library. Two genuinely different things — one is
  *  the sandbox that dies with the conversation, the other is the store that does
  *  not — so this is a view switch, not a filter. */
-function ViewSwitch({
-  view,
-  onChange,
-}: {
-  view: "files" | "library";
-  onChange: (v: "files" | "library") => void;
-}) {
-  return (
-    <div className="inline-flex shrink-0 overflow-hidden rounded-md border border-[var(--cg-border-subtle)]">
-      {(["files", "library"] as const).map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => onChange(v)}
-          className={cn(
-            "cursor-pointer px-2 py-1 text-[11px] transition-colors",
-            view === v
-              ? "bg-[var(--cg-bg-hover)] text-[var(--cg-text-primary)]"
-              : "text-[var(--cg-text-nav)] hover:text-[var(--cg-text-primary)]",
-          )}
-        >
-          {v === "files" ? "Working files" : "Library"}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 /** Same section header as conversation-history (title + count pill). */
 function Section({
   title,

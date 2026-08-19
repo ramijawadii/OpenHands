@@ -27,13 +27,20 @@ lets these paths win over the frontend router.
 from __future__ import annotations
 
 import asyncio
+import base64
+import hashlib
+import hmac
 import os
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
+from fastapi.responses import Response as PlainResponse
+
+from openhands.server.routes.cloudguard_principal import require_principal
 
 router = APIRouter()
 
@@ -43,6 +50,48 @@ _DROP_REQUEST = {'host', 'content-length', 'connection', 'keep-alive', 'upgrade'
 _DROP_RESPONSE = {'content-length', 'content-encoding', 'transfer-encoding', 'connection', 'keep-alive'}
 
 _TIMEOUT = httpx.Timeout(60.0, read=300.0)
+
+_SKIN = Path(__file__).resolve().parent.parent / 'static' / 'seafile-embed.css'
+
+
+def _skin_css() -> str:
+    try:
+        return _SKIN.read_text(encoding='utf-8')
+    except OSError:
+        return ''
+
+
+def _reskin(body: bytes, theme: str) -> bytes:
+    """Inject the console skin into a Seafile HTML page.
+
+    Injection rather than patching seahub's templates: Seafile stays STOCK, so an
+    upgrade cannot silently revert the branding and we are not maintaining a fork
+    of its front end.
+
+    The theme is passed in because a framed document cannot read the parent's CSS
+    variables across the document boundary — the console tells us which palette
+    it is currently showing and we set the matching class.
+    """
+    css = _skin_css()
+    if not css:
+        return body
+    try:
+        html = body.decode('utf-8')
+    except UnicodeDecodeError:
+        return body
+    if '</head>' not in html:
+        return body
+
+    cls = 'cg-light' if theme == 'light' else 'cg-dark'
+    html = html.replace('</head>', f'<style id="id-embed-skin">{css}</style></head>', 1)
+    # Set the palette class on <html> itself so the variables resolve before
+    # first paint rather than flashing Seafile's own colours first.
+    html = html.replace(
+        '</head>',
+        f'<script>document.documentElement.classList.add("{cls}");</script></head>',
+        1,
+    )
+    return html.encode('utf-8')
 
 
 def _upstream_origin() -> str | None:
@@ -61,39 +110,163 @@ def _upstream_origin() -> str | None:
     return f'{parts.scheme}://{parts.netloc}'
 
 
-# Server-side Seafile session, shared by everyone the app has already
-# authenticated. Cached because logging in costs two round trips and the cookie
-# is valid for a day.
-_session_cookie: str | None = None
+# ── Per-user identity in the store ──────────────────────────────────────────
+# The console is used by a TEAM inside a workspace inside an org, so one shared
+# Seafile login would attribute every action to a service account and make the
+# store's own history useless for collaboration. Each console Principal instead
+# gets its own Seafile account, its own session, and its own share of the
+# library — so Seafile records who actually renamed, deleted or restored a file.
+#
+# Sessions are cached per account; provisioning happens once per account and is
+# then skipped.
+_sessions: dict[str, str] = {}
+_provisioned: set[str] = set()
 _session_lock = asyncio.Lock()
 
+# SHORT on purpose. Seafile rejects a long account name with a bare HTTP 500 —
+# measured: a 42-character address is created (201) while a 69-character one
+# fails (500), with no validation message to explain it. A hashed local part
+# keeps every derived address the same, safe length regardless of how long the
+# console subject and tenant are.
+_ACCOUNT_DOMAIN = 'id.local'
 
-async def _server_session(origin: str) -> str | None:
-    """A Seafile session cookie obtained on the user's behalf.
 
-    The analyst is already authenticated to CloudGuard; making them log in AGAIN
-    to a service they did not know they were using is the wrong seam. ONLYOFFICE is
-    handed a JWT and JupyterLab a token, both minted server-side — Seafile was
-    the odd one out only because it authenticates with a session cookie instead
-    of a query parameter.
+def _identity(principal) -> tuple[str, str] | None:
+    """Deterministic (email, password) for a console principal.
 
-    Returns None when no credentials are configured, in which case the frame
-    falls back to Seafile's own login page rather than breaking.
+    Deterministic so nothing has to be STORED: the password is derived from a
+    server-side secret and the account name, never leaves this process, and is
+    never shown to the user — they authenticate to the console, not to Seafile.
+    Deriving beats persisting a credential we would then have to protect.
+
+    Keyed on tenant AND subject, so the same username in two tenants is two
+    accounts. Returns None when there is no secret to derive from, in which case
+    the caller falls back rather than inventing a guessable password.
     """
-    global _session_cookie
-
-    user = (os.environ.get('CLOUDGUARD_SEAFILE_USER') or '').strip()
-    password = (os.environ.get('CLOUDGUARD_SEAFILE_PASSWORD') or '').strip()
-    if not user or not password:
+    secret = (
+        os.environ.get('CLOUDGUARD_SEAFILE_USER_SECRET')
+        or os.environ.get('SEAFILE_JWT_KEY')
+        or os.environ.get('CLOUDGUARD_SEAFILE_TOKEN')
+        or ''
+    ).strip()
+    if not secret:
         return None
 
+    subject = _slug(getattr(principal, 'subject', '') or 'console')
+    tenant = _slug(getattr(principal, 'tenant_id', '') or 'default')
+    # Hashed, not concatenated — see _ACCOUNT_DOMAIN. Tenant is inside the hash
+    # so the same username in two tenants is two accounts, and the display name
+    # set at provisioning is what makes the account readable in Seafile's own
+    # history.
+    handle = hashlib.sha256(f'{tenant}|{subject}'.encode()).hexdigest()[:16]
+    email = f'u{handle}@{_ACCOUNT_DOMAIN}'
+    digest = hmac.new(secret.encode(), email.encode(), hashlib.sha256).digest()
+    # Seafile enforces a password policy; a urlsafe b64 digest with a fixed
+    # prefix satisfies length + character-class rules without a retry loop.
+    password = 'Id1!' + base64.urlsafe_b64encode(digest).decode().rstrip('=')[:28]
+    return email, password
+
+
+def _slug(raw: str) -> str:
+    keep = [c if (c.isalnum() or c in '-_') else '-' for c in str(raw).lower()]
+    return ''.join(keep).strip('-')[:48] or 'user'
+
+
+def _admin_headers() -> dict[str, str] | None:
+    token = (os.environ.get('CLOUDGUARD_SEAFILE_TOKEN') or '').strip()
+    return {'Authorization': f'Token {token}'} if token else None
+
+
+async def _find_account(client: httpx.AsyncClient, base: str, admin: dict, email: str) -> str | None:
+    """The internal Seafile id for our derived address, if the account exists.
+
+    Seafile 13 does NOT store the address you ask for as the account's email: it
+    mints an opaque `<uuid>@auth.local` id and keeps yours as `contact_email`.
+    Creating blindly therefore makes a NEW account on every request — measured,
+    that is exactly what happened before this lookup existed. Login still works
+    with the contact_email, which is why the sprawl was invisible from the
+    frame.
+    """
+    try:
+        found = await client.get(
+            f'{base}/api/v2.1/admin/search-user/', headers=admin, params={'query': email}
+        )
+        if found.status_code >= 400:
+            return None
+        for user in found.json().get('user_list', []):
+            if (user.get('contact_email') or '').lower() == email.lower():
+                return user.get('email')
+    except (httpx.HTTPError, ValueError):
+        return None
+    return None
+
+
+async def _provision(
+    client: httpx.AsyncClient, origin: str, email: str, password: str, display: str = ''
+) -> bool:
+    """Ensure the account exists and can reach the artifact library. Idempotent."""
+    admin = _admin_headers()
+    if not admin:
+        return False
+    base = f'{origin}/seafile'
+    try:
+        internal = await _find_account(client, base, admin, email)
+        if internal is None:
+            created = await client.post(
+                f'{base}/api/v2.1/admin/users/',
+                headers=admin,
+                # `name` is what Seafile shows in its own activity and history,
+                # so the derived address stays an implementation detail rather
+                # than what a teammate sees next to a change.
+                data={'email': email, 'password': password, 'name': display or email},
+            )
+            if created.status_code >= 400:
+                return False
+            internal = created.json().get('email')
+        if not internal:
+            return False
+
+        repo_id = (os.environ.get('CLOUDGUARD_SEAFILE_REPO_ID') or '').strip()
+        if repo_id:
+            # Shared to the INTERNAL id, not our address — the share API keys on
+            # the account's own email, and a share to the contact_email silently
+            # does nothing.
+            #
+            # Read-write: the library is the team's shared workspace, and a
+            # reader who cannot restore a file cannot use the recovery this
+            # store exists to provide.
+            await client.put(
+                f'{base}/api2/repos/{repo_id}/dir/shared_items/',
+                headers=admin,
+                params={'p': '/'},
+                data={'share_type': 'user', 'username': internal, 'permission': 'rw'},
+            )
+    except (httpx.HTTPError, ValueError):
+        return False
+    return True
+
+
+async def _session_for(origin: str, principal) -> str | None:
+    """This principal's own Seafile session cookie, provisioning on first use."""
+    ident = _identity(principal)
+    if not ident:
+        return None
+    email, password = ident
+
     async with _session_lock:
-        if _session_cookie:
-            return _session_cookie
+        cached = _sessions.get(email)
+        if cached:
+            return cached
 
         login_url = f'{origin}/seafile/accounts/login/'
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
+                if email not in _provisioned:
+                    display = str(getattr(principal, 'subject', '') or '').strip()
+                    if not await _provision(client, origin, email, password, display):
+                        return None
+                    _provisioned.add(email)
+
                 page = await client.get(login_url)
                 token = ''
                 for chunk in page.text.split('name="csrfmiddlewaretoken"'):
@@ -104,30 +277,33 @@ async def _server_session(origin: str) -> str | None:
                     login_url,
                     data={
                         'csrfmiddlewaretoken': token,
-                        'login': user,
+                        'login': email,
                         'password': password,
                     },
-                    # Django checks Referer/Origin on the login POST; send the
-                    # page's own URL so it validates the way a browser would.
+                    # Django validates Referer/Origin on the login POST; send the
+                    # page's own URL so it passes the way a browser would.
                     headers={'Referer': login_url, 'Origin': origin},
                     cookies=page.cookies,
                 )
                 sid = posted.cookies.get('sessionid') or client.cookies.get('sessionid')
                 if sid and posted.status_code in (301, 302):
-                    _session_cookie = sid
+                    _sessions[email] = sid
                     return sid
         except httpx.HTTPError:
             return None
     return None
 
 
-def _invalidate_session() -> None:
-    """Drop the cached session so the next request logs in again."""
-    global _session_cookie
-    _session_cookie = None
+def _invalidate_session(principal=None) -> None:
+    """Drop cached sessions so the next request logs in again."""
+    ident = _identity(principal) if principal is not None else None
+    if ident:
+        _sessions.pop(ident[0], None)
+    else:
+        _sessions.clear()
 
 
-async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
+async def _proxy(request: Request, principal) -> StreamingResponse | JSONResponse:
     origin = _upstream_origin()
     if not origin:
         return JSONResponse(
@@ -149,13 +325,14 @@ async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
 
     headers = {k: v for k, v in request.headers.items() if k.lower() not in _DROP_REQUEST}
 
-    # Single sign-on, in effect. If the browser has no Seafile session of its
-    # own, attach the app's — the analyst authenticated to CloudGuard already,
-    # and a second login prompt for a service they did not choose is the wrong
-    # seam. A session the browser DOES carry always wins, so anyone who signs in
-    # as themselves keeps their own identity in Seafile's history.
+    # Single sign-on, per user. The analyst authenticated to the console
+    # already, so a second login prompt for a service they did not choose is the
+    # wrong seam — but the session attached is THEIR OWN, derived from the
+    # request principal, not a shared service account. That is what keeps
+    # Seafile's own history meaningful when a team shares a workspace: it records
+    # who actually renamed, deleted or restored a file.
     if 'sessionid=' not in headers.get('cookie', ''):
-        sid = await _server_session(origin)
+        sid = await _session_for(origin, principal)
         if sid:
             existing = headers.get('cookie', '')
             headers['cookie'] = f'{existing}; sessionid={sid}'.lstrip('; ')
@@ -185,14 +362,28 @@ async def _proxy(request: Request) -> StreamingResponse | JSONResponse:
         for k, v in response.headers.items()
         if k.lower() not in _DROP_RESPONSE and k.lower() != 'set-cookie'
     }
-    proxied = StreamingResponse(
-        response.aiter_bytes(),
-        status_code=response.status_code,
-        headers=out,
-        # The client outlives this function — it must not be closed until the
-        # body has finished streaming, or the download truncates.
-        background=BackgroundTask(client.aclose),
-    )
+    # HTML is BUFFERED so the skin can be injected; everything else keeps
+    # streaming, because an artifact download must not be held in memory just
+    # because pages need rewriting.
+    if 'text/html' in response.headers.get('content-type', ''):
+        raw = await response.aread()
+        await client.aclose()
+        theme = request.query_params.get('cg_theme') or request.cookies.get('cg_theme') or 'dark'
+        proxied = PlainResponse(
+            content=_reskin(raw, theme),
+            status_code=response.status_code,
+            headers=out,
+            media_type=response.headers.get('content-type'),
+        )
+    else:
+        proxied = StreamingResponse(
+            response.aiter_bytes(),
+            status_code=response.status_code,
+            headers=out,
+            # The client outlives this function — it must not be closed until the
+            # body has finished streaming, or the download truncates.
+            background=BackgroundTask(client.aclose),
+        )
 
     # Set-Cookie is the one header that legitimately repeats, and a dict keeps
     # only the last. Seafile sends sessionid AND sfcsrftoken together, so
@@ -210,10 +401,10 @@ _METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
 
 @router.api_route('/seafile/{path:path}', methods=_METHODS)
-async def seafile_ui(path: str, request: Request):
-    return await _proxy(request)
+async def seafile_ui(path: str, request: Request, principal=Depends(require_principal)):
+    return await _proxy(request, principal)
 
 
 @router.api_route('/seafhttp/{path:path}', methods=_METHODS)
-async def seafile_fileserver(path: str, request: Request):
-    return await _proxy(request)
+async def seafile_fileserver(path: str, request: Request, principal=Depends(require_principal)):
+    return await _proxy(request, principal)
