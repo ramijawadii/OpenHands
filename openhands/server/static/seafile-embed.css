@@ -473,7 +473,7 @@ html, body, #wrapper, #main,
   background-color: #ffffff !important;
   border-color: #ffffff !important;
   color: #121212 !important;
-  border-radius: 9999px !important;
+  border-radius: 6px !important;
   font-weight: 500;
 }
 .btn-primary:hover, button[type="submit"]:hover, .sf-btn-primary:hover {
@@ -484,7 +484,7 @@ html, body, #wrapper, #main,
   background-color: transparent !important;
   border-color: var(--id-border) !important;
   color: var(--id-text) !important;
-  border-radius: 9999px !important;
+  border-radius: 6px !important;
 }
 
 /* ── Menus ──────────────────────────────────────────────────────────────────
@@ -507,4 +507,40 @@ html, body, #wrapper, #main,
   opacity: .75;
   -webkit-mask: center / 14px 14px no-repeat var(--id-icon, none);
   mask: center / 14px 14px no-repeat var(--id-icon, none);
+}
+
+/* ══ Sidebar labels ═════════════════════════════════════════════════════════
+ * The labels were in the DOM, coloured correctly, and still invisible: measured
+ * at 24px wide, squeezed to nothing. `.nav-link` carries `.ellipsis`, and once
+ * it became a flex row the text had no basis to grow into while the icon and
+ * the caret took their fixed widths. So the rail rendered as icons with a
+ * tooltip — which reads as a collapsed sidebar rather than a broken label.
+ */
+.side-nav .nav-link .nav-text,
+.side-nav .nav-link > span:not([class*="sf3-font"]):not([class*="sf2-icon"]) {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  width: auto !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit !important;
+}
+/* The caret sits at the end and never competes with the label for space. */
+.side-nav .nav-link .toggle-icon { margin-left: auto; flex: 0 0 14px; }
+
+/* ══ The library tree rail ══════════════════════════════════════════════════
+ * Its headings were dim enough to read as disabled, and its carets pointed
+ * sideways at sections that are open — the same "is this broken?" signal the
+ * main sidebar had.
+ */
+.tree-section-header, .tree-section-header-title, .tree-view .tree-node-text {
+  color: var(--id-text) !important;
+  font-size: 12.5px !important;
+}
+.tree-section .toggle-icon,
+.tree-section [class*="sf3-font-down"],
+.tree-section-header .sf3-font {
+  color: var(--id-text-muted) !important;
+  transform: none !important;
 }
