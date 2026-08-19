@@ -373,3 +373,44 @@ html.cg-light { color-scheme: light; }
   background: var(--id-border) !important;
   border-color: var(--id-border) !important;
 }
+
+/* ══ Final pass — markers, carets, and the secondary rail ═══════════════════ */
+
+/* Seafile marks an active nav row with an orange bar (#ff9800) in five separate
+ * rules. The console marks selection with a filled row, so a coloured bar is a
+ * second, competing signal for the same state — removed rather than recoloured.
+ */
+.side-nav .nav-link.active:before,
+.side-nav .nav-item.active:before,
+.lib-setting-nav .nav-pills .nav-item .nav-link.active:before,
+.share-dialog-side .nav-pills .nav-item .nav-link.active:before,
+.tree-node.tree-node-selected:before {
+  display: none !important;
+  content: none !important;
+}
+
+/* Carets point DOWN. Seafile rotates the same glyph by -90° to mean collapsed;
+ * since sections are expanded on landing, the rotation only ever showed a
+ * sideways arrow above open content. */
+.side-nav .rotate-90,
+.side-nav .sf3-font-down.rotate-90,
+.tree-section .rotate-90 { transform: none !important; }
+
+/* The secondary rail (library tree: Files / Views / Tags / Others) is chrome,
+ * so it takes the same surface as the primary sidebar rather than the content
+ * background — otherwise the frame shows three different greys side by side.
+ */
+.tree-section, .tree-view, .dir-content-nav, .cur-view-path-left,
+.side-panel-north, .tree-panel, .metadata-tree-view {
+  background-color: var(--id-bg-rail) !important;
+  color: var(--id-text) !important;
+  border-color: var(--id-border) !important;
+}
+.tree-node-inner:hover, .tree-node:hover { background-color: var(--id-bg-hover) !important; }
+.tree-node-inner.tree-node-inner-hover, .tree-node-selected > .tree-node-inner {
+  background-color: var(--id-bg-active) !important;
+}
+.tree-section-header-title, .tree-section-header {
+  font-size: 11px !important;
+  color: var(--id-text-muted) !important;
+}

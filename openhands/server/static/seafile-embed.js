@@ -48,6 +48,7 @@
 
   function prune() {
     hideSidecar();
+    expandSections();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
@@ -108,9 +109,26 @@
     });
   }
 
+  // Tree sections land EXPANDED. Collapsed, the rail shows headings with an
+  // arrow and nothing under them, so the first thing an analyst does is open
+  // each one — and the sideways caret above empty space reads as a rendering
+  // fault rather than a control.
+  function expandSections() {
+    document.querySelectorAll('.tree-section .rotate-90, .side-nav .rotate-90').forEach(
+      function (caret) {
+        var header = caret.closest('.tree-section-header, .nav-item, .sf-heading');
+        if (header && !header.dataset.idExpanded) {
+          header.dataset.idExpanded = '1';
+          caret.click();
+        }
+      },
+    );
+  }
+
   function run() {
     prune();
     bindOpen();
+    expandSections();
     var target = document.getElementById('wrapper') || document.body;
     if (!target) return;
     // React re-renders on every navigation, so re-apply rather than assuming

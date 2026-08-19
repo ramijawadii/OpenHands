@@ -593,9 +593,12 @@ async def vfs_artifact_store(_p=Depends(require_principal)):
             'available': bool(repo_id and browse_url),
             'repo_id': repo_id,
             'browse_url': browse_url,
-            # Deep link straight to the library, so the frame opens on the
-            # artifacts rather than on Seafile's dashboard.
-            'library_url': f'{browse_url}/library/{repo_id}/' if (repo_id and browse_url) else '',
+            # Lands on the FILES ROOT, not deep inside one library. The root is
+            # where a team sees what it has — its own libraries, what has been
+            # shared with it, and what is shared across the workspace — which is
+            # the view a collaborator needs first. Deep-linking one library
+            # hides the other two and makes sharing invisible.
+            'library_url': f'{browse_url}/' if (repo_id and browse_url) else '',
         }
     )
 

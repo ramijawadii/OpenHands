@@ -51,6 +51,21 @@ _DROP_RESPONSE = {'content-length', 'content-encoding', 'transfer-encoding', 'co
 
 _TIMEOUT = httpx.Timeout(60.0, read=300.0)
 
+# Capabilities the console does not expose, refused HERE rather than hidden in
+# CSS. Every request to the store passes through this proxy, so this is the
+# enforcement point: the capability is gone, not the button. Hiding a control
+# whose endpoint still answers is not a control — and Seafile gates none of
+# these behind a server setting, so there is nothing to switch off upstream.
+_DENIED_PREFIXES = (
+    # Pulling a third-party wiki INTO the artifact store. Content that arrives
+    # this way has no conversation, no provenance and no audit trail.
+    '/seafile/api/v2.1/import-confluence',
+    # External share and upload links — the role permission already refuses
+    # these, and this makes the refusal independent of role configuration.
+    '/seafile/api/v2.1/share-links',
+    '/seafile/api/v2.1/upload-links',
+)
+
 _STATIC = Path(__file__).resolve().parent.parent / 'static'
 _SKIN = _STATIC / 'seafile-embed.css'
 _BEHAVIOUR = _STATIC / 'seafile-embed.js'
@@ -328,6 +343,12 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
         )
 
     path = request.url.path
+
+    if any(path.startswith(prefix) for prefix in _DENIED_PREFIXES):
+        return JSONResponse(
+            {'error': 'this capability is not available in the console'},
+            status_code=403,
+        )
     # Django is told SITE_ROOT=/seafile/ so it EMITS /seafile/media/..., but the
     # Seafile container still SERVES those files at /media/. Strip the prefix for
     # static assets only. The alternative — pointing MEDIA_URL back at the root —
