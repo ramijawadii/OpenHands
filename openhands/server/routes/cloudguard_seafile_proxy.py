@@ -51,12 +51,21 @@ _DROP_RESPONSE = {'content-length', 'content-encoding', 'transfer-encoding', 'co
 
 _TIMEOUT = httpx.Timeout(60.0, read=300.0)
 
-_SKIN = Path(__file__).resolve().parent.parent / 'static' / 'seafile-embed.css'
+_STATIC = Path(__file__).resolve().parent.parent / 'static'
+_SKIN = _STATIC / 'seafile-embed.css'
+_BEHAVIOUR = _STATIC / 'seafile-embed.js'
 
 
 def _skin_css() -> str:
     try:
         return _SKIN.read_text(encoding='utf-8')
+    except OSError:
+        return ''
+
+
+def _skin_js() -> str:
+    try:
+        return _BEHAVIOUR.read_text(encoding='utf-8')
     except OSError:
         return ''
 
@@ -83,14 +92,21 @@ def _reskin(body: bytes, theme: str) -> bytes:
         return body
 
     cls = 'cg-light' if theme == 'light' else 'cg-dark'
-    html = html.replace('</head>', f'<style id="id-embed-skin">{css}</style></head>', 1)
-    # Set the palette class on <html> itself so the variables resolve before
-    # first paint rather than flashing Seafile's own colours first.
-    html = html.replace(
-        '</head>',
-        f'<script>document.documentElement.classList.add("{cls}");</script></head>',
-        1,
+    # Palette class on <html> itself so the variables resolve before first paint
+    # rather than flashing Seafile's own colours first.
+    head = (
+        f'<style id="id-embed-skin">{css}</style>'
+        f'<script>document.documentElement.classList.add("{cls}");</script>'
     )
+    html = html.replace('</head>', head + '</head>', 1)
+
+    # Behaviour goes at the END of body: it queries the DOM, and the sidebar it
+    # prunes does not exist until React has rendered.
+    behaviour = _skin_js()
+    if behaviour and '</body>' in html:
+        html = html.replace(
+            '</body>', f'<script id="id-embed-behaviour">{behaviour}</script></body>', 1
+        )
     return html.encode('utf-8')
 
 
