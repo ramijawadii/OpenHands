@@ -130,6 +130,14 @@ export default function ReportView() {
   >({});
   const [publishing, setPublishing] = React.useState<string | null>(null);
   /**
+   * A file the analyst opened inside the framed store. The frame posts the path
+   * up rather than navigating, so artifacts open in the CONSOLE's viewers — the
+   * same markdown and mermaid renderers used everywhere else — instead of the
+   * store's own previewer or, worse, a new browser tab that leaves the console
+   * behind entirely.
+   */
+  const [libraryFile, setLibraryFile] = React.useState<string | null>(null);
+  /**
    * The durable store's browser-reachable UI. Seafile's own library view gives
    * per-file revision history, restore, trash recovery, share links and
    * previews — all real features of the store we would otherwise be
@@ -252,6 +260,21 @@ export default function ReportView() {
   }, [refresh]);
 
   React.useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      // Same-origin only: the frame is proxied onto our origin precisely so it
+      // is first-party, and a message from anywhere else has no business
+      // driving what this tab opens.
+      if (e.origin !== window.location.origin) return;
+      const data = e.data as { type?: string; path?: string } | null;
+      if (data && data.type === "id:open-artifact" && data.path) {
+        setLibraryFile(data.path);
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  React.useEffect(() => {
     let cancelled = false;
     openHands
       .get<{ available: boolean; library_url: string }>(
@@ -345,6 +368,31 @@ export default function ReportView() {
   // Not a reimplementation: revision history, restore, trash recovery, share
   // links and previews already exist in the store, and rebuilding them against
   // its API would be strictly worse than showing the real thing.
+  // A file opened from the library. Rendered by the console, with a way back —
+  // the frame has no history of its own that the parent can drive, so "back"
+  // has to be ours.
+  if (libraryFile && store?.available) {
+    return (
+      <div className="cg-conv-compact flex h-full w-full flex-col bg-[var(--cg-bg-page)]">
+        <div className="flex items-center gap-2 border-b border-[var(--cg-border-subtle)] px-3 py-1.5">
+          <button
+            type="button"
+            onClick={() => setLibraryFile(null)}
+            className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-[var(--cg-border-subtle)] px-2 py-0.5 text-[11px] text-[var(--cg-text-nav)] transition-colors hover:text-[var(--cg-text-primary)]"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Library
+          </button>
+          <span className="truncate text-[11.5px] text-[var(--cg-text-primary)]">
+            {basename(libraryFile)}
+          </span>
+        </div>
+        {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
+        <StoreFileViewer path={libraryFile} />
+      </div>
+    );
+  }
+
   if (store?.available) {
     return (
       <div className="cg-conv-compact flex h-full w-full flex-col">
@@ -671,6 +719,90 @@ function ArtifactViewer({
   return (
     <div className="cg-scroll h-full w-full overflow-y-auto px-4 py-3">
       <MarkdownRenderer content={content} codeRenderer={mermaidCodeRenderer} />
+    </div>
+  );
+}
+
+/** A file read from the DURABLE store and rendered by the console.
+ *
+ *  Deliberately separate from ArtifactViewer: that one reads the conversation's
+ *  sandbox through ConversationService, and these files live in the artifact
+ *  library, which outlives the sandbox. Same renderers, different source.
+ *
+ *  Documents and spreadsheets are NOT handled here yet and say so plainly rather
+ *  than rendering something broken: ONLYOFFICE is handed a signed URL scoped to
+ *  a conversation's sandbox, and a store-backed equivalent has to exist on the
+ *  backend before the editor can open a library file.
+ */
+function StoreFileViewer({ path }: { path: string }) {
+  const [text, setText] = React.useState<string | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+  const { conversationId } = useConversationId();
+
+  const ext = path.includes(".") ? path.split(".").pop()!.toLowerCase() : "";
+  const isMermaid = ext === "mmd" || ext === "mermaid";
+  const isMarkdown = ext === "md" || ext === "markdown";
+  const readable = isMermaid || isMarkdown || ext === "txt" || ext === "json";
+
+  React.useEffect(() => {
+    if (!readable || !conversationId) return undefined;
+    let cancelled = false;
+    setText(null);
+    setErr(null);
+    openHands
+      .get<string>("/api/cloudguard/vfs/read", {
+        params: { conversation_id: conversationId, store: "artifacts", path },
+        // The endpoint returns raw bytes; asking axios to parse JSON would
+        // mangle a markdown document that happens to start with a brace.
+        transformResponse: [(d: string) => d],
+      })
+      .then(({ data }) => !cancelled && setText(String(data ?? "")))
+      .catch(
+        () =>
+          !cancelled && setErr("Could not read this file from the library."),
+      );
+    return () => {
+      cancelled = true;
+    };
+  }, [path, readable, conversationId]);
+
+  if (!readable) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-6 text-center">
+        <span className="text-[12px] text-[var(--cg-text-primary)]">
+          {basename(path)}
+        </span>
+        <span className="text-[11px] text-[var(--cg-text-muted)]">
+          Documents and spreadsheets from the library are not editable in the
+          console yet — the editor needs a store-backed signed URL, which is the
+          next piece of this work.
+        </span>
+      </div>
+    );
+  }
+
+  if (err) {
+    return (
+      <div className="flex h-full w-full items-center justify-center px-4 text-center text-[12px] text-[var(--cg-text-muted)]">
+        {err}
+      </div>
+    );
+  }
+
+  if (text === null) {
+    return (
+      <div className="flex h-full w-full items-center justify-center text-[12px] text-[var(--cg-text-muted)]">
+        <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+        Loading…
+      </div>
+    );
+  }
+
+  if (isMermaid) return <MermaidCanvas code={text} />;
+
+  return (
+    <div className="cg-scroll min-h-0 flex-1 overflow-auto p-4">
+      <MarkdownRenderer content={text} codeRenderer={mermaidCodeRenderer} />
     </div>
   );
 }

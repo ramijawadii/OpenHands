@@ -70,8 +70,47 @@
     });
   }
 
+  // ── Opening a file ────────────────────────────────────────────────────────
+  // Artifacts open in the CONSOLE's viewers — the same markdown, mermaid,
+  // document and sheet viewers the rest of the product uses — not in the
+  // store's own previewer and never in a new browser tab. A file that opens in
+  // a standalone tab has left the console: no drawer, no conversation context,
+  // and nothing tying it back to the run that produced it.
+  //
+  // File links look like /seafile/lib/<repo>/file/<path>, confirmed in the
+  // rendered DOM rather than assumed.
+  var FILE_RE = /\/seafile\/lib\/[^/]+\/file\/(.+)$/;
+
+  function onClick(e) {
+    var a = e.target && e.target.closest ? e.target.closest('a') : null;
+    if (!a) return;
+
+    // Nothing opens a second browsing context, whatever asked for it.
+    if (a.target && a.target !== '_self') a.removeAttribute('target');
+
+    var href = a.getAttribute('href') || '';
+    var m = FILE_RE.exec(href.split('?')[0]);
+    if (!m) return;
+
+    var path = decodeURIComponent(m[1]);
+    e.preventDefault();
+    e.stopPropagation();
+    parent.postMessage({ type: 'id:open-artifact', path: path }, '*');
+  }
+
+  // Capture phase: Seafile binds its own handlers on these rows, and a listener
+  // on the bubble phase would run after it had already navigated.
+  function bindOpen() {
+    document.addEventListener('click', onClick, true);
+    // Some rows are rendered with target=_blank before any click happens.
+    document.querySelectorAll('a[target="_blank"]').forEach(function (a) {
+      a.removeAttribute('target');
+    });
+  }
+
   function run() {
     prune();
+    bindOpen();
     var target = document.getElementById('wrapper') || document.body;
     if (!target) return;
     // React re-renders on every navigation, so re-apply rather than assuming
