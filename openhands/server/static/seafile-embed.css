@@ -256,3 +256,120 @@ html.cg-light { --id-bg-rail: #ffffff; }
 .side-nav.folded .heading {
   display: none !important;
 }
+
+/* ══ CORRECTIONS from the rendered DOM ══════════════════════════════════════
+ * Measured in a headless browser against the real page, not inferred from class
+ * names. The first pass DID land (12.5px text, 0 10px padding, #232322 active)
+ * but three things beat it, none visible without rendering:
+ *   - li.nav-item paints WHITE, so every row sat on a light block;
+ *   - rows compute to 38px, so `height` alone never took;
+ *   - .sf3-font sets font-size:24px/height:24px, so 13px icons stayed 20px.
+ */
+.side-nav .nav-item,
+.side-nav .nav-item.active {
+  background: transparent !important;
+  margin: 1px 6px;
+}
+.side-nav .nav-item,
+.side-nav .nav-item > .nav-link {
+  height: 28px !important;
+  min-height: 28px !important;
+  line-height: 28px !important;
+}
+
+.side-nav [class*="sf3-font-"],
+.side-nav [class*="sf2-icon-"],
+.side-nav .seafile-multicolor-icon {
+  font-size: 0 !important;
+  width: 14px !important;
+  height: 14px !important;
+  line-height: 14px !important;
+  flex: 0 0 14px;
+  color: inherit !important;
+  background-color: currentColor;
+  -webkit-mask: center / 14px 14px no-repeat var(--id-icon, none);
+  mask: center / 14px 14px no-repeat var(--id-icon, none);
+}
+
+.side-nav .sf3-font-files, .side-nav .sf3-font-file {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'/></svg>");
+}
+.side-nav .sf3-font-activities {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M12 7v5l4 2'/></svg>");
+}
+.side-nav .sf3-font-wiki, .side-nav .sf3-font-wikis {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 7v14'/><path d='M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z'/></svg>");
+}
+
+/* ── The sidebar never collapses ────────────────────────────────────────────
+ * A rail this narrow has nothing to reclaim by folding, and a collapsed state is
+ * one more thing to keep correct in both themes.
+ */
+.side-nav-bottom-toolbar,
+.seafile-multicolor-icon-close-sidebar,
+.side-nav-toggle { display: none !important; }
+
+/* Help / Clients / About by their own icon classes — stable in the rendered DOM,
+ * so this does not depend on text matching alone. */
+.side-nav .nav-item:has(.sf3-font-help),
+.side-nav .nav-item:has(.sf3-font-devices),
+.side-nav .nav-item:has(.sf3-font-about) { display: none !important; }
+
+/* ── Seafile's amber accent ─────────────────────────────────────────────────
+ * #ff9800 / #f09f3f are its brand colour — 420+ occurrences — used for file
+ * names, folder glyphs and active markers. A second accent inside the console
+ * reads as a different product, so names become normal text and only genuine
+ * selection keeps an accent.
+ */
+.sf3-font { color: var(--id-text-muted) !important; }
+a, .dirent-name, .item-name, .normal, td a, .sf-link { color: var(--id-text) !important; }
+.lib-setting-nav .nav-pills .nav-item .nav-link.active:before,
+.custom-modal .repo-list-item.active:before {
+  background-color: var(--cg-accent, #2d86d4) !important;
+}
+
+/* Native controls follow the frame rather than Seafile's hardcoded
+ * `:root{color-scheme:light}` — which is why scrollbars stayed light in a dark
+ * frame. */
+html.cg-dark { color-scheme: dark; }
+html.cg-light { color-scheme: light; }
+
+/* ══ Context menus — the chat mode picker's styling, everywhere ═════════════
+ * Taken from pill-select.tsx: rounded-2xl container, 1px border, card at 95%
+ * with a backdrop blur, 4px padding, xl shadow; items rounded-xl at 12px. One
+ * menu style for the console rather than one per embedded tool.
+ */
+.dropdown-menu, .context-menu, .dropdown-menu-container, .sf-popover, .modal-content {
+  border-radius: 16px !important;
+  border: 1px solid var(--id-border) !important;
+  background-color: color-mix(in srgb, var(--id-bg-card) 95%, transparent) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 4px !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 30%), 0 8px 10px -6px rgb(0 0 0 / 30%) !important;
+  color: var(--id-text) !important;
+}
+.dropdown-item, .dropdown-menu-item, .context-menu-item, .dropdown-menu-item-base {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 10px !important;
+  border-radius: 12px !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  color: var(--id-text) !important;
+  background: transparent !important;
+}
+.dropdown-item:hover, .dropdown-item:focus,
+.dropdown-menu-item:hover, .dropdown-menu-item:focus,
+.context-menu-item:hover, .context-menu-item:focus,
+.dropdown-menu-item-base:hover {
+  background: var(--id-bg-active) !important;
+  color: var(--id-text) !important;
+}
+.dropdown-menu-group-title { font-size: 11px !important; color: var(--id-text-muted) !important; }
+.context-menu-item-separator, .dropdown-divider {
+  background: var(--id-border) !important;
+  border-color: var(--id-border) !important;
+}

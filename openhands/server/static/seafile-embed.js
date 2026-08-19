@@ -32,7 +32,22 @@
   // Sidebar sections that belong to a standalone Seafile, not to the console.
   var DROP_TEXT = ['help and resources', 'help', 'clients', 'about'];
 
+  // The driver's own sidecar. `.vfs/meta.json` is bookkeeping — versions and
+  // content hashes the store keeps about itself — and this frame is
+  // CLIENT-FACING: it should show the workspace's output, not the machinery
+  // that tracks it. Hidden in the UI rather than moved, because the sidecar has
+  // to live beside the data it describes to stay portable with the library.
+  function hideSidecar() {
+    document.querySelectorAll('tr, .grid-item, .dirent-item').forEach(function (row) {
+      var name = row.querySelector('.dirent-name, .item-name, a');
+      if (name && (name.textContent || '').trim() === '.vfs') {
+        row.style.display = 'none';
+      }
+    });
+  }
+
   function prune() {
+    hideSidecar();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
