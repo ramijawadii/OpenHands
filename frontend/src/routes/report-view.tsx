@@ -412,35 +412,51 @@ export default function ReportView() {
             Sharing the wrapper also means the memory a wedged surface holds is
             reclaimed the same way it is for the others, instead of this tab
             being the one that leaks. */}
-        {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
-        <SurfaceHost
-          surfaceId="artifacts"
-          conversationId={conversationId ?? ""}
-          title="Artifact library"
-        >
-          {(reopenNonce) => (
-            <iframe
-              // Keyed on the reopen nonce as well, so Reopen gets a genuinely fresh
-              // surface rather than the same wedged document.
-              key={`${store.library_url}${theme}${reopenNonce}`}
-              // The theme rides on the URL because a framed document cannot read
-              // the parent's CSS variables across the document boundary — the proxy
-              // reads it and injects the matching palette, so the frame paints in
-              // the console's colours instead of flashing the store's own.
-              src={`${store.library_url}?cg_theme=${theme}`}
-              title="Artifact library"
-              className="min-h-0 w-full flex-1 border-0"
-              // No sandbox attribute, deliberately. The store is proxied onto OUR
-              // origin so its SameSite=Lax session cookie is first-party — which is
-              // the only way the frame works at all. Given that, `allow-scripts`
-              // plus `allow-same-origin` is the combination the browser warns
-              // "can escape its sandboxing": it would grant the frame our origin
-              // while looking like a restriction. An honest absence beats a
-              // sandbox that protects nothing.
-              referrerPolicy="no-referrer"
-            />
-          )}
-        </SurfaceHost>
+        {/* `flex-1 min-h-0` is load-bearing, not decoration. SurfaceHost's root
+            is `h-full`, and height:100% only resolves against a parent with a
+            DEFINITE height. As a plain flex item in a column its height comes
+            from its content instead — `align-items: stretch` sizes the CROSS
+            axis, not the main one — so the frame collapsed to the height of
+            whatever Seafile had rendered so far and left the rest of the tab
+            empty. min-h-0 then stops the usual flex floor from reintroducing
+            overflow. */}
+        <div className="min-h-0 flex-1">
+          {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
+          <SurfaceHost
+            surfaceId="artifacts"
+            conversationId={conversationId ?? ""}
+            title="Artifact library"
+          >
+            {(reopenNonce) => (
+              <iframe
+                // Keyed on the reopen nonce as well, so Reopen gets a genuinely fresh
+                // surface rather than the same wedged document.
+                key={`${store.library_url}${theme}${reopenNonce}`}
+                // The theme rides on the URL because a framed document cannot read
+                // the parent's CSS variables across the document boundary — the proxy
+                // reads it and injects the matching palette, so the frame paints in
+                // the console's colours instead of flashing the store's own.
+                src={`${store.library_url}?cg_theme=${theme}`}
+                title="Artifact library"
+                // h-full, NOT flex-1. SurfaceHost's root is `relative h-full` — a
+                // BLOCK, not a flex container — so `flex-1` on this iframe is inert
+                // and it falls back to the HTML default of 150px. Measured in a
+                // harness: flex-1 inside a block parent renders 150px where
+                // height:100% renders the full 300. That is why the store appeared as
+                // a short strip with empty space beneath it.
+                className="h-full w-full border-0"
+                // No sandbox attribute, deliberately. The store is proxied onto OUR
+                // origin so its SameSite=Lax session cookie is first-party — which is
+                // the only way the frame works at all. Given that, `allow-scripts`
+                // plus `allow-same-origin` is the combination the browser warns
+                // "can escape its sandboxing": it would grant the frame our origin
+                // while looking like a restriction. An honest absence beats a
+                // sandbox that protects nothing.
+                referrerPolicy="no-referrer"
+              />
+            )}
+          </SurfaceHost>
+        </div>
       </div>
     );
   }
