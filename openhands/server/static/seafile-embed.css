@@ -28,6 +28,12 @@ html.cg-dark {
   --id-text: #f7f7f2;
   --id-text-muted: #a3a3a3;
   --id-border: rgba(222, 220, 206, 0.07);
+  /* A visible rule, for the places Seafile drew a solid #ccc line. The subtle
+     border reads as nothing at all once it replaces a real divider. */
+  --id-border-strong: rgba(222, 220, 206, 0.14);
+  /* One accent for the console. Seafile shipped four (amber, orange, and a
+     blue), which is what made the frame look like a different product. */
+  --id-accent: #2d86d4;
 
   /* Seafile's own theme contract, repointed. */
   --bs-body-bg: var(--id-bg-page);
@@ -61,6 +67,8 @@ html.cg-light {
   --id-text: hsl(0deg, 0%, 7%);
   --id-text-muted: #6b6b6b;
   --id-border: rgba(30, 20, 10, 0.07);
+  --id-border-strong: rgba(30, 20, 10, 0.16);
+  --id-accent: #2d86d4;
 }
 
 /* Surfaces Seafile paints with a literal colour rather than a variable. */

@@ -31,6 +31,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -83,6 +84,109 @@ def _skin_js() -> str:
         return _BEHAVIOUR.read_text(encoding='utf-8')
     except OSError:
         return ''
+
+
+# ── Re-theming Seafile's OWN stylesheets ────────────────────────────────────
+# An override sheet can only cover the rules someone thought to look at, and
+# this frame proved that repeatedly: white detail drawers, amber file names and
+# invisible labels each surfaced only once a human looked at a particular panel.
+# Seafile ships 7.3MB of CSS with ~15k hardcoded colours, so "find them all by
+# hand" is not a plan.
+#
+# Instead the stylesheets are rewritten AS THEY ARE SERVED. Every literal colour
+# is mapped onto one of the console's tokens, so a rule is themed whether or not
+# anyone has ever seen the panel it draws. Tokens (not fixed colours) are
+# substituted, so ONE transform serves dark and light — the injected sheet
+# defines what each token means for the current theme.
+#
+# Counts below are from the shipped files, so the mapping is driven by what
+# Seafile actually uses rather than by guesswork.
+_CSS_COLOR_MAP = {
+    # surfaces — the page itself (2870 uses of #fff alone)
+    '#fff': 'var(--id-bg-rail)',
+    '#ffffff': 'var(--id-bg-rail)',
+    # raised/striped surfaces: hovers, table stripes, disabled fills
+    '#f5f5f5': 'var(--id-bg-hover)',
+    '#f2f2f2': 'var(--id-bg-hover)',
+    '#f1f1f1': 'var(--id-bg-hover)',
+    '#f0f0f0': 'var(--id-bg-hover)',
+    '#efefef': 'var(--id-bg-hover)',
+    '#eee': 'var(--id-bg-hover)',
+    '#e9ecef': 'var(--id-bg-hover)',
+    '#e5e5e5': 'var(--id-bg-active)',
+    '#e5e6e8': 'var(--id-bg-active)',
+    # borders and rules
+    '#ccc': 'var(--id-border-strong)',
+    '#cacaca': 'var(--id-border-strong)',
+    '#bdbdbd': 'var(--id-border-strong)',
+    '#ddd': 'var(--id-border-strong)',
+    '#dee2e6': 'var(--id-border-strong)',
+    # body text
+    '#212529': 'var(--id-text)',
+    '#303133': 'var(--id-text)',
+    '#333': 'var(--id-text)',
+    '#000': 'var(--id-text)',
+    '#000000': 'var(--id-text)',
+    # secondary text
+    '#666': 'var(--id-text-muted)',
+    '#555': 'var(--id-text-muted)',
+    '#444': 'var(--id-text-muted)',
+    '#999': 'var(--id-text-muted)',
+    '#aaa': 'var(--id-text-muted)',
+    # Seafile's amber, and its one blue — a second accent inside the console
+    # reads as a different product.
+    '#f09f3f': 'var(--id-accent)',
+    '#f09f4f': 'var(--id-accent)',
+    '#ff9800': 'var(--id-accent)',
+    '#ed7109': 'var(--id-accent)',
+    '#eb8205': 'var(--id-accent)',
+    '#1070ca': 'var(--id-accent)',
+}
+
+_APP_FONT = (
+    '-apple-system, "SF Pro", BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, '
+    'Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif'
+)
+
+# Colours inside url(...) are ICON ARTWORK — inline SVG fill/stroke. Rewriting
+# those turns every embedded glyph into a broken shape, so they are lifted out
+# before substitution and put back after.
+_URL_RE = re.compile(r'url\([^)]*\)')
+# Longest form FIRST, with a guard after the 3-digit branch. `{3,8}` looks
+# right and is not: on `#ffffff` it matches only the first three characters,
+# so a six-digit colour becomes `var(--id-bg-rail)fff` and corrupts the rest
+# of the rule.
+_HEX_RE = re.compile(r'#[0-9a-fA-F]{8}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}(?![0-9a-fA-F])')
+_FONT_RE = re.compile(r'font-family\s*:\s*[^;}]+', re.IGNORECASE)
+
+_css_cache: dict[str, bytes] = {}
+
+
+def _retheme_css(text: str) -> str:
+    """Map Seafile's literal colours and fonts onto the console's tokens."""
+    holds: list[str] = []
+
+    def _hold(m: re.Match) -> str:
+        holds.append(m.group(0))
+        return f'__IDURL{len(holds) - 1}__'
+
+    text = _URL_RE.sub(_hold, text)
+
+    def _swap(m: re.Match) -> str:
+        return _CSS_COLOR_MAP.get(m.group(0).lower(), m.group(0))
+
+    text = _HEX_RE.sub(_swap, text)
+    # One typeface across the console. Seafile's stack is left in place only
+    # where it names a monospace family, which carries meaning.
+    text = _FONT_RE.sub(
+        lambda m: m.group(0)
+        if 'mono' in m.group(0).lower() or 'courier' in m.group(0).lower()
+        else f'font-family: {_APP_FONT}',
+        text,
+    )
+    for i, held in enumerate(holds):
+        text = text.replace(f'__IDURL{i}__', held)
+    return text
 
 
 def _reskin(body: bytes, theme: str) -> bytes:
@@ -402,7 +506,33 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
     # HTML is BUFFERED so the skin can be injected; everything else keeps
     # streaming, because an artifact download must not be held in memory just
     # because pages need rewriting.
-    if 'text/html' in response.headers.get('content-type', ''):
+    ctype = response.headers.get('content-type', '')
+
+    # Stylesheets are rewritten onto the console's tokens. Cached by path: the
+    # files are content-hashed by Seafile, so a given URL's bytes never change,
+    # and re-running the substitution over megabytes on every request would be
+    # pure waste.
+    if 'text/css' in ctype:
+        cached = _css_cache.get(path)
+        if cached is None:
+            raw = await response.aread()
+            await client.aclose()
+            try:
+                cached = _retheme_css(raw.decode('utf-8')).encode('utf-8')
+            except UnicodeDecodeError:
+                cached = raw
+            _css_cache[path] = cached
+        else:
+            await response.aclose()
+            await client.aclose()
+        return PlainResponse(
+            content=cached,
+            status_code=response.status_code,
+            headers=out,
+            media_type='text/css',
+        )
+
+    if 'text/html' in ctype:
         raw = await response.aread()
         await client.aclose()
         theme = request.query_params.get('cg_theme') or request.cookies.get('cg_theme') or 'dark'
