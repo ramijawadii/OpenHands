@@ -860,3 +860,81 @@ html.cg-light :is(input, textarea, .form-control)::placeholder {
 .path-item:hover {
   color: var(--id-accent) !important;
 }
+
+/* ══ Responsive ═════════════════════════════════════════════════════════════
+ * The store is framed in a drawer, so its width is whatever the analyst has
+ * dragged it to — commonly ~420-600px, never the ~1400px Seafile's layout
+ * assumes. This is not a phone breakpoint; it is the normal case here.
+ *
+ * The root defect was `.main-panel { flex: 1 0 78% }`. A basis of 78% with
+ * flex-shrink ZERO means the panel can never give ground: at 480px the rail took
+ * 238 and the panel insisted on 374, so it ran 132px past the edge — and `#main`
+ * has `overflow: hidden`, so that surplus was CLIPPED rather than scrollable.
+ * Content was silently cut off with nothing to scroll to reach it, which is why
+ * it reads as "the toolbar is missing buttons" rather than as a layout bug.
+ */
+#main > .main-panel,
+.main-panel {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+}
+/* `.side-panel` is the flex CHILD that owns the width; `.side-nav` merely lives
+ * inside it. Sizing the inner element left the 240px shell in place, so folding
+ * the rail changed nothing and hiding it left a 240px hole. Nothing about the
+ * markup makes that obvious — both elements look like "the sidebar".
+ */
+.side-panel {
+  flex: 0 0 auto !important;
+}
+/* A flex child's default `min-width: auto` refuses to shrink below its content,
+ * which reintroduces the same overflow one level down.
+ */
+.main-panel-center,
+.cur-view-container,
+.cur-view-content {
+  min-width: 0 !important;
+}
+
+/* Wide content scrolls INSIDE its own container rather than pushing the layout
+ * out. The file table has a minimum sensible width; below that it scrolls.
+ */
+.cur-view-content {
+  overflow-x: auto !important;
+}
+
+/* Narrow: the rail folds to icons. The labels are the widest part of it, and an
+ * icon rail still navigates — a hidden rail does not.
+ */
+@media (max-width: 820px) {
+  .side-panel,
+  .side-nav {
+    width: 44px !important;
+    min-width: 44px !important;
+  }
+  .side-nav .nav-item .nav-link {
+    justify-content: center;
+    padding: 0 !important;
+    width: 32px;
+  }
+  .side-nav .nav-item .nav-link .nav-text,
+  .side-nav .id-rail-heading,
+  .side-nav h2,
+  .side-nav .heading {
+    display: none !important;
+  }
+  /* The toolbar's labels go before its buttons do. */
+  .cur-view-path .btn .btn-text,
+  .cur-view-path .path-toolbar .text {
+    display: none !important;
+  }
+}
+
+/* Very narrow: the rail costs more than it returns. The breadcrumb still walks
+ * back up the tree, so navigation survives without it.
+ */
+@media (max-width: 560px) {
+  .side-panel,
+  .side-nav {
+    display: none !important;
+  }
+}
