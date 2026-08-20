@@ -105,7 +105,7 @@ html, body, #wrapper, #main,
  * One product, one brand. The store is an implementation detail of the console.
  */
 #logo, .top-logo, .logo, .sf-logo, #header-logo,
-a[href$="/seafile/"] > img {
+a[href$="/workspace/"] > img {
   display: none !important;
 }
 
@@ -1023,7 +1023,7 @@ input[type="checkbox"]:focus-visible {
 /* The 192px artwork in a 224px panel is a banner, not an icon. */
 .cur-view-detail img[src*="folder-192"],
 .cur-view-detail img[src*="/img/lib/"] {
-  content: url("/seafile/media/img/folder-24.png");
+  content: url("/workspace/media/img/folder-24.png");
   width: 28px !important;
   height: 28px !important;
 }

@@ -84,10 +84,10 @@
   // a standalone tab has left the console: no drawer, no conversation context,
   // and nothing tying it back to the run that produced it.
   //
-  // File links look like /seafile/lib/<repo>/file/<path>, confirmed in the
+  // File links look like /workspace/lib/<repo>/file/<path>, confirmed in the
   // rendered DOM rather than assumed.
-  var FILE_RE = /\/seafile\/lib\/[^/]+\/file\/(.+)$/;
-  var REVISIONS_RE = /\/seafile\/repo\/file_revisions\//;
+  var FILE_RE = /\/workspace\/lib\/[^/]+\/file\/(.+)$/;
+  var REVISIONS_RE = /\/workspace\/repo\/file_revisions\//;
 
   function onClick(e) {
     var a = e.target && e.target.closest ? e.target.closest('a') : null;
@@ -343,7 +343,7 @@
   var authorCache = {};
 
   function currentDirKey() {
-    var m = /\/seafile\/library\/([^/]+)\/[^/]+(\/.*)?$/.exec(location.pathname);
+    var m = /\/workspace\/library\/([^/]+)\/[^/]+(\/.*)?$/.exec(location.pathname);
     if (!m) return null;
     var dir = m[2] ? decodeURIComponent(m[2]) : '/';
     return { repo: m[1], dir: dir.replace(/\/$/, '') || '/' };
@@ -354,7 +354,7 @@
     if (!key) return;
     var id = key.repo + '|' + key.dir;
     if (authorCache[id]) { cb(authorCache[id]); return; }
-    var url = '/seafile/api2/repos/' + key.repo + '/dir/?p=' + encodeURIComponent(key.dir);
+    var url = '/workspace/api2/repos/' + key.repo + '/dir/?p=' + encodeURIComponent(key.dir);
     fetch(url, { credentials: 'same-origin' })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (list) {

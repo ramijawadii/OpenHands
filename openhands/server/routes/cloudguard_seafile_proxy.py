@@ -7,14 +7,14 @@ cross-origin iframe requests — a frame pointed at Seafile's own port renders a
 permanent login page however many times the analyst signs in.
 
 The oo-gateway already serves both on one origin, but only on ITS port. Analysts
-reach the app directly, and there `/seafile/...` hit the SPA, which has no such
+reach the app directly, and there `/workspace/...` hit the SPA, which has no such
 route and rendered its own 404 inside the frame ("No routes matched location
-/seafile/library/..."). Telling people to switch ports is not a fix. Proxying
+/workspace/library/..."). Telling people to switch ports is not a fix. Proxying
 here makes the embed work on whichever origin the app is actually served from,
 gateway or not.
 
 Two prefixes, and both are needed:
-  /seafile/*   seahub, which SITE_ROOT moved under the prefix
+  /workspace/* seahub, which SITE_ROOT moved under the prefix
   /seafhttp/*  the fileserver, which does NOT move — it stays at the origin root
                even under a sub-path deployment, and Seafile generates its
                upload/download links without the prefix. Miss it and browsing
@@ -60,11 +60,11 @@ _TIMEOUT = httpx.Timeout(60.0, read=300.0)
 _DENIED_PREFIXES = (
     # Pulling a third-party wiki INTO the artifact store. Content that arrives
     # this way has no conversation, no provenance and no audit trail.
-    '/seafile/api/v2.1/import-confluence',
+    '/workspace/api/v2.1/import-confluence',
     # External share and upload links — the role permission already refuses
     # these, and this makes the refusal independent of role configuration.
-    '/seafile/api/v2.1/share-links',
-    '/seafile/api/v2.1/upload-links',
+    '/workspace/api/v2.1/share-links',
+    '/workspace/api/v2.1/upload-links',
 )
 
 _STATIC = Path(__file__).resolve().parent.parent / 'static'
@@ -457,7 +457,7 @@ async def _provision(
     admin = _admin_headers()
     if not admin:
         return False
-    base = f'{origin}/seafile'
+    base = f'{origin}/workspace'
     try:
         internal = await _find_account(client, base, admin, email)
         if internal is None:
@@ -507,7 +507,7 @@ async def _session_for(origin: str, principal) -> str | None:
         if cached:
             return cached
 
-        login_url = f'{origin}/seafile/accounts/login/'
+        login_url = f'{origin}/workspace/accounts/login/'
         try:
             async with httpx.AsyncClient(timeout=30.0, follow_redirects=False) as client:
                 if email not in _provisioned:
@@ -567,12 +567,12 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
             {'error': 'this capability is not available in the console'},
             status_code=403,
         )
-    # Django is told SITE_ROOT=/seafile/ so it EMITS /seafile/media/..., but the
+    # Django is told SITE_ROOT=/workspace/ so it EMITS /workspace/media/..., but the
     # Seafile container still SERVES those files at /media/. Strip the prefix for
     # static assets only. The alternative — pointing MEDIA_URL back at the root —
     # would put Seafile's assets on a path the CloudGuard SPA also owns.
-    if path.startswith('/seafile/media/'):
-        path = path[len('/seafile') :]
+    if path.startswith('/workspace/media/'):
+        path = path[len('/workspace') :]
 
     url = f'{origin}{path}'
     if request.url.query:
@@ -692,7 +692,7 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
         proxied.set_cookie(
             'cg_theme',
             request.query_params['cg_theme'],
-            path='/seafile',
+            path='/workspace',
             samesite='lax',
             httponly=False,
         )
@@ -703,7 +703,7 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
 _METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
 
-@router.api_route('/seafile/{path:path}', methods=_METHODS)
+@router.api_route('/workspace/{path:path}', methods=_METHODS)
 async def seafile_ui(path: str, request: Request, principal=Depends(require_principal)):
     return await _proxy(request, principal)
 
