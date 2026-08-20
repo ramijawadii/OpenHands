@@ -1127,3 +1127,72 @@ td.id-col-author {
 .repo-history-list tr:first-child {
   background-color: var(--id-bg-active) !important;
 }
+
+/* ══ Recently opened ════════════════════════════════════════════════════════
+ * Same row metrics as the rest of the rail, so it reads as one list rather than
+ * a panel bolted underneath it.
+ */
+#id-recent-section .nav-link .id-recent-icon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  background-color: currentColor;
+  -webkit-mask: center / 13px 13px no-repeat var(--id-icon);
+  mask: center / 13px 13px no-repeat var(--id-icon);
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h6'/></svg>");
+}
+#id-recent-section .nav-link .nav-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ══ Detail-panel fields ════════════════════════════════════════════════════
+ * Description and Tags are editable, and looked like empty space: the value
+ * cells carry no border, no placeholder and no hover state, so there was nothing
+ * to say they could be clicked. An editable field that gives no sign of being
+ * editable is not discoverable at all — the capability was there the whole time.
+ */
+.cur-view-detail .sf-metadata-ui.cell-formatter {
+  min-height: 26px;
+  padding: 3px 6px !important;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: text;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.cur-view-detail .sf-metadata-ui.cell-formatter:hover {
+  background-color: var(--id-bg-hover);
+  border-color: var(--id-border-strong);
+}
+.cur-view-detail .sf-metadata-ui.cell-formatter:empty::before {
+  content: "Add…";
+  color: var(--id-text-muted);
+  font-size: 12px;
+}
+
+/* ══ Folded rail ════════════════════════════════════════════════════════════
+ * At 44px the rail is icons alone, so they need to be big enough to identify and
+ * spaced enough to hit. 13px glyphs sized for a labelled row read as specks once
+ * the label is gone.
+ */
+@media (max-width: 820px) {
+  .side-nav .nav-item > .nav-link {
+    height: 34px !important;
+    min-height: 34px !important;
+    margin: 0 auto;
+  }
+  .side-nav [class*="sf3-font-"],
+  .side-nav [class*="sf2-icon-"],
+  #id-recent-section .nav-link .id-recent-icon {
+    width: 17px;
+    height: 17px;
+    flex: 0 0 17px;
+    -webkit-mask-size: 17px 17px;
+    mask-size: 17px 17px;
+  }
+  /* Recent is a list of names; with the names gone it is a column of identical
+   * icons, which is worse than not showing it. */
+  #id-recent-section { display: none !important; }
+}

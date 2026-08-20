@@ -276,9 +276,18 @@ export default function ReportView() {
       // is first-party, and a message from anywhere else has no business
       // driving what this tab opens.
       if (e.origin !== window.location.origin) return;
-      const data = e.data as { type?: string; path?: string } | null;
+      const data = e.data as {
+        type?: string;
+        path?: string;
+        view?: string;
+      } | null;
       if (data && data.type === "id:open-artifact" && data.path) {
         setLibraryFile(data.path);
+        // The store can ask for the document AND its history in one go — that is
+        // what the row's history action and the intercepted revisions route both
+        // want, and opening the file first and then hunting for the toggle is a
+        // second step for something already asked for.
+        if (data.view === "history") setShowHistory(true);
       }
     };
     window.addEventListener("message", onMessage);

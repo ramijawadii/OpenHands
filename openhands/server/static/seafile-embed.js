@@ -53,6 +53,8 @@
     railSections();
     fileGlyphs();
     fileColumns();
+    foldedTitles();
+    recentSection();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
@@ -85,6 +87,7 @@
   // File links look like /seafile/lib/<repo>/file/<path>, confirmed in the
   // rendered DOM rather than assumed.
   var FILE_RE = /\/seafile\/lib\/[^/]+\/file\/(.+)$/;
+  var REVISIONS_RE = /\/seafile\/repo\/file_revisions\//;
 
   function onClick(e) {
     var a = e.target && e.target.closest ? e.target.closest('a') : null;
@@ -94,12 +97,39 @@
     if (a.target && a.target !== '_self') a.removeAttribute('target');
 
     var href = a.getAttribute('href') || '';
+
+    // The context menu's "History" goes to seahub's own revisions page, which is
+    // a dead end for anything it cannot render: pick a revision of a .docx there
+    // and the answer is "Online view is not applicable to this file format",
+    // because that page has no document renderer — it is not a permissions or a
+    // data problem, seahub simply cannot draw the format. It also cannot RESTORE
+    // a revision, which is the thing the analyst came for.
+    //
+    // Routed to the console's history panel instead, which reads the same
+    // commits and can put a revision back.
+    var rev = REVISIONS_RE.exec(href);
+    if (rev) {
+      var q = href.indexOf('?') >= 0 ? href.slice(href.indexOf('?') + 1) : '';
+      var pm = /(?:^|&)p=([^&]*)/.exec(q);
+      var target = pm ? decodeURIComponent(pm[1]).replace(/^\//, '') : '';
+      if (target) {
+        e.preventDefault();
+        e.stopPropagation();
+        rememberRecent(target);
+        parent.postMessage(
+          { type: 'id:open-artifact', path: target, view: 'history' }, '*'
+        );
+        return;
+      }
+    }
+
     var m = FILE_RE.exec(href.split('?')[0]);
     if (!m) return;
 
     var path = decodeURIComponent(m[1]);
     e.preventDefault();
     e.stopPropagation();
+    rememberRecent(path);
     parent.postMessage({ type: 'id:open-artifact', path: path }, '*');
   }
 
@@ -419,6 +449,7 @@
             e.stopPropagation();
             var key = currentDirKey();
             var rel = key && key.dir !== '/' ? key.dir.replace(/^\//, '') + '/' + name : name;
+            rememberRecent(rel);
             parent.postMessage(
               { type: 'id:open-artifact', path: rel, view: 'history' }, '*'
             );
@@ -474,6 +505,97 @@
         location: { href: url || '' }
       };
     };
+  }
+
+  // ── Folded rail: keep it legible ────────────────────────────────────────
+  // Folded to 44px the rail is icons alone. An icon with no label and no tooltip
+  // is a guess, so the label that was hidden becomes the title attribute — the
+  // text already exists in the DOM, it was only being hidden.
+  function foldedTitles() {
+    document.querySelectorAll('.side-nav .nav-link').forEach(function (link) {
+      if (link.getAttribute('title')) return;
+      var label = link.querySelector('.nav-text, span:not([class*="sf3-font"])');
+      var text = label ? (label.textContent || '').trim() : '';
+      if (text) link.setAttribute('title', text);
+    });
+  }
+
+  // ── Recently opened ─────────────────────────────────────────────────────
+  // The rail lists places; it did not list WORK. An analyst returning to a
+  // conversation is almost always going back to a file they had open a moment
+  // ago, and finding it meant walking the tree again.
+  //
+  // Kept in localStorage rather than on the server: it is a per-person
+  // convenience, it must survive a reload, and it is not worth a round trip or a
+  // table. Paths only — no content, nothing that outlives the library itself.
+  var RECENT_KEY = 'id.recent.files';
+  var RECENT_MAX = 8;
+
+  function readRecent() {
+    try {
+      var raw = localStorage.getItem(RECENT_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      return Object.prototype.toString.call(list) === '[object Array]' ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function rememberRecent(path) {
+    if (!path) return;
+    try {
+      var list = readRecent().filter(function (p) { return p !== path; });
+      list.unshift(path);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(list.slice(0, RECENT_MAX)));
+    } catch (e) { /* private mode: the section simply stays empty */ }
+  }
+
+  function recentSection() {
+    var nav = document.querySelector('.side-nav .side-nav-con, .side-nav ul');
+    if (!nav) return;
+    var list = readRecent();
+    var existing = document.getElementById('id-recent-section');
+    if (!list.length) {
+      if (existing) existing.remove();
+      return;
+    }
+    if (existing && existing.getAttribute('data-sig') === list.join('|')) return;
+    if (existing) existing.remove();
+
+    var wrap = document.createElement('div');
+    wrap.id = 'id-recent-section';
+    wrap.setAttribute('data-sig', list.join('|'));
+
+    var head = document.createElement('h2');
+    head.className = 'id-rail-heading';
+    head.textContent = 'Recent';
+    wrap.appendChild(head);
+
+    var ul = document.createElement('ul');
+    ul.className = 'nav nav-pills flex-column';
+    list.forEach(function (path) {
+      var li = document.createElement('li');
+      li.className = 'nav-item';
+      var a = document.createElement('a');
+      a.className = 'nav-link';
+      a.href = '#';
+      a.setAttribute('title', path);
+      var icon = document.createElement('span');
+      icon.className = 'id-recent-icon';
+      var text = document.createElement('span');
+      text.className = 'nav-text';
+      text.textContent = path.split('/').pop();
+      a.appendChild(icon);
+      a.appendChild(text);
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        parent.postMessage({ type: 'id:open-artifact', path: path }, '*');
+      });
+      li.appendChild(a);
+      ul.appendChild(li);
+    });
+    wrap.appendChild(ul);
+    nav.appendChild(wrap);
   }
 
   function run() {
