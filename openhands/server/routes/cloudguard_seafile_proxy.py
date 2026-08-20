@@ -181,8 +181,15 @@ _TEXT_PROPS = {'color', '-webkit-text-fill-color'}
 # a button we are not turning white — while Seafile's dark greys become the
 # console's text tokens.
 _TEXT_COLOR_MAP = {
-    '#fff': 'var(--id-text-on-accent)',
-    '#ffffff': 'var(--id-text-on-accent)',
+    # White TEXT becomes the normal text token, not white.
+    #
+    # The store is a light surface, so almost every place Seafile wrote
+    # `color:#fff` was text on a dark header or bar that we have since turned
+    # light — leaving white on white. The handful of genuinely dark fills left
+    # (primary buttons, count badges) re-assert white in seafile-embed.css,
+    # where the rule can name the element instead of guessing from a colour.
+    '#fff': 'var(--id-text)',
+    '#ffffff': 'var(--id-text)',
     '#212529': 'var(--id-text)',
     '#303133': 'var(--id-text)',
     '#333': 'var(--id-text)',

@@ -705,3 +705,37 @@ html.cg-light :is(input, textarea, select, .form-control):focus-visible {
   -webkit-mask: center / 26px 26px no-repeat var(--id-icon, none);
   mask: center / 26px 26px no-repeat var(--id-icon, none);
 }
+
+/* ══ Text is dark, everywhere, by default ═══════════════════════════════════
+ * The store is a light surface and the only safe default for text on it is the
+ * dark token. Anything that genuinely sits on a dark fill re-asserts white
+ * BELOW, by naming the element — which is checkable, unlike inferring intent
+ * from the colour Seafile happened to write.
+ */
+html.cg-light,
+html.cg-light :is(body, div, span, p, a, li, td, th, h1, h2, h3, h4, h5, h6,
+  label, small, strong, em, button, input, textarea, select) {
+  color: var(--id-text);
+}
+html.cg-light :is(.text-secondary, .sf-text-muted, small, .subtitle) {
+  color: var(--id-text-muted);
+}
+
+/* The exceptions: elements that ARE a dark fill. */
+html.cg-light :is(.btn-primary, .btn-submit, button[type="submit"], .submit-btn,
+  .sf-btn-primary, .num, .badge, .sf-badge) {
+  color: #ffffff !important;
+}
+
+/* ══ Library icon — a folder ════════════════════════════════════════════════
+ * Seafile ships a bitmap of a filing drawer (`/media/img/lib/256/lib.png`). A
+ * library IS a folder to anyone using it, so it is drawn as one, in the shape
+ * every desktop already uses. `content:` swaps the image itself, so the element,
+ * its sizing and its alt text are untouched.
+ */
+img[src*="/img/lib/"] {
+  content: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M3 8.5A2.5 2.5 0 0 1 5.5 6h6.2a2 2 0 0 1 1.4.6L15 8.2h11.5A2.5 2.5 0 0 1 29 10.7v1.8H3z' fill='%23E8A93B'/><path d='M3 12.5h26v11A2.5 2.5 0 0 1 26.5 26h-21A2.5 2.5 0 0 1 3 23.5z' fill='%23FBC96A'/></svg>");
+  width: 30px !important;
+  height: 30px !important;
+  object-fit: contain;
+}
