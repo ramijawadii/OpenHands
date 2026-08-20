@@ -447,12 +447,7 @@
           btn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            var key = currentDirKey();
-            var rel = key && key.dir !== '/' ? key.dir.replace(/^\//, '') + '/' + name : name;
-            rememberRecent(rel);
-            parent.postMessage(
-              { type: 'id:open-artifact', path: rel, view: 'history' }, '*'
-            );
+            openHistoryModal();
           });
           h.appendChild(btn);
         }
@@ -596,6 +591,50 @@
     });
     wrap.appendChild(ul);
     nav.appendChild(wrap);
+  }
+
+  // ── Seafile's Modification History modal ────────────────────────────────
+  // The modal is a React component we do not own, so there is no API to call and
+  // no route to visit: it is opened from Others -> History in the library rail
+  // and nowhere else. Driving those two controls is the only way to raise it
+  // from a row, so that is what this does.
+  //
+  // The section renders its contents LAZILY — collapsed, "History" does not
+  // exist in the DOM at all — so unfolding and clicking cannot happen in the
+  // same tick.
+  function historyItem() {
+    var others = document.querySelector('.tree-section.dir-others');
+    if (!others) return null;
+    var items = others.querySelectorAll('.dir-others-item-text');
+    for (var i = 0; i < items.length; i++) {
+      if ((items[i].textContent || '').trim() === 'History') return items[i];
+    }
+    return null;
+  }
+
+  function openHistoryModal() {
+    var item = historyItem();
+    if (item) {
+      item.click();
+      return;
+    }
+    var others = document.querySelector('.tree-section.dir-others');
+    var op = others && others.querySelector('.tree-section-header-operation');
+    if (!op) return;
+    op.click();
+    // Poll briefly rather than guessing one delay: the list is rendered by React
+    // after its own state update, and a fixed timeout is either too short on a
+    // slow frame or needlessly laggy on a fast one.
+    var tries = 0;
+    var timer = setInterval(function () {
+      var found = historyItem();
+      if (found) {
+        clearInterval(timer);
+        found.click();
+      } else if (++tries > 20) {
+        clearInterval(timer);
+      }
+    }, 50);
   }
 
   function run() {

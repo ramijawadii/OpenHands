@@ -1121,11 +1121,20 @@ td.id-col-author {
 }
 .id-history-icon:hover { color: var(--id-text); }
 
-/* The current revision in Seafile's own history dialog reads as selected, so the
- * row someone is comparing against is obvious at a glance. */
-.history-list tr:first-child,
-.repo-history-list tr:first-child {
+/* The current revision in the Modification History dialog reads as selected, so
+ * the row everything else is compared against is obvious at a glance — and its
+ * text selects in one gesture for copying out.
+ *
+ * Anchored to the dialog's table rather than a class: the table carries only
+ * `table-hover` and its rows carry no class at all, so there is nothing more
+ * specific to aim at.
+ */
+.modal .modal-body table.table-hover tbody tr:first-child {
   background-color: var(--id-bg-active) !important;
+}
+.modal .modal-body table.table-hover tbody tr:first-child td {
+  font-weight: 500;
+  user-select: all;
 }
 
 /* ══ Recently opened ════════════════════════════════════════════════════════
@@ -1195,4 +1204,77 @@ td.id-col-author {
   /* Recent is a list of names; with the names gone it is a column of identical
    * icons, which is worse than not showing it. */
   #id-recent-section { display: none !important; }
+}
+
+/* ══ Library sections as a real top bar ═════════════════════════════════════
+ * The earlier attempt set the container to `flex-direction: row` and stopped
+ * there, which changed nothing visible: each `.tree-section` is 100% wide, so
+ * with wrapping every one still took its own line. A row of full-width items is
+ * a column. The width has to go too.
+ *
+ * The section BODIES then have to leave the flow, or the bar's height is
+ * whatever the expanded section happens to be. They drop below the bar as an
+ * overlay, which is what a tab bar does.
+ */
+.dir-content-nav {
+  position: relative;
+  flex-wrap: nowrap !important;
+  min-height: 34px;
+  align-items: stretch !important;
+}
+.dir-content-nav .tree-section {
+  width: auto !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+  display: flex !important;
+  align-items: center;
+}
+.dir-content-nav .tree-section-header {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  width: auto !important;
+  margin: 0 !important;
+}
+/* The fold caret is meaningless on a horizontal tab: the row IS the control. */
+.dir-content-nav .tree-section-header-operations {
+  display: none !important;
+}
+/* Whatever a section renders below its header becomes a panel under the bar. */
+.dir-content-nav .tree-section > *:not(.tree-section-header) {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  max-height: 320px;
+  overflow: auto;
+  background-color: var(--id-bg-card);
+  border: 1px solid var(--id-border);
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+}
+
+/* The nav and the file list are siblings inside `.dir-column-view`. Laying that
+ * out as a COLUMN is what turns the section row into a bar with content beneath
+ * it — without this the nav still claims the full height of the view and the
+ * horizontal row simply floats at the top of a very tall empty box.
+ */
+.dir-column-view {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+}
+.dir-column-view > .dir-content-nav {
+  flex: 0 0 auto !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  max-height: 34px !important;
+  overflow: visible !important;
+}
+.dir-column-view > *:not(.dir-content-nav) {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
 }
