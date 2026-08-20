@@ -824,3 +824,39 @@ img[src*="/img/lib/"] {
 .path-container .last-path-item {
   color: var(--id-text) !important;
 }
+
+/* ══ Fields ═════════════════════════════════════════════════════════════════
+ * `.form-control` ships as `background-color: transparent`, so a field has no
+ * colour of its own and shows whatever happens to sit behind it. That is fine
+ * until a dialog, a dropdown or a toolbar underneath is darker than the page,
+ * at which point the field reads as a black box with a caret in it — and it
+ * changes on FOCUS, because the focus rule is the first thing to give the field
+ * a real background.
+ *
+ * A field is a surface in its own right. It gets an explicit one, so what is
+ * painted behind it cannot change what it looks like.
+ */
+html.cg-light :is(input, textarea, select, .form-control),
+html.cg-light :is(input, textarea, select, .form-control):focus,
+html.cg-light :is(input, textarea, select, .form-control):focus-visible {
+  background-color: var(--id-bg-card) !important;
+  color: var(--id-text) !important;
+  -webkit-text-fill-color: var(--id-text);
+  border-color: var(--id-border-strong);
+}
+html.cg-light :is(input, textarea, .form-control)::placeholder {
+  color: var(--id-text-muted) !important;
+  -webkit-text-fill-color: var(--id-text-muted);
+}
+
+/* Every breadcrumb segment, not only the last one. The earlier segments are
+ * links back up the tree; Seafile paints them for a dark header.
+ */
+.path-item,
+.path-container .path-item,
+.path-item[role="button"] {
+  color: var(--id-text) !important;
+}
+.path-item:hover {
+  color: var(--id-accent) !important;
+}
