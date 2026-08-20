@@ -121,12 +121,16 @@ _CSS_COLOR_MAP = {
     '#bdbdbd': 'var(--id-border-strong)',
     '#ddd': 'var(--id-border-strong)',
     '#dee2e6': 'var(--id-border-strong)',
-    # body text
-    '#212529': 'var(--id-text)',
-    '#303133': 'var(--id-text)',
-    '#333': 'var(--id-text)',
-    '#000': 'var(--id-text)',
-    '#000000': 'var(--id-text)',
+    # DARK fills. These are surfaces, not text: Seafile uses them for a selected
+    # row, an active field, a tooltip. Sending them to the text token painted a
+    # near-black block on a light page — the selected library row was a black bar
+    # with its name inside it. A selection on a light surface is a subtle
+    # highlight, so that is what they become.
+    '#212529': 'var(--id-bg-active)',
+    '#303133': 'var(--id-bg-active)',
+    '#333': 'var(--id-bg-active)',
+    '#000': 'var(--id-bg-active)',
+    '#000000': 'var(--id-bg-active)',
     # secondary text
     '#666': 'var(--id-text-muted)',
     '#555': 'var(--id-text-muted)',

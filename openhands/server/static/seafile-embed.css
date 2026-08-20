@@ -739,3 +739,56 @@ img[src*="/img/lib/"] {
   height: 30px !important;
   object-fit: contain;
 }
+
+/* ══ Text selection ═════════════════════════════════════════════════════════
+ * The browser default paints selected text white on the accent. Against this
+ * surface that reads as the text vanishing the moment you select it — which is
+ * exactly when you are looking at it. Selection is a subtle band, text keeps its
+ * colour.
+ */
+::selection {
+  background: var(--id-bg-active);
+  color: var(--id-text);
+}
+::-moz-selection {
+  background: var(--id-bg-active);
+  color: var(--id-text);
+}
+
+/* ══ Cards ══════════════════════════════════════════════════════════════════
+ * A wiki tile is a selectable object, so it uses the same fill as a selected row
+ * in the rail — one visual language for "this is a thing you can pick".
+ */
+.wiki-item, .wiki-card, [class*="wiki-list"] > li, .grid-item {
+  background: var(--id-bg-active) !important;
+  border: 1px solid var(--id-border) !important;
+  border-radius: 8px !important;
+}
+.wiki-item:hover, .wiki-card:hover, .grid-item:hover {
+  background: var(--id-bg-hover) !important;
+}
+
+/* ══ Section-title icons ════════════════════════════════════════════════════
+ * The same lucide glyphs as the rail, applied wherever these classes appear —
+ * section headings use them too. Scoped to the classes we actually have a glyph
+ * for: the generic rule paints `currentColor` through a mask, so a class with no
+ * mapping would render as a solid square rather than an icon.
+ */
+.sf3-font-mine, .sf3-font-share-with-me, .sf3-font-share-with-all,
+.sf3-font-starred, .sf3-font-wrench, .sf3-font-activities,
+.sf3-font-wiki, .sf3-font-wikis {
+  font-size: 0 !important;
+  width: 15px !important;
+  height: 15px !important;
+  line-height: 15px !important;
+  display: inline-block;
+  vertical-align: -2px;
+  color: var(--id-text-muted) !important;
+  background-color: currentColor;
+  -webkit-mask: center / 15px 15px no-repeat var(--id-icon, none);
+  mask: center / 15px 15px no-repeat var(--id-icon, none);
+}
+/* lucide `book-open` — wikis, wherever the heading appears */
+.sf3-font-wiki, .sf3-font-wikis {
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 7v14'/><path d='M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z'/></svg>");
+}
