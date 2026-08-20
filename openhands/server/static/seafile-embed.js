@@ -52,6 +52,7 @@
     iconMenus();
     railSections();
     fileGlyphs();
+    fileColumns();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
@@ -278,7 +279,205 @@
     });
   }
 
+  // ── Extra file columns ──────────────────────────────────────────────────
+  // Seafile's list carries Name, Size and Last Update. An analyst looking at an
+  // artifact also wants to know WHAT it is, WHO last touched it, and to reach its
+  // history without opening it first.
+  //
+  // These are injected into the rendered table rather than patched into seahub,
+  // for the same reason the rest of this file is injected: Seafile stays stock so
+  // an upgrade cannot revert it. React owns this DOM and rebuilds it on every
+  // navigation and sort, so every step here is idempotent and re-applied by the
+  // observer — a cell is marked and skipped if it is already ours.
+  var TYPE_NAMES = {
+    md: 'Markdown', markdown: 'Markdown', txt: 'Text', json: 'JSON',
+    csv: 'Spreadsheet', xlsx: 'Spreadsheet', xls: 'Spreadsheet', ods: 'Spreadsheet',
+    docx: 'Document', doc: 'Document', odt: 'Document', rtf: 'Document',
+    pptx: 'Presentation', ppt: 'Presentation', odp: 'Presentation',
+    pdf: 'PDF', png: 'Image', jpg: 'Image', jpeg: 'Image', gif: 'Image',
+    svg: 'Image', drawio: 'Diagram', ipynb: 'Notebook', py: 'Python',
+    yaml: 'YAML', yml: 'YAML', sh: 'Shell', zip: 'Archive', tar: 'Archive',
+    gz: 'Archive'
+  };
+
+  function typeLabel(name, isDir) {
+    if (isDir) return 'Folder';
+    var i = (name || '').lastIndexOf('.');
+    if (i < 0) return 'File';
+    var ext = name.slice(i + 1).toLowerCase();
+    return TYPE_NAMES[ext] || (ext ? ext.toUpperCase() : 'File');
+  }
+
+  // Author is not in the rendered row; it comes from the directory listing. One
+  // request per directory, cached, rather than one per file.
+  var authorCache = {};
+
+  function currentDirKey() {
+    var m = /\/seafile\/library\/([^/]+)\/[^/]+(\/.*)?$/.exec(location.pathname);
+    if (!m) return null;
+    var dir = m[2] ? decodeURIComponent(m[2]) : '/';
+    return { repo: m[1], dir: dir.replace(/\/$/, '') || '/' };
+  }
+
+  function loadAuthors(cb) {
+    var key = currentDirKey();
+    if (!key) return;
+    var id = key.repo + '|' + key.dir;
+    if (authorCache[id]) { cb(authorCache[id]); return; }
+    var url = '/seafile/api2/repos/' + key.repo + '/dir/?p=' + encodeURIComponent(key.dir);
+    fetch(url, { credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (list) {
+        if (!list) return;
+        var byName = {};
+        list.forEach(function (e) {
+          byName[e.name] = e.modifier_name || e.modifier_contact_email || '';
+        });
+        authorCache[id] = byName;
+        cb(byName);
+      })
+      .catch(function () { /* the column simply stays blank */ });
+  }
+
+  // Locate the Size header by its POSITION IN THE ROW, not by a fixed index.
+  // Inserting "before children[6]" put the second column before the first,
+  // because by then children[6] WAS the first one — so the headers ended up in
+  // the opposite order to the cells and every value sat under the wrong title.
+  // A wrong number in the right column is worse than no column at all.
+  function sizeHeader(head) {
+    var kids = head.children;
+    for (var i = 0; i < kids.length; i++) {
+      if (kids[i].className.indexOf('id-col-') === -1 &&
+          (kids[i].textContent || '').trim() === 'Size') {
+        return kids[i];
+      }
+    }
+    return null;
+  }
+
+  function addHeader(head, label, cls) {
+    if (head.querySelector('th.' + cls)) return;
+    var th = document.createElement('th');
+    th.className = cls;
+    th.textContent = label;
+    // Always before Size, so repeated calls append in call order rather than
+    // reversing each other.
+    head.insertBefore(th, sizeHeader(head));
+  }
+
+  function fileColumns() {
+    var table = document.querySelector('.cur-view-content table');
+    if (!table) return;
+    var head = table.querySelector('thead tr');
+    if (!head || head.children.length < 7) return;
+
+    addHeader(head, 'Type', 'id-col-type');
+    addHeader(head, 'Author', 'id-col-author');
+    if (!head.querySelector('th.id-col-history')) {
+      var th = document.createElement('th');
+      th.className = 'id-col-history';
+      th.textContent = 'History';
+      head.appendChild(th);
+    }
+
+    var rows = table.querySelectorAll('tbody tr');
+    var names = [];
+    rows.forEach(function (row) {
+      var link = row.querySelector('td.name a, td.name');
+      var name = link ? (link.textContent || '').trim() : '';
+      if (!name) return;
+      names.push(name);
+      var isDir = !!row.querySelector('td .dir-icon img[src*="folder"]');
+
+      var sizeCell = row.querySelector('td.file-size');
+      if (!row.querySelector('td.id-col-type')) {
+        var t = document.createElement('td');
+        t.className = 'id-col-type';
+        t.textContent = typeLabel(name, isDir);
+        row.insertBefore(t, sizeCell);
+      }
+      if (!row.querySelector('td.id-col-author')) {
+        var a = document.createElement('td');
+        a.className = 'id-col-author';
+        a.textContent = '';
+        row.insertBefore(a, sizeCell);
+      }
+      if (!row.querySelector('td.id-col-history')) {
+        var h = document.createElement('td');
+        h.className = 'id-col-history';
+        if (!isDir) {
+          var btn = document.createElement('i');
+          btn.className = 'id-history-icon';
+          btn.setAttribute('role', 'button');
+          btn.setAttribute('tabindex', '0');
+          btn.setAttribute('title', 'Version history');
+          btn.setAttribute('aria-label', 'Version history');
+          // The console's own history panel, not Seafile's: it is the one that
+          // can RESTORE a revision, and it reads the same commits.
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var key = currentDirKey();
+            var rel = key && key.dir !== '/' ? key.dir.replace(/^\//, '') + '/' + name : name;
+            parent.postMessage(
+              { type: 'id:open-artifact', path: rel, view: 'history' }, '*'
+            );
+          });
+          h.appendChild(btn);
+        }
+        row.appendChild(h);
+      }
+    });
+
+    if (!names.length) return;
+    loadAuthors(function (byName) {
+      table.querySelectorAll('tbody tr').forEach(function (row) {
+        var cell = row.querySelector('td.id-col-author');
+        if (!cell || cell.textContent) return;
+        var link = row.querySelector('td.name a, td.name');
+        var n = link ? (link.textContent || '').trim() : '';
+        if (n && byName[n]) cell.textContent = byName[n];
+      });
+    });
+  }
+
+  // ── Nothing opens a second browsing context ─────────────────────────────
+  // Stripping target="_blank" from anchors covers only the links that ARE
+  // anchors. The wiki cards are `div[role=button]` that call window.open()
+  // directly, so they sailed straight past that and put the store in a bare
+  // browser tab — outside the console, outside its chrome, and outside the
+  // session the analyst is working in.
+  //
+  // Overriding window.open catches every such caller at once, whichever
+  // component it lives in, instead of chasing them one component at a time.
+  //
+  // It returns a STUB rather than null: callers commonly do
+  // `var w = window.open(...); w.focus()`, and null would throw inside Seafile's
+  // own code and leave the UI half-navigated.
+  function containNewWindows() {
+    if (window.__idContained) return;
+    window.__idContained = true;
+    window.open = function (url) {
+      if (url) {
+        try {
+          location.href = new URL(url, location.href).href;
+        } catch (e) {
+          location.href = url;
+        }
+      }
+      return {
+        focus: function () {},
+        blur: function () {},
+        close: function () {},
+        closed: false,
+        document: null,
+        location: { href: url || '' }
+      };
+    };
+  }
+
   function run() {
+    containNewWindows();
     prune();
     bindOpen();
     expandSections();

@@ -836,15 +836,25 @@ img[src*="/img/lib/"] {
  * A field is a surface in its own right. It gets an explicit one, so what is
  * painted behind it cannot change what it looks like.
  */
-html.cg-light :is(input, textarea, select, .form-control),
-html.cg-light :is(input, textarea, select, .form-control):focus,
-html.cg-light :is(input, textarea, select, .form-control):focus-visible {
+/* Checkboxes and radios are EXCLUDED. They are not text fields, and this rule
+ * out-specifies the one that draws a ticked box — `:is()` takes the specificity
+ * of its most specific argument, so this lands at (0,2,1) and quietly beat
+ * `.form-check-input:checked` at (0,2,0). A ticked box was painted white, which
+ * is also where its white tick lives.
+ */
+html.cg-light
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, .form-control),
+html.cg-light
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, .form-control):focus,
+html.cg-light
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea, select, .form-control):focus-visible {
   background-color: var(--id-bg-card) !important;
   color: var(--id-text) !important;
   -webkit-text-fill-color: var(--id-text);
   border-color: var(--id-border-strong);
 }
-html.cg-light :is(input, textarea, .form-control)::placeholder {
+html.cg-light
+  :is(input:not([type="checkbox"]):not([type="radio"]), textarea, .form-control)::placeholder {
   color: var(--id-text-muted) !important;
   -webkit-text-fill-color: var(--id-text-muted);
 }
@@ -937,4 +947,183 @@ html.cg-light :is(input, textarea, .form-control)::placeholder {
   .side-nav {
     display: none !important;
   }
+}
+
+/* ══ Selection checkbox ═════════════════════════════════════════════════════
+ * A ticked box looked exactly like an empty one. Bootstrap draws the tick as a
+ * WHITE svg on a coloured fill, and the surface rewrite turned that fill white
+ * too — white tick on white, with only the border colour changing to say the row
+ * was selected. Selecting five files and seeing no confirmation reads as a
+ * broken control, which is what it effectively was.
+ *
+ * The checked state is stated here explicitly rather than left to the palette,
+ * because "the tick must contrast with its own fill" is not something a colour
+ * table can know.
+ */
+.form-check-input,
+input[type="checkbox"] {
+  border: 1px solid var(--id-border-strong) !important;
+  border-radius: 3px;
+}
+.form-check-input:checked,
+input[type="checkbox"]:checked {
+  background-color: var(--id-accent) !important;
+  border-color: var(--id-accent) !important;
+}
+.form-check-input:indeterminate,
+input[type="checkbox"]:indeterminate {
+  background-color: var(--id-accent) !important;
+  border-color: var(--id-accent) !important;
+}
+.form-check-input:focus-visible,
+input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--id-accent);
+  outline-offset: 1px;
+  box-shadow: none !important;
+}
+
+/* ══ Row operations ═════════════════════════════════════════════════════════
+ * Seafile reveals download / delete / more on hover. They are icon-font glyphs,
+ * so they need a hit area and a hover state of their own — otherwise they are
+ * 13px of text with nothing to aim at.
+ */
+.operation .op-icon,
+.operations .op-icon {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  color: var(--id-text-muted) !important;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.operation .op-icon:hover,
+.operations .op-icon:hover {
+  background-color: var(--id-bg-hover) !important;
+  color: var(--id-text) !important;
+}
+
+/* ══ Detail panel ═══════════════════════════════════════════════════════════
+ * 300px of a drawer that is often only 480 wide left the size and modified
+ * columns off-screen: the panel does not overlay the table, it takes width from
+ * it. Narrower, and the columns it was hiding stay readable.
+ */
+.cur-view-detail {
+  width: 224px !important;
+  max-width: 42% !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+}
+.cur-view-detail .detail-header,
+.cur-view-detail .dirent-table-container {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+/* The 192px artwork in a 224px panel is a banner, not an icon. */
+.cur-view-detail img[src*="folder-192"],
+.cur-view-detail img[src*="/img/lib/"] {
+  content: url("/seafile/media/img/folder-24.png");
+  width: 28px !important;
+  height: 28px !important;
+}
+.cur-view-detail .thumbnail,
+.cur-view-detail .detail-header img {
+  max-width: 32px !important;
+  max-height: 32px !important;
+}
+
+/* ══ Library sections as a top bar ══════════════════════════════════════════
+ * Files / Views / Tags / Others were a second VERTICAL rail inside a drawer that
+ * already has one, so two columns of chrome framed a very narrow table. They are
+ * peers — a switch between them belongs on one horizontal row, the way the rest
+ * of the console does it.
+ */
+.dir-content-nav .tree-section,
+.side-panel .tree-section {
+  display: inline-block;
+  vertical-align: top;
+}
+.dir-content-nav {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  width: 100% !important;
+  padding: 0 6px !important;
+  border-bottom: 1px solid var(--id-border);
+}
+.dir-content-nav .tree-section-header {
+  padding: 4px 8px !important;
+  border-radius: 4px;
+  font-size: 12px !important;
+  white-space: nowrap;
+}
+.dir-content-nav .tree-section-header:hover {
+  background-color: var(--id-bg-hover) !important;
+}
+
+/* ══ Injected file columns ══════════════════════════════════════════════════
+ * Seafile's table sizes its columns from the markup it shipped with, so a
+ * column added afterwards computes to ZERO width — present in the DOM, invisible
+ * on screen, which looks exactly like the injection having failed.
+ */
+/* PERCENTAGES, and the table pinned to 100%.
+ *
+ * The table is `table-layout: fixed` and Seafile's columns are percentages that
+ * already sum to about 100. Adding a column with a PIXEL width means the table's
+ * own width has to grow until the percentages still fit beside it — the browser
+ * solved that honestly and made the table 91,000px wide. The result was a normal
+ * looking header, a horizontal scrollbar, and a Name column a screen and a half
+ * across, which reads as a rendering fault rather than a sizing rule.
+ *
+ * Stated as percentages against a table pinned to 100%, the new columns take
+ * their share of the container and the existing ones scale down to fit.
+ */
+.cur-view-content table {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+th.id-col-type, td.id-col-type { width: 9% !important; }
+th.id-col-author, td.id-col-author { width: 11% !important; }
+th.id-col-history, td.id-col-history { width: 5% !important; text-align: center; }
+/* The operation column is empty until a row is hovered; it does not need 119px
+ * of a drawer that is often 480 wide. */
+.cur-view-content table th:nth-child(6),
+.cur-view-content table td.operation { width: 7% !important; }
+/* Seafile pins Name to a fixed 330px, which leaves nothing for the columns
+ * added beside it once the drawer is narrow. */
+.cur-view-content table th:nth-child(4) { width: 34% !important; }
+td.id-col-type,
+td.id-col-author {
+  color: var(--id-text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* lucide `history` */
+.id-history-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  background-color: currentColor;
+  color: var(--id-text-muted);
+  -webkit-mask: center / 15px 15px no-repeat var(--id-icon);
+  mask: center / 15px 15px no-repeat var(--id-icon);
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M12 7v5l4 2'/></svg>");
+}
+.id-history-icon:hover { color: var(--id-text); }
+
+/* The current revision in Seafile's own history dialog reads as selected, so the
+ * row someone is comparing against is obvious at a glance. */
+.history-list tr:first-child,
+.repo-history-list tr:first-child {
+  background-color: var(--id-bg-active) !important;
 }
