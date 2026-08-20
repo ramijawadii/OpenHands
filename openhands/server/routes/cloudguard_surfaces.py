@@ -58,6 +58,17 @@ async def _probe(client: httpx.AsyncClient, url: str) -> tuple[bool, str]:
         return False, f"unreachable: {type(exc).__name__}"
 
 
+# The store's own origin, from the same setting the driver uses so there is one
+# place to configure it.
+_ARTIFACTS_URL = (os.environ.get("CLOUDGUARD_SEAFILE_URL") or "").strip().rstrip("/")
+
+
+async def _unconfigured() -> tuple[bool, str]:
+    """No store configured is not a failure — the Files tab simply has no
+    library view, and saying "unhealthy" would imply something is broken."""
+    return True, "not configured"
+
+
 async def _notebook_health(conversation_id: str | None) -> tuple[bool, str]:
     """The Notebook backend is per-conversation: it's healthy when the JLab gateway
     is up AND this conversation's runtime Jupyter is discoverable (a session can be
@@ -105,10 +116,21 @@ async def surfaces_health(
     The frontend maps documents+sheet → onlyoffice, whiteboard+diagram → drawio.
     """
     async with httpx.AsyncClient(timeout=_PROBE_TIMEOUT) as client:
-        (oo_ok, oo_reason), (dio_ok, dio_reason), nb = await asyncio.gather(
+        (
+            (oo_ok, oo_reason),
+            (dio_ok, dio_reason),
+            nb,
+            (art_ok, art_reason),
+        ) = await asyncio.gather(
             _probe(client, _ONLYOFFICE_URL),
             _probe(client, _DRAWIO_URL),
             _notebook_health(conversation_id),
+            # The artifact store is a heavy surface like the others: its own
+            # server, its own OS process, framed cross-document. Probed here so
+            # the Files tab gets the same health gate — a store that is down
+            # shows a degraded card instead of an iframe rendering someone
+            # else's error page.
+            _probe(client, f'{_ARTIFACTS_URL}/api2/ping/') if _ARTIFACTS_URL else _unconfigured(),
         )
     nb_ok, nb_reason = nb
     return {
@@ -116,5 +138,6 @@ async def surfaces_health(
             "notebook": {"healthy": nb_ok, "reason": nb_reason},
             "onlyoffice": {"healthy": oo_ok, "reason": oo_reason},
             "whiteboard": {"healthy": dio_ok, "reason": dio_reason},
+            "artifacts": {"healthy": art_ok, "reason": art_reason},
         }
     }

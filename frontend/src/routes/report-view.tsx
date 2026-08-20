@@ -20,6 +20,7 @@ import {
 import { SiMarkdown } from "react-icons/si";
 import { cn } from "#/utils/utils";
 import { openHands } from "#/api/open-hands-axios";
+import SurfaceHost from "#/components/features/surfaces/surface-host";
 import ConversationService from "#/api/conversation-service/conversation-service.api";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
@@ -154,17 +155,24 @@ export default function ReportView() {
    *  in the old one until the tab is reopened. */
   const [theme, setTheme] = React.useState<"light" | "dark">(() =>
     typeof document !== "undefined" &&
-    document.documentElement.classList.contains("light")
+    document.documentElement.getAttribute("data-theme") === "light"
       ? "light"
       : "dark",
   );
   React.useEffect(() => {
     const root = document.documentElement;
+    // The console expresses its palette as data-theme="light" (index.css), NOT
+    // a `light` class. Reading the class list was always false, so the frame was
+    // permanently told "dark" and stayed dark while the rest of the app went
+    // light — the setting appeared to do nothing rather than to fail.
     const sync = () =>
-      setTheme(root.classList.contains("light") ? "light" : "dark");
+      setTheme(root.getAttribute("data-theme") === "light" ? "light" : "dark");
     sync();
     const observer = new MutationObserver(sync);
-    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    observer.observe(root, {
+      attributes: true,
+      attributeFilter: ["data-theme", "class"],
+    });
     return () => observer.disconnect();
   }, []);
   const [loading, setLoading] = React.useState(true);
@@ -395,27 +403,44 @@ export default function ReportView() {
 
   if (store?.available) {
     return (
-      <div className="cg-conv-compact flex h-full w-full flex-col">
-        <iframe
-          // Keyed so switching back and forth remounts rather than showing a
-          // stale frame from a previous session.
-          key={`${store.library_url}${theme}`}
-          // The theme rides on the URL because a framed document cannot read
-          // the parent's CSS variables across the document boundary — the proxy
-          // reads it and injects the matching palette, so the frame paints in
-          // the console's colours instead of flashing the store's own.
-          src={`${store.library_url}?cg_theme=${theme}`}
+      <div className="cg-conv-compact flex h-full min-h-0 w-full flex-col">
+        {/* Same isolation contract as Notebook / ONLYOFFICE / draw.io. The store
+            is a heavy surface rendering from its own backend in a separate OS
+            process, so it gets the same treatment: mount only once the backend
+            is confirmed healthy, degrade to an overlay rather than tearing the
+            frame down on a blip, and offer a hard Reopen when it wedges.
+            Sharing the wrapper also means the memory a wedged surface holds is
+            reclaimed the same way it is for the others, instead of this tab
+            being the one that leaks. */}
+        {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
+        <SurfaceHost
+          surfaceId="artifacts"
+          conversationId={conversationId ?? ""}
           title="Artifact library"
-          className="min-h-0 w-full flex-1 border-0"
-          // No sandbox attribute, deliberately. The store is proxied onto OUR
-          // origin so its SameSite=Lax session cookie is first-party — which is
-          // the only way the frame works at all. Given that, `allow-scripts`
-          // plus `allow-same-origin` is the combination the browser warns
-          // "can escape its sandboxing": it would grant the frame our origin
-          // while looking like a restriction. An honest absence beats a
-          // sandbox that protects nothing.
-          referrerPolicy="no-referrer"
-        />
+        >
+          {(reopenNonce) => (
+            <iframe
+              // Keyed on the reopen nonce as well, so Reopen gets a genuinely fresh
+              // surface rather than the same wedged document.
+              key={`${store.library_url}${theme}${reopenNonce}`}
+              // The theme rides on the URL because a framed document cannot read
+              // the parent's CSS variables across the document boundary — the proxy
+              // reads it and injects the matching palette, so the frame paints in
+              // the console's colours instead of flashing the store's own.
+              src={`${store.library_url}?cg_theme=${theme}`}
+              title="Artifact library"
+              className="min-h-0 w-full flex-1 border-0"
+              // No sandbox attribute, deliberately. The store is proxied onto OUR
+              // origin so its SameSite=Lax session cookie is first-party — which is
+              // the only way the frame works at all. Given that, `allow-scripts`
+              // plus `allow-same-origin` is the combination the browser warns
+              // "can escape its sandboxing": it would grant the frame our origin
+              // while looking like a restriction. An honest absence beats a
+              // sandbox that protects nothing.
+              referrerPolicy="no-referrer"
+            />
+          )}
+        </SurfaceHost>
       </div>
     );
   }

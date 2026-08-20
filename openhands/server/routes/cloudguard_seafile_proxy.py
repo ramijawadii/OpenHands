@@ -143,6 +143,21 @@ _CSS_COLOR_MAP = {
     '#1070ca': 'var(--id-accent)',
 }
 
+# Family names that ARE a glyph set rather than a typeface. Substituting these
+# turns every icon into a missing-glyph box.
+_ICON_FONT_HINTS = (
+    'sf3-font',
+    'sf2-icon',
+    'seafile-font',
+    'iconfont',
+    'fontawesome',
+    'font awesome',
+    'glyphicon',
+    'material icons',
+    'mono',
+    'courier',
+)
+
 _APP_FONT = (
     '-apple-system, "SF Pro", BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, '
     'Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif'
@@ -176,14 +191,29 @@ def _retheme_css(text: str) -> str:
         return _CSS_COLOR_MAP.get(m.group(0).lower(), m.group(0))
 
     text = _HEX_RE.sub(_swap, text)
-    # One typeface across the console. Seafile's stack is left in place only
-    # where it names a monospace family, which carries meaning.
-    text = _FONT_RE.sub(
-        lambda m: m.group(0)
-        if 'mono' in m.group(0).lower() or 'courier' in m.group(0).lower()
-        else f'font-family: {_APP_FONT}',
-        text,
-    )
+    # One typeface across the console — but ONLY for text.
+    #
+    # A font-family declaration is not always about type. Seafile draws its icons
+    # with icon FONTS (`font-family: "sf3-font"`, `seafile-font2`), where the
+    # family name IS the glyph set: rewriting it to a text stack replaces every
+    # icon with a missing-glyph box. That is exactly what the first version of
+    # this transform did, and the frame came back with tofu where its icons had
+    # been.
+    #
+    # So a declaration is only rewritten when it looks like a TEXT stack — it
+    # names a generic family (sans-serif/serif/system-ui) — and does not name an
+    # icon or monospace family. Anything else is left exactly as Seafile wrote
+    # it.
+    def _swap_font(m: 're.Match') -> str:
+        decl = m.group(0)
+        low = decl.lower()
+        if any(k in low for k in _ICON_FONT_HINTS):
+            return decl
+        if not any(k in low for k in ('sans-serif', 'serif', 'system-ui')):
+            return decl
+        return f'font-family: {_APP_FONT}'
+
+    text = _FONT_RE.sub(_swap_font, text)
     for i, held in enumerate(holds):
         text = text.replace(f'__IDURL{i}__', held)
     return text

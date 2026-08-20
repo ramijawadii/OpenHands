@@ -13,7 +13,7 @@ import { openHands } from "#/api/open-hands-axios";
  * See docs/architecture/isolation-failsafe/FAIL_SAFE_ISOLATION_SPEC.md.
  */
 
-export type SurfaceId = "notebook" | "onlyoffice" | "whiteboard";
+export type SurfaceId = "notebook" | "onlyoffice" | "whiteboard" | "artifacts";
 export interface SurfaceStatus {
   healthy: boolean;
   reason: string;
