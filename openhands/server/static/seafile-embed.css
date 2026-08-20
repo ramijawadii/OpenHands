@@ -801,3 +801,26 @@ img[src*="/img/lib/"] {
 .sf3-font-wiki, .sf3-font-wikis {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 7v14'/><path d='M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z'/></svg>");
 }
+
+/* ══ Wiki cards ═════════════════════════════════════════════════════════════
+ * A wiki card is a navigation target, so it carries the same fill as the
+ * selected row in the rail rather than sitting as a white card on a near-white
+ * page, where its edges disappear and the grid reads as loose text.
+ */
+.wiki-card-item {
+  background-color: var(--id-bg-active) !important;
+  border: 1px solid var(--id-border) !important;
+  border-radius: 4px;
+}
+.wiki-card-item:hover {
+  background-color: var(--id-bg-hover) !important;
+}
+
+/* The breadcrumb's final segment is the CURRENT location, so it is the one
+ * piece of that trail that should read as primary text. Seafile paints it
+ * `#fff` for a dark header we no longer have.
+ */
+.last-path-item,
+.path-container .last-path-item {
+  color: var(--id-text) !important;
+}

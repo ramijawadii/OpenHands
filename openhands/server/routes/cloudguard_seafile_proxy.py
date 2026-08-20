@@ -181,6 +181,39 @@ _FONT_RE = re.compile(r'font-family\s*:\s*[^;}]+', re.IGNORECASE)
 # Properties whose colour is TEXT rather than a surface.
 _TEXT_PROPS = {'color', '-webkit-text-fill-color'}
 
+# Custom-property names that mean "surface" (or something else that is not text)
+# even though the name may end in `-color`.
+_VAR_NOT_TEXT = ('bg', 'background', 'border', 'shadow', 'fill', 'stroke', 'outline')
+
+
+def _decl_is_text(prop: str) -> bool:
+    """Does this declaration paint TEXT?
+
+    Custom properties have to be classified by NAME, and this is not a nicety.
+    Bootstrap keeps its palette in variables and Seafile's stylesheets set them
+    to literal colours, so `--bs-body-color: #212529` was read as an ordinary
+    declaration, missed `_TEXT_PROPS`, and went through the SURFACE table — which
+    maps dark fills to `--id-bg-active` because a dark fill usually means a
+    selected row. The result was `--bs-body-color: var(--id-bg-active)`: pale
+    beige. Every control that takes its colour from that variable then drew its
+    text in a near-white on a white page.
+
+    What made it expensive to see is that it is invisible at the point of use.
+    The rule reads `color: var(--bs-body-color)`, which is exactly right; only
+    the variable underneath it is wrong, one indirection away and in a different
+    file. Nothing about the failing element hints at the cause.
+
+    `-color` alone is not enough to decide: `--bs-border-color` also ends that
+    way. The name is checked for a surface word first.
+    """
+    if prop in _TEXT_PROPS:
+        return True
+    if not prop.startswith('--'):
+        return False
+    if any(k in prop for k in _VAR_NOT_TEXT):
+        return False
+    return prop.endswith('-color') or 'text' in prop
+
 # Text keeps its contrast relationship. White label text stays white — it sits on
 # a button we are not turning white — while Seafile's dark greys become the
 # console's text tokens.
@@ -214,7 +247,7 @@ _TEXT_COLOR_MAP = {
 
 # `prop: value` up to the next delimiter. The separator is captured so the
 # original spacing survives the rewrite.
-_DECL_RE = re.compile(r'([-a-zA-Z]+)(?P<sep>\s*:\s*)([^;{}]+)')
+_DECL_RE = re.compile(r'(--[\w-]+|[-a-zA-Z]+)(?P<sep>\s*:\s*)([^;{}]+)')
 
 _css_cache: dict[str, bytes] = {}
 
@@ -241,7 +274,7 @@ def _retheme_css(text: str) -> str:
         # group(2) is the named `sep`; the VALUE is group(3). Reading group(2)
         # here silently replaced every declaration's value with its own colon.
         value = m.group(3)
-        table = _TEXT_COLOR_MAP if prop in _TEXT_PROPS else _CSS_COLOR_MAP
+        table = _TEXT_COLOR_MAP if _decl_is_text(prop) else _CSS_COLOR_MAP
         return m.group(1) + m.group('sep') + _HEX_RE.sub(
             lambda h: table.get(h.group(0).lower(), h.group(0)), value
         )
