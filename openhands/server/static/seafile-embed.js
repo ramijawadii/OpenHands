@@ -53,6 +53,7 @@
     railSections();
     fileGlyphs();
     fileColumns();
+    bindSectionTabs();
     foldedTitles();
     recentSection();
     // The heading is text-identified; its following block is the footer.
@@ -615,13 +616,13 @@
   function openHistoryModal() {
     var item = historyItem();
     if (item) {
-      item.click();
+      realClick(item);
       return;
     }
     var others = document.querySelector('.tree-section.dir-others');
     var op = others && others.querySelector('.tree-section-header-operation');
     if (!op) return;
-    op.click();
+    realClick(op);
     // Poll briefly rather than guessing one delay: the list is rendered by React
     // after its own state update, and a fixed timeout is either too short on a
     // slow frame or needlessly laggy on a fast one.
@@ -630,11 +631,47 @@
       var found = historyItem();
       if (found) {
         clearInterval(timer);
-        found.click();
+        realClick(found);
       } else if (++tries > 20) {
         clearInterval(timer);
       }
     }, 50);
+  }
+
+  // ── Section tabs ────────────────────────────────────────────────────────
+  // The fold caret IS the control; the header itself has no handler. Laying the
+  // sections out as a bar hid the caret, so the tabs looked right and did
+  // nothing.
+  //
+  // Forwarding header clicks to it does not work either: the control responds to
+  // a real pointer sequence and ignores a dispatched one, so `op.click()` — and
+  // even a full synthetic pointerdown/up/click — reaches it and changes nothing.
+  // Chasing that with ever more faithful synthetic events is the wrong direction.
+  //
+  // Instead the real control is STRETCHED across the whole tab and made
+  // invisible. Every click on a tab is then a genuine click on Seafile's own
+  // control, with no synthesis involved and nothing to keep in sync.
+  //
+  // Only the active marker stays in script, since it is presentation and there
+  // is no class on the section saying which one is open.
+  function realClick(el) {
+    if (!el) return;
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(
+      function (type) {
+        var Ctor = type.indexOf('pointer') === 0 && window.PointerEvent
+          ? window.PointerEvent
+          : window.MouseEvent;
+        el.dispatchEvent(
+          new Ctor(type, { bubbles: true, cancelable: true, view: window })
+        );
+      }
+    );
+  }
+
+  function bindSectionTabs() {
+    document.querySelectorAll('.tree-section').forEach(function (section) {
+      section.classList.toggle('id-tab-active', section.children.length > 1);
+    });
   }
 
   function run() {

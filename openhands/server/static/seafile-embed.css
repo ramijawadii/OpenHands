@@ -1236,10 +1236,7 @@ td.id-col-author {
   width: auto !important;
   margin: 0 !important;
 }
-/* The fold caret is meaningless on a horizontal tab: the row IS the control. */
-.dir-content-nav .tree-section-header-operations {
-  display: none !important;
-}
+
 /* Whatever a section renders below its header becomes a panel under the bar. */
 .dir-content-nav .tree-section > *:not(.tree-section-header) {
   position: absolute;
@@ -1277,4 +1274,60 @@ td.id-col-author {
   flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+}
+
+/* The caret keeps Seafile's own handler; it is hidden, not removed, because the
+ * header click is forwarded to it. `display: none` would still be clickable
+ * from script, but leaving it in the layout as a zero-size element keeps the
+ * relationship visible to anyone reading this later. */
+.dir-content-nav .tree-section-header {
+  position: relative;
+}
+/* Seafile's FOLD control, stretched over the whole tab and made invisible, so a
+ * click on the tab is a real click on a real control — no synthetic events and
+ * nothing to keep in sync with what Seafile does next.
+ *
+ * Only the fold control. Files, Views and Tags each carry a SECOND operation
+ * ("More operations", "New tag") that appears FIRST in the DOM, so stretching
+ * every operation handed the whole tab to a menu button: clicking Files opened
+ * a dropdown and never unfolded anything. The sections do not share one control,
+ * and nothing but the title says which is which.
+ */
+.dir-content-nav .tree-section-header-operations {
+  position: static !important;
+  opacity: 1 !important;
+  margin-left: auto;
+}
+.dir-content-nav .tree-section-header-operation[title="Unfold"],
+.dir-content-nav .tree-section-header-operation[title="Fold"] {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  /* Above the tab's own label, or the label takes the click. */
+  z-index: 2;
+}
+/* The remaining per-section operations stay real buttons, above the overlay. */
+.dir-content-nav .tree-section-more-operation,
+.dir-content-nav .tree-section-create-operation {
+  position: relative;
+  z-index: 3;
+  opacity: 0.65;
+}
+.dir-content-nav .tree-section-more-operation:hover,
+.dir-content-nav .tree-section-create-operation:hover {
+  opacity: 1;
+}
+.dir-content-nav .tree-section-header {
+  cursor: pointer;
+  color: var(--id-text-muted) !important;
+  border-bottom: 2px solid transparent;
+  border-radius: 4px 4px 0 0;
+}
+.dir-content-nav .tree-section.id-tab-active .tree-section-header {
+  color: var(--id-text) !important;
+  border-bottom-color: var(--id-accent);
+  font-weight: 500;
 }
