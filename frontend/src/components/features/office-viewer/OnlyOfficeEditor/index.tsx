@@ -37,8 +37,13 @@ export interface OnlyOfficeEditorProps {
   fileUrl?: string;
   /** Conversation whose sandbox holds the file. */
   conversationId?: string;
-  /** Workspace-relative path to the file inside that sandbox. */
+  /** Path to the file inside the selected store. */
   filePath?: string;
+  /** Which store filePath refers to: the conversation sandbox (default) or the
+   *  durable artifact library. The two hold different documents at the same
+   *  relative path, so this is not a hint — the backend binds it into the
+   *  signature that authorises the read and the save-back. */
+  store?: "sandbox" | "artifacts";
   /** Display name including extension, e.g. "report.xlsx". */
   fileName: string;
   /** File extension: xlsx, docx, pptx, pdf, csv… */
@@ -71,6 +76,7 @@ function OnlyOfficeEditor({
   fileType,
   mode = "edit",
   callbackUrl,
+  store = "sandbox",
   height = "100%",
   width = "100%",
 }: OnlyOfficeEditorProps) {
@@ -106,6 +112,7 @@ function OnlyOfficeEditor({
         fileType,
         mode,
         callbackUrl,
+        store,
       })
       .then((res) => {
         if (!cancelled) setState({ status: "ready", data: res.data });
@@ -132,6 +139,7 @@ function OnlyOfficeEditor({
     fileType,
     mode,
     callbackUrl,
+    store,
   ]);
 
   if (state.status === "loading") {

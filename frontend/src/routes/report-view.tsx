@@ -4,6 +4,7 @@ import {
   Loader2,
   RefreshCw,
   ArrowLeft,
+  History,
   Search,
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
@@ -25,6 +26,7 @@ import ConversationService from "#/api/conversation-service/conversation-service
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { PDFViewer } from "#/components/features/office-viewer/PDFViewer";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
+import OnlyOfficeEditor from "#/components/features/office-viewer/OnlyOfficeEditor";
 import { MarkdownRenderer } from "#/components/features/markdown/MarkdownRenderer";
 import { mermaidCodeRenderer } from "#/components/features/markdown/mermaid-code-renderer";
 import { MermaidCanvas } from "#/components/features/markdown/mermaid-canvas";
@@ -138,6 +140,7 @@ export default function ReportView() {
    * behind entirely.
    */
   const [libraryFile, setLibraryFile] = React.useState<string | null>(null);
+  const [showHistory, setShowHistory] = React.useState(false);
   /**
    * The durable store's browser-reachable UI. Seafile's own library view gives
    * per-file revision history, restore, trash recovery, share links and
@@ -394,9 +397,34 @@ export default function ReportView() {
           <span className="truncate text-[11.5px] text-[var(--cg-text-primary)]">
             {basename(libraryFile)}
           </span>
+          <button
+            type="button"
+            onClick={() => setShowHistory((v) => !v)}
+            aria-pressed={showHistory}
+            className={cn(
+              "ml-auto inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] transition-colors",
+              showHistory
+                ? "border-[var(--cg-border-subtle)] bg-[var(--cg-bg-active)] text-[var(--cg-text-primary)]"
+                : "border-[var(--cg-border-subtle)] text-[var(--cg-text-nav)] hover:text-[var(--cg-text-primary)]",
+            )}
+          >
+            <History className="h-3 w-3" />
+            History
+          </button>
         </div>
-        {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
-        <StoreFileViewer path={libraryFile} />
+        <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 min-w-0 flex-1">
+            {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
+            <StoreFileViewer path={libraryFile} />
+          </div>
+          {showHistory && (
+            /* eslint-disable-next-line @typescript-eslint/no-use-before-define */
+            <VersionHistory
+              path={libraryFile}
+              onReverted={() => setLibraryFile(libraryFile)}
+            />
+          )}
+        </div>
       </div>
     );
   }
@@ -782,6 +810,159 @@ function ArtifactViewer({
  *  a conversation's sandbox, and a store-backed equivalent has to exist on the
  *  backend before the editor can open a library file.
  */
+// Kept beside the viewer rather than imported from the editor: this is the list
+// of formats the FILES surface routes into ONLYOFFICE, which is a product
+// decision, not the editor's full capability list.
+const OFFICE_EXTS = new Set([
+  "docx",
+  "doc",
+  "odt",
+  "rtf",
+  "xlsx",
+  "xls",
+  "ods",
+  "csv",
+  "pptx",
+  "ppt",
+  "odp",
+  "pdf",
+]);
+
+interface StoreVersion {
+  id: string;
+  path: string;
+  created_at: string;
+  size: number;
+  author: string;
+  is_current: boolean;
+}
+
+function formatWhen(value: string): string {
+  // Seafile reports ctime as epoch SECONDS in some responses and an ISO string
+  // in others. Guessing wrong shows 1970 or an invalid date, so both are handled
+  // rather than assuming the shape of whichever server we happened to test on.
+  if (!value) return "";
+  const asNumber = Number(value);
+  const d =
+    Number.isFinite(asNumber) && value.trim() !== ""
+      ? new Date(asNumber > 1e12 ? asNumber : asNumber * 1000)
+      : new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleString();
+}
+
+/** Revisions of the open document, newest first, each restorable.
+ *
+ * Restoring writes a NEW revision rather than erasing the ones after it, so the
+ * history stays append-only and a restore is itself auditable. That is what
+ * makes this safe to put in front of an analyst instead of an administrator.
+ */
+function VersionHistory({
+  path,
+  onReverted,
+}: {
+  path: string;
+  onReverted: () => void;
+}) {
+  const { conversationId } = useConversationId();
+  const [versions, setVersions] = React.useState<StoreVersion[] | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const [nonce, setNonce] = React.useState(0);
+
+  React.useEffect(() => {
+    if (!conversationId) return undefined;
+    let cancelled = false;
+    setVersions(null);
+    setErr(null);
+    openHands
+      .get<{ versions: StoreVersion[] }>("/api/cloudguard/vfs/versions", {
+        params: { conversation_id: conversationId, path, store: "artifacts" },
+      })
+      .then(({ data }) => !cancelled && setVersions(data.versions ?? []))
+      .catch(() => !cancelled && setErr("Could not load this file's history."));
+    return () => {
+      cancelled = true;
+    };
+  }, [path, conversationId, nonce]);
+
+  const revert = async (versionId: string) => {
+    if (!conversationId) return;
+    setBusy(versionId);
+    setErr(null);
+    try {
+      await openHands.post("/api/cloudguard/vfs/revert-file", {
+        conversation_id: conversationId,
+        path,
+        version_id: versionId,
+        store: "artifacts",
+      });
+      setNonce((n) => n + 1);
+      onReverted();
+    } catch {
+      setErr("Restore failed. The file is unchanged.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <aside className="cg-scroll flex w-[248px] shrink-0 flex-col overflow-auto border-l border-[var(--cg-border-subtle)] bg-[var(--cg-bg-page)]">
+      <div className="px-3 py-2 text-[10.5px] font-semibold uppercase tracking-[0.4px] text-[var(--cg-text-muted)]">
+        Version history
+      </div>
+      {err && (
+        <div className="px-3 pb-2 text-[11px] text-[var(--cg-text-muted)]">
+          {err}
+        </div>
+      )}
+      {versions === null && !err && (
+        <div className="flex items-center gap-2 px-3 py-2 text-[11px] text-[var(--cg-text-muted)]">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Loading…
+        </div>
+      )}
+      {versions?.length === 0 && (
+        <div className="px-3 py-2 text-[11px] text-[var(--cg-text-muted)]">
+          No earlier versions of this file.
+        </div>
+      )}
+      {versions?.map((v) => (
+        <div
+          key={v.id}
+          className="border-b border-[var(--cg-border-subtle)] px-3 py-2 last:border-b-0"
+        >
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[11.5px] text-[var(--cg-text-primary)]">
+              {formatWhen(v.created_at) || v.id.slice(0, 8)}
+            </span>
+            {v.is_current && (
+              <span className="text-[10px] text-[var(--cg-text-muted)]">
+                current
+              </span>
+            )}
+          </div>
+          {v.author && (
+            <div className="text-[10.5px] text-[var(--cg-text-muted)]">
+              {v.author}
+            </div>
+          )}
+          {!v.is_current && (
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => revert(v.id)}
+              className="mt-1 inline-flex cursor-pointer items-center gap-1 rounded-md border border-[var(--cg-border-subtle)] px-2 py-0.5 text-[10.5px] text-[var(--cg-text-nav)] transition-colors hover:text-[var(--cg-text-primary)] disabled:cursor-default disabled:opacity-50"
+            >
+              {busy === v.id && <Loader2 className="h-3 w-3 animate-spin" />}
+              Restore
+            </button>
+          )}
+        </div>
+      ))}
+    </aside>
+  );
+}
+
 function StoreFileViewer({ path }: { path: string }) {
   const [text, setText] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
@@ -791,6 +972,10 @@ function StoreFileViewer({ path }: { path: string }) {
   const isMermaid = ext === "mmd" || ext === "mermaid";
   const isMarkdown = ext === "md" || ext === "markdown";
   const readable = isMermaid || isMarkdown || ext === "txt" || ext === "json";
+  // A document opens in the editor that owns its format, in place, rather than
+  // in a preview that cannot edit it. These are the formats ONLYOFFICE handles;
+  // the store is the LIBRARY, so a save here becomes a library version.
+  const isOffice = OFFICE_EXTS.has(ext);
 
   React.useEffect(() => {
     if (!readable || !conversationId) return undefined;
@@ -814,6 +999,26 @@ function StoreFileViewer({ path }: { path: string }) {
     };
   }, [path, readable, conversationId]);
 
+  if (isOffice) {
+    if (!conversationId) {
+      return (
+        <div className="flex h-full w-full items-center justify-center px-4 text-center text-[11px] text-[var(--cg-text-muted)]">
+          Open a conversation to edit library documents.
+        </div>
+      );
+    }
+    return (
+      <OnlyOfficeEditor
+        conversationId={conversationId}
+        filePath={path}
+        store="artifacts"
+        fileName={basename(path)}
+        fileType={ext}
+        mode={ext === "pdf" ? "view" : "edit"}
+      />
+    );
+  }
+
   if (!readable) {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-1 px-6 text-center">
@@ -821,9 +1026,8 @@ function StoreFileViewer({ path }: { path: string }) {
           {basename(path)}
         </span>
         <span className="text-[11px] text-[var(--cg-text-muted)]">
-          Documents and spreadsheets from the library are not editable in the
-          console yet — the editor needs a store-backed signed URL, which is the
-          next piece of this work.
+          There is no viewer for {ext ? `.${ext}` : "this format"} in the
+          console.
         </span>
       </div>
     );

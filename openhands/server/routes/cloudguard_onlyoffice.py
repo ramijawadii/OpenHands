@@ -137,21 +137,59 @@ def _backend_origin() -> str:
 
 
 # ── signed file proxy ─────────────────────────────────────────────────────────
+# Which store a document is opened FROM. The sandbox is the agent's live working
+# directory; "artifacts" is the durable, versioned library. A document can be
+# edited from either and the two are not interchangeable.
+_STORE_SANDBOX = "sandbox"
+_STORE_ARTIFACTS = "artifacts"
+_STORES = (_STORE_SANDBOX, _STORE_ARTIFACTS)
+
+
+def _normalise_store(store: str | None) -> str:
+    """An unrecognised store is refused, never quietly treated as the sandbox.
+
+    Defaulting on a typo would edit the wrong file and do it under a signature
+    that says it was allowed.
+    """
+    value = (store or _STORE_SANDBOX).strip().lower()
+    if value not in _STORES:
+        raise HTTPException(status_code=400, detail=f"unknown store {store!r}")
+    return value
+
+
 # CloudGuard files live inside per-conversation sandbox runtimes, reachable only
 # through the app. ONLYOFFICE (a separate container) has no user session, so we
 # hand it a SHORT-LIVED HMAC-SIGNED URL instead of a raw one: the signature binds
 # the conversation id + path + expiry, so the document server can fetch exactly
 # that one file for a limited window and nothing else. This keeps tenant isolation
 # intact — the same reasoning as the jupyter proxy.
-def _file_sig(cid: str, path: str, exp: int) -> str:
-    msg = f"{cid}\n{path}\n{exp}".encode()
+# The STORE is part of what the signature authorises, not a hint. The same
+# relative path exists in both the sandbox and the durable library, so a
+# signature covering only (cid, path, exp) could be replayed against the other
+# store by editing a query parameter — reading a library document under a sandbox
+# grant, or writing a sandbox edit into the library. Binding it closes that by
+# construction rather than by checking.
+#
+# The field changes the signed message, so links minted before a deploy stop
+# verifying. They live at most an hour and a failed one means reopening the
+# document, which is a better trade than carrying two signature formats forever.
+def _file_sig(cid: str, path: str, exp: int, store: str = _STORE_SANDBOX) -> str:
+    msg = f"{cid}\n{path}\n{exp}\n{store}".encode()
     return hmac.new(_jwt_secret().encode(), msg, hashlib.sha256).hexdigest()
 
 
-def _signed_file_url(cid: str, path: str, ttl_seconds: int = 3600) -> str:
+def _signed_file_url(
+    cid: str, path: str, ttl_seconds: int = 3600, store: str = _STORE_SANDBOX
+) -> str:
     exp = int(time.time()) + ttl_seconds
     qs = urlencode(
-        {"cid": cid, "path": path, "exp": exp, "sig": _file_sig(cid, path, exp)}
+        {
+            "cid": cid,
+            "path": path,
+            "exp": exp,
+            "store": store,
+            "sig": _file_sig(cid, path, exp, store),
+        }
     )
     return f"{_backend_origin()}/api/onlyoffice/file?{qs}"
 
@@ -162,13 +200,20 @@ def _signed_file_url(cid: str, path: str, ttl_seconds: int = 3600) -> str:
 # INTO the callbackUrl (ONLYOFFICE preserves its query string), HMAC-signed so a
 # valid-JWT callback can't be pointed at an arbitrary path. No expiry: an editing
 # session can outlive the file-read TTL.
-def _callback_sig(cid: str, path: str) -> str:
-    msg = f"callback\n{cid}\n{path}".encode()
+def _callback_sig(cid: str, path: str, store: str = _STORE_SANDBOX) -> str:
+    msg = f"callback\n{cid}\n{path}\n{store}".encode()
     return hmac.new(_jwt_secret().encode(), msg, hashlib.sha256).hexdigest()
 
 
-def _signed_callback_url(cid: str, path: str) -> str:
-    qs = urlencode({"cid": cid, "path": path, "sig": _callback_sig(cid, path)})
+def _signed_callback_url(cid: str, path: str, store: str = _STORE_SANDBOX) -> str:
+    qs = urlencode(
+        {
+            "cid": cid,
+            "path": path,
+            "store": store,
+            "sig": _callback_sig(cid, path, store),
+        }
+    )
     return f"{_backend_origin()}/api/onlyoffice/callback?{qs}"
 
 
@@ -274,7 +319,9 @@ def _read_sandbox_file(runtime, full_path: str) -> bytes:
 
 
 @router.get("/file")
-async def serve_file(cid: str, path: str, exp: int, sig: str) -> Response:
+async def serve_file(
+    cid: str, path: str, exp: int, sig: str, store: str | None = None
+) -> Response:
     """Stream a single sandbox-workspace file to the ONLYOFFICE container.
 
     Auth is the HMAC signature (not a user session — ONLYOFFICE has none). Rejects
@@ -284,12 +331,42 @@ async def serve_file(cid: str, path: str, exp: int, sig: str) -> Response:
     now = int(time.time())
     if exp < now:
         raise HTTPException(status_code=403, detail="link expired")
-    if not hmac.compare_digest(sig, _file_sig(cid, path, exp)):
+    store = _normalise_store(store)
+    if not hmac.compare_digest(sig, _file_sig(cid, path, exp, store)):
         raise HTTPException(status_code=403, detail="bad signature")
     # No traversal outside the workspace root.
     norm = os.path.normpath(path)
     if norm.startswith("..") or os.path.isabs(norm) or ".." in norm.split(os.sep):
         raise HTTPException(status_code=400, detail="invalid path")
+
+    # A document opened from the durable library is read through THAT store's VFS.
+    # There is no sandbox fallback here on purpose: the library is the only place
+    # the file exists, so falling back would serve a different document (or none)
+    # under a signature that authorised this one. If the store is down, the open
+    # fails and says so.
+    if store == _STORE_ARTIFACTS:
+        from cloudguard.vfs import VFSNotFound
+
+        from openhands.server.routes.cloudguard_vfs import surface_store_read
+
+        try:
+            data = await surface_store_read(cid, norm, store)
+        except VFSNotFound as exc:
+            raise HTTPException(status_code=404, detail="file not found") from exc
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.error("onlyoffice artifact read failed (cid=%s path=%s): %s", cid, norm, exc)
+            raise HTTPException(
+                status_code=502, detail=f"could not read from the library: {exc}"
+            ) from exc
+        return Response(
+            content=data,
+            media_type=_content_type_for(norm),
+            headers={
+                "Content-Disposition": f'inline; filename="{quote(os.path.basename(norm))}"'
+            },
+        )
 
     # SRE-1b: when the writeback flip is on, read THROUGH the VFS so a reopen after
     # a buffered save serves read-your-writes content (the spooled bytes), not the
@@ -445,6 +522,9 @@ class TokenRequest(BaseModel):
     fileType: str = Field(..., max_length=32)
     mode: str = Field(default="edit", max_length=8)
     callbackUrl: str | None = Field(default=None, max_length=4096)
+    # Which store filePath refers to. Defaults to the sandbox so every existing
+    # caller keeps its current behaviour.
+    store: str = Field(default=_STORE_SANDBOX, max_length=32)
 
 
 # ── Layer 1: Document Builder (headless Office JS generation) ─────────────────
@@ -1860,6 +1940,7 @@ async def create_token(
     """
     mode = body.mode if body.mode in ("edit", "view") else "edit"
     ext = body.fileType.lower().lstrip(".")
+    store = _normalise_store(body.store)
 
     if body.fileUrl:
         file_url = body.fileUrl
@@ -1870,8 +1951,12 @@ async def create_token(
         # that may not exist yet on a fresh conversation. Without the file, the
         # Document Server's download fails with "Download failed". Seed a minimal
         # valid file for text types so the editor opens a blank sheet instead.
-        await _ensure_seed_file(body.conversationId, body.filePath, ext)
-        file_url = _signed_file_url(body.conversationId, body.filePath)
+        # Only the sandbox gets a seeded blank file. A library document already
+        # exists — if it does not, that is a real error and inventing an empty one
+        # would silently replace it on first save.
+        if store == _STORE_SANDBOX:
+            await _ensure_seed_file(body.conversationId, body.filePath, ext)
+        file_url = _signed_file_url(body.conversationId, body.filePath, store=store)
         # FRESH key per open. A stable content-fingerprint key (the old A1 opt) made
         # the Document Server resurrect a prior editing session on page reload and
         # pop "The file version has been changed. The page will be reloaded." when
@@ -1893,7 +1978,9 @@ async def create_token(
     if body.callbackUrl:
         callback_url = body.callbackUrl
     elif body.conversationId and body.filePath:
-        callback_url = _signed_callback_url(body.conversationId, body.filePath)
+        callback_url = _signed_callback_url(
+            body.conversationId, body.filePath, store
+        )
     else:
         callback_url = f"{_backend_origin()}/api/onlyoffice/callback"
 
@@ -2100,6 +2187,7 @@ async def save_callback(
     cid: str | None = None,
     path: str | None = None,
     sig: str | None = None,
+    store: str | None = None,
 ):
     """Handle document-server save callbacks.
 
@@ -2135,8 +2223,9 @@ async def save_callback(
         _save_metric("ds_error", cid=cid, path=path, status=status, error="ds-assemble-error")
 
     if status in (2, 6) and url:
+        target_store = _normalise_store(store)
         target_ok = bool(cid and path and sig) and hmac.compare_digest(
-            sig or "", _callback_sig(cid or "", path or "")
+            sig or "", _callback_sig(cid or "", path or "", target_store)
         )
         # The DS embeds its PUBLIC (browser/gateway) origin in the download URL, which the
         # app container can't reach — rewrite it to the internal DS DNS before fetching.
@@ -2147,7 +2236,24 @@ async def save_callback(
                 resp.raise_for_status()
             content = resp.content
 
-            if target_ok:
+            if target_ok and target_store == _STORE_ARTIFACTS:
+                # Straight through the library's VFS, which is what makes the save
+                # a VERSION with an audit record rather than an overwrite.
+                from openhands.server.routes.cloudguard_vfs import surface_store_write
+
+                await surface_store_write(
+                    cid,  # type: ignore[arg-type]
+                    path,  # type: ignore[arg-type]
+                    content,
+                    target_store,
+                    mime=_content_type_for(path or ""),
+                    actor="onlyoffice",
+                )
+                logger.info(
+                    "onlyoffice callback: saved %d bytes → library %s:%s",
+                    len(content), cid, path,
+                )
+            elif target_ok:
                 await _save_to_sandbox(cid, path, content)  # type: ignore[arg-type]
                 logger.info(
                     "onlyoffice callback: saved %d bytes → sandbox %s:%s",

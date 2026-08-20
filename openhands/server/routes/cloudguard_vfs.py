@@ -326,6 +326,43 @@ async def _run_store(store: str, conversation_id: str, coro_factory):
         raise _map_error(exc) from exc
 
 
+async def surface_store_read(conversation_id: str, path: str, store: str) -> bytes:
+    """Read a file from a NAMED store, through that store's VFS pipeline.
+
+    `surface_read` is hard-wired to the sandbox. An editor opening a document out
+    of the durable library needs the same read path against the artifact store, so
+    the file arrives with its policy, audit and read-your-writes behaviour intact
+    rather than through a side channel that bypasses all three.
+    """
+    from cloudguard.vfs import VFSContext
+
+    ctx = VFSContext(tenant=_TENANT, conversation=conversation_id, actor="surface")
+    return await _run_store(store, conversation_id, lambda vfs: vfs.read(ctx, path))
+
+
+async def surface_store_write(
+    conversation_id: str,
+    path: str,
+    data: bytes,
+    store: str,
+    *,
+    mime: str | None = None,
+    actor: str = "surface",
+):
+    """Write bytes to a NAMED store through the VFS pipeline.
+
+    The write side of surface_store_read. Going through the VFS is the point: a
+    save into the library has to produce a VERSION and an audit record, which is
+    the whole reason artifacts live there rather than in a container.
+    """
+    from cloudguard.vfs import VFSContext
+
+    ctx = VFSContext(tenant=_TENANT, conversation=conversation_id, actor=actor)
+    return await _run_store(
+        store, conversation_id, lambda vfs: vfs.write(ctx, path, data, mime=mime)
+    )
+
+
 async def surface_read(conversation_id: str, path: str) -> bytes:
     """Read a workspace file THROUGH the VFS (read-your-writes aware). A surface
     that both writes and reads via the VFS (SRE-1b) uses this so a reopen after a
@@ -363,6 +400,10 @@ def _map_error(exc: Exception) -> HTTPException:
         return HTTPException(status_code=404, detail="not found")
     if isinstance(exc, VFSUnavailable):
         return HTTPException(status_code=503, detail=str(exc))
+    if isinstance(exc, NotImplementedError):
+        # 501, not 500: the request was well formed and the store simply cannot
+        # do this. A 500 would send someone hunting for a fault that isn't there.
+        return HTTPException(status_code=501, detail=str(exc))
     return HTTPException(status_code=500, detail=f"vfs error: {exc}")
 
 
@@ -569,6 +610,77 @@ async def vfs_publish(body: PublishRequest = Body(...), _p=Depends(require_princ
         )
 
     return JSONResponse({'source': body.path, 'dest': dest, **_entry_json(entry)})
+
+
+@router.get("/versions")
+async def vfs_versions(
+    conversation_id: str,
+    path: str,
+    store: str = "artifacts",
+    limit: int = 25,
+    _p=Depends(require_principal),
+):
+    """Revisions of one file, newest first.
+
+    Defaults to the artifact store because that is the one that keeps history —
+    the sandbox is a working directory and answers with an empty list.
+    """
+    try:
+        versions = await _run_store(
+            store,
+            conversation_id,
+            lambda vfs: vfs.history(_ctx(conversation_id, _p), path, limit),
+        )
+    except HTTPException as exc:
+        if exc.status_code != 501:
+            raise
+        # Say so plainly. "No earlier versions" would be a lie about a store that
+        # never had any to begin with.
+        return {"versioned": False, "versions": []}
+    return {
+        "versioned": True,
+        "versions": [
+            {
+                "id": v.id,
+                "path": v.path,
+                "created_at": v.created_at,
+                "size": v.size,
+                "author": v.author,
+                "is_current": v.is_current,
+            }
+            for v in versions
+        ]
+    }
+
+
+class RevertFileRequest(BaseModel):
+    conversation_id: str = Field(..., max_length=128)
+    path: str = Field(..., max_length=4096)
+    version_id: str = Field(..., max_length=128)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+@router.post("/revert-file")
+async def vfs_revert_file(body: RevertFileRequest, _p=Depends(require_principal)):
+    """Put one file back to an earlier revision.
+
+    The revert is a NEW revision, not an erasure: the history keeps both what was
+    there and the fact that someone reverted it, which is what makes this safe to
+    expose to an analyst rather than to an administrator only.
+    """
+    try:
+        await _run_store(
+            body.store,
+            body.conversation_id,
+            lambda vfs: vfs.revert_file(
+                _ctx(body.conversation_id, _p), body.path, body.version_id
+            ),
+        )
+    except NotImplementedError as exc:
+        raise HTTPException(
+            status_code=400, detail="this store does not version individual files"
+        ) from exc
+    return {"ok": True, "path": body.path, "version_id": body.version_id}
 
 
 @router.get("/artifact-store")
