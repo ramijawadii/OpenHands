@@ -50,6 +50,7 @@
     hideSidecar();
     expandSections();
     iconMenus();
+    railSections();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
@@ -178,6 +179,65 @@
             glyph.className = 'id-menu-icon';
             glyph.style.setProperty('--id-icon', 'url("' + MENU_ICONS[i][1] + '")');
             item.insertBefore(glyph, item.firstChild);
+            return;
+          }
+        }
+      },
+    );
+  }
+
+
+  // ── Rail sections ─────────────────────────────────────────────────────────
+  // Seafile ships one heading ("Workspace") above a flat list. The console's
+  // rails group their destinations, so the same grouping is applied here by
+  // what each entry DOES:
+  //
+  //   Workspace — the libraries themselves (Seafile's own heading, kept)
+  //   Activity  — what has happened (Activities)
+  //   Knowledge — written material (Wikis)
+  //   Govern    — who may see what (Share Admin)
+  //
+  // Inserted rather than invented in the markup: if Seafile adds or renames an
+  // entry, an unmatched heading simply never appears instead of labelling the
+  // wrong rows.
+  var RAIL_GROUPS = [
+    ['activities', 'Activity'],
+    ['wikis', 'Knowledge'],
+    ['share-admin', 'Govern'],
+  ];
+
+  function railSections() {
+    // A heading is placed ONCE per group. Share Admin's own children carry
+    // `share-admin` in their href too, so matching per item printed "Govern"
+    // three times — above the section and again above each of its sub-entries.
+    var placed = {};
+    document
+      .querySelectorAll('.side-nav .id-rail-heading')
+      .forEach(function (h) {
+        placed[(h.textContent || '').trim()] = true;
+      });
+
+    // TOP-LEVEL rows only. Seafile nests sub-entries in `ul.sub-nav`, and
+    // Share Admin's children repeat `share-admin` in their href — matching
+    // every .nav-item printed the heading above each of them as well.
+    document.querySelectorAll('.side-nav ul.nav-container > .nav-item').forEach(
+      function (item) {
+        if (item.dataset.idGrouped) return;
+        item.dataset.idGrouped = '1';
+        var link = item.querySelector('.nav-link');
+        if (!link) return;
+        var href = (link.getAttribute('href') || '').toLowerCase();
+        var text = (link.textContent || '').trim().toLowerCase();
+        for (var i = 0; i < RAIL_GROUPS.length; i++) {
+          var key = RAIL_GROUPS[i][0];
+          var label = RAIL_GROUPS[i][1];
+          if (placed[label]) continue;
+          if (href.indexOf(key) !== -1 || text.indexOf(key.replace('-', ' ')) !== -1) {
+            placed[label] = true;
+            var h = document.createElement('div');
+            h.className = 'id-rail-heading';
+            h.textContent = label;
+            item.parentNode.insertBefore(h, item);
             return;
           }
         }

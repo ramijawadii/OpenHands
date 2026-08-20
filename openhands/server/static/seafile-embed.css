@@ -569,3 +569,28 @@ html, body, #wrapper, #main,
   color: var(--id-text-muted) !important;
   transform: none !important;
 }
+
+/* ══ Rail group headings — the Remediation rail's own tokens ════════════════
+ * Taken from admin-kit's SideRailPanel rather than eyeballed: 10.5px, weight
+ * 700, 0.4 letter-spacing, uppercase, muted, padded 14px/4px. Seafile's single
+ * "Workspace" heading picks these up, and seafile-embed.js inserts the rest so
+ * the rail reads as sections instead of one undifferentiated list.
+ */
+.side-nav h2,
+.side-nav .heading,
+.side-nav .id-rail-heading {
+  padding: 14px 12px 4px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.4px !important;
+  text-transform: uppercase !important;
+  color: var(--id-text-muted) !important;
+  margin: 0 !important;
+  user-select: none;
+}
+
+/* The store's own help section. The JS hides it by text, but the heading is
+ * styled like ours in the meantime, so it is hidden here too — a heading that
+ * flashes and disappears is worse than one that never paints. */
+.side-nav h2:not(.id-rail-heading) + ul:has(.sf3-font-help) { display: none !important; }
+.side-nav .id-rail-heading:empty { display: none !important; }
