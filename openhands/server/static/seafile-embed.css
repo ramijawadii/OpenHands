@@ -218,40 +218,40 @@ html.cg-light { --id-bg-rail: #ffffff; }
   flex: 0 0 13px;
   display: inline-block;
   background-color: currentColor;
-  -webkit-mask: center / 13px 13px no-repeat var(--id-icon, none);
-  mask: center / 13px 13px no-repeat var(--id-icon, none);
+  -webkit-mask: center / 13px 13px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
+  mask: center / 13px 13px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
 }
 
 /* lucide `user` — My Libraries */
-.side-nav .sf3-font-mine {
+.sf3-font-mine {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'/><circle cx='12' cy='7' r='4'/></svg>");
 }
 /* lucide `users` — Shared with me */
-.side-nav .sf3-font-share-with-me {
+.sf3-font-share-with-me {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2'/><circle cx='9' cy='7' r='4'/><path d='M22 21v-2a4 4 0 0 0-3-3.87'/><path d='M16 3.13a4 4 0 0 1 0 7.75'/></svg>");
 }
 /* lucide `globe` — Shared with all */
-.side-nav .sf3-font-share-with-all {
+.sf3-font-share-with-all {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><path d='M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z'/><path d='M2 12h20'/></svg>");
 }
 /* lucide `star` — Favorites */
-.side-nav .sf3-font-starred, .side-nav .sf3-font-star {
+.sf3-font-starred, .sf3-font-star {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2'/></svg>");
 }
 /* lucide `wrench` — Share Admin */
-.side-nav .sf3-font-wrench {
+.sf3-font-wrench {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z'/></svg>");
 }
 /* lucide `plus` — New Group */
-.side-nav .sf2-icon-plus {
+.sf2-icon-plus {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M5 12h14'/><path d='M12 5v14'/></svg>");
 }
 /* lucide `history` — Activities */
-.side-nav .sf3-font-activities, .side-nav .sf3-font-clock {
+.sf3-font-activities, .sf3-font-clock {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M12 7v5l4 2'/></svg>");
 }
 /* lucide `chevron-down` — expand/collapse carets */
-.side-nav .sf3-font-down {
+.sf3-font-down {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>");
 }
 
@@ -317,17 +317,17 @@ html.cg-light { --id-bg-rail: #ffffff; }
   flex: 0 0 14px;
   color: inherit !important;
   background-color: currentColor;
-  -webkit-mask: center / 14px 14px no-repeat var(--id-icon, none);
-  mask: center / 14px 14px no-repeat var(--id-icon, none);
+  -webkit-mask: center / 14px 14px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
+  mask: center / 14px 14px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
 }
 
-.side-nav .sf3-font-files, .side-nav .sf3-font-file {
+.sf3-font-files, .sf3-font-file {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z'/></svg>");
 }
-.side-nav .sf3-font-activities {
+.sf3-font-activities {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M12 7v5l4 2'/></svg>");
 }
-.side-nav .sf3-font-wiki, .side-nav .sf3-font-wikis {
+.sf3-font-wiki, .sf3-font-wikis {
   --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 7v14'/><path d='M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z'/></svg>");
 }
 
@@ -538,8 +538,8 @@ html, body, #wrapper, #main,
   display: inline-block;
   background-color: currentColor;
   opacity: .75;
-  -webkit-mask: center / 14px 14px no-repeat var(--id-icon, none);
-  mask: center / 14px 14px no-repeat var(--id-icon, none);
+  -webkit-mask: center / 14px 14px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
+  mask: center / 14px 14px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
 }
 
 /* ══ Sidebar labels ═════════════════════════════════════════════════════════
@@ -702,8 +702,8 @@ html.cg-light :is(input, textarea, select, .form-control):focus-visible {
   display: block;
   background-color: currentColor;
   opacity: .85;
-  -webkit-mask: center / 26px 26px no-repeat var(--id-icon, none);
-  mask: center / 26px 26px no-repeat var(--id-icon, none);
+  -webkit-mask: center / 26px 26px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
+  mask: center / 26px 26px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
 }
 
 /* ══ Text is dark, everywhere, by default ═══════════════════════════════════
@@ -770,9 +770,18 @@ img[src*="/img/lib/"] {
 
 /* ══ Section-title icons ════════════════════════════════════════════════════
  * The same lucide glyphs as the rail, applied wherever these classes appear —
- * section headings use them too. Scoped to the classes we actually have a glyph
- * for: the generic rule paints `currentColor` through a mask, so a class with no
- * mapping would render as a solid square rather than an icon.
+ * section headings and the library list use them too.
+ *
+ * The glyph MAPPINGS above are deliberately unscoped. They were once written as
+ * `.side-nav .sf3-font-mine`, which looked tidy and was wrong: this rule paints
+ * `currentColor` through the mask everywhere, so the same class OUTSIDE the rail
+ * got a mask of `none` and rendered as a solid grey square. Three of those sat on
+ * the section headings, which is what "grey blocks instead of icons" turned out
+ * to be. A mapping only declares a custom property and is inert until something
+ * paints it, so there is no reason to scope one.
+ *
+ * The mask falls back to an EMPTY svg rather than `none` for the same reason: a
+ * class we have no glyph for should disappear, not become a grey block.
  */
 .sf3-font-mine, .sf3-font-share-with-me, .sf3-font-share-with-all,
 .sf3-font-starred, .sf3-font-wrench, .sf3-font-activities,
@@ -785,8 +794,8 @@ img[src*="/img/lib/"] {
   vertical-align: -2px;
   color: var(--id-text-muted) !important;
   background-color: currentColor;
-  -webkit-mask: center / 15px 15px no-repeat var(--id-icon, none);
-  mask: center / 15px 15px no-repeat var(--id-icon, none);
+  -webkit-mask: center / 15px 15px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
+  mask: center / 15px 15px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
 }
 /* lucide `book-open` — wikis, wherever the heading appears */
 .sf3-font-wiki, .sf3-font-wikis {
