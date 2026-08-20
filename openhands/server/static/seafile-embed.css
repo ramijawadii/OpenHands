@@ -34,6 +34,10 @@ html.cg-dark {
   /* One accent for the console. Seafile shipped four (amber, orange, and a
      blue), which is what made the frame look like a different product. */
   --id-accent: #2d86d4;
+  /* Label colour for anything sitting ON the accent. White here is not a
+     surface — it is contrast against a coloured button — so it must not be
+     remapped with the surfaces. */
+  --id-text-on-accent: #ffffff;
 
   /* Seafile's own theme contract, repointed. */
   --bs-body-bg: var(--id-bg-page);
@@ -69,6 +73,7 @@ html.cg-light {
   --id-border: rgba(30, 20, 10, 0.07);
   --id-border-strong: rgba(30, 20, 10, 0.16);
   --id-accent: #2d86d4;
+  --id-text-on-accent: #ffffff;
 }
 
 /* Surfaces Seafile paints with a literal colour rather than a variable. */
@@ -594,3 +599,67 @@ html, body, #wrapper, #main,
  * flashes and disappears is worse than one that never paints. */
 .side-nav h2:not(.id-rail-heading) + ul:has(.sf3-font-help) { display: none !important; }
 .side-nav .id-rail-heading:empty { display: none !important; }
+
+/* ══ Focus rings ════════════════════════════════════════════════════════════
+ * An active field is marked with the accent, which on a dark surface reads as a
+ * stray blue glow. Dark gets a white ring; light keeps the accent, where blue on
+ * white is the convention every form on the web already uses.
+ */
+html.cg-dark :is(input, textarea, select, .form-control, [contenteditable]):focus,
+html.cg-dark :is(input, textarea, select, .form-control):focus-visible {
+  border-color: var(--id-text) !important;
+  outline-color: var(--id-text) !important;
+  box-shadow: 0 0 0 1px var(--id-text) !important;
+}
+html.cg-light :is(input, textarea, select, .form-control, [contenteditable]):focus,
+html.cg-light :is(input, textarea, select, .form-control):focus-visible {
+  border-color: var(--id-accent) !important;
+  outline-color: var(--id-accent) !important;
+  box-shadow: 0 0 0 1px var(--id-accent) !important;
+}
+
+/* ══ Quick-create tiles ═════════════════════════════════════════════════════
+ * The empty-folder shortcuts were rendered as heavy cards competing with the
+ * content they sit in. They are shortcuts, not objects: the file TYPE is the
+ * information, so the chrome goes and the type reads as an icon with a label.
+ */
+.empty-tip .btn, .empty-tip button,
+.empty-tip-quick-create button, .quick-create-btn {
+  background: transparent !important;
+  border: 1px solid var(--id-border) !important;
+  border-radius: 8px !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  color: var(--id-text) !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.empty-tip .btn:hover, .empty-tip button:hover, .quick-create-btn:hover {
+  background: var(--id-bg-hover) !important;
+}
+
+/* ══ Filter popovers ════════════════════════════════════════════════════════
+ * The "Modified by" style filter panels use the same menu language as every
+ * other menu in the console. Matched on Seafile's naming conventions rather than
+ * one confirmed class: that page does not render the control without activity
+ * data, so this is the one rule here I could NOT verify against a live element.
+ */
+[class*="popover"], [class*="filter-popover"], [class*="selector-container"],
+[class*="search-selector"], [class*="filter-by"] {
+  background-color: var(--id-bg-card) !important;
+  border: 1px solid var(--id-border) !important;
+  border-radius: 10px !important;
+  color: var(--id-text) !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 20%) !important;
+}
+[class*="popover"] input, [class*="selector"] input, [class*="filter-by"] input {
+  background: var(--id-bg-page) !important;
+  border: 1px solid var(--id-border-strong) !important;
+  border-radius: 6px !important;
+  color: var(--id-text) !important;
+  font-size: 12px !important;
+  height: 28px;
+}

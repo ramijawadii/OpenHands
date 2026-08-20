@@ -174,36 +174,75 @@ _URL_RE = re.compile(r'url\([^)]*\)')
 _HEX_RE = re.compile(r'#[0-9a-fA-F]{8}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}(?![0-9a-fA-F])')
 _FONT_RE = re.compile(r'font-family\s*:\s*[^;}]+', re.IGNORECASE)
 
+# Properties whose colour is TEXT rather than a surface.
+_TEXT_PROPS = {'color', '-webkit-text-fill-color'}
+
+# Text keeps its contrast relationship. White label text stays white — it sits on
+# a button we are not turning white — while Seafile's dark greys become the
+# console's text tokens.
+_TEXT_COLOR_MAP = {
+    '#fff': 'var(--id-text-on-accent)',
+    '#ffffff': 'var(--id-text-on-accent)',
+    '#212529': 'var(--id-text)',
+    '#303133': 'var(--id-text)',
+    '#333': 'var(--id-text)',
+    '#000': 'var(--id-text)',
+    '#000000': 'var(--id-text)',
+    '#666': 'var(--id-text-muted)',
+    '#555': 'var(--id-text-muted)',
+    '#444': 'var(--id-text-muted)',
+    '#999': 'var(--id-text-muted)',
+    '#aaa': 'var(--id-text-muted)',
+    '#f09f3f': 'var(--id-accent)',
+    '#f09f4f': 'var(--id-accent)',
+    '#ff9800': 'var(--id-accent)',
+    '#ed7109': 'var(--id-accent)',
+    '#eb8205': 'var(--id-accent)',
+    '#1070ca': 'var(--id-accent)',
+}
+
+# `prop: value` up to the next delimiter. The separator is captured so the
+# original spacing survives the rewrite.
+_DECL_RE = re.compile(r'([-a-zA-Z]+)(?P<sep>\s*:\s*)([^;{}]+)')
+
 _css_cache: dict[str, bytes] = {}
 
 
 def _retheme_css(text: str) -> str:
-    """Map Seafile's literal colours and fonts onto the console's tokens."""
+    """Map Seafile's literal colours and fonts onto the console's tokens.
+
+    PROPERTY-AWARE, and it has to be. A colour means different things depending
+    on what it paints: `background:#fff` is a surface, `color:#fff` is text
+    sitting on something darker. Mapping both through one table turned white
+    button labels into `var(--id-bg-rail)` — white on white, invisible — which is
+    exactly the light-mode text that went missing.
+    """
     holds: list[str] = []
 
-    def _hold(m: re.Match) -> str:
+    def _hold(m: 're.Match') -> str:
         holds.append(m.group(0))
         return f'__IDURL{len(holds) - 1}__'
 
     text = _URL_RE.sub(_hold, text)
 
-    def _swap(m: re.Match) -> str:
-        return _CSS_COLOR_MAP.get(m.group(0).lower(), m.group(0))
+    def _swap_decl(m: 're.Match') -> str:
+        prop = m.group(1).lower()
+        # group(2) is the named `sep`; the VALUE is group(3). Reading group(2)
+        # here silently replaced every declaration's value with its own colon.
+        value = m.group(3)
+        table = _TEXT_COLOR_MAP if prop in _TEXT_PROPS else _CSS_COLOR_MAP
+        return m.group(1) + m.group('sep') + _HEX_RE.sub(
+            lambda h: table.get(h.group(0).lower(), h.group(0)), value
+        )
 
-    text = _HEX_RE.sub(_swap, text)
+    text = _DECL_RE.sub(_swap_decl, text)
+
     # One typeface across the console — but ONLY for text.
     #
     # A font-family declaration is not always about type. Seafile draws its icons
     # with icon FONTS (`font-family: "sf3-font"`, `seafile-font2`), where the
     # family name IS the glyph set: rewriting it to a text stack replaces every
-    # icon with a missing-glyph box. That is exactly what the first version of
-    # this transform did, and the frame came back with tofu where its icons had
-    # been.
-    #
-    # So a declaration is only rewritten when it looks like a TEXT stack — it
-    # names a generic family (sans-serif/serif/system-ui) — and does not name an
-    # icon or monospace family. Anything else is left exactly as Seafile wrote
-    # it.
+    # icon with a missing-glyph box.
     def _swap_font(m: 're.Match') -> str:
         decl = m.group(0)
         low = decl.lower()
@@ -214,6 +253,7 @@ def _retheme_css(text: str) -> str:
         return f'font-family: {_APP_FONT}'
 
     text = _FONT_RE.sub(_swap_font, text)
+
     for i, held in enumerate(holds):
         text = text.replace(f'__IDURL{i}__', held)
     return text

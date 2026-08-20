@@ -436,7 +436,14 @@ export default function ReportView() {
                 // the parent's CSS variables across the document boundary — the proxy
                 // reads it and injects the matching palette, so the frame paints in
                 // the console's colours instead of flashing the store's own.
-                src={`${store.library_url}?cg_theme=${theme}`}
+                // The store is ALWAYS light, whatever the console is set to.
+                //
+                // It is a document surface — files, previews, page content — and
+                // documents are authored and read on white. The chat and the rest of
+                // the console stay on the user's theme; this one pane is deliberately
+                // fixed, the same way a PDF or a Word document does not invert
+                // because the shell around it is dark.
+                src={`${store.library_url}?cg_theme=light`}
                 title="Artifact library"
                 // h-full, NOT flex-1. SurfaceHost's root is `relative h-full` — a
                 // BLOCK, not a flex container — so `flex-1` on this iframe is inert
