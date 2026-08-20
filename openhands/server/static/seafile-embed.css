@@ -278,11 +278,28 @@ html.cg-light { --id-bg-rail: #ffffff; }
   background: transparent !important;
   margin: 1px 6px;
 }
-.side-nav .nav-item,
+/* Height belongs to the ROW, never to the group.
+ *
+ * `.nav-item.flex-column` is a CONTAINER: "Files" holds a nested list of
+ * My Libraries / Shared with me / Shared with all. Forcing 28px onto the item
+ * collapsed the whole group to one row's height, and its children carried on
+ * painting — directly on top of the next items in the rail. The screenshot of
+ * "My Libraries" written across "Favorites" was that, not a font problem.
+ */
+.side-nav .nav-item {
+  height: auto !important;
+  min-height: 0 !important;
+}
 .side-nav .nav-item > .nav-link {
   height: 28px !important;
   min-height: 28px !important;
   line-height: 28px !important;
+}
+/* The nested list indents under its parent instead of sitting on it. */
+.side-nav .nav-item .nav,
+.side-nav .nav-item ul {
+  display: block;
+  padding-left: 12px;
 }
 
 .side-nav [class*="sf3-font-"],
