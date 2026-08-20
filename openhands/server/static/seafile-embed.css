@@ -499,16 +499,19 @@ html, body, #wrapper, #main,
  * Primary actions match the chatbox send button: a white pill with dark text,
  * the same affordance the analyst already knows from the composer.
  */
+/* Primary actions are a BLACK fill with a white label. The store is a light
+   surface, so the strongest thing on it is the darkest — the inverse of the
+   chat composer, where the same logic makes the send button white on dark. */
 .btn-primary, .btn-submit, button[type="submit"], .submit-btn, .sf-btn-primary {
-  background-color: #ffffff !important;
-  border-color: #ffffff !important;
-  color: #121212 !important;
+  background-color: #121212 !important;
+  border-color: #121212 !important;
+  color: #ffffff !important;
   border-radius: 6px !important;
   font-weight: 500;
 }
 .btn-primary:hover, button[type="submit"]:hover, .sf-btn-primary:hover {
-  background-color: rgba(255, 255, 255, 0.88) !important;
-  color: #121212 !important;
+  background-color: #2a2a2a !important;
+  color: #ffffff !important;
 }
 .btn-secondary, .btn-outline-primary {
   background-color: transparent !important;
@@ -662,4 +665,43 @@ html.cg-light :is(input, textarea, select, .form-control):focus-visible {
   color: var(--id-text) !important;
   font-size: 12px !important;
   height: 28px;
+}
+
+/* ══ Quick-create: the file TYPE, not a card ════════════════════════════════
+ * Real class from the rendered page: `.big-new-file-button` inside
+ * `.tip-for-new-file`. These were four heavy bordered cards for what is really
+ * "which kind of file?" — so the type becomes the content: a glyph with its
+ * name under it, and the card chrome goes.
+ */
+.tip-for-new-file .big-new-file-button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  width: auto !important;
+  min-width: 76px;
+  height: auto !important;
+  padding: 10px 12px !important;
+  display: inline-flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+  color: var(--id-text) !important;
+}
+.tip-for-new-file .big-new-file-button:hover {
+  background: var(--id-bg-hover) !important;
+}
+/* The "+" belonged to the card, not to the file type. */
+.tip-for-new-file .big-new-file-button .id-plus { display: none; }
+
+.id-file-glyph {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: block;
+  background-color: currentColor;
+  opacity: .85;
+  -webkit-mask: center / 26px 26px no-repeat var(--id-icon, none);
+  mask: center / 26px 26px no-repeat var(--id-icon, none);
 }

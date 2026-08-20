@@ -605,7 +605,18 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
     if 'text/html' in ctype:
         raw = await response.aread()
         await client.aclose()
-        theme = request.query_params.get('cg_theme') or request.cookies.get('cg_theme') or 'dark'
+        # LIGHT is the default, and the fallback matters more than it looks.
+        # cg_theme rides the iframe's src, so it is present on the FIRST
+        # request and gone on every navigation the user makes inside the
+        # frame. With a 'dark' fallback the store silently flipped theme the
+        # moment anyone clicked a folder — which is why a light page came
+        # back with black cards on it. The store is a document surface and is
+        # always light, so that is what an absent parameter means too.
+        theme = (
+            request.query_params.get('cg_theme')
+            or request.cookies.get('cg_theme')
+            or 'light'
+        )
         proxied = PlainResponse(
             content=_reskin(raw, theme),
             status_code=response.status_code,
@@ -630,6 +641,17 @@ async def _proxy(request: Request, principal) -> StreamingResponse | JSONRespons
     for key, value in response.headers.multi_items():
         if key.lower() == 'set-cookie':
             proxied.raw_headers.append((b'set-cookie', value.encode('latin-1')))
+
+    # Remember the theme so it survives navigation inside the frame, where the
+    # query parameter no longer rides along.
+    if request.query_params.get('cg_theme') in ('light', 'dark'):
+        proxied.set_cookie(
+            'cg_theme',
+            request.query_params['cg_theme'],
+            path='/seafile',
+            samesite='lax',
+            httponly=False,
+        )
 
     return proxied
 

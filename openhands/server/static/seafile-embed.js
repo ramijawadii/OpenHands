@@ -51,6 +51,7 @@
     expandSections();
     iconMenus();
     railSections();
+    fileGlyphs();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
@@ -243,6 +244,38 @@
         }
       },
     );
+  }
+
+
+  // ── Quick-create glyphs ───────────────────────────────────────────────────
+  // `.big-new-file-button` ships as "+ Markdown", "+ Word" and so on. The file
+  // TYPE is the actual choice being made, so it is drawn as a glyph and the "+"
+  // — which described the card, not the file — is dropped.
+  var FILE_GLYPHS = [
+    ['markdown', SVG("<rect width='20' height='16' x='2' y='4' rx='2'/><path d='m7 15 0-6 2.5 3L12 9v6'/><path d='M17 9v6'/><path d='m19.5 12.5-2.5 2.5-2.5-2.5'/>")],
+    ['excel', SVG("<path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h5'/><path d='m9 13 6 5'/><path d='m15 13-6 5'/>")],
+    ['ppt', SVG("<path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h5'/><path d='M9 12h4a2 2 0 0 1 0 4H9v-4Z'/>")],
+    ['word', SVG("<path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h5'/><path d='m8 13 1.5 4 1.5-4 1.5 4L14 13'/>")],
+  ];
+
+  function fileGlyphs() {
+    document.querySelectorAll('.big-new-file-button').forEach(function (btn) {
+      if (btn.dataset.idGlyph) return;
+      btn.dataset.idGlyph = '1';
+      var label = (btn.textContent || '').trim();
+      var lower = label.toLowerCase();
+      for (var i = 0; i < FILE_GLYPHS.length; i++) {
+        if (lower.indexOf(FILE_GLYPHS[i][0]) !== -1) {
+          // Drop the "+" and keep the type as the label.
+          btn.textContent = label.replace(/^\s*\+\s*/, '');
+          var g = document.createElement('span');
+          g.className = 'id-file-glyph';
+          g.style.setProperty('--id-icon', 'url("' + FILE_GLYPHS[i][1] + '")');
+          btn.insertBefore(g, btn.firstChild);
+          return;
+        }
+      }
+    });
   }
 
   function run() {
