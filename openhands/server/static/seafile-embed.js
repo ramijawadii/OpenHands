@@ -54,6 +54,8 @@
     fileGlyphs();
     fileColumns();
     bindSectionTabs();
+    bindContextMenu();
+    scanMenus();
     foldedTitles();
     recentSection();
     // The heading is text-identified; its following block is the footer.
@@ -672,6 +674,377 @@
     document.querySelectorAll('.tree-section').forEach(function (section) {
       section.classList.toggle('id-tab-active', section.children.length > 1);
     });
+  }
+
+  // ── One context menu, everywhere ────────────────────────────────────────
+  // Seafile offers a different menu depending on what you clicked: a folder has
+  // no Properties and no History, a file gains "More", and both offer "Open via
+  // Client". An analyst should not have to learn which item exists where, so one
+  // menu is presented for everything, in one order, and entries that do not
+  // apply are DISABLED with the reason rather than silently absent — a missing
+  // item reads as a bug, a disabled one explains itself.
+  //
+  // The actions are DELEGATED, not reimplemented: choosing an item opens
+  // Seafile's own menu behind the scenes and clicks the real entry, so every
+  // dialog, API call and permission check is the one Seafile already performs.
+  // Only the three things it has no equivalent for are ours.
+  var MENU = [
+    { id: 'open', label: 'Open' },
+    { id: 'pin', label: 'Pin', native: ['Star', 'Unstar'] },
+    { sep: true },
+    { id: 'share', label: 'Share', native: ['Share'] },
+    { id: 'context', label: 'Add to agent context' },
+    { sep: true },
+    { id: 'move', label: 'Move', native: ['Move'] },
+    { id: 'copy', label: 'Copy', native: ['Copy'] },
+    { id: 'duplicate', label: 'Duplicate' },
+    { id: 'transfer', label: 'Transfer', native: ['Transfer'] },
+    { sep: true },
+    { id: 'history', label: 'Version history' },
+    { id: 'permission', label: 'Permissions' },
+    { id: 'rename', label: 'Rename', native: ['Rename'] },
+    { sep: true },
+    { id: 'properties', label: 'Properties', native: ['Properties'] }
+  ];
+
+  var MENU_ICON = {
+    open: "<path d='M15 3h6v6'/><path d='M10 14 21 3'/><path d='M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6'/>",
+    pin: "<path d='M12 17v5'/><path d='M15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1v3.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76z'/>",
+    share: "<circle cx='18' cy='5' r='3'/><circle cx='6' cy='12' r='3'/><circle cx='18' cy='19' r='3'/><path d='m8.59 13.51 6.83 3.98'/><path d='m15.41 6.51-6.82 3.98'/>",
+    context: "<path d='M12 8V4H8'/><rect width='16' height='12' x='4' y='8' rx='2'/><path d='M2 14h2'/><path d='M20 14h2'/><path d='M15 13v2'/><path d='M9 13v2'/>",
+    move: "<path d='M5 9v6'/><path d='m9 5-4 4 4 4'/><path d='M19 9v6'/><path d='m15 19 4-4-4-4'/>",
+    copy: "<rect width='14' height='14' x='8' y='8' rx='2'/><path d='M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'/>",
+    duplicate: "<rect width='12' height='12' x='9' y='9' rx='2'/><path d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/><path d='M15 12v6'/><path d='M12 15h6'/>",
+    transfer: "<path d='M16 3h5v5'/><path d='M8 3H3v5'/><path d='M21 3 3 21'/>",
+    history: "<path d='M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8'/><path d='M3 3v5h5'/><path d='M12 7v5l4 2'/>",
+    permission: "<rect width='18' height='11' x='3' y='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/>",
+    rename: "<path d='M12 20h9'/><path d='M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z'/>",
+    properties: "<circle cx='12' cy='12' r='10'/><path d='M12 16v-4'/><path d='M12 8h.01'/>"
+  };
+
+  // Seafile's own menu, opened and read WITHOUT being shown. Taking the entries
+  // any other way would mean re-deriving which of them are available for this
+  // row, which is exactly the duplication this avoids.
+  // Seafile's menu is ENHANCED IN PLACE rather than replaced.
+  //
+  // The first attempt built a menu of our own and delegated each action by
+  // opening Seafile's menu behind the scenes and clicking the real entry. That
+  // cannot work here: the row's menu button is rendered on HOVER, and a
+  // synthetic pointerover does not produce it — only a real pointer does. The
+  // same wall as the fold caret. Anything built on synthesising user input
+  // against this UI is one React change away from silently doing nothing.
+  //
+  // So the real menu is reordered, restyled and extended where it stands. Every
+  // click stays a real click on the element Seafile rendered, with its own
+  // handler, and the analyst still sees one menu in one order everywhere.
+  // 'History' is dropped because our own Version history entry replaces it and
+// opens the Modification History dialog rather than seahub's revisions page.
+var DROP_ITEMS = ['Open via Client', 'More', 'History'];
+
+  // The dropdown is PORTALED out of its row — it renders as a child of a div
+  // near the body, not inside the <tr> — so `menu.closest('tr')` finds nothing
+  // and the row it belongs to has to be remembered when the toggle is clicked.
+  // Reading the DOM upwards looked obvious and was wrong.
+  var lastMenuRow = null;
+
+  function trackMenuRow(e) {
+    var toggle = e.target && e.target.closest
+      ? e.target.closest('.sf-dropdown-toggle, .sf3-font-more')
+      : null;
+    if (!toggle) return;
+    var row = toggle.closest('tbody tr');
+    if (row && row.querySelector('td.name')) lastMenuRow = row;
+    // The observer watches #wrapper, and the dropdown is portaled OUTSIDE it, so
+    // opening one produces no mutation the scan would ever see. Enhancing has to
+    // be driven from the click that opens it.
+    var tries = 0;
+    var timer = setInterval(function () {
+      var menu = document.querySelector('.dropdown-menu.show');
+      if (menu) {
+        clearInterval(timer);
+        enhanceNativeMenu(menu);
+      } else if (++tries > 20) {
+        clearInterval(timer);
+      }
+    }, 25);
+  }
+
+  function enhanceNativeMenu(menu) {
+    if (!menu || menu.getAttribute('data-id-menu') === '1') return;
+    var row = lastMenuRow;
+    if (!row || !row.isConnected || !row.querySelector('td.name')) return;
+    menu.setAttribute('data-id-menu', '1');
+    menu.classList.add('id-ctx-menu', 'id-ctx-native');
+
+    var byLabel = {};
+    var items = [].slice.call(menu.querySelectorAll('.dropdown-item, button'));
+    items.forEach(function (el) {
+      var text = (el.textContent || '').trim();
+      if (DROP_ITEMS.indexOf(text) !== -1) {
+        el.style.display = 'none';
+        return;
+      }
+      el.classList.add('id-ctx-item');
+      byLabel[text] = el;
+    });
+
+    var path = rowPath(row);
+    var folder = isFolderRow(row);
+
+    MENU.forEach(function (entry) {
+      if (entry.sep) {
+        var hr = document.createElement('div');
+        hr.className = 'id-ctx-sep';
+        menu.appendChild(hr);
+        return;
+      }
+      var el = null;
+      if (entry.native) {
+        for (var i = 0; i < entry.native.length && !el; i++) {
+          el = byLabel[entry.native[i]] || null;
+        }
+      }
+      if (el) {
+        // MOVED, not recreated — the node keeps the handler Seafile attached.
+        // Only the wording is ours; the state it reflects is still Seafile's, so
+        // Star/Unstar becomes Pin/Unpin rather than a fixed label that would lie
+        // about whether the item is already pinned.
+        if (entry.id === 'pin') {
+          relabel(el, /^Unstar$/.test((el.textContent || '').trim()) ? 'Unpin' : 'Pin');
+        }
+        setIcon(el, entry.id);
+        menu.appendChild(el);
+        return;
+      }
+      if (entry.native) {
+        // Seafile does not offer this one here. Shown disabled with the reason,
+        // because an item that vanishes on some rows reads as a bug.
+        menu.appendChild(ownItem(entry, row, path, 'Not available for this item'));
+        return;
+      }
+      menu.appendChild(ownItem(entry, row, path, entry.id === 'history' && folder
+        ? 'History is kept per file' : ''));
+    });
+  }
+
+  function relabel(el, text) {
+    for (var i = 0; i < el.childNodes.length; i++) {
+      if (el.childNodes[i].nodeType === 3 && (el.childNodes[i].textContent || '').trim()) {
+        el.childNodes[i].textContent = text;
+        return;
+      }
+    }
+    el.appendChild(document.createTextNode(text));
+  }
+
+  function setIcon(el, id) {
+    if (!MENU_ICON[id] || el.querySelector('.id-ctx-icon')) return;
+    var icon = document.createElement('span');
+    icon.className = 'id-ctx-icon';
+    icon.style.setProperty(
+      '--id-icon',
+      'url("data:image/svg+xml;utf8,' +
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' " +
+        "stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'>" +
+        MENU_ICON[id] + '</svg>")'
+    );
+    el.insertBefore(icon, el.firstChild);
+  }
+
+  function ownItem(entry, row, path, reason) {
+    var item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'id-ctx-item';
+    setIcon(item, entry.id);
+    item.appendChild(document.createTextNode(entry.label));
+    if (reason) {
+      item.disabled = true;
+      item.title = reason;
+      return item;
+    }
+    item.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      runOwnAction(entry, row, path);
+    });
+    return item;
+  }
+
+  function runOwnAction(entry, row, path) {
+    if (entry.id === 'open') {
+      var link = row.querySelector('td.name a');
+      if (link) realClick(link);
+      return;
+    }
+    if (entry.id === 'context') {
+      rememberRecent(path);
+      parent.postMessage({ type: 'id:add-to-context', path: path }, '*');
+      return;
+    }
+    if (entry.id === 'history') { openHistoryModal(); return; }
+    if (entry.id === 'permission') { openPermissionModal(path); return; }
+    if (entry.id === 'duplicate') { duplicate(path); return; }
+  }
+
+  function rowPath(row) {
+    var link = row.querySelector('td.name a, td.name');
+    var name = link ? (link.textContent || '').trim() : '';
+    var key = currentDirKey();
+    if (!name || !key) return name;
+    return key.dir !== '/' ? key.dir.replace(/^\//, '') + '/' + name : name;
+  }
+
+  function isFolderRow(row) {
+    return !!row.querySelector('td .dir-icon img[src*="folder"]');
+  }
+
+  function runAction(entry, row) {
+    var path = rowPath(row);
+    if (entry.id === 'open') {
+      var link = row.querySelector('td.name a');
+      if (link) realClick(link);
+      return;
+    }
+    if (entry.id === 'context') {
+      rememberRecent(path);
+      parent.postMessage({ type: 'id:add-to-context', path: path }, '*');
+      return;
+    }
+    if (entry.id === 'history') { openHistoryModal(); return; }
+    if (entry.id === 'permission') { openPermissionModal(path); return; }
+    if (entry.id === 'duplicate') { duplicate(path); return; }
+    if (entry.native) {
+      withNativeMenu(row, function (menu) {
+        if (!menu) return;
+        var item = nativeItem(menu, entry.native);
+        if (item) realClick(item);
+      });
+    }
+  }
+
+  // Seafile has no Duplicate. Copying an item into its OWN directory is one, and
+  // the server renames the copy rather than refusing the collision — the same
+  // auto-rename that has to be defended against elsewhere is the wanted
+  // behaviour here.
+  function duplicate(path) {
+    var key = currentDirKey();
+    if (!key) return;
+    var name = path.split('/').pop();
+    var body = new FormData();
+    body.append('operation', 'copy');
+    body.append('dst_repo', key.repo);
+    body.append('dst_dir', key.dir);
+    body.append('file_names', name);
+    fetch(
+      '/workspace/api2/repos/' + key.repo + '/fileops/copy/?p=' + encodeURIComponent(key.dir),
+      { method: 'POST', credentials: 'same-origin', body: body }
+    ).then(function () { location.reload(); });
+  }
+
+  function bindContextMenu() {
+    if (window.__idCtxBound) return;
+    window.__idCtxBound = true;
+    // A right-click opens the row's OWN menu, so both gestures land on the same
+    // control rather than on two menus that have to be kept in step.
+    document.addEventListener('mousedown', trackMenuRow, true);
+    document.addEventListener('click', trackMenuRow, true);
+    document.addEventListener('contextmenu', function (e) {
+      var row = e.target && e.target.closest ? e.target.closest('tbody tr') : null;
+      if (!row || !row.querySelector('td.name')) return;
+      var toggle = row.querySelector('.sf-dropdown-toggle, .sf3-font-more');
+      if (!toggle) return;  // the button only exists once the row is hovered
+      lastMenuRow = row;
+      e.preventDefault();
+      e.stopPropagation();
+      realClick(toggle);
+    }, true);
+  }
+
+  function scanMenus() {
+    document.querySelectorAll('.dropdown-menu.show').forEach(enhanceNativeMenu);
+  }
+
+  // ── Permissions ─────────────────────────────────────────────────────────
+  // Shows what the ENGINE would allow, for both principals it distinguishes:
+  // the human at the console, who is the trusted control plane, and the agent,
+  // which is untrusted and bound by the capability manifest, the WORM zones and
+  // the mode gate. Those two get materially different answers on the same file
+  // and that difference is the point of the panel.
+  //
+  // The answers come from the policy itself rather than being restated here. A
+  // matrix that drifts from the engine is worse than none: it would tell someone
+  // an artifact is protected when it is not.
+  function openPermissionModal(path) {
+    var existing = document.getElementById('id-perm-modal');
+    if (existing) existing.remove();
+
+    var wrap = document.createElement('div');
+    wrap.id = 'id-perm-modal';
+    wrap.className = 'id-perm-backdrop';
+    wrap.innerHTML =
+      '<div class="id-perm-dialog" role="dialog" aria-modal="true" aria-label="Permissions">' +
+      '<div class="id-perm-head"><span class="id-perm-title"></span>' +
+      '<button type="button" class="id-perm-close" aria-label="Close">×</button></div>' +
+      '<div class="id-perm-body">Loading…</div></div>';
+    document.body.appendChild(wrap);
+    wrap.querySelector('.id-perm-title').textContent = path.split('/').pop();
+    wrap.querySelector('.id-perm-close').addEventListener('click', function () {
+      wrap.remove();
+    });
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap) wrap.remove();
+    });
+
+    var cid = (parent && parent.__idConversationId) || '';
+    fetch(
+      '/api/cloudguard/vfs/permissions?conversation_id=' + encodeURIComponent(cid) +
+        '&path=' + encodeURIComponent(path) + '&store=artifacts',
+      { credentials: 'same-origin' }
+    )
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        var body = wrap.querySelector('.id-perm-body');
+        if (!data) {
+          body.textContent = 'Could not read the permissions for this item.';
+          return;
+        }
+        var actors = [
+          { key: 'human', label: 'You (console)' },
+          { key: 'agent', label: 'Agent' }
+        ];
+        var html = '<table class="id-perm-table"><thead><tr><th>Principal</th>';
+        data.ops.forEach(function (op) {
+          html += '<th>' + op.charAt(0).toUpperCase() + op.slice(1) + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+        var notes = [];
+        actors.forEach(function (actor) {
+          var row = data.matrix[actor.key] || {};
+          html += '<tr><td class="id-perm-actor">' + actor.label + '</td>';
+          data.ops.forEach(function (op) {
+            var cell = row[op] || {};
+            var mark = cell.allow ? 'yes' : (cell.needs_approval ? 'ask' : 'no');
+            var glyph = cell.allow ? '✓' : (cell.needs_approval ? '○' : '✗');
+            html += '<td class="id-perm-cell id-perm-' + mark + '" title="' +
+              (cell.reason || '').replace(/"/g, '') + '">' + glyph + '</td>';
+            if (cell.reason) notes.push(actor.label + ' — ' + op + ': ' + cell.reason);
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+        html +=
+          '<p class="id-perm-note">✓ allowed · ○ needs approval · ' +
+          '✗ refused. Answers come from the policy the engine applies, not ' +
+          'from this panel.</p>';
+        if (notes.length) {
+          html += '<ul class="id-perm-reasons"><li>' + notes.join('</li><li>') + '</li></ul>';
+        }
+        body.innerHTML = html;
+      })
+      .catch(function () {
+        wrap.querySelector('.id-perm-body').textContent =
+          'Could not read the permissions for this item.';
+      });
   }
 
   function run() {

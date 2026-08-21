@@ -683,6 +683,39 @@ async def vfs_revert_file(body: RevertFileRequest, _p=Depends(require_principal)
     return {"ok": True, "path": body.path, "version_id": body.version_id}
 
 
+_EXPLAIN_OPS = ("read", "write", "delete", "restore", "checkpoint")
+
+
+@router.get("/permissions")
+async def vfs_permissions(
+    conversation_id: str,
+    path: str,
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    """The effective permission matrix for one path.
+
+    Answers for BOTH principals the engine distinguishes: the human at the
+    console, who is the trusted control plane, and the agent, which is untrusted
+    and bound by the capability manifest, the WORM zones and the mode gate. Those
+    two get materially different answers on the same file, and that difference is
+    the thing worth showing.
+
+    Computed by asking the POLICY, not by restating its rules here — a matrix
+    that drifts from the engine would tell someone an artifact is protected when
+    it is not.
+    """
+    from cloudguard.vfs import VFSContext
+
+    matrix = {}
+    for actor in ("human", "agent"):
+        ctx = VFSContext(tenant=_TENANT, conversation=conversation_id, actor=actor)
+        matrix[actor] = await _run_store(
+            store, conversation_id, lambda vfs, c=ctx: vfs.explain(c, path, _EXPLAIN_OPS)
+        )
+    return {"path": path, "store": store, "ops": list(_EXPLAIN_OPS), "matrix": matrix}
+
+
 @router.get("/artifact-store")
 async def vfs_artifact_store(_p=Depends(require_principal)):
     """What the Files surface needs to know about the durable store.
