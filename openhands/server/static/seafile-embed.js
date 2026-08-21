@@ -53,11 +53,12 @@
     railSections();
     fileGlyphs();
     fileColumns();
-    bindSectionTabs();
+    markActiveTab();
     bindContextMenu();
     scanMenus();
     foldedTitles();
     recentSection();
+    deletedSection();
     // The heading is text-identified; its following block is the footer.
     var headings = document.querySelectorAll('.side-nav h2, .side-nav .heading');
     headings.forEach(function (h) {
@@ -285,11 +286,17 @@
   // `.big-new-file-button` ships as "+ Markdown", "+ Word" and so on. The file
   // TYPE is the actual choice being made, so it is drawn as a glyph and the "+"
   // — which described the card, not the file — is dropped.
+  // The SAME artwork the file rows use, not a drawn substitute.
+  //
+  // These were lucide outlines. Beside a list showing Seafile's own type icons
+  // that meant two different pictures for the same kind of file in one view,
+  // which is what makes a product feel assembled rather than designed. The
+  // images already ship with the store.
   var FILE_GLYPHS = [
-    ['markdown', SVG("<rect width='20' height='16' x='2' y='4' rx='2'/><path d='m7 15 0-6 2.5 3L12 9v6'/><path d='M17 9v6'/><path d='m19.5 12.5-2.5 2.5-2.5-2.5'/>")],
-    ['excel', SVG("<path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h5'/><path d='m9 13 6 5'/><path d='m15 13-6 5'/>")],
-    ['ppt', SVG("<path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h5'/><path d='M9 12h4a2 2 0 0 1 0 4H9v-4Z'/>")],
-    ['word', SVG("<path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z'/><path d='M14 2v5h5'/><path d='m8 13 1.5 4 1.5-4 1.5 4L14 13'/>")],
+    ['markdown', '/workspace/media/img/file/256/md.png'],
+    ['excel', '/workspace/media/img/file/256/excel.png'],
+    ['ppt', '/workspace/media/img/file/256/ppt.png'],
+    ['word', '/workspace/media/img/file/256/word.png'],
   ];
 
   function fileGlyphs() {
@@ -304,7 +311,7 @@
           btn.textContent = label.replace(/^\s*\+\s*/, '');
           var g = document.createElement('span');
           g.className = 'id-file-glyph';
-          g.style.setProperty('--id-icon', 'url("' + FILE_GLYPHS[i][1] + '")');
+          g.style.backgroundImage = 'url("' + FILE_GLYPHS[i][1] + '")';
           btn.insertBefore(g, btn.firstChild);
           return;
         }
@@ -450,7 +457,7 @@
           btn.addEventListener('click', function (e) {
             e.preventDefault();
             e.stopPropagation();
-            openHistoryModal();
+            openHistoryModal(rowPath(row));
           });
           h.appendChild(btn);
         }
@@ -548,6 +555,34 @@
     } catch (e) { /* private mode: the section simply stays empty */ }
   }
 
+  // Trash is where deleted work goes, and the rail is where an analyst looks for
+  // it. Seafile files it under an "Others" section that we take out of the tab
+  // bar, so it moves to the rail under the name it actually has for the person
+  // using it.
+  function deletedSection() {
+    var nav = document.querySelector('.side-nav .side-nav-con, .side-nav ul');
+    var key = currentDirKey();
+    if (!nav || !key) return;
+    if (document.getElementById('id-deleted-item')) return;
+
+    var li = document.createElement('li');
+    li.className = 'nav-item';
+    li.id = 'id-deleted-item';
+    var a = document.createElement('a');
+    a.className = 'nav-link';
+    a.href = '/workspace/repo/' + key.repo + '/trash/';
+    a.setAttribute('title', 'Deleted');
+    var icon = document.createElement('span');
+    icon.className = 'id-deleted-icon';
+    var text = document.createElement('span');
+    text.className = 'nav-text';
+    text.textContent = 'Deleted';
+    a.appendChild(icon);
+    a.appendChild(text);
+    li.appendChild(a);
+    nav.appendChild(li);
+  }
+
   function recentSection() {
     var nav = document.querySelector('.side-nav .side-nav-con, .side-nav ul');
     if (!nav) return;
@@ -596,84 +631,135 @@
     nav.appendChild(wrap);
   }
 
-  // ── Seafile's Modification History modal ────────────────────────────────
-  // The modal is a React component we do not own, so there is no API to call and
-  // no route to visit: it is opened from Others -> History in the library rail
-  // and nowhere else. Driving those two controls is the only way to raise it
-  // from a row, so that is what this does.
+  // ── Version history ─────────────────────────────────────────────────────
+  // Our own dialog, fed by the console's versions API.
   //
-  // The section renders its contents LAZILY — collapsed, "History" does not
-  // exist in the DOM at all — so unfolding and clicking cannot happen in the
-  // same tick.
-  function historyItem() {
-    var others = document.querySelector('.tree-section.dir-others');
-    if (!others) return null;
-    var items = others.querySelectorAll('.dir-others-item-text');
-    for (var i = 0; i < items.length; i++) {
-      if ((items[i].textContent || '').trim() === 'History') return items[i];
-    }
-    return null;
-  }
+  // It used to raise Seafile's Modification History by unfolding the Others
+  // section and clicking its "History" entry. That is what made the section bar
+  // flicker whenever the history icon was used, and why it opened only
+  // sometimes: the entry is rendered lazily, so the click raced the render, and
+  // any re-render in between collapsed the section again. Driving another
+  // component's rail to open a dialog is a chain of assumptions, and every link
+  // was one React change from breaking.
+  //
+  // It also showed the wrong thing. That dialog is the LIBRARY's history — every
+  // change to every file — when what was asked for was the history of the row
+  // that was clicked. This one is per file, and its revisions can be RESTORED,
+  // which Seafile's cannot.
+  function openHistoryModal(path) {
+    var existing = document.getElementById('id-hist-modal');
+    if (existing) existing.remove();
 
-  function openHistoryModal() {
-    var item = historyItem();
-    if (item) {
-      realClick(item);
-      return;
-    }
-    var others = document.querySelector('.tree-section.dir-others');
-    var op = others && others.querySelector('.tree-section-header-operation');
-    if (!op) return;
-    realClick(op);
-    // Poll briefly rather than guessing one delay: the list is rendered by React
-    // after its own state update, and a fixed timeout is either too short on a
-    // slow frame or needlessly laggy on a fast one.
-    var tries = 0;
-    var timer = setInterval(function () {
-      var found = historyItem();
-      if (found) {
-        clearInterval(timer);
-        realClick(found);
-      } else if (++tries > 20) {
-        clearInterval(timer);
-      }
-    }, 50);
-  }
-
-  // ── Section tabs ────────────────────────────────────────────────────────
-  // The fold caret IS the control; the header itself has no handler. Laying the
-  // sections out as a bar hid the caret, so the tabs looked right and did
-  // nothing.
-  //
-  // Forwarding header clicks to it does not work either: the control responds to
-  // a real pointer sequence and ignores a dispatched one, so `op.click()` — and
-  // even a full synthetic pointerdown/up/click — reaches it and changes nothing.
-  // Chasing that with ever more faithful synthetic events is the wrong direction.
-  //
-  // Instead the real control is STRETCHED across the whole tab and made
-  // invisible. Every click on a tab is then a genuine click on Seafile's own
-  // control, with no synthesis involved and nothing to keep in sync.
-  //
-  // Only the active marker stays in script, since it is presentation and there
-  // is no class on the section saying which one is open.
-  function realClick(el) {
-    if (!el) return;
-    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(
-      function (type) {
-        var Ctor = type.indexOf('pointer') === 0 && window.PointerEvent
-          ? window.PointerEvent
-          : window.MouseEvent;
-        el.dispatchEvent(
-          new Ctor(type, { bubbles: true, cancelable: true, view: window })
-        );
-      }
-    );
-  }
-
-  function bindSectionTabs() {
-    document.querySelectorAll('.tree-section').forEach(function (section) {
-      section.classList.toggle('id-tab-active', section.children.length > 1);
+    var wrap = document.createElement('div');
+    wrap.id = 'id-hist-modal';
+    wrap.className = 'id-perm-backdrop';
+    wrap.innerHTML =
+      '<div class="id-perm-dialog" role="dialog" aria-modal="true" aria-label="Version history">' +
+      '<div class="id-perm-head"><span class="id-perm-title"></span>' +
+      '<button type="button" class="id-perm-close" aria-label="Close">\u00d7</button></div>' +
+      '<div class="id-perm-body">Loading\u2026</div></div>';
+    document.body.appendChild(wrap);
+    wrap.querySelector('.id-perm-title').textContent =
+      (path || '').split('/').pop() + ' \u2014 version history';
+    wrap.querySelector('.id-perm-close').addEventListener('click', function () {
+      wrap.remove();
     });
+    wrap.addEventListener('click', function (e) {
+      if (e.target === wrap) wrap.remove();
+    });
+    loadHistory(wrap, path);
+  }
+
+  function loadHistory(wrap, path) {
+    var body = wrap.querySelector('.id-perm-body');
+    body.textContent = 'Loading\u2026';
+    fetch(
+      '/api/cloudguard/vfs/versions?conversation_id=' + encodeURIComponent(convId()) +
+        '&path=' + encodeURIComponent(path) + '&store=artifacts',
+      { credentials: 'same-origin' }
+    )
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (data) {
+        if (!data) {
+          body.textContent = 'Could not read this file\u2019s history.';
+          return;
+        }
+        if (!data.versioned) {
+          body.textContent = 'This store does not keep per-file history.';
+          return;
+        }
+        if (!data.versions.length) {
+          body.textContent = 'No earlier versions of this file.';
+          return;
+        }
+        var html =
+          '<table class="id-perm-table id-hist-table"><thead><tr>' +
+          '<th>When</th><th>Author</th><th>Size</th><th></th></tr></thead><tbody>';
+        data.versions.forEach(function (v) {
+          html +=
+            '<tr class="' + (v.is_current ? 'id-hist-current' : '') + '">' +
+            '<td class="id-hist-when">' + formatWhen(v.created_at) +
+            (v.is_current ? ' <span class="id-hist-tag">current</span>' : '') + '</td>' +
+            '<td>' + (v.author || '') + '</td>' +
+            '<td>' + formatSize(v.size) + '</td>' +
+            '<td>' + (v.is_current ? '' :
+              '<button type="button" class="id-hist-restore" data-version="' +
+              v.id + '">Restore</button>') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        body.innerHTML = html;
+        body.querySelectorAll('.id-hist-restore').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            btn.disabled = true;
+            btn.textContent = 'Restoring\u2026';
+            fetch('/api/cloudguard/vfs/revert-file', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                conversation_id: convId(),
+                path: path,
+                version_id: btn.getAttribute('data-version'),
+                store: 'artifacts'
+              })
+            })
+              .then(function () { loadHistory(wrap, path); })
+              .catch(function () {
+                btn.disabled = false;
+                btn.textContent = 'Restore';
+              });
+          });
+        });
+      })
+      .catch(function () {
+        body.textContent = 'Could not read this file\u2019s history.';
+      });
+  }
+
+  function convId() {
+    try {
+      return (parent && parent.__idConversationId) || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function formatWhen(value) {
+    if (!value) return '';
+    var n = Number(value);
+    var d = isFinite(n) && String(value).trim() !== ''
+      ? new Date(n > 1e12 ? n : n * 1000)
+      : new Date(value);
+    return isNaN(d.getTime()) ? String(value) : d.toLocaleString();
+  }
+
+  function formatSize(bytes) {
+    if (!bytes) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB'];
+    var i = 0;
+    var n = bytes;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i += 1; }
+    return (i ? n.toFixed(1) : n) + ' ' + units[i];
   }
 
   // ── One context menu, everywhere ────────────────────────────────────────
@@ -746,6 +832,7 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
   // and the row it belongs to has to be remembered when the toggle is clicked.
   // Reading the DOM upwards looked obvious and was wrong.
   var lastMenuRow = null;
+  var pendingMenuAt = null;
 
   function trackMenuRow(e) {
     var toggle = e.target && e.target.closest
@@ -775,6 +862,10 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
     if (!row || !row.isConnected || !row.querySelector('td.name')) return;
     menu.setAttribute('data-id-menu', '1');
     menu.classList.add('id-ctx-menu', 'id-ctx-native');
+    if (pendingMenuAt) {
+      placeAtCursor(menu, pendingMenuAt);
+      pendingMenuAt = null;
+    }
 
     var byLabel = {};
     var items = [].slice.call(menu.querySelectorAll('.dropdown-item, button'));
@@ -837,6 +928,19 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
     el.appendChild(document.createTextNode(text));
   }
 
+  function placeAtCursor(menu, at) {
+    menu.style.position = 'fixed';
+    menu.style.transform = 'none';
+    menu.style.inset = 'auto';
+    // Measured after it is placed, so a menu near the edge folds back on screen
+    // instead of being clipped by the frame.
+    var box = menu.getBoundingClientRect();
+    var left = Math.min(at.x, window.innerWidth - box.width - 8);
+    var top = Math.min(at.y, window.innerHeight - box.height - 8);
+    menu.style.left = Math.max(8, left) + 'px';
+    menu.style.top = Math.max(8, top) + 'px';
+  }
+
   function setIcon(el, id) {
     if (!MENU_ICON[id] || el.querySelector('.id-ctx-icon')) return;
     var icon = document.createElement('span');
@@ -881,7 +985,7 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
       parent.postMessage({ type: 'id:add-to-context', path: path }, '*');
       return;
     }
-    if (entry.id === 'history') { openHistoryModal(); return; }
+    if (entry.id === 'history') { openHistoryModal(path); return; }
     if (entry.id === 'permission') { openPermissionModal(path); return; }
     if (entry.id === 'duplicate') { duplicate(path); return; }
   }
@@ -896,30 +1000,6 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
 
   function isFolderRow(row) {
     return !!row.querySelector('td .dir-icon img[src*="folder"]');
-  }
-
-  function runAction(entry, row) {
-    var path = rowPath(row);
-    if (entry.id === 'open') {
-      var link = row.querySelector('td.name a');
-      if (link) realClick(link);
-      return;
-    }
-    if (entry.id === 'context') {
-      rememberRecent(path);
-      parent.postMessage({ type: 'id:add-to-context', path: path }, '*');
-      return;
-    }
-    if (entry.id === 'history') { openHistoryModal(); return; }
-    if (entry.id === 'permission') { openPermissionModal(path); return; }
-    if (entry.id === 'duplicate') { duplicate(path); return; }
-    if (entry.native) {
-      withNativeMenu(row, function (menu) {
-        if (!menu) return;
-        var item = nativeItem(menu, entry.native);
-        if (item) realClick(item);
-      });
-    }
   }
 
   // Seafile has no Duplicate. Copying an item into its OWN directory is one, and
@@ -941,6 +1021,31 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
     ).then(function () { location.reload(); });
   }
 
+  // The open section carries no class of its own, so the active tab is marked
+  // here. Presentation only: the tab itself is Seafile's real fold control.
+  // `el.click()` dispatches a bare click, and several of Seafile's controls
+  // react to the POINTER sequence instead — a lone click reaches them and
+  // nothing happens. This is what a mouse actually sends.
+  function realClick(el) {
+    if (!el) return;
+    ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(
+      function (type) {
+        var Ctor = type.indexOf('pointer') === 0 && window.PointerEvent
+          ? window.PointerEvent
+          : window.MouseEvent;
+        el.dispatchEvent(
+          new Ctor(type, { bubbles: true, cancelable: true, view: window })
+        );
+      }
+    );
+  }
+
+  function markActiveTab() {
+    document.querySelectorAll('.dir-content-nav .tree-section').forEach(function (section) {
+      section.classList.toggle('id-tab-active', section.children.length > 1);
+    });
+  }
+
   function bindContextMenu() {
     if (window.__idCtxBound) return;
     window.__idCtxBound = true;
@@ -954,6 +1059,11 @@ var DROP_ITEMS = ['Open via Client', 'More', 'History'];
       var toggle = row.querySelector('.sf-dropdown-toggle, .sf3-font-more');
       if (!toggle) return;  // the button only exists once the row is hovered
       lastMenuRow = row;
+      // Seafile anchors the menu to the row's own button, which on a wide table
+      // is hundreds of pixels from where the pointer actually is — measured at
+      // 406px away. A menu that opens somewhere else is not the menu you asked
+      // for, so it is moved to the cursor once it exists.
+      pendingMenuAt = { x: e.clientX, y: e.clientY };
       e.preventDefault();
       e.stopPropagation();
       realClick(toggle);

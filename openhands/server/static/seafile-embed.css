@@ -695,15 +695,20 @@ html.cg-light :is(input, textarea, select, .form-control):focus-visible {
 /* The "+" belonged to the card, not to the file type. */
 .tip-for-new-file .big-new-file-button .id-plus { display: none; }
 
+/* A real image, not a mask. A mask paints one flat colour through a shape, which
+ * is right for a UI glyph and wrong for type artwork that carries its own. */
 .id-file-glyph {
-  width: 26px;
-  height: 26px;
-  flex: 0 0 26px;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
   display: block;
-  background-color: currentColor;
-  opacity: .85;
-  -webkit-mask: center / 26px 26px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
-  mask: center / 26px 26px no-repeat var(--id-icon, url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>"));
+  margin: 0 auto 2px;
+  background-color: transparent;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 32px 32px;
+  -webkit-mask: none;
+  mask: none;
 }
 
 /* ══ Text is dark, everywhere, by default ═══════════════════════════════════
@@ -1476,3 +1481,45 @@ html.id-native-menu-hidden .dropdown-menu.show {
   font-size: 11px;
   color: var(--id-text-muted);
 }
+
+/* ══ Others leaves the tab bar ══════════════════════════════════════════════
+ * Its only useful entry is Trash, which now sits in the rail as "Deleted" —
+ * where someone looking for deleted work would actually look. Kept in the DOM
+ * rather than removed, because Seafile renders the section and we do not fork it.
+ */
+.dir-content-nav .tree-section.dir-others {
+  display: none !important;
+}
+
+/* Deleted, in the rail */
+#id-deleted-item .id-deleted-icon {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  background-color: currentColor;
+  -webkit-mask: center / 13px 13px no-repeat var(--id-icon);
+  mask: center / 13px 13px no-repeat var(--id-icon);
+  --id-icon: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 6h18'/><path d='M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6'/><path d='M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'/></svg>");
+}
+
+/* ══ Version history dialog ═════════════════════════════════════════════════ */
+.id-hist-table td { text-align: left; }
+.id-hist-current { background-color: var(--id-bg-active); }
+.id-hist-tag {
+  font-size: 10px;
+  color: var(--id-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.id-hist-restore {
+  border: 1px solid var(--id-border-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--id-text);
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.id-hist-restore:hover:not(:disabled) { background-color: var(--id-bg-hover); }
+.id-hist-restore:disabled { opacity: 0.6; cursor: default; }
