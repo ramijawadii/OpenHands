@@ -296,6 +296,30 @@ class WebSession:
             )
             self.logger.debug('Added CloudGuard office MCP server (stdio) to config')
 
+        # CloudGuard: the artifact library, as tools (files_list/read/search/
+        # stat/metadata/history/read_version/shares/permissions/checkpoint/
+        # checkpoints/revert_file/restore).
+        #
+        # stdio like the others, but note it holds no filesystem access of its
+        # own: every tool is an HTTP call to /api/cloudguard/vfs/*, the same
+        # route the console uses. The library is deliberately never mounted into
+        # a container the agent executes code in, so this is the ONLY way the
+        # agent reaches it — and it is the policed, evented, audited way.
+        _files_disabled = (
+            _os_cg.environ.get('CLOUDGUARD_FILES_MCP_DISABLED') or ''
+        ).strip().lower() in ('1', 'true', 'yes')
+        if not _files_disabled and not any(
+            s.name == 'cloudguard-files' for s in self.config.mcp.stdio_servers
+        ):
+            self.config.mcp.stdio_servers.append(
+                MCPStdioServerConfig(
+                    name='cloudguard-files',
+                    command='python',
+                    args=['-m', 'cloudguard.files.mcp_server'],
+                )
+            )
+            self.logger.debug('Added CloudGuard files MCP server (stdio) to config')
+
         # CloudGuard: notebook + kernel control (nb_cell_insert/overwrite/edit/
         # delete/move, nb_execute_cell/all, nb_run_code, kernel_start/stop/
         # restart/interrupt, terminal_send, nb_live_edit).

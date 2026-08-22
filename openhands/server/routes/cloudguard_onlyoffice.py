@@ -21,9 +21,11 @@ must use host.docker.internal (not localhost) on a single host.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
+import importlib
 import logging
 import mimetypes
 import os
@@ -461,6 +463,26 @@ def _make_key() -> str:
     return f"{int(time.time() * 1000)}-{secrets.token_hex(8)}"
 
 
+
+async def _artifact_fingerprint(path: str) -> str | None:
+    """Content-aware key for a library document.
+
+    `version` increments per write and `content_hash` is the sha256 the audit
+    trail records, so together they change exactly when the bytes do — which is
+    the property the ONLYOFFICE document key needs to avoid serving a stale
+    converted copy. None on any failure, which yields a unique key: a fresh
+    conversion is slower but never wrong.
+    """
+    try:
+        from openhands.server.routes.cloudguard_vfs import _artifact_vfs, _ctx
+
+        vfs = await _artifact_vfs()
+        entry = await vfs.stat(_ctx("", None), path)
+        return f"{getattr(entry, 'version', 0)}-{(getattr(entry, 'content_hash', '') or '')[:16]}"
+    except Exception:  # noqa: BLE001
+        return None
+
+
 async def _file_version(cid: str, path: str) -> str | None:
     """Best-effort 'mtime-size' fingerprint of a workspace file (docker-exec stat).
 
@@ -508,6 +530,159 @@ def _document_key(cid: str, path: str, mode: str, version: str | None) -> str:
         return _make_key()
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", f"{cid}-{path}-{version}-{mode}")
     return safe[:120]
+
+
+# ── Who is editing ───────────────────────────────────────────────────────────
+# ONLYOFFICE shows `editorConfig.user` as the author of every cursor, every
+# comment and every tracked change, and it decides co-editing identity: two
+# browsers presenting the SAME user id are treated as one person, so their
+# cursors collapse and the presence list shows one name however many people are
+# in the document.
+#
+# This used to be a hardcoded {"id": "user-1", "name": "Analyst"}, which made
+# every comment in every document read as written by the same anonymous person.
+# The id is derived the same way the artifact store derives its per-principal
+# Seafile account (cloudguard_seafile_proxy._identity): hashed over tenant AND
+# subject, so the same username in two tenants is two identities and the raw
+# subject is never handed to the document server.
+_EDITOR_ID_SALT = 'cloudguard-onlyoffice-user'
+
+
+def _editor_identity(principal) -> dict[str, str]:
+    """`editorConfig.user` for this request's console principal.
+
+    Two cases, and conflating them is what produced the old shared placeholder:
+
+    AUTHENTICATED (an IdP issued a subject) — a STABLE id derived from tenant +
+    subject. Stable matters: it is how ONLYOFFICE recognises the same person
+    across reconnects and how it attributes their existing comments back to them.
+
+    UNAUTHENTICATED (self-hosted console, tenancy off, no IdP) — there is no
+    server-side subject to derive from, and pretending otherwise is what made
+    every session share one identity. Two people co-editing would then collapse
+    into a single presence entry with one merged cursor. So each editor mount
+    gets its OWN id instead: distinct cursors and distinct presence, under the
+    deployment's configured console name. That is the honest shape of a console
+    with no user directory — we can tell the browsers apart, not the people.
+    """
+    subject = str(getattr(principal, 'subject', '') or '').strip()
+    tenant = str(getattr(principal, 'tenant_id', '') or 'default').strip()
+    claims = getattr(principal, 'claims', None) or {}
+
+    # `unknown` is principal.py's placeholder for "no sub claim" — it is not a
+    # subject, and showing it next to a comment is worse than saying nothing.
+    if subject.lower() == 'unknown':
+        subject = ''
+
+    display = ''
+    for claim in ('name', 'preferred_username', 'given_name', 'email'):
+        value = claims.get(claim) if isinstance(claims, dict) else None
+        if isinstance(value, str) and value.strip():
+            display = value.strip()
+            break
+    if not display:
+        display = (
+            subject
+            or os.environ.get('CLOUDGUARD_CONSOLE_USER_NAME', '').strip()
+            or 'Analyst'
+        )
+
+    if subject:
+        handle = hashlib.sha256(
+            f'{_EDITOR_ID_SALT}|{tenant}|{subject}'.encode()
+        ).hexdigest()[:24]
+    else:
+        handle = secrets.token_hex(12)
+    return {'id': f'u{handle}', 'name': display}
+
+
+# ── Co-editing sessions ──────────────────────────────────────────────────────
+# ONLYOFFICE joins two browsers into ONE co-editing session when, and only when,
+# they present the same `document.key`. So the key is not a cache token: it names
+# the editing session, and how long we keep it decides whether the product has
+# real-time collaboration at all.
+#
+# Two earlier designs, both wrong in a different direction:
+#
+#   * a FRESH key on every open (what this replaced). Every reader got a private
+#     session, so two analysts editing one report never saw each other and the
+#     last save silently won.
+#   * a key derived from a content fingerprint. That breaks co-editing exactly
+#     when it is being used: ONLYOFFICE saves during the session, which changes
+#     the file, so the next person to open lands on a different key and a
+#     separate session. It also produced the "The file version has been changed"
+#     reload popup when the server's cached state and disk diverged.
+#
+# What ONLYOFFICE actually models — and what this does — is a key that lives for
+# the LIFETIME OF A SESSION: minted when a document is opened cold, shared by
+# everyone who joins while it is open, and retired when the document server tells
+# us the last editor has gone (callback status 2 = saved-and-closed, 4 = closed
+# unchanged). So collaborators share a session, and every genuinely new session
+# starts clean, which is what the fresh-key revert was protecting.
+#
+# An EXTERNAL rewrite (the agent editing the file underneath an open document)
+# still has to invalidate the key, or the editor keeps serving its cached copy.
+# That is what the fingerprint is for here — but it is compared against the value
+# recorded at the LAST SAVE WE PERFORMED, so our own save-back is not mistaken
+# for someone else's change.
+_DOC_SESSIONS: dict[str, dict[str, str | None]] = {}
+_DOC_SESSIONS_LOCK = asyncio.Lock()
+
+
+def _session_shard(store: str, cid: str, path: str) -> str:
+    """Identifies the DOCUMENT, not the viewer.
+
+    Deliberately excludes mode and principal: a reader opening the same file must
+    land in the same session as the editors, or they see a frozen copy while the
+    document changes around them. Per-user rights are carried by
+    `editorConfig.mode` and the user block, not by splitting the session.
+    """
+    return f'{store}|{cid}|{path}'
+
+
+async def _session_document_key(
+    store: str, cid: str, path: str, fingerprint: str | None
+) -> str:
+    """The shared `document.key` for this document's current editing session."""
+    shard = _session_shard(store, cid, path)
+    async with _DOC_SESSIONS_LOCK:
+        entry = _DOC_SESSIONS.get(shard)
+        if entry is not None:
+            recorded = entry.get('fingerprint')
+            # Only an EXTERNAL change rotates the key. A fingerprint we cannot
+            # read (None, on either side) is not evidence of a change, and
+            # rotating on it would quietly reinstate the one-session-per-open
+            # behaviour this exists to fix.
+            unchanged = (
+                fingerprint is None or recorded is None or fingerprint == recorded
+            )
+            if unchanged:
+                return str(entry['key'])
+
+        key = _make_key()
+        _DOC_SESSIONS[shard] = {'key': key, 'fingerprint': fingerprint}
+        return key
+
+
+async def _session_saved(store: str, cid: str, path: str) -> None:
+    """Record the file state we just wrote, so our own save is not read as
+    an external edit on the next open."""
+    shard = _session_shard(store, cid, path)
+    async with _DOC_SESSIONS_LOCK:
+        entry = _DOC_SESSIONS.get(shard)
+        if entry is None:
+            return
+    fingerprint = await _file_version(cid, path)
+    async with _DOC_SESSIONS_LOCK:
+        entry = _DOC_SESSIONS.get(shard)
+        if entry is not None:
+            entry['fingerprint'] = fingerprint
+
+
+async def _session_closed(store: str, cid: str, path: str) -> None:
+    """The last editor has left: retire the session so the next open is cold."""
+    async with _DOC_SESSIONS_LOCK:
+        _DOC_SESSIONS.pop(_session_shard(store, cid, path), None)
 
 
 # ── /token ───────────────────────────────────────────────────────────────────
@@ -1926,7 +2101,7 @@ async def _ensure_seed_file(cid: str, path: str, ext: str) -> None:
 @router.post("/token")
 async def create_token(
     body: TokenRequest,
-    _p=Depends(require_principal),
+    principal=Depends(require_principal),
 ):
     """Build the ONLYOFFICE document config and return it JWT-signed.
 
@@ -1946,7 +2121,12 @@ async def create_token(
         file_url = body.fileUrl
         # Explicit URL: no sandbox file to fingerprint → a unique session each time.
         doc_key = _make_key()
-    elif body.conversationId and body.filePath:
+    elif body.filePath and (body.conversationId or store != _STORE_SANDBOX):
+        # The LIBRARY is conversation-independent — `_run_store` ignores the
+        # conversation id for the artifact store entirely — so requiring one here
+        # made every library document un-openable from the Files surface, which
+        # has no conversation of its own. The sandbox still requires it, because
+        # there the conversation IS the filesystem.
         # A scratch surface (e.g. the Canvas Sheet) opens a FIXED workspace path
         # that may not exist yet on a fresh conversation. Without the file, the
         # Document Server's download fails with "Download failed". Seed a minimal
@@ -1957,15 +2137,24 @@ async def create_token(
         if store == _STORE_SANDBOX:
             await _ensure_seed_file(body.conversationId, body.filePath, ext)
         file_url = _signed_file_url(body.conversationId, body.filePath, store=store)
-        # FRESH key per open. A stable content-fingerprint key (the old A1 opt) made
-        # the Document Server resurrect a prior editing session on page reload and
-        # pop "The file version has been changed. The page will be reloaded." when
-        # its cached state diverged from disk. A unique key means every open loads
-        # the CURRENT workspace file cleanly — no stale-session reconciliation.
-        # Save-back is keyed on (cid, path), NOT the doc key, so it is unaffected.
-        # Trade-off: the DS re-converts on each open (negligible for these files);
-        # correctness/no-glitch beats the resume micro-optimization.
-        doc_key = _make_key()
+        # SHARED key for as long as the document is open, so two people editing one
+        # report are in one ONLYOFFICE session instead of two private copies that
+        # overwrite each other. Retired on the close callback, so a genuinely new
+        # session still starts cold — see _session_document_key.
+        # Fingerprint the LIBRARY from its own metadata rather than by exec-ing
+        # into a container that has nothing to do with it: `stat` already carries
+        # a version counter and a content hash, which is a better key than
+        # mtime-size and costs one call instead of a docker exec.
+        if store == _STORE_SANDBOX:
+            fingerprint = await _file_version(body.conversationId, body.filePath)
+        else:
+            fingerprint = await _artifact_fingerprint(body.filePath)
+        doc_key = await _session_document_key(
+            store,
+            body.conversationId,
+            body.filePath,
+            fingerprint,
+        )
     else:
         raise HTTPException(
             status_code=400,
@@ -1992,13 +2181,35 @@ async def create_token(
             "url": file_url,
         },
         "documentType": _document_type(body.fileType),
+        # Stated, not defaulted. ONLYOFFICE infers permissions from `mode` when
+        # this block is absent, which makes a review workflow impossible to
+        # express: a reader opened read-only could not comment, so the only way
+        # to collect feedback was to give everyone edit rights on the document.
+        #
+        # `comment` is true in BOTH modes deliberately — commenting is how a
+        # finding gets challenged, and a reviewer who has to be made an editor to
+        # say "this control is misstated" is a reviewer who can also silently
+        # change the finding.
+        "permissions": {
+            "edit": mode == "edit",
+            "comment": True,
+            "review": mode == "edit",
+            "deleteCommentAuthorOnly": True,
+            "editCommentAuthorOnly": True,
+            "download": True,
+            "print": True,
+            # Sharing and external protection are refused here for the same
+            # reason the artifact store refuses share links: a document that
+            # leaves through the editor leaves the audit trail behind with it.
+            "protect": False,
+        },
         "editorConfig": {
             "callbackUrl": callback_url,
             "mode": mode,
-            "user": {
-                "id": "user-1",
-                "name": "Analyst",
-            },
+            # The real console principal, not a placeholder: this is the name
+            # on every cursor, comment and tracked change, and identical ids
+            # would make co-editors collapse into one presence entry.
+            "user": _editor_identity(principal),
             "customization": _customization(),
         },
     }
@@ -2180,6 +2391,177 @@ async def live_save_metrics():
     return dict(_SAVE_METRICS)
 
 
+# -- Mentions ---------------------------------------------------------------
+# ONLYOFFICE does not own a user directory. It raises `onRequestUsers` when
+# someone types "@" and expects the HOST to answer with the people who can be
+# mentioned, then raises `onRequestSendNotify` with who was mentioned and where.
+# Both halves have to exist or the "@" does nothing at all - which is what it did
+# before this.
+#
+# The directory is the one the workspace ALREADY has: the per-principal accounts
+# the artifact store provisions (cloudguard_seafile_proxy._provision). Using that
+# rather than inventing a second list means a mentionable person is by definition
+# someone who can open the document being discussed.
+
+
+@router.get("/collaborators")
+async def collaborators(_p=Depends(require_principal)):
+    """People who can be mentioned in a document.
+
+    Returns an empty list rather than an error when no directory is configured:
+    that degrades to "@ offers nobody", which is honest, where a 500 surfaces in
+    the editor as a broken document.
+    """
+    try:
+        from openhands.server.routes.cloudguard_seafile_proxy import (
+            _admin_headers,
+            _upstream_origin,
+        )
+    except Exception:  # noqa: BLE001
+        return {"users": []}
+
+    origin, admin = _upstream_origin(), _admin_headers()
+    if not origin or not admin:
+        return {"users": []}
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(
+                f"{origin}/workspace/api/v2.1/admin/users/", headers=admin
+            )
+            if resp.status_code >= 400:
+                return {"users": []}
+            payload = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.warning("onlyoffice collaborators: directory unreachable: %s", exc)
+        return {"users": []}
+
+    users = []
+    for entry in payload.get("data", []) or []:
+        # `email` is Seafile's opaque internal id; `contact_email` is the address
+        # the console derived. Prefer the readable name, fall back to the address,
+        # and never surface the internal id as a person's name.
+        internal = entry.get("email") or ""
+        if not internal:
+            continue
+        label = (entry.get("name") or "").strip()
+        # principal.py uses "unknown" when a token carries no subject, and it
+        # reaches Seafile as the account's display name. It is a placeholder, not
+        # a person - fall back to the address rather than offering it in a
+        # mention list.
+        if label.lower() == "unknown":
+            label = ""
+        label = label or (entry.get("contact_email") or "").strip()
+        if not label:
+            continue
+        users.append({"id": internal, "name": label})
+
+    users.sort(key=lambda u: u["name"].lower())
+    return {"users": users}
+
+
+class MentionRequest(BaseModel):
+    conversationId: str | None = Field(default=None, max_length=128)
+    filePath: str | None = Field(default=None, max_length=4096)
+    fileName: str | None = Field(default=None, max_length=512)
+    store: str | None = Field(default=None, max_length=32)
+    # ONLYOFFICE hands back the ids it was given, plus a deep link to the comment
+    # anchor and the comment text.
+    emails: list[str] = Field(default_factory=list)
+    actionLink: dict | None = Field(default=None)
+    message: str | None = Field(default=None, max_length=4096)
+
+
+@router.post("/mention")
+async def mention(body: MentionRequest, principal=Depends(require_principal)):
+    """Deliver an @-mention raised in a document.
+
+    Delivery is layered, because losing a mention silently is the failure that
+    makes people stop trusting the feature: it is always RECORDED in the tenant
+    audit log (tamper-evident, and it survives Novu being down), and pushed to
+    Novu when Novu is configured.
+    """
+    author = _editor_identity(principal)
+    recipients = [e for e in (body.emails or []) if isinstance(e, str) and e.strip()]
+    target = f"{_normalise_store(body.store)}:{body.conversationId}:{body.filePath}"
+
+    # 1. Durable record. Never blocks delivery - under tenancy-off the audit log
+    #    refuses a non-canonical tenant, and a mention is still worth sending.
+    recorded = False
+    try:
+        importlib.import_module("cloudguard.tenant_audit").append(
+            getattr(principal, "tenant_id", "") or "",
+            "office.mention",
+            actor=author["name"],
+            resource=target,
+            recipients=",".join(recipients),
+            file_name=body.fileName or "",
+            message=(body.message or "")[:512],
+        )
+        recorded = True
+    except Exception as exc:  # noqa: BLE001
+        logger.info("onlyoffice mention: not audited (%s)", exc)
+
+    # 2. Push, when there is somewhere to push to.
+    delivered = 0
+    try:
+        ns = importlib.import_module("cloudguard.novu_subscriber")
+        novu_ready = ns.configured()
+    except Exception:  # noqa: BLE001
+        novu_ready = False
+
+    if novu_ready and recipients:
+        api = (os.environ.get("NOVU_API_URL") or "https://api.novu.co").rstrip("/")
+        workflow = os.environ.get("NOVU_MENTION_WORKFLOW", "office-mention")
+        secret = os.environ.get("NOVU_SECRET_KEY", "")
+        link = (body.actionLink or {}).get("action", {}) if body.actionLink else {}
+        for recipient in recipients:
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.post(
+                        f"{api}/v1/events/trigger",
+                        headers={"Authorization": f"ApiKey {secret}"},
+                        json={
+                            "name": workflow,
+                            "to": {
+                                "subscriberId": ns.subscriber_id(
+                                    getattr(principal, "tenant_id", "") or "default",
+                                    recipient,
+                                )
+                            },
+                            "payload": {
+                                "category": "team",
+                                "author": author["name"],
+                                "fileName": body.fileName or "",
+                                "message": body.message or "",
+                                "anchor": link,
+                            },
+                        },
+                    )
+                if resp.status_code < 400:
+                    delivered += 1
+                else:
+                    logger.warning(
+                        "onlyoffice mention: novu rejected %s: %s",
+                        resp.status_code, resp.text[:200],
+                    )
+            except httpx.HTTPError as exc:
+                logger.warning("onlyoffice mention: novu unreachable: %s", exc)
+
+    logger.info(
+        "onlyoffice mention: %s mentioned %d recipient(s) in %s (pushed=%d)",
+        author["name"], len(recipients), target, delivered,
+    )
+    # Report what actually happened. Returning a flat True would tell the editor a
+    # mention was durably recorded when the audit log had refused it, which is the
+    # one thing the caller cannot afford to be wrong about.
+    return {
+        "recorded": recorded,
+        "recipients": len(recipients),
+        "delivered": delivered,
+    }
+
+
 @router.post("/callback")
 async def save_callback(
     body: dict = Body(...),
@@ -2253,12 +2635,17 @@ async def save_callback(
                     "onlyoffice callback: saved %d bytes → library %s:%s",
                     len(content), cid, path,
                 )
+                await _session_saved(target_store, cid, path)  # type: ignore[arg-type]
             elif target_ok:
                 await _save_to_sandbox(cid, path, content)  # type: ignore[arg-type]
                 logger.info(
                     "onlyoffice callback: saved %d bytes → sandbox %s:%s",
                     len(content), cid, path,
                 )
+                # Our own write changed the file. Record the new state, or the
+                # next open reads it as an external edit, rotates the key, and
+                # splits the co-editing session mid-edit.
+                await _session_saved(target_store, cid, path)  # type: ignore[arg-type]
                 _save_metric("ok", cid=cid, path=path, nbytes=len(content), status=status)
             else:
                 # No verified sandbox target — keep a local copy so the edit isn't lost.
@@ -2284,5 +2671,15 @@ async def save_callback(
             if target_ok:
                 _save_metric("failed", cid=cid, path=path, status=status, error=str(exc))
                 return {"error": 1}
+
+    # status 2 = the last editor closed the document and it was saved; 4 = the last
+    # editor closed it with nothing to save. Either way the session is over, so the
+    # key is retired and the next open starts cold — which is what keeps a stale
+    # server-side copy from being resurrected days later.
+    #
+    # Deliberately AFTER the save above: retiring the key first would leave the
+    # save-back writing under a session nobody can rejoin.
+    if status in (2, 4) and cid and path:
+        await _session_closed(_normalise_store(store), cid, path)
 
     return {"error": 0}

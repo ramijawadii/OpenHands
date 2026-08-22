@@ -390,10 +390,22 @@ def _ctx(conversation_id: str, principal) -> "object":
 
 
 def _map_error(exc: Exception) -> HTTPException:
-    from cloudguard.vfs import VFSDenied, VFSInvalidPath, VFSNotFound, VFSUnavailable
+    from cloudguard.vfs import (
+        VFSConflict,
+        VFSDenied,
+        VFSInvalidPath,
+        VFSNotFound,
+        VFSUnavailable,
+    )
 
     if isinstance(exc, VFSInvalidPath):
         return HTTPException(status_code=400, detail=str(exc))
+    if isinstance(exc, VFSConflict):
+        # 409, because the caller can fix it — by choosing another name. Distinct
+        # from a 403 (never allowed) and a 404 (not there): this is the one
+        # failure the UI can offer a next step for, so flattening it into a
+        # generic error would cost that.
+        return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, VFSDenied):
         return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, VFSNotFound):
@@ -653,6 +665,42 @@ async def vfs_versions(
     }
 
 
+@router.get("/read-version")
+async def vfs_read_version(
+    conversation_id: str,
+    path: str,
+    version_id: str,
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    """The contents of one earlier revision, so it can be viewed before restoring.
+
+    Served as a DOWNLOAD-SAFE octet-stream with an explicit
+    `X-Content-Type-Options: nosniff` and an inline-forbidden disposition: this
+    returns bytes an untrusted actor may have written, and letting a browser
+    sniff them into HTML on the console's own origin would turn file history into
+    a stored-XSS surface. The viewer decodes it as text itself.
+    """
+    try:
+        data = await _run_store(
+            store,
+            conversation_id,
+            lambda vfs: vfs.read_version(_ctx(conversation_id, _p), path, version_id),
+        )
+    except NotImplementedError as exc:
+        raise HTTPException(
+            status_code=400, detail="this store does not version individual files"
+        ) from exc
+    return Response(
+        content=data,
+        media_type="application/octet-stream",
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": "attachment",
+        },
+    )
+
+
 class RevertFileRequest(BaseModel):
     conversation_id: str = Field(..., max_length=128)
     path: str = Field(..., max_length=4096)
@@ -686,6 +734,246 @@ async def vfs_revert_file(body: RevertFileRequest, _p=Depends(require_principal)
 _EXPLAIN_OPS = ("read", "write", "delete", "restore", "checkpoint")
 
 
+# ── namespace operations ─────────────────────────────────────────────────────
+# These exist so the Files surface can be FIRST-PARTY. Until now the browser
+# reached into Seafile's own API for rename, move, copy, mkdir and undelete,
+# which meant those five operations bypassed the policy engine, the WORM zones
+# and the audit chain entirely — the store enforced its own permissions, and
+# ours never saw the request. Routing them through the VFS is the point of the
+# rewrite, not a side effect of it.
+
+
+class MkdirRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    path: str = Field(..., max_length=4096)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+class MoveRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    src: str = Field(..., max_length=4096)
+    dst: str = Field(..., max_length=4096)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+class DeleteRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    path: str = Field(..., max_length=4096)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+class UntrashRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    path: str = Field(..., max_length=4096)
+    commit_id: str = Field(..., max_length=128)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+# ── point in time ────────────────────────────────────────────────────────────
+# The store keeps a full immutable history — that is why the artifact store is
+# Seafile. The engine could already create a checkpoint and restore to one, but
+# neither had a route and nothing could ENUMERATE the points in time available.
+# A restore whose options you cannot see is not a feature anyone can use.
+
+
+class CheckpointRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    name: str = Field(..., max_length=256)
+    description: str = Field(default="", max_length=1024)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+class RestoreRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    checkpoint_id: str = Field(..., max_length=128)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+@router.get("/checkpoints")
+async def vfs_checkpoints(
+    conversation_id: str = "",
+    limit: int = 50,
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    try:
+        items = await _run_store(
+            store,
+            conversation_id,
+            lambda vfs: vfs.checkpoints(_ctx(conversation_id, _p), limit),
+        )
+    except NotImplementedError:
+        return {"supported": False, "checkpoints": []}
+    return {"supported": True, "checkpoints": items}
+
+
+@router.post("/checkpoint")
+async def vfs_checkpoint(body: CheckpointRequest, _p=Depends(require_principal)):
+    cp = await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.checkpoint(
+            _ctx(body.conversation_id, _p), body.name, description=body.description
+        ),
+    )
+    return {
+        "id": cp.id,
+        "name": cp.name,
+        "created_at": cp.created_at,
+        "manifest_hash": cp.manifest_hash,
+        "description": cp.description,
+    }
+
+
+@router.post("/restore")
+async def vfs_restore(body: RestoreRequest, _p=Depends(require_principal)):
+    """Point-in-time restore of the WHOLE library.
+
+    Destructive and library-wide, which is why the policy treats `restore` as its
+    own capability rather than folding it into write: it can undo work nobody
+    asked to undo. The engine refuses it outside autonomous mode without
+    approval; that refusal arrives here as a 403 and the UI must show it rather
+    than retry.
+    """
+    await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.restore(_ctx(body.conversation_id, _p), body.checkpoint_id),
+    )
+    return {"ok": True, "checkpoint_id": body.checkpoint_id}
+
+
+@router.get("/metadata")
+async def vfs_metadata(
+    conversation_id: str = "",
+    path: str = "",
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    """Seafile's extended properties and tags for one file.
+
+    Surfaced because the store HAS them — metadata and tags are both enabled on
+    this deployment — and a native browser that quietly dropped them would be a
+    regression dressed up as a rewrite.
+    """
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    try:
+        data = await _run_store(
+            store,
+            conversation_id,
+            lambda vfs: vfs.file_metadata(_ctx(conversation_id, _p), path),
+        )
+    except NotImplementedError:
+        return {"enabled": False, "properties": {}, "tags": []}
+    return data
+
+
+@router.get("/list-dir")
+async def vfs_list_dir(
+    conversation_id: str = "",
+    prefix: str = "",
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    """One directory level, folders included — what the Files browser navigates.
+
+    Separate from `/list`, which is a whole-library enumeration used for
+    discovery and integrity work. Serving a browser from that would walk every
+    directory and hash every file on every folder click.
+    """
+    entries = await _run_store(
+        store,
+        conversation_id,
+        lambda vfs: vfs.list_dir(_ctx(conversation_id, _p), prefix),
+    )
+    return JSONResponse({"prefix": prefix, "entries": [_entry_json(e) for e in entries]})
+
+
+@router.post("/mkdir")
+async def vfs_mkdir(body: MkdirRequest, _p=Depends(require_principal)):
+    entry = await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.mkdir(_ctx(body.conversation_id, _p), body.path),
+    )
+    return JSONResponse(_entry_json(entry))
+
+
+@router.post("/move")
+async def vfs_move(body: MoveRequest, _p=Depends(require_principal)):
+    """Rename or relocate. One endpoint, because they are one operation.
+
+    A rename is a move whose destination shares the source's parent, and giving
+    them separate endpoints would mean two authorization paths for the same
+    effect — the kind of split where one of them eventually forgets a check.
+    """
+    entry = await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.move(_ctx(body.conversation_id, _p), body.src, body.dst),
+    )
+    return JSONResponse(_entry_json(entry))
+
+
+@router.post("/copy")
+async def vfs_copy(body: MoveRequest, _p=Depends(require_principal)):
+    entry = await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.copy(_ctx(body.conversation_id, _p), body.src, body.dst),
+    )
+    return JSONResponse(_entry_json(entry))
+
+
+@router.post("/delete")
+async def vfs_delete(body: DeleteRequest, _p=Depends(require_principal)):
+    """POST, not DELETE-with-a-body.
+
+    A request body on DELETE is legal but poorly supported end to end (proxies
+    and some clients drop it), and this one needs the store alongside the path:
+    the same relative path exists in the sandbox and in the library and means
+    different files.
+    """
+    await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.delete(_ctx(body.conversation_id, _p), body.path),
+    )
+    return {"ok": True, "path": body.path}
+
+
+@router.get("/trash")
+async def vfs_trash(
+    conversation_id: str = "",
+    prefix: str = "/",
+    limit: int = 100,
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    try:
+        items = await _run_store(
+            store,
+            conversation_id,
+            lambda vfs: vfs.trash(_ctx(conversation_id, _p), prefix, limit),
+        )
+    except NotImplementedError:
+        # Not an error. A store with no trash is a different fact from an empty
+        # one, and the UI shows them differently.
+        return {"supported": False, "items": []}
+    return {"supported": True, "items": items}
+
+
+@router.post("/untrash")
+async def vfs_untrash(body: UntrashRequest, _p=Depends(require_principal)):
+    await _run_store(
+        body.store,
+        body.conversation_id,
+        lambda vfs: vfs.untrash(_ctx(body.conversation_id, _p), body.path, body.commit_id),
+    )
+    return {"ok": True, "path": body.path}
+
+
 @router.get("/permissions")
 async def vfs_permissions(
     conversation_id: str,
@@ -713,7 +1001,151 @@ async def vfs_permissions(
         matrix[actor] = await _run_store(
             store, conversation_id, lambda vfs, c=ctx: vfs.explain(c, path, _EXPLAIN_OPS)
         )
-    return {"path": path, "store": store, "ops": list(_EXPLAIN_OPS), "matrix": matrix}
+    # WHICH policy produced these answers, reported rather than assumed.
+    #
+    # Both stores are currently constructed as `VFS(resolve, audit=...)` with no
+    # `policy=`, so the engine falls back to `AllowAllPolicy` and every cell in
+    # this matrix is True — including the agent's. That is the honest state of
+    # the deployment, and the UI has to be able to SAY it: a permission panel
+    # showing green everywhere, with no indication that nothing is being
+    # enforced, is worse than no panel, because it reads as "this artifact is
+    # governed" when the WORM zones, the capability manifest and the mode gate
+    # are all inert on this path.
+    #
+    # Wiring `VFSPolicy(load_manifest)` here turns on deny-by-default for the
+    # agent and is a deliberate posture change, not a bug fix — it can revoke
+    # access a running agent currently has. See the parity plan.
+    try:
+        vfs = await _artifact_vfs() if store == 'artifacts' else None
+        policy_name = type(getattr(vfs, '_policy', None)).__name__ if vfs else 'unknown'
+    except Exception:  # noqa: BLE001
+        policy_name = 'unknown'
+
+    return {
+        "path": path,
+        "store": store,
+        "ops": list(_EXPLAIN_OPS),
+        "matrix": matrix,
+        "policy": policy_name,
+        "enforcing": policy_name not in ('AllowAllPolicy', 'unknown'),
+    }
+
+
+# ── share grants ─────────────────────────────────────────────────────────────
+# Recorded and audited, NOT enforced. `VFSPolicy.check` answers allow for every
+# non-agent actor: the engine knows "human" and "agent", not WHICH human. Making
+# a grant decide access means teaching the policy to distinguish human principals
+# — a change to the trust model, not an extension of it — so these endpoints are
+# deliberately a record of intent and say so in every response. See
+# docs/design/files-surface-parity-plan.md 5b.
+
+_SHARES = None
+
+
+def _share_store():
+    global _SHARES
+    if _SHARES is None:
+        from cloudguard.vfs.shares import ShareStore
+
+        _SHARES = ShareStore()
+    return _SHARES
+
+
+def _audit_share(action: str, path: str, actor: str, **extra) -> None:
+    """Grants land in the SAME hash chain the Activity view reads, so a change to
+    who can see an artifact is visible beside the reads and writes of it. A share
+    log kept somewhere else would be the one record nobody thinks to check."""
+    try:
+        from cloudguard import tenant_audit
+
+        tenant_audit.append(
+            _TENANT,
+            action,
+            actor=actor or "console",
+            resource=path,
+            decision="recorded",
+            **extra,
+        )
+    except Exception:  # noqa: BLE001
+        # A share that cannot be audited is still recorded; the caller is told
+        # nothing different, because the grant itself succeeded. The audit gap is
+        # the chain verify surface's problem to report, not this endpoint's.
+        pass
+
+
+class ShareRequest(BaseModel):
+    path: str = Field(..., max_length=4096)
+    principal: str = Field(..., max_length=200)
+    permission: str = Field(default="read", max_length=16)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+class UnshareRequest(BaseModel):
+    path: str = Field(..., max_length=4096)
+    principal: str = Field(..., max_length=200)
+    store: str = Field(default="artifacts", max_length=32)
+
+
+@router.get("/shares")
+async def vfs_shares(path: str = "", _p=Depends(require_principal)):
+    """Grants on one path, or every grant when no path is given."""
+    from cloudguard.vfs.shares import PERMISSIONS
+
+    rows = _share_store().list(_TENANT, path or None)
+    return {
+        "path": path,
+        "grants": rows,
+        "permissions": list(PERMISSIONS),
+        # The UI renders this verbatim. It is not decoration: a share panel that
+        # implies enforcement it does not have is worse than no share panel.
+        "enforced": False,
+        "note": (
+            "Recorded and audited. Not yet enforced — the policy engine treats "
+            "every console user as one trusted principal."
+        ),
+    }
+
+
+@router.post("/share")
+async def vfs_share(body: ShareRequest, _p=Depends(require_principal)):
+    from cloudguard.vfs.shares import ShareError
+
+    try:
+        row = _share_store().grant(
+            _TENANT,
+            body.path,
+            body.principal,
+            body.permission,
+            getattr(_p, "user_id", "") or "console",
+        )
+    except ShareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _audit_share(
+        "vfs_share_grant",
+        body.path,
+        getattr(_p, "user_id", "") or "console",
+        principal=row["principal"],
+        permission=row["permission"],
+    )
+    return {"ok": True, "grant": row, "enforced": False}
+
+
+@router.post("/unshare")
+async def vfs_unshare(body: UnshareRequest, _p=Depends(require_principal)):
+    from cloudguard.vfs.shares import ShareError
+
+    try:
+        removed = _share_store().revoke(_TENANT, body.path, body.principal)
+    except ShareError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if removed:
+        _audit_share(
+            "vfs_share_revoke",
+            body.path,
+            getattr(_p, "user_id", "") or "console",
+            principal=body.principal,
+        )
+    return {"ok": removed, "enforced": False}
 
 
 @router.get("/artifact-store")

@@ -57,6 +57,10 @@ export interface OnlyOfficeFileProps {
   fileName?: string;
   /** "edit" (default) or "view". */
   mode?: "edit" | "view";
+  /** Which store `filePath` refers to. `OnlyOfficeEditor` has always accepted
+   *  this; not forwarding it here meant a document opened from the durable
+   *  library was looked up in the conversation sandbox and 404'd. */
+  store?: "sandbox" | "artifacts";
   height?: string;
   width?: string;
 }
@@ -65,6 +69,7 @@ export default function OnlyOfficeFile({
   filePath,
   fileName,
   mode = "edit",
+  store = "sandbox",
   height = "100%",
   width = "100%",
 }: OnlyOfficeFileProps) {
@@ -92,12 +97,13 @@ export default function OnlyOfficeFile({
         <OnlyOfficeEditor
           // A fresh editor (unique document key) per file+mode, and per Reopen
           // (the SurfaceHost nonce) so recovery loads a clean session.
-          key={`${conversationId}|${filePath}|${mode}|${nonce}`}
+          key={`${conversationId}|${store}|${filePath}|${mode}|${nonce}`}
           conversationId={conversationId}
           filePath={filePath}
           fileName={fileName ?? basename(filePath)}
           fileType={extOf(filePath)}
           mode={mode}
+          store={store}
           height={height}
           width={width}
         />

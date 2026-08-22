@@ -40,6 +40,35 @@ import {
   clearResourceReport,
   useResourceReport,
 } from "#/components/features/explore/cloudguard-grid/resource-report";
+import StoreFrame from "#/components/features/surfaces/store-frame";
+import FilesBrowser from "#/components/features/files/files-browser";
+
+/**
+ * Which Files surface to render.
+ *
+ * Staged on purpose: the native browser and the framed store are both usable,
+ * and the frame stays reachable until the native one has been exercised on real
+ * libraries. `?files=frame` forces the old one back without a redeploy, which is
+ * the property that makes a cutover safe to attempt at all.
+ *
+ * Precedence is URL > build flag, so an operator can override a deployment's
+ * default for one session while diagnosing.
+ *
+ * A plain function, NOT a hook: this surface returns early several times before
+ * the library renders, and a hook called after those returns would be called
+ * conditionally. The answer cannot change within a page load, so it is resolved
+ * once at module scope.
+ */
+const NATIVE_FILES = (() => {
+  try {
+    const forced = new URLSearchParams(window.location.search).get("files");
+    if (forced === "native") return true;
+    if (forced === "frame") return false;
+  } catch {
+    /* a URL we cannot parse is not a reason to fail the tab */
+  }
+  return String(import.meta.env.VITE_FILES_NATIVE ?? "") === "1";
+})();
 
 /** Report — discovery of the conversation's existing artifacts.
  *
@@ -458,48 +487,31 @@ export default function ReportView() {
             empty. min-h-0 then stops the usual flex floor from reintroducing
             overflow. */}
         <div className="min-h-0 flex-1">
-          {/* eslint-disable-next-line @typescript-eslint/no-use-before-define */}
-          <SurfaceHost
-            surfaceId="artifacts"
-            conversationId={conversationId ?? ""}
-            title="Artifact library"
-          >
-            {(reopenNonce) => (
-              <iframe
-                // Keyed on the reopen nonce as well, so Reopen gets a genuinely fresh
-                // surface rather than the same wedged document.
-                key={`${store.library_url}${theme}${reopenNonce}`}
-                // The theme rides on the URL because a framed document cannot read
-                // the parent's CSS variables across the document boundary — the proxy
-                // reads it and injects the matching palette, so the frame paints in
-                // the console's colours instead of flashing the store's own.
-                // The store is ALWAYS light, whatever the console is set to.
-                //
-                // It is a document surface — files, previews, page content — and
-                // documents are authored and read on white. The chat and the rest of
-                // the console stay on the user's theme; this one pane is deliberately
-                // fixed, the same way a PDF or a Word document does not invert
-                // because the shell around it is dark.
-                src={`${store.library_url}?cg_theme=light`}
-                title="Artifact library"
-                // h-full, NOT flex-1. SurfaceHost's root is `relative h-full` — a
-                // BLOCK, not a flex container — so `flex-1` on this iframe is inert
-                // and it falls back to the HTML default of 150px. Measured in a
-                // harness: flex-1 inside a block parent renders 150px where
-                // height:100% renders the full 300. That is why the store appeared as
-                // a short strip with empty space beneath it.
-                className="h-full w-full border-0"
-                // No sandbox attribute, deliberately. The store is proxied onto OUR
-                // origin so its SameSite=Lax session cookie is first-party — which is
-                // the only way the frame works at all. Given that, `allow-scripts`
-                // plus `allow-same-origin` is the combination the browser warns
-                // "can escape its sandboxing": it would grant the frame our origin
-                // while looking like a restriction. An honest absence beats a
-                // sandbox that protects nothing.
-                referrerPolicy="no-referrer"
-              />
-            )}
-          </SurfaceHost>
+          {NATIVE_FILES ? (
+            /* NATIVE. Every action goes through the VFS API, so rename, move,
+               copy, mkdir and undelete are policed and audited — which they were
+               not when the frame issued them straight to Seafile. No SurfaceHost
+               here: that wrapper exists to health-gate a CROSS-PROCESS backend
+               behind an iframe, and this surface has neither. Its failure modes
+               are ordinary request failures, handled in place. */
+            <FilesBrowser conversationId={conversationId ?? ""} />
+          ) : (
+            /* eslint-disable-next-line @typescript-eslint/no-use-before-define */
+            <SurfaceHost
+              surfaceId="artifacts"
+              conversationId={conversationId ?? ""}
+              title="Artifact library"
+            >
+              {(reopenNonce) => (
+                <StoreFrame
+                  // Keyed on the reopen nonce as well, so Reopen gets a genuinely
+                  // fresh surface rather than the same wedged document.
+                  key={`${store.library_url}${theme}${reopenNonce}`}
+                  src={`${store.library_url}?cg_theme=light`}
+                />
+              )}
+            </SurfaceHost>
+          )}
         </div>
       </div>
     );

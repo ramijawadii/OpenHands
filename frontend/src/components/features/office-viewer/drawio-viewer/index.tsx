@@ -44,6 +44,16 @@ interface Props {
   conversationId: string;
   /** workspace-relative path to a .drawio / .xml / .dio diagram */
   filePath: string;
+  /**
+   * Which store `filePath` lives in.
+   *
+   * The sandbox is read through `ConversationService`, which needs a live
+   * runtime. The durable library has no runtime and is conversation-independent,
+   * so it is read through the VFS instead — the same path the Files surface
+   * uses, which means a library diagram is policed and audited like every other
+   * read of it.
+   */
+  store?: "sandbox" | "artifacts";
 }
 
 type State =
@@ -53,7 +63,28 @@ type State =
 
 /** DrawioViewer — opens a workspace draw.io diagram in the self-hosted editor.
  *  Loaded lazily so react-drawio only ships when a diagram is actually opened. */
-export default function DrawioViewer({ conversationId, filePath }: Props) {
+/** One reader for both stores, so the component below does not branch twice. */
+async function readDiagram(
+  store: "sandbox" | "artifacts",
+  conversationId: string,
+  filePath: string,
+): Promise<string | null> {
+  if (store === "sandbox") {
+    return ConversationService.getFile(conversationId, filePath);
+  }
+  const res = await fetch(
+    `/api/cloudguard/vfs/read?conversation_id=${encodeURIComponent(conversationId)}&path=${encodeURIComponent(filePath)}&store=artifacts`,
+    { credentials: "same-origin" },
+  );
+  if (!res.ok) throw new Error(`vfs read failed (${res.status})`);
+  return res.text();
+}
+
+export default function DrawioViewer({
+  conversationId,
+  filePath,
+  store = "sandbox",
+}: Props) {
   const [state, setState] = React.useState<State>({ status: "loading" });
   // The embed handle (react-drawio ref: .load({xml})) + the authoritative agent XML.
   // The live co-pilot mutates this copy and re-loads it into the open editor.
@@ -63,15 +94,15 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
   // Fetch the diagram file; returns its content (used both for the initial open and
   // for the live `reload` op, which picks up an agent-regenerated file in place).
   const fetchDiagram = React.useCallback(async (): Promise<string | null> => {
-    const content = await ConversationService.getFile(conversationId, filePath);
+    const content = await readDiagram(store, conversationId, filePath);
     if (content && content.trimStart().startsWith("<")) return content;
     return null;
-  }, [conversationId, filePath]);
+  }, [store, conversationId, filePath]);
 
   React.useEffect(() => {
     let cancelled = false;
     setState({ status: "loading" });
-    ConversationService.getFile(conversationId, filePath)
+    readDiagram(store, conversationId, filePath)
       .then((content) => {
         if (cancelled) return;
         if (content == null || content.trim() === "") {
@@ -95,7 +126,7 @@ export default function DrawioViewer({ conversationId, filePath }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [conversationId, filePath]);
+  }, [store, conversationId, filePath]);
 
   // Live co-pilot: pulls the agent's queued highlight/annotate/reload/export commands and
   // applies them to THIS open editor (no-ops entirely when the seam is disabled).
