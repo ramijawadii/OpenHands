@@ -1,6 +1,12 @@
 /* eslint-disable i18next/no-literal-string, react/require-default-props -- shared control */
 import * as React from "react";
 import { cn } from "#/utils/utils";
+import {
+  SLIDING_MENU_PANEL,
+  SlidingHighlight,
+  slidingMenuState,
+  useSlidingHighlight,
+} from "#/components/shared/sliding-menu";
 
 /**
  * The composer's mode picker, as a component both surfaces share.
@@ -19,6 +25,11 @@ import { cn } from "#/utils/utils";
  *   list being traversed; eight independent hovers read as eight buttons.
  * - **`onMouseDown` is prevented everywhere.** The composer's textarea must not
  *   lose focus when the menu is used, or the box collapses mid-selection.
+ *
+ * Both now live in `shared/sliding-menu`, because a second menu wanted the same
+ * character and the alternative was the copy this comment already warned about.
+ * What stays here is what makes this a SELECT — a current value, a tick on it,
+ * and closing when one is chosen.
  */
 
 /** Width-animating label, so a mode change does not jolt the row. */
@@ -85,15 +96,11 @@ export function PillSelect({
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
-  const [hover, setHover] = React.useState({
-    opacity: 0,
-    transform: "translateY(0px) scale(0.95)",
-    transition: "none",
-  });
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
 
   const hasDescriptions = options.some((o) => o.description);
   const rowHeight = hasDescriptions ? ROW_WITH_DESC : ROW;
+  const highlight = useSlidingHighlight(rowHeight);
 
   const current = options.find((o) => o.value === value);
   const label = current?.label ?? value;
@@ -180,28 +187,17 @@ export function PillSelect({
           width,
           transformOrigin: `${placement === "top" ? "bottom" : "top"} ${align}`,
         }}
-        onMouseLeave={() =>
-          setHover((prev) => ({
-            ...prev,
-            opacity: 0,
-            transform: prev.transform.replace("scale(1)", "scale(0.95)"),
-            transition: "opacity 0.2s ease-in, transform 0.2s ease-out",
-          }))
-        }
+        onMouseLeave={highlight.onMenuLeave}
         className={cn(
-          "absolute z-50 flex flex-col gap-0.5 rounded-2xl border border-border bg-card/95 p-1 shadow-xl backdrop-blur-md transition-all duration-300 cursor-default",
+          "absolute z-50",
+          SLIDING_MENU_PANEL,
           placement === "top" ? "bottom-full mb-2.5" : "top-full mt-2",
           align === "right" ? "right-0" : "left-0",
-          open
-            ? "opacity-100 scale-100 translate-y-0 pointer-events-auto ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-            : "opacity-0 scale-95 translate-y-2 pointer-events-none ease-[cubic-bezier(0.175,0.885,0.32,1.275)]",
+          slidingMenuState(open),
         )}
       >
         <div className="relative flex flex-col gap-0.5">
-          <div
-            style={{ ...hover, height: rowHeight }}
-            className="absolute left-0 right-0 top-0 -z-10 rounded-xl bg-accent pointer-events-none"
-          />
+          <SlidingHighlight style={highlight.style} rowHeight={rowHeight} />
           {options.map((o, idx) => (
             <button
               key={o.value}
@@ -209,16 +205,7 @@ export function PillSelect({
               role="option"
               aria-selected={o.value === value}
               onMouseDown={(e) => e.preventDefault()}
-              onMouseEnter={() =>
-                setHover((prev) => ({
-                  opacity: 1,
-                  transform: `translateY(${idx * rowHeight}px) scale(1)`,
-                  transition:
-                    prev.opacity === 0
-                      ? "opacity 0.15s ease-out"
-                      : "transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.15s ease",
-                }))
-              }
+              onMouseEnter={() => highlight.onRowEnter(idx)}
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(o.value);

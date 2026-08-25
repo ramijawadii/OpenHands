@@ -53,7 +53,35 @@ def combine_lifespans(*lifespans):
 @asynccontextmanager
 async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with conversation_manager:
-        yield
+        # CloudGuard: the autosave draft promoter. Started HERE rather than at
+        # import time because it creates an asyncio task, and at import there is
+        # no running loop to attach it to.
+        #
+        # Wrapped so it can never block startup: a server that will not boot is
+        # strictly worse than one whose autosave promotion is not running, and
+        # the drafts themselves are on disk either way — a later start picks up
+        # everything the previous process left behind.
+        try:
+            from openhands.server.routes.cloudguard_vfs import start_draft_promoter
+
+            start_draft_promoter()
+        except Exception as _cg_exc:  # noqa: BLE001
+            import logging as _cg_logging
+
+            _cg_logging.getLogger('openhands').warning(
+                'CloudGuard draft promoter not started: %s', _cg_exc
+            )
+        try:
+            yield
+        finally:
+            try:
+                from openhands.server.routes.cloudguard_vfs import (
+                    stop_draft_promoter,
+                )
+
+                await stop_draft_promoter()
+            except Exception:  # noqa: BLE001
+                pass
 
 
 app = FastAPI(

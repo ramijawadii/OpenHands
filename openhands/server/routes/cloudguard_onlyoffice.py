@@ -122,6 +122,18 @@ def _customization() -> dict:
         # Let the Save button / Ctrl+S force a save (status 6 callback) so edits
         # round-trip to the sandbox immediately, not only when the editor closes.
         "forcesave": True,
+        # STATED, not inherited. ONLYOFFICE defaults `autosave` to true, but a
+        # default is a thing an administrator can change in the document server's
+        # own config — and if it were ever turned off there, documents would stop
+        # autosaving here with no change on our side and no error to notice. The
+        # editors in this product autosave; that is a property of the product, so
+        # it is declared rather than assumed.
+        #
+        # This is what makes a doc or a sheet survive an abrupt quit: the
+        # document server writes on its own timer AND when the last editor
+        # disconnects (the status-2 callback), so a closed tab is a save, not a
+        # loss.
+        "autosave": True,
     }
     logo = _brand_logo_url()
     if logo:

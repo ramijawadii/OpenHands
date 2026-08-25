@@ -9,11 +9,14 @@ import {
   Shield,
   Tag,
   Clock,
+  Download,
 } from "lucide-react";
+import { Z_ABOVE_DRAWER } from "./files-menu";
 import {
   filesApi,
   VfsError,
   baseName,
+  DEFAULT_STORE,
   type Checkpoint,
   type FileVersion,
   type TrashItem,
@@ -50,7 +53,11 @@ export function Dialog({
   }, []);
   return (
     <div
-      className="absolute inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+      // FIXED and above the drawer, not absolute inside it: an `absolute`
+      // overlay is clipped by the drawer and a low z-index puts it behind —
+      // which is why the upload dialog appeared underneath the drawer.
+      style={{ position: "fixed", inset: 0, zIndex: Z_ABOVE_DRAWER }}
+      className="flex items-center justify-center bg-black/40 p-4"
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -74,7 +81,12 @@ export function Dialog({
             onClose();
           }
         }}
-        className={`flex max-h-[82vh] w-full ${
+        // `cg-surface-scroll` themes the scrollbar of the BODY below and of
+        // anything a panel scrolls inside it. Without it a long list (the
+        // point-in-time checkpoints are the usual case) drew the raw Windows
+        // scrollbar — a wide grey trough with arrow buttons — inside an
+        // otherwise themed dialog.
+        className={`cg-surface-scroll flex max-h-[82vh] w-full ${
           wide ? "max-w-[880px]" : "max-w-[560px]"
         } flex-col overflow-hidden rounded-lg border border-[var(--cg-border)] bg-[var(--cg-bg-card,var(--cg-bg-page))] shadow-xl outline-none`}
       >
@@ -153,17 +165,23 @@ export function formatWhen(value: string | number): string {
 
 const VIEW_LIMIT = 512 * 1024;
 
-function VersionPreviewDialog({
+export function VersionPreviewDialog({
   path,
   versionId,
   when,
   conversationId,
+  store = DEFAULT_STORE,
   onClose,
 }: {
   path: string;
   versionId: string;
   when: string;
   conversationId: string;
+  /** Which library the path is in. The SAME relative path exists in both, so a
+   *  caller that knows (the audit ledger does, from the entry's own store tag)
+   *  must be able to say which one — reading the wrong store would show a
+   *  reviewer a revision belonging to a different file. */
+  store?: string;
   onClose: () => void;
 }) {
   const [body, setBody] = React.useState<
@@ -175,7 +193,7 @@ function VersionPreviewDialog({
   React.useEffect(() => {
     let cancelled = false;
     filesApi
-      .readVersion(path, versionId, conversationId)
+      .readVersion(path, versionId, conversationId, store)
       .then((bytes) => {
         if (cancelled) return;
         // A NUL byte in the first kilobyte is the cheap, reliable binary
@@ -208,7 +226,7 @@ function VersionPreviewDialog({
     return () => {
       cancelled = true;
     };
-  }, [path, versionId, conversationId]);
+  }, [path, versionId, conversationId, store]);
 
   return (
     <Dialog
@@ -237,6 +255,45 @@ function VersionPreviewDialog({
       )}
     </Dialog>
   );
+}
+
+/**
+ * One file's revision history, as CSV.
+ *
+ * Same reasoning as the activity export: the destination is a spreadsheet or a
+ * ticket, and every field is quoted rather than only the ones that look like
+ * they need it — a filename containing a comma is exactly what a clever exporter
+ * gets wrong. `is_current` is included because "which of these is live right
+ * now" is the first question anyone asks of a version list once it leaves the
+ * screen.
+ */
+function exportVersionsCsv(path: string, versions: FileVersion[]): void {
+  const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const rows = [
+    ["file", "revision_id", "when", "author", "size_bytes", "is_current"],
+    ...versions.map((v) => [
+      path,
+      v.id,
+      v.created_at,
+      v.author,
+      v.size,
+      v.is_current ? "yes" : "no",
+    ]),
+  ].map((r) => r.map(cell).join(","));
+  // A BOM, so Excel reads UTF-8 instead of mangling non-ASCII paths.
+  const blob = new Blob([`\uFEFF${rows.join("\r\n")}`], {
+    type: "text/csv;charset=utf-8",
+  });
+  const url = URL.createObjectURL(blob);
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${baseName(path)}-history.csv`;
+    a.rel = "noopener";
+    a.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 export function VersionHistoryDialog({
@@ -292,8 +349,12 @@ export function VersionHistoryDialog({
       .revertFile(path, v.id, conversationId)
       .then(() => {
         setBusyId("");
+        // Order matters: tell the caller FIRST so the open reader re-reads the
+        // path immediately, then close. Reloading the history list while the
+        // dialog is closing raced the refetch, and the reader briefly showed
+        // nothing before settling on the old bytes.
         onRestored();
-        load();
+        onClose();
       })
       .catch((e: VfsError) => {
         // Surfaced, never swallowed. A restore that silently does nothing is the
@@ -323,64 +384,81 @@ export function VersionHistoryDialog({
           </div>
         )}
         {state.versions.length > 0 && (
-          <table className="w-full text-[12px]">
-            <thead>
-              <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--cg-text-muted)]">
-                <th className="pb-2 font-medium">When</th>
-                <th className="pb-2 font-medium">Author</th>
-                <th className="pb-2 font-medium">Size</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {state.versions.map((v) => (
-                <tr key={v.id} className="border-t border-[var(--cg-border)]">
-                  <td className="py-2 pr-2 text-[var(--cg-text-nav)]">
-                    {formatWhen(v.created_at)}
-                    {v.is_current && (
-                      <span className="ml-2 rounded bg-[var(--cg-bg-hover)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--cg-text-muted)]">
-                        current
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-2 text-[var(--cg-text-muted)]">
-                    {v.author}
-                  </td>
-                  <td className="py-2 pr-2 text-[var(--cg-text-muted)]">
-                    {formatSize(v.size)}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setPreview({
-                            id: v.id,
-                            when: formatWhen(v.created_at),
-                          })
-                        }
-                        className="flex items-center gap-1 rounded border border-[var(--cg-border-card)] text-[var(--cg-text-nav)] px-2 py-0.5 text-[11px] hover:bg-[var(--cg-bg-hover)]"
-                      >
-                        <Eye className="h-3 w-3" />
-                        View
-                      </button>
-                      {!v.is_current && (
+          <>
+            {/* Export the HISTORY, not the file. "Which revisions exist, when, by
+              whom, how big" is the thing a reviewer has to hand to someone else;
+              the bytes of any single revision are already one Download away in
+              the row beside it. */}
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => exportVersionsCsv(path, state.versions)}
+                title={`Download this ${state.versions.length}-revision history as CSV`}
+                className="flex items-center gap-1 rounded border border-[var(--cg-border-card)] px-2 py-0.5 text-[10px] text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)]"
+              >
+                <Download className="h-3 w-3" />
+                Export history
+              </button>
+            </div>
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-wide text-[var(--cg-text-muted)]">
+                  <th className="pb-2 font-medium">When</th>
+                  <th className="pb-2 font-medium">Author</th>
+                  <th className="pb-2 font-medium">Size</th>
+                  <th aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {state.versions.map((v) => (
+                  <tr key={v.id} className="border-t border-[var(--cg-border)]">
+                    <td className="py-2 pr-2 text-[var(--cg-text-nav)]">
+                      {formatWhen(v.created_at)}
+                      {v.is_current && (
+                        <span className="ml-2 rounded bg-[var(--cg-bg-hover)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--cg-text-muted)]">
+                          current
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-2 text-[var(--cg-text-muted)]">
+                      {v.author}
+                    </td>
+                    <td className="py-2 pr-2 text-[var(--cg-text-muted)]">
+                      {formatSize(v.size)}
+                    </td>
+                    <td className="py-2">
+                      <div className="flex justify-end gap-1.5">
                         <button
                           type="button"
-                          disabled={busyId === v.id}
-                          onClick={() => restore(v)}
-                          className="flex items-center gap-1 rounded border border-[var(--cg-border-card)] text-[var(--cg-text-nav)] px-2 py-0.5 text-[11px] hover:bg-[var(--cg-bg-hover)] disabled:opacity-60"
+                          onClick={() =>
+                            setPreview({
+                              id: v.id,
+                              when: formatWhen(v.created_at),
+                            })
+                          }
+                          className="flex items-center gap-1 rounded border border-[var(--cg-border-card)] text-[var(--cg-text-nav)] px-2 py-0.5 text-[11px] hover:bg-[var(--cg-bg-hover)]"
                         >
-                          <RotateCcw className="h-3 w-3" />
-                          {busyId === v.id ? "Restoring…" : "Restore"}
+                          <Eye className="h-3 w-3" />
+                          View
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        {!v.is_current && (
+                          <button
+                            type="button"
+                            disabled={busyId === v.id}
+                            onClick={() => restore(v)}
+                            className="flex items-center gap-1 rounded border border-[var(--cg-border-card)] text-[var(--cg-text-nav)] px-2 py-0.5 text-[11px] hover:bg-[var(--cg-bg-hover)] disabled:opacity-60"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            {busyId === v.id ? "Restoring…" : "Restore"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </Dialog>
       {preview && (
@@ -472,7 +550,7 @@ export function PermissionsDialog({
                           title={cell?.reason || ""}
                           className={
                             cell?.allow
-                              ? "text-emerald-400"
+                              ? "text-[var(--cg-ok)]"
                               : "text-[var(--cg-text-muted)]"
                           }
                         >
@@ -954,14 +1032,22 @@ export function PromptDialog({
           <button
             type="button"
             onClick={onCancel}
-            className="rounded-md border border-[var(--cg-border)] px-3 py-1 text-[12px] hover:bg-[var(--cg-bg-hover)]"
+            // Explicit colour. Without it the label inherited from the dialog
+            // body and rendered as near-white on the light card — a Cancel
+            // button you could only find by guessing where it was.
+            className="rounded-md border border-[var(--cg-border)] px-3 py-1 text-[12px] text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)]"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={!value.trim()}
-            className="rounded-md border border-[var(--cg-accent,#4C9AFF)] bg-[var(--cg-accent,#4C9AFF)]/15 px-3 py-1 text-[12px] text-[var(--cg-text-nav)] disabled:opacity-50"
+            // Solid accent with white text rather than a 15% tint behind body
+            // text: the tint reads as "disabled" even when enabled, and at
+            // `disabled:opacity-50` the label disappeared entirely. Disabled is
+            // now expressed by desaturating to the border colour, which still
+            // has a legible label.
+            className="rounded-md border border-[var(--cg-accent,#4C9AFF)] bg-[var(--cg-accent,#4C9AFF)] px-3 py-1 text-[12px] font-medium text-white transition-colors disabled:border-[var(--cg-border)] disabled:bg-transparent disabled:text-[var(--cg-text-muted)]"
           >
             {confirmLabel}
           </button>
@@ -1000,7 +1086,7 @@ export function ConfirmDialog({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-md border border-[var(--cg-border)] px-3 py-1 text-[12px] hover:bg-[var(--cg-bg-hover)]"
+          className="rounded-md border border-[var(--cg-border)] px-3 py-1 text-[12px] text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)]"
         >
           Cancel
         </button>

@@ -537,6 +537,27 @@ class DockerRuntime(ActionExecutionClient):
                 'http://host.docker.internal:3000/api/cloudguard/skills/body',
             )
 
+        # The app's own origin, for the sandbox components that call the VFS API
+        # directly rather than through a purpose-built seam: the files MCP server
+        # (`cloudguard.files.mcp_server`), the office MCP server, and the Jupyter
+        # `VfsContentsManager` that mounts the artifact library at `library/`.
+        #
+        # ALWAYS INJECTED, not flag-gated. Every one of those defaults to
+        # `host.docker.internal:3000` when the variable is absent, and that name
+        # does NOT resolve inside the sandbox — after SB6 the sandbox sits on the
+        # internal `cg-egress` network, where the app is reachable as
+        # `cloudguard-app:3000` and nothing else. Nobody ever set this variable,
+        # so all three fell back to a host that cannot be looked up and failed
+        # with a DNS error: the agent's `files_*` tools could not read the
+        # library at all, and a library notebook could not open in JupyterLab.
+        #
+        # Named `..._SANDBOX` on the app side like every other seam above,
+        # because the address the sandbox must use is not the address the app
+        # uses for itself.
+        environment['CLOUDGUARD_APP_ORIGIN'] = os.environ.get(
+            'CLOUDGUARD_APP_ORIGIN_SANDBOX', 'http://cloudguard-app:3000'
+        )
+
         # SB2 zero-trust report compile — when enabled, mint a per-conversation HMAC token
         # (matches cloudguard_report.mint_report_token, "report\n"+sid namespace) and point the
         # sandbox's latex_compile.py at the control-plane compile endpoint, so the CLSI protocol

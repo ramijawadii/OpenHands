@@ -22,7 +22,6 @@ import {
   LayoutGrid,
   Info,
   Tag,
-  HardDrive,
   Download,
   Trash2,
   Copy,
@@ -68,7 +67,11 @@ import { FilesDetailsPanel } from "./files-details";
 import { GalleryView, HistoryView, TilesView } from "./files-views";
 import { TrashView, ActivityView } from "./files-activity";
 import { ShareDialog, SharedView } from "./files-share";
+import { WikiView } from "./files-wiki";
 import { FileViewer, openKindFor } from "./files-open";
+import { Z_ABOVE_DRAWER } from "./files-menu";
+import { searchLibrary, type SearchOutcome } from "./files-search";
+import { recordSessionEvent } from "./files-session-log";
 import {
   SortGroupControls,
   sortEntries,
@@ -84,8 +87,17 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 const MENU_WIDTH = 208;
 
+/**
+ * What the "open" action is CALLED, per type.
+ *
+ * The names are the ones a reader needs, not the vendors we happen to embed.
+ * "Open in ONLYOFFICE" told an analyst which supplier's editor we licensed —
+ * information that is ours, not theirs, and that changes if the editor ever
+ * does. "Open as document" says what will happen. draw.io and JupyterLab keep
+ * their names because those ARE the names people know the tools by.
+ */
 const OPEN_LABELS: Record<string, string> = {
-  office: "Open in ONLYOFFICE",
+  office: "Open as document",
   diagram: "Open in draw.io",
   notebook: "Open in JupyterLab",
   text: "Open",
@@ -185,6 +197,29 @@ function ToolButton({
       <Icon className="h-3.5 w-3.5" />
       {!compact && <span className="hidden sm:inline">{label}</span>}
     </button>
+  );
+}
+
+/** Tile-shaped placeholders, so the grid holds its geometry while the first
+ *  listing is in flight rather than flashing an empty folder. */
+function TilesSkeleton() {
+  const cells = React.useMemo(
+    () => Array.from({ length: 12 }, (_, i) => i),
+    [],
+  );
+  return (
+    <div
+      className="grid grid-cols-[repeat(auto-fill,minmax(104px,1fr))] gap-1 p-3"
+      aria-busy="true"
+      aria-label="Loading folder"
+    >
+      {cells.map((i) => (
+        <div key={i} className="flex flex-col items-center gap-2 px-1 py-2">
+          <div className="cg-skel h-12 w-12 rounded-md" />
+          <div className="cg-skel h-3 w-4/5 rounded" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -342,8 +377,13 @@ function ContextMenu({
     <div
       ref={ref}
       role="menu"
-      style={{ left: state.x, top: state.y, width: MENU_WIDTH }}
-      className="fixed z-50 rounded-lg border border-[var(--cg-border)] bg-[var(--cg-bg-card,var(--cg-bg-page))] p-1 shadow-xl"
+      style={{
+        left: state.x,
+        top: state.y,
+        width: MENU_WIDTH,
+        zIndex: Z_ABOVE_DRAWER,
+      }}
+      className="fixed rounded-lg border border-[var(--cg-border)] bg-[var(--cg-bg-card,var(--cg-bg-page))] p-1 shadow-xl"
     >
       {items.map((item) =>
         item.sep ? (
@@ -395,6 +435,7 @@ const VIEW_LABELS: Record<string, string> = {
   trash: "Deleted",
   "shared-by-me": "Shared by me",
   "shared-with-me": "Shared with me",
+  wiki: "Wiki",
 };
 
 type View =
@@ -405,7 +446,8 @@ type View =
   | "trash"
   | "activity"
   | "shared-by-me"
-  | "shared-with-me";
+  | "shared-with-me"
+  | "wiki";
 
 function readPinned(): string[] {
   // Wrapped because the accessor itself throws in a private window or when site
@@ -442,10 +484,18 @@ function Browser({ conversationId }: { conversationId: string }) {
   const [checked, setChecked] = React.useState<string[]>([]);
   const [showDetails, setShowDetails] = React.useState(false);
   const [viewing, setViewing] = React.useState<string | null>(null);
+  /** Bumped when a file's CONTENT changes underneath an open viewer — a revert
+   *  or a point-in-time restore. The viewer keys its fetch on this, because the
+   *  path is unchanged and nothing else would tell it to re-read. */
+  const [contentToken, setContentToken] = React.useState(0);
   const [pinned, setPinned] = React.useState<string[]>(readPinned);
   const [recent, setRecent] = React.useState<string[]>([]);
   const [tagFilter, setTagFilter] = React.useState("");
   const [query, setQuery] = React.useState("");
+  /** Whole-library results. Null until a search has actually run, so "no
+   *  results" is distinguishable from "not searched yet". */
+  const [found, setFound] = React.useState<SearchOutcome | null>(null);
+  const [searching, setSearching] = React.useState(false);
   /** Tiles have no column headers to click, so sorting needs its own control.
    *  The table keeps using AG Grid's headers — two sort UIs for one list would
    *  disagree the moment someone used both. */
@@ -480,6 +530,7 @@ function Browser({ conversationId }: { conversationId: string }) {
   );
 
   React.useEffect(() => {
+    recordSessionEvent("navigate", prefix || "the root", store);
     load(prefix, store);
     // Ticks are per-listing: carrying them across a navigation would arm a batch
     // action against paths the analyst can no longer see.
@@ -544,6 +595,7 @@ function Browser({ conversationId }: { conversationId: string }) {
       // A type we can render opens IN the library, view-only. Everything else
       // downloads through a plain link so the browser streams it — holding an
       // artifact in the tab's memory to hand it back would be pure cost.
+      recordSessionEvent("open", entry.path, store);
       if (openKindFor(entry.path) !== "none") {
         setViewing(entry.path);
         return;
@@ -670,11 +722,24 @@ function Browser({ conversationId }: { conversationId: string }) {
         valueFormatter: (p) => (p.value ? `v${p.value}` : "—"),
       },
       {
+        headerName: "Author",
+        field: "author",
+        flex: 1,
+        minWidth: 100,
+        sortable: true,
+        valueFormatter: (p) => p.value || "—",
+      },
+      {
         headerName: "Modified",
         field: "mtime",
         flex: 2,
         minWidth: 150,
-        sort: "desc",
+        // No default sort here on purpose. `visible` arrives already ordered by
+        // the surface's Sort control, and a column-level default silently
+        // overrode it — so choosing "Size" in the menu did nothing in Table view
+        // while working correctly in Tiles. Clicking a header still sorts,
+        // which is what a table should do; it just no longer starts by
+        // contradicting the control above it.
         sortable: true,
         valueFormatter: (p) => (p.value ? formatWhen(p.value) : "—"),
       },
@@ -707,11 +772,19 @@ function Browser({ conversationId }: { conversationId: string }) {
   const onRailSelect = React.useCallback(
     (id: string) => {
       const { kind, value } = parseRailId(id);
+      // Navigating must not discard the view you chose. Only a NON-listing view
+      // (trash, history, audit log, wiki) has to be left behind when you click a
+      // folder; Tiles / Table / Gallery is a preference and should survive.
+      const backToListing = () =>
+        setView((v) =>
+          v === "tiles" || v === "table" || v === "gallery" ? v : "tiles",
+        );
       if (kind === "store") {
+        recordSessionEvent("store", value, value);
         setStore(value);
         setPrefix("");
         setSelected(null);
-        setView("tiles");
+        backToListing();
         return;
       }
       if (kind === "dir") {
@@ -721,7 +794,7 @@ function Browser({ conversationId }: { conversationId: string }) {
         }
         setPrefix(value);
         if (value) toggleFolder(value);
-        setView("tiles");
+        backToListing();
         return;
       }
       if (kind === "file") {
@@ -729,7 +802,7 @@ function Browser({ conversationId }: { conversationId: string }) {
         // that holds one and selects it, rather than downloading from the rail —
         // a rail click that starts a download is a surprise.
         setPrefix(parentOf(value));
-        setView("tiles");
+        backToListing();
         setSelected(rows.find((r) => r.path === value) ?? null);
         return;
       }
@@ -779,6 +852,39 @@ function Browser({ conversationId }: { conversationId: string }) {
    *  store it is in, and the sandbox and the library both have one. */
   const fullPath = `${store === "sandbox" ? "sandbox" : "artifacts"}://${prefix}`;
 
+  // Debounced so a walk does not start on every keystroke, and cancelled on the
+  // next edit so a slow search cannot land after a newer one.
+  React.useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setFound(null);
+      setSearching(false);
+      return undefined;
+    }
+    const signal = { cancelled: false };
+    setSearching(true);
+    const t = window.setTimeout(() => {
+      searchLibrary(q, conversationId, store, signal)
+        .then((out) => {
+          if (signal.cancelled) return;
+          setFound(out);
+          setSearching(false);
+          recordSessionEvent(
+            "search",
+            `${q} — ${out.hits.length} result${out.hits.length === 1 ? "" : "s"}`,
+            store,
+          );
+        })
+        .catch(() => {
+          if (!signal.cancelled) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      signal.cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [query, conversationId, store, refreshToken]);
+
   const crumbs = crumbsFor(prefix);
   const visible = React.useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -826,6 +932,11 @@ function Browser({ conversationId }: { conversationId: string }) {
   return (
     <div
       style={{ height: "100%", minHeight: 0 }}
+      // One themed scrollbar for every pane in the surface — the rail, the
+      // listing, the activity table and the details inspector all scroll, and
+      // three of them are inner boxes rather than this node, which is why the
+      // rule covers descendants too.
+      className="cg-surface-scroll"
       // Suppressed for the WHOLE surface, not per row. Children that have their
       // own menu call preventDefault too, but empty space, the rail and the gaps
       // between tiles did not — and a native browser menu appearing over a file
@@ -906,7 +1017,11 @@ function Browser({ conversationId }: { conversationId: string }) {
                 type="button"
                 onClick={() => {
                   setPrefix("");
-                  setView("tiles");
+                  setView((v) =>
+                    v === "tiles" || v === "table" || v === "gallery"
+                      ? v
+                      : "tiles",
+                  );
                 }}
                 className="rounded px-1.5 py-0.5 text-[12px] text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-hover)]"
               >
@@ -941,8 +1056,8 @@ function Browser({ conversationId }: { conversationId: string }) {
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Filter this folder"
-                      aria-label="Filter this folder"
+                      placeholder="Search the library"
+                      aria-label="Search the library"
                       className="w-28 bg-transparent text-[11px] text-[var(--cg-text-nav)] outline-none placeholder:text-[var(--cg-text-muted)] focus:w-40"
                     />
                   </label>
@@ -963,21 +1078,30 @@ function Browser({ conversationId }: { conversationId: string }) {
                     label="Tiles"
                     compact
                     active={view === "tiles"}
-                    onClick={() => setView("tiles")}
+                    onClick={() => {
+                      recordSessionEvent("view", "tiles", store);
+                      setView("tiles");
+                    }}
                   />
                   <ToolButton
                     icon={Table2}
                     label="Table"
                     compact
                     active={view === "table"}
-                    onClick={() => setView("table")}
+                    onClick={() => {
+                      recordSessionEvent("view", "table", store);
+                      setView("table");
+                    }}
                   />
                   <ToolButton
                     icon={Images}
                     label="Gallery"
                     compact
                     active={view === "gallery"}
-                    onClick={() => setView("gallery")}
+                    onClick={() => {
+                      recordSessionEvent("view", "gallery", store);
+                      setView("gallery");
+                    }}
                   />
                 </div>
               </div>
@@ -1049,7 +1173,20 @@ function Browser({ conversationId }: { conversationId: string }) {
 
             {isListing && (
               <div className="flex items-center gap-2 border-b border-[var(--cg-border)] px-3 py-1">
-                <HardDrive className="h-3 w-3 shrink-0 text-[var(--cg-text-muted)]" />
+                <span
+                  title={
+                    store === "sandbox"
+                      ? "Sandbox — the agent's working directory. Not durable."
+                      : "Artifact library — durable, versioned, audited."
+                  }
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                    store === "sandbox"
+                      ? "bg-amber-500/15 text-amber-400"
+                      : "bg-[var(--cg-ok-bg)] text-[var(--cg-ok)]"
+                  }`}
+                >
+                  {store === "sandbox" ? "sandbox" : "library"}
+                </span>
                 {/* Selectable, and copyable in one click. The path is the value
                 someone pastes into a report or a command; making them retype it
                 from breadcrumbs is the small friction that makes a file manager
@@ -1145,7 +1282,20 @@ function Browser({ conversationId }: { conversationId: string }) {
             )}
 
             <div className="min-h-0 flex-1">
-              {view === "activity" && <ActivityView />}
+              {view === "activity" && (
+                <ActivityView conversationId={conversationId} store={store} />
+              )}
+
+              {view === "wiki" && (
+                <WikiView
+                  conversationId={conversationId}
+                  store={store}
+                  refreshToken={refreshToken}
+                  onOpen={(p) => setViewing(p)}
+                  onShare={(p) => setDialog({ kind: "share", path: p })}
+                  onChanged={() => setRefreshToken((n) => n + 1)}
+                />
+              )}
 
               {(view === "shared-by-me" || view === "shared-with-me") && (
                 <SharedView
@@ -1211,7 +1361,100 @@ function Browser({ conversationId }: { conversationId: string }) {
                 </div>
               )}
 
-              {view === "tiles" &&
+              {/* The skeleton holds the grid's shape during the FIRST load.
+                  Without it a folder reads as empty for as long as the request
+                  takes, which is indistinguishable from an actually empty
+                  folder — the one thing a file browser must never get wrong. */}
+              {/* Results REPLACE the folder view while a query is active. A
+                  library-wide search that rendered inside the current folder
+                  would make it look as though those files live here. */}
+              {found !== null && (
+                <div className="h-full overflow-auto p-3">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] text-[var(--cg-text-muted)]">
+                    {searching ? (
+                      <>
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Searching the library…
+                      </>
+                    ) : (
+                      <>
+                        {found.hits.length} result
+                        {found.hits.length === 1 ? "" : "s"} · {found.scanned}{" "}
+                        items scanned
+                        {found.truncated && " · partial, refine the search"}
+                      </>
+                    )}
+                  </div>
+                  {found.hits.length === 0 && !searching && (
+                    <p className="p-4 text-[12px] text-[var(--cg-text-muted)]">
+                      Nothing in the library matches “{query}”.
+                    </p>
+                  )}
+                  <div className="flex flex-col">
+                    {found.hits.map((h) => (
+                      <button
+                        key={h.entry.path}
+                        type="button"
+                        onDoubleClick={() => open(h.entry)}
+                        onClick={() => setSelected(h.entry)}
+                        onContextMenu={(ev) => {
+                          ev.preventDefault();
+                          setSelected(h.entry);
+                          setMenu({
+                            x: Math.min(
+                              ev.clientX,
+                              window.innerWidth - MENU_WIDTH - 8,
+                            ),
+                            y: ev.clientY,
+                            entry: h.entry,
+                          });
+                        }}
+                        className={`flex items-center gap-2 rounded px-2 py-1.5 text-left ${
+                          selected?.path === h.entry.path
+                            ? "bg-[var(--cg-bg-hover)]"
+                            : "hover:bg-[var(--cg-bg-hover)]"
+                        }`}
+                      >
+                        <FileArt
+                          path={h.entry.path}
+                          kind={h.entry.kind}
+                          size={20}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[12px] text-[var(--cg-text-nav)]">
+                            {baseName(h.entry.path)}
+                          </span>
+                          {/* The folder is the point of a global search — it is
+                              the answer to "where is it". */}
+                          <span className="block truncate text-[10px] text-[var(--cg-text-muted)]">
+                            in {h.parent || "the root"}
+                          </span>
+                        </span>
+                        <span
+                          role="presentation"
+                          onClick={(ev) => {
+                            ev.stopPropagation();
+                            setPrefix(h.parent);
+                            setQuery("");
+                          }}
+                          className="rounded border border-[var(--cg-border-card)] px-2 py-0.5 text-[10px] text-[var(--cg-text-nav)] hover:bg-[var(--cg-bg-page)]"
+                        >
+                          Show in folder
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {found === null &&
+                view === "tiles" &&
+                loading &&
+                rows.length === 0 && <TilesSkeleton />}
+
+              {found === null &&
+                view === "tiles" &&
+                !(loading && rows.length === 0) &&
                 (rows.length === 0 || visible.length > 0) &&
                 (grouped ? (
                   <div className="h-full overflow-auto">
@@ -1275,21 +1518,29 @@ function Browser({ conversationId }: { conversationId: string }) {
                   />
                 ))}
 
-              {view === "gallery" && (
-                <GalleryView
-                  entries={visible}
-                  conversationId={conversationId}
-                  store={store}
-                  onOpen={open}
-                  onSelect={(e) => {
-                    setSelected(e);
-                    setShowDetails(true);
-                  }}
-                  selected={selected?.path}
-                />
-              )}
+              {found === null &&
+                view === "gallery" &&
+                loading &&
+                rows.length === 0 && <TilesSkeleton />}
 
-              {view === "table" &&
+              {found === null &&
+                view === "gallery" &&
+                !(loading && rows.length === 0) && (
+                  <GalleryView
+                    entries={visible}
+                    conversationId={conversationId}
+                    store={store}
+                    onOpen={open}
+                    onSelect={(e) => {
+                      setSelected(e);
+                      setShowDetails(true);
+                    }}
+                    selected={selected?.path}
+                  />
+                )}
+
+              {found === null &&
+                view === "table" &&
                 (loading && rows.length === 0 ? (
                   <FilesSkeleton />
                 ) : (
@@ -1365,6 +1616,8 @@ function Browser({ conversationId }: { conversationId: string }) {
           store={store}
           conversationId={conversationId}
           onClose={() => setViewing(null)}
+          onHistory={(p) => setDialog({ kind: "history", path: p })}
+          reloadToken={contentToken}
         />
       )}
 
@@ -1548,6 +1801,11 @@ function Browser({ conversationId }: { conversationId: string }) {
           onClose={() => setDialog({ kind: "none" })}
           onRestored={() => {
             flash("Restored");
+            // The open viewer is showing the PREVIOUS bytes of a path whose
+            // NAME has not changed, so nothing else would tell it to re-read.
+            // Revert (inside the editor) worked because it owns its buffer;
+            // this path did not, which is why only Versions looked broken.
+            setContentToken((n) => n + 1);
             load();
           }}
         />
@@ -1572,6 +1830,7 @@ function Browser({ conversationId }: { conversationId: string }) {
           onRestored={() => {
             flash("Library restored to the selected point in time");
             setRefreshToken((n) => n + 1);
+            setContentToken((n) => n + 1);
             load();
           }}
         />

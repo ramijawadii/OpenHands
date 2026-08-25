@@ -5,11 +5,12 @@ import { cn } from "#/utils/utils";
 import Jupyter from "#/routes/jupyter-tab";
 import OnlyOfficeFile from "#/components/features/office-viewer/OnlyOfficeFile";
 import DocumentsView from "#/components/features/canvas/documents-view";
+import MarkdownView from "#/components/features/canvas/markdown-view";
 import SurfaceHost from "#/components/features/surfaces/surface-host";
 import { useConversationId } from "#/hooks/use-conversation-id";
 
 /** Canvas — the working surface. One tab, four views:
- *  Documents · Sheet · Notebook · Whiteboard.
+ *  Markdown · Documents · Sheet · Notebook · Whiteboard.
  *
  *  Notebook is the full embedded JupyterLab IDE; Whiteboard is Excalidraw and is
  *  code-split so its bundle only loads when opened. */
@@ -18,13 +19,16 @@ const LazyWhiteboard = React.lazy(
   () => import("#/components/features/canvas/whiteboard-view"),
 );
 
-type View = "documents" | "sheet" | "notebook" | "whiteboard";
+type View = "markdown" | "documents" | "sheet" | "notebook" | "whiteboard";
 
 const VIEWS: {
   id: View;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
+  // Markdown first: it is what the agent produces most, and the ONLYOFFICE
+  // document surface is the heavier, rarer case.
+  { id: "markdown", label: "Markdown", icon: FileText },
   { id: "documents", label: "Documents", icon: FileText },
   { id: "sheet", label: "Sheet", icon: Table2 },
   { id: "notebook", label: "Notebook", icon: FileTerminal },
@@ -103,7 +107,12 @@ const MAX_RESIDENT = 2; // active + 1 most-recently-used
 const IDLE_EVICT_MS = 3 * 60_000; // drop a hidden pane after 3 min unused
 
 function CanvasTab() {
-  const [view, setView] = React.useState<View>("notebook");
+  // MARKDOWN FIRST. Opening on Notebook meant every visit to Canvas started a
+  // JupyterLab frame and a kernel — seconds of spinner for a tab most visits are
+  // not about — while markdown, the format the agent actually produces most, was
+  // a click away behind it. The cheapest and most-wanted pane is the one that
+  // should be on screen when the tab opens.
+  const [view, setView] = React.useState<View>("markdown");
   const { conversationId } = useConversationId();
 
   // Bounded LRU keep-alive. `resident` is MRU-ordered; a view mounts the first
@@ -170,6 +179,12 @@ function CanvasTab() {
         {isResident("notebook") && (
           <div className={paneClass("notebook")}>
             <Jupyter />
+          </div>
+        )}
+
+        {isResident("markdown") && (
+          <div className={paneClass("markdown")}>
+            <MarkdownView conversationId={conversationId} />
           </div>
         )}
 

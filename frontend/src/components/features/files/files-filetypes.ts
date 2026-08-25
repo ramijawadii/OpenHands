@@ -97,15 +97,22 @@ const BY_EXTENSION: Record<string, string> = {
   sqlite: "database.png",
   parquet: "database.png",
 
-  // images
-  png: "img.png",
-  jpg: "img.png",
-  jpeg: "img.png",
-  gif: "img.png",
-  webp: "img.png",
-  bmp: "img.png",
-  avif: "img.png",
-  ico: "img.png",
+  // images — screenshots are evidence in this product, so every raster format
+  // an analyst might attach gets the same photo mark rather than falling
+  // through to `unkown.png`
+  png: "photo.png",
+  jpg: "photo.png",
+  jpeg: "photo.png",
+  gif: "photo.png",
+  webp: "photo.png",
+  bmp: "photo.png",
+  avif: "photo.png",
+  ico: "photo.png",
+  tif: "photo.png",
+  tiff: "photo.png",
+  heic: "photo.png",
+  heif: "photo.png",
+  jfif: "photo.png",
 
   // archives
   zip: "zip.png",
@@ -159,6 +166,7 @@ const BY_FOLDER: Record<string, string> = {
   deleted: "delete-folder.png",
 };
 
+export const PHOTO_ART = `${BASE}/photo.png`;
 export const FOLDER_ART = `${BASE}/folder.png`;
 export const FOLDER_OPEN_ART = `${BASE}/folder-1.png`;
 export const UNKNOWN_ART = `${BASE}/unkown.png`;

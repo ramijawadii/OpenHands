@@ -14,6 +14,8 @@ import {
   FileText,
   Share2,
   Inbox,
+  BookText,
+  Check,
 } from "lucide-react";
 import type { RailSection } from "#/components/admin/admin-kit";
 import { filesApi, baseName, type VfsEntry } from "./files-api";
@@ -232,10 +234,21 @@ export function useFilesRail({
     const out: RailSection[] = [];
 
     out.push({ id: "h:stores", label: "Stores", heading: true });
+    // A TICK on the store in use.
+    //
+    // The rail's active highlight tracks the folder, not the store, so with two
+    // stores that hold the same relative paths there was nothing on screen
+    // saying which one you were reading — and `artifacts://reports` and
+    // `sandbox://reports` are different files with different durability.
     out.push({
       id: "store:artifacts",
       label: "Artifact library",
-      icon: <Database size={ICON} />,
+      icon:
+        store === "artifacts" ? (
+          <Check size={ICON} className="text-[var(--cg-ok)]" />
+        ) : (
+          <Database size={ICON} />
+        ),
     });
     // The sandbox resolves per conversation, so it is only reachable when there
     // is one. Offering it otherwise is a store that 4xx's on every click.
@@ -243,7 +256,12 @@ export function useFilesRail({
       out.push({
         id: "store:sandbox",
         label: "Sandbox",
-        icon: <HardDrive size={ICON} />,
+        icon:
+          store === "sandbox" ? (
+            <Check size={ICON} className="text-[var(--cg-ok)]" />
+          ) : (
+            <HardDrive size={ICON} />
+          ),
       });
     }
 
@@ -254,6 +272,13 @@ export function useFilesRail({
       icon: <FolderOpen size={ICON} />,
     });
 
+    // Above the folder tree: the wiki is a destination people go to on purpose,
+    // not a folder they happen to browse into.
+    out.push({
+      id: "special:wiki",
+      label: "Wiki",
+      icon: <BookText size={ICON} />,
+    });
     out.push({
       id: "special:shared-by-me",
       label: "Shared by me",
@@ -353,7 +378,7 @@ export function useFilesRail({
     });
 
     return out;
-  }, [children, expanded, pinned, recent, conversationId, toggle]);
+  }, [children, expanded, pinned, recent, conversationId, toggle, store]);
 
   /** What the rail shows as active, derived from where the surface actually is —
    *  so navigating by breadcrumb or double-click moves the rail too, and a
@@ -364,7 +389,8 @@ export function useFilesRail({
       view === "history" ||
       view === "activity" ||
       view === "shared-by-me" ||
-      view === "shared-with-me"
+      view === "shared-with-me" ||
+      view === "wiki"
         ? `special:${view}`
         : `dir:${prefix}`,
     [prefix],

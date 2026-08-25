@@ -39,7 +39,13 @@ import {
   type PhaseAuthorization,
   type RemediationAction,
 } from "./remediation-data";
-import { exportAction } from "./remediation-export";
+import {
+  exportAction,
+  remediationReportFilename,
+  remediationReportMarkdown,
+} from "./remediation-export";
+import { saveReportToLibrary } from "#/components/features/explore/cloudguard-grid/report-library";
+import { useConversationId } from "#/hooks/use-conversation-id";
 import type { LinkedAsset, LinkedFinding } from "./remediation-detail-data";
 import {
   buildAttack,
@@ -790,7 +796,10 @@ export function RemediationActionView({
   // Changing rail section abandons any drill-down — returning to Overview
   // later should show Overview, not whatever task was open three views ago.
   React.useEffect(() => setSub(null), [view]);
-  const [save, setSave] = React.useState<"idle" | "saved" | "error">("idle");
+  const [save, setSave] = React.useState<"idle" | "saving" | "saved" | "error">(
+    "idle",
+  );
+  const { conversationId } = useConversationId();
   const [msg, setMsg] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -834,6 +843,33 @@ export function RemediationActionView({
   const onExport = () => {
     const r = exportAction(action);
     setMsg(r.ok ? `Exported to ${r.filename}` : `Export failed — ${r.error}`);
+  };
+
+  /**
+   * Write the record into the artifact library.
+   *
+   * This button previously did `setSave("saved")` and nothing else — it flipped
+   * its own label and wrote no file anywhere. Beside two sibling buttons that
+   * genuinely save, a control that only claims to is worse than no control: it
+   * is indistinguishable from a save that worked, right up until someone needs
+   * the report and it was never there.
+   */
+  const onSave = async () => {
+    setSave("saving");
+    try {
+      const { path } = await saveReportToLibrary(
+        remediationReportFilename(action),
+        remediationReportMarkdown(action),
+        conversationId ?? "",
+      );
+      setSave("saved");
+      setMsg(`Saved to ${path}`);
+    } catch (e) {
+      setSave("error");
+      setMsg(
+        `Save failed — ${e instanceof Error ? e.message : "could not write to the library"}`,
+      );
+    }
   };
 
   return (
@@ -949,10 +985,18 @@ export function RemediationActionView({
                   : "cg-report-action-primary"
               }`}
               style={btn}
-              onClick={() => setSave("saved")}
+              disabled={save === "saving"}
+              onClick={onSave}
             >
               {save === "saved" ? <Check size={12} /> : <Save size={12} />}
-              {save === "saved" ? "Saved" : "Save to reports"}
+              {
+                {
+                  idle: "Save to reports",
+                  saving: "Saving…",
+                  saved: "Saved",
+                  error: "Save failed — retry",
+                }[save]
+              }
             </button>
           </>
         }
@@ -1084,12 +1128,7 @@ export function RemediationActionView({
             onBack={() => setSub(null)}
           />
         )}
-        {view === "rollback" && !sub && (
-          <RollbackPane
-            action={action}
-            onOpenEntry={(entry) => setSub({ kind: "undo", entry })}
-          />
-        )}
+        {view === "rollback" && !sub && <RollbackPane action={action} />}
         {view === "tickets" && sub?.kind === "ticket" && (
           <TicketView
             key={sub.ticket.key}

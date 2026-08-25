@@ -19,6 +19,8 @@ export interface VfsEntry {
   version: number;
   mime: string | null;
   kind: EntryKind;
+  /** Who last changed it, per the store. Present on every listing entry. */
+  author?: string;
 }
 
 export interface FileVersion {
@@ -60,6 +62,15 @@ export interface FileMetadata {
  *  UI can show the chain, not just a list — an activity feed you cannot verify
  *  is indistinguishable from one that was edited after the fact. */
 export interface AuditEntry {
+  /**
+   * Which chain the entry came from: "control" (governance, search, agent
+   * conversation actions) or "vfs" (every file operation).
+   *
+   * A tenant has TWO independent hash chains, and `seq` restarts at 1 in each —
+   * so `seq` alone is NOT an identity across the feed and must never be used as
+   * a list key on its own.
+   */
+  chain: "control" | "vfs" | string;
   seq: number;
   ts: string;
   actor: string;
@@ -69,6 +80,39 @@ export interface AuditEntry {
   decision: string;
   entry_hash: string;
   prev_hash: string;
+  /**
+   * The call site's own fields, as published by the ledger's allowlist.
+   *
+   * Kept in their own bag rather than flattened onto the entry so a reader can
+   * tell them apart from the six the hash chain guarantees. Every key is
+   * OPTIONAL and entries written before a field existed simply will not have it
+   * — `store` in particular is absent on everything older than the store-tagging
+   * sink, and the UI must degrade rather than guess.
+   */
+  details?: {
+    /** Which library the path is in: "artifacts" or "sandbox". */
+    store?: string;
+    /** For a move or a copy, the path it came FROM. For agent actions, the
+     *  event origin ("conversation") — the two are told apart by action. */
+    source?: string;
+    version_id?: string;
+    commit_id?: string;
+    checkpoint_id?: string;
+    trigger?: string;
+    conversation?: string;
+    session_id?: string;
+    content_hash?: string;
+    /** The store's version counter for this path AFTER the operation. */
+    version?: number | string;
+    /** Why a denial was a denial. */
+    reason?: string;
+    principal?: string;
+    permission?: string;
+    name?: string;
+    description?: string;
+    item?: string;
+    tab?: string;
+  };
 }
 
 /** One recorded share. `granted_at` is ISO from the server. */
@@ -393,6 +437,41 @@ export const filesApi = {
     return post("/unshare", { path, principal });
   },
 
+  /**
+   * Find artifacts by NAME and by CONTENT, in one request.
+   *
+   * Server-side (`/vfs/search`) rather than a walk from the browser: content
+   * search client-side is one round trip per file from a keystroke handler.
+   * `truncated` is carried so the UI can say results are partial instead of
+   * implying the list is exhaustive.
+   */
+  search(
+    q: string,
+    conversationId = "",
+    store = DEFAULT_STORE,
+    opts: { prefix?: string; limit?: number } = {},
+  ): Promise<{
+    hits: {
+      path: string;
+      kind: EntryKind;
+      match: "name" | "content";
+      line: number;
+      text: string;
+    }[];
+    scanned: number;
+    truncated: boolean;
+  }> {
+    return request("/search", {
+      query: {
+        conversation_id: conversationId,
+        q,
+        store,
+        prefix: opts.prefix,
+        limit: opts.limit,
+      },
+    });
+  },
+
   /** Download URL for a file. A plain link, so the browser streams it rather
    *  than the tab holding the whole artifact in memory to hand it back. */
   downloadUrl(
@@ -456,14 +535,24 @@ export const auditApi = {
     return res.json();
   },
 
-  /** Whether the chain still verifies. Shown next to the feed, because "these
-   *  are the entries" and "the entries have not been tampered with" are two
-   *  different claims and only the second one makes the first worth anything. */
+  /** Whether the chains still verify. Shown next to the feed, because "these are
+   *  the entries" and "the entries have not been tampered with" are two
+   *  different claims and only the second one makes the first worth anything.
+   *
+   *  `chains` is per-chain: the combined `ok` says the audit log is sound, but
+   *  WHICH chain broke is the first thing anyone responding to a break needs. */
   async verify(): Promise<{
     ok: boolean;
     count: number;
     broken_at: number;
     reason: string;
+    chains?: {
+      chain: string;
+      ok: boolean;
+      count: number;
+      broken_at: number;
+      reason: string;
+    }[];
   }> {
     const res = await fetch("/api/cloudguard/audit/verify", {
       credentials: "same-origin",

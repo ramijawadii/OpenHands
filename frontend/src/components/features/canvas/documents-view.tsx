@@ -6,7 +6,7 @@ import OnlyOfficeFile, {
   isOnlyOfficeSupported,
 } from "#/components/features/office-viewer/OnlyOfficeFile";
 
-/** Documents — the embedded ONLYOFFICE Word editor for the workspace's primary
+/** Documents — the embedded document editor for the workspace's primary
  *  document. No file browser: this is just the editor, like the Sheet view.
  *
  *  It finds a document to open by listing the workspace and preferring a real

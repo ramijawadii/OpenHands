@@ -13,6 +13,7 @@ rest. See docs/architecture/vfs-engine/VFS_ENGINE_PLAN.md.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 
@@ -29,6 +30,17 @@ router = APIRouter(prefix="/api/cloudguard/vfs")
 # V4 keeps the wiring minimal + additive: humans (the authenticated console
 # principal) are the trusted control plane, so AllowAll is fine here; real
 # capability-manifest policy + audit/event binding land with the tenancy wiring.
+#: Bounds for /search.
+_SEARCH_MAX_NODES = 3000
+_SEARCH_MAX_DEPTH = 10
+_SEARCH_FILE_CAP = 2 * 1024 * 1024
+_SEARCH_TEXT_EXTS = (
+    ".md", ".markdown", ".txt", ".log", ".json", ".yaml", ".yml", ".toml",
+    ".ini", ".cfg", ".conf", ".csv", ".tsv", ".py", ".sh", ".bash", ".ps1",
+    ".js", ".ts", ".tsx", ".jsx", ".go", ".rs", ".java", ".rb", ".sql",
+    ".html", ".css", ".xml", ".tex", ".rst", ".mmd", ".mermaid", ".drawio",
+)
+
 _TENANT = "default"
 
 
@@ -129,6 +141,33 @@ def _write_buffer():
     return _WRITE_BUFFER
 
 
+class _StoreTaggedSink:
+    """Stamps the STORE onto every audit entry on its way to the sink.
+
+    `VFSContext` carries tenant, conversation and actor but not the store — the
+    engine has no idea which of the two libraries it is bound to, because that is
+    decided out here by which VFS instance the request is dispatched to. Without
+    this the ledger recorded `vfs_write` on `reports/x.md` with no way to tell
+    whether that was the durable library or a sandbox scratch file, and the
+    Activity view could not open the right version history for the row: the same
+    relative path exists in BOTH stores and reading the wrong one would show an
+    analyst a history that belongs to a different file.
+
+    A wrapper rather than a field on `VFSContext` so the engine stays unaware of
+    the app's store topology, and so the tag cannot be spoofed from a request
+    body — it is applied at the point the store is chosen.
+    """
+
+    def __init__(self, inner, store: str) -> None:
+        self._inner = inner
+        self._store = store
+
+    async def append(self, entry: dict) -> None:
+        # Never overwrite a store the engine somehow already set; an entry that
+        # disagrees with its dispatcher is worth seeing, not silently rewriting.
+        await self._inner.append({"store": self._store, **entry})
+
+
 def _audit_anchor():
     global _ANCHOR
     if _ANCHOR is None:
@@ -215,7 +254,7 @@ def _vfs_for(resolved: tuple[str, str]):
         _read_cache(),
         namespace=container,
     )
-    sink = _audit_sink()
+    sink = _StoreTaggedSink(_audit_sink(), "sandbox")
     _ensure_flusher()
     _ensure_drainer()
     return VFS(lambda ctx: driver, audit=sink)
@@ -297,7 +336,7 @@ async def _artifact_vfs():
         _read_cache(),
         namespace=f'seafile:{repo_id}',
     )
-    _ARTIFACT_VFS = VFS(lambda ctx: driver, audit=_audit_sink())
+    _ARTIFACT_VFS = VFS(lambda ctx: driver, audit=_StoreTaggedSink(_audit_sink(), "artifacts"))
     _ensure_flusher()
     return _ARTIFACT_VFS
 
@@ -379,13 +418,34 @@ async def surface_read(conversation_id: str, path: str) -> bytes:
         raise
 
 
+def _actor_of(principal) -> str:
+    """The audit ACTOR for one request principal.
+
+    `Principal` (cloudguard/principal.py) is a frozen dataclass whose identity
+    field is `subject` — it has no `id`. Reading a missing attribute and falling
+    back to the object itself stamped the dataclass REPR into the ledger, so the
+    audit log's Actor column read
+    `Principal(tenant_id='default', role=<Role.ADMIN: 'admin'>, subject='unknown')`
+    on every file operation. Worth guarding rather than trusting: this value is
+    written into a tamper-evident chain and cannot be corrected afterwards.
+
+    An unauthenticated console session resolves with subject "unknown", which is
+    recorded as "console" — the honest name for "the human at this console", and
+    unlike "unknown" it does not read as a failure to identify the agent.
+    """
+    subject = str(getattr(principal, "subject", "") or "")
+    if not subject or subject == "unknown":
+        subject = str(getattr(principal, "user_id", "") or "")
+    return subject or "console"
+
+
 def _ctx(conversation_id: str, principal) -> "object":
     from cloudguard.vfs import VFSContext
 
     return VFSContext(
         tenant=_TENANT,
         conversation=conversation_id,
-        actor=str(getattr(principal, "id", principal) or "console"),
+        actor=_actor_of(principal),
     )
 
 
@@ -417,6 +477,23 @@ def _map_error(exc: Exception) -> HTTPException:
         # do this. A 500 would send someone hunting for a fault that isn't there.
         return HTTPException(status_code=501, detail=str(exc))
     return HTTPException(status_code=500, detail=f"vfs error: {exc}")
+
+
+def _decode_body(text: "str | None", content_b64: "str | None") -> bytes:
+    """`text` or `content_b64` -> bytes, with one spelling of the rules.
+
+    Shared by /write and /draft rather than duplicated: the two must agree about
+    what "the same content" means, or a draft could be promoted into bytes that
+    differ from what a manual save of the identical buffer would have produced.
+    """
+    if content_b64 is not None:
+        try:
+            return base64.b64decode(content_b64)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=400, detail="bad base64") from exc
+    if text is not None:
+        return text.encode("utf-8")
+    raise HTTPException(status_code=400, detail="provide text or content_b64")
 
 
 class WriteRequest(BaseModel):
@@ -525,15 +602,7 @@ async def vfs_list(
 
 @router.post("/write")
 async def vfs_write(body: WriteRequest = Body(...), _p=Depends(require_principal)):
-    if body.content_b64 is not None:
-        try:
-            data = base64.b64decode(body.content_b64)
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=400, detail="bad base64") from exc
-    elif body.text is not None:
-        data = body.text.encode("utf-8")
-    else:
-        raise HTTPException(status_code=400, detail="provide text or content_b64")
+    data = _decode_body(body.text, body.content_b64)
 
     e = await _run_store(
         body.store,
@@ -890,6 +959,235 @@ async def vfs_list_dir(
     return JSONResponse({"prefix": prefix, "entries": [_entry_json(e) for e in entries]})
 
 
+# ── the promoter ──────────────────────────────────────────────────────────────
+_PROMOTER = None
+
+
+async def _promote_draft(draft) -> None:
+    """Write one quiet draft into the store as a real, MARKED version.
+
+    `trigger="autosave-draft"` rides into the audit entry, so the chain can later
+    distinguish "a person pressed Save on this" from "this is where the autosave
+    got to when the tab went away". For a store whose purpose is provenance that
+    difference is worth recording, and it costs one field.
+
+    `dedup=True` on purpose, unlike the manual write path: a draft is very often
+    byte-identical to what is already stored (the user saved manually, then the
+    promoter came round), and minting an identical revision would be exactly the
+    history pollution this design exists to avoid.
+    """
+    from cloudguard.vfs import VFSContext
+
+    ctx = VFSContext(
+        tenant=draft.tenant,
+        conversation=draft.conversation,
+        actor=draft.actor or "console",
+        trigger="autosave-draft",
+    )
+    await _run_store(
+        draft.store,
+        draft.conversation,
+        lambda vfs: vfs.write(
+            ctx, draft.path, draft.data, mime=draft.mime or None, dedup=True
+        ),
+    )
+
+
+def start_draft_promoter() -> None:
+    """Start the background worker. Idempotent; safe to call on every startup."""
+    global _PROMOTER  # noqa: PLW0603
+    if _PROMOTER is not None:
+        return
+    try:
+        from cloudguard.vfs.drafts import DraftPromoter
+    except Exception as exc:  # noqa: BLE001
+        # The app must start without it. Losing autosave promotion degrades the
+        # product; failing to boot takes it down.
+        logger.warning("draft promoter unavailable: %s", exc)
+        return
+    _PROMOTER = DraftPromoter(_promote_draft)
+    _PROMOTER.start()
+    logger.info("vfs draft promoter started")
+
+
+async def stop_draft_promoter() -> None:
+    global _PROMOTER  # noqa: PLW0603
+    if _PROMOTER is not None:
+        await _PROMOTER.stop()
+        _PROMOTER = None
+
+
+class DraftRequest(BaseModel):
+    conversation_id: str = Field(default="", max_length=128)
+    path: str = Field(..., max_length=4096)
+    text: str | None = Field(default=None)
+    content_b64: str | None = Field(default=None)
+    mime: str | None = Field(default=None, max_length=128)
+    store: str = Field(default="artifacts", max_length=32)
+    #: Monotonic per document, from the client. A draft whose seq is not greater
+    #: than the stored one is DISCARDED — see the ordering note in drafts.py.
+    seq: int = Field(default=0, ge=0)
+
+
+@router.post("/draft")
+async def vfs_draft_save(body: DraftRequest, _p=Depends(require_principal)):
+    """Record the latest autosave draft for one document.
+
+    Deliberately CHEAP and deliberately NOT a version: it writes one small file
+    on the app-private volume and returns. The background promoter turns the last
+    draft into a real revision once the editing stops, so a session produces one
+    version rather than one per keystroke — see `cloudguard/vfs/drafts.py`.
+
+    This is the copy that survives what the browser cannot: a machine that sleeps
+    and never wakes, a tab the browser discards, a network that is gone before
+    the flush lands. The `localStorage` draft is per-browser; this one is not.
+    """
+    from cloudguard.vfs import drafts
+
+    data = _decode_body(body.text, body.content_b64)
+    result = await asyncio.to_thread(
+        drafts.save,
+        tenant=_TENANT,
+        store=body.store,
+        path=body.path,
+        conversation=body.conversation_id,
+        actor=_actor_of(_p),
+        data=data,
+        mime=body.mime or "",
+        seq=body.seq,
+    )
+    return JSONResponse(result)
+
+
+@router.get("/draft")
+async def vfs_draft_get(
+    path: str,
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    """The server-held draft for one document, for recovery when the editor opens.
+
+    Answers 204 rather than 404 when there is none: "no draft" is the normal
+    case, not a missing resource, and a 404 in the console's network log for
+    every opened document is noise that hides real failures.
+    """
+    from cloudguard.vfs import drafts
+
+    d = await asyncio.to_thread(drafts.get, _TENANT, store, path)
+    if d is None:
+        return Response(status_code=204)
+    return JSONResponse(
+        {"path": d.path, "content_b64": d.content_b64, "seq": d.seq, "at": d.at}
+    )
+
+
+@router.delete("/draft")
+async def vfs_draft_discard(
+    path: str,
+    store: str = "artifacts",
+    _p=Depends(require_principal),
+):
+    """Drop a draft — the analyst chose the stored document over the recovery."""
+    from cloudguard.vfs import drafts
+
+    removed = await asyncio.to_thread(drafts.discard, _TENANT, store, path)
+    return JSONResponse({"ok": True, "removed": removed})
+
+
+@router.get("/search")
+async def vfs_search(
+    q: str,
+    conversation_id: str = "",
+    prefix: str = "",
+    store: str = "artifacts",
+    limit: int = 40,
+    _p=Depends(require_principal),
+):
+    """Find artifacts by NAME and by CONTENT, in one request.
+
+    WHY THIS IS SERVER-SIDE. The browser could walk `/list-dir` and `/read` every
+    file itself, and the name-only search in `files-search.ts` already does the
+    first half. But content search that way is one HTTP round trip PER FILE from
+    a keystroke handler — a few hundred requests to answer "which report mentions
+    this bucket", each one re-entering the policy engine and the audit chain.
+    Doing the walk next to the store turns that into a single call, and it is the
+    same shape the agent's `files_search` MCP tool already uses.
+
+    BOUNDED, AND THE BOUNDS ARE REPORTED. A library is arbitrarily deep and this
+    is reachable from a text box, so the walk stops at fixed caps and says so via
+    `truncated` rather than quietly returning a short list that looks complete.
+
+    Name matches and content matches are both returned, tagged with `match` so
+    the UI can say which it was — "the file is called this" and "the file says
+    this" are different answers to the same query.
+    """
+    needle = (q or "").strip()
+    if not needle:
+        return JSONResponse({"hits": [], "scanned": 0, "truncated": False})
+
+    lowered = needle.lower()
+    hits: list[dict] = []
+    scanned = 0
+    truncated = False
+
+    ctx = _ctx(conversation_id, _p)
+
+    async def walk(vfs, folder: str, depth: int) -> None:
+        nonlocal scanned, truncated
+        if depth > _SEARCH_MAX_DEPTH or len(hits) >= limit or scanned >= _SEARCH_MAX_NODES:
+            truncated = truncated or len(hits) >= limit or scanned >= _SEARCH_MAX_NODES
+            return
+        try:
+            entries = await vfs.list_dir(ctx, folder)
+        except Exception:  # noqa: BLE001
+            # One unreadable subtree must not fail the whole search.
+            return
+        for e in entries:
+            if len(hits) >= limit or scanned >= _SEARCH_MAX_NODES:
+                truncated = True
+                return
+            scanned += 1
+            path = e.path
+            name = path.rsplit("/", 1)[-1]
+            if e.kind == "dir":
+                if lowered in name.lower():
+                    hits.append({"path": path, "kind": "dir", "match": "name", "line": 0, "text": ""})
+                await walk(vfs, path, depth + 1)
+                continue
+            if lowered in name.lower():
+                hits.append({"path": path, "kind": "file", "match": "name", "line": 0, "text": ""})
+                continue
+            # CONTENT. Only for text-shaped, reasonably sized files: reading a
+            # 200MB binary to look for a word is not a search, it is an outage.
+            if (e.size or 0) > _SEARCH_FILE_CAP:
+                continue
+            if not any(path.lower().endswith(ext) for ext in _SEARCH_TEXT_EXTS):
+                continue
+            try:
+                raw = await vfs.read(ctx, path)
+            except Exception:  # noqa: BLE001
+                continue
+            if b"\0" in raw[:1024]:
+                continue
+            for n, line in enumerate(raw.decode("utf-8", "replace").splitlines(), start=1):
+                if lowered in line.lower():
+                    hits.append(
+                        {
+                            "path": path,
+                            "kind": "file",
+                            "match": "content",
+                            "line": n,
+                            # Trimmed: this is a preview line for a result row,
+                            # not an extraction tool.
+                            "text": line.strip()[:200],
+                        }
+                    )
+                    break  # one hit per file keeps the list about FILES
+
+    await _run_store(store, conversation_id, lambda vfs: walk(vfs, prefix, 0))
+    return JSONResponse({"hits": hits[:limit], "scanned": scanned, "truncated": truncated})
+
+
 @router.post("/mkdir")
 async def vfs_mkdir(body: MkdirRequest, _p=Depends(require_principal)):
     entry = await _run_store(
@@ -1116,16 +1414,17 @@ async def vfs_share(body: ShareRequest, _p=Depends(require_principal)):
             body.path,
             body.principal,
             body.permission,
-            getattr(_p, "user_id", "") or "console",
+            _actor_of(_p),
         )
     except ShareError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     _audit_share(
         "vfs_share_grant",
         body.path,
-        getattr(_p, "user_id", "") or "console",
+        _actor_of(_p),
         principal=row["principal"],
         permission=row["permission"],
+        store=body.store,
     )
     return {"ok": True, "grant": row, "enforced": False}
 
@@ -1142,8 +1441,9 @@ async def vfs_unshare(body: UnshareRequest, _p=Depends(require_principal)):
         _audit_share(
             "vfs_share_revoke",
             body.path,
-            getattr(_p, "user_id", "") or "console",
+            _actor_of(_p),
             principal=body.principal,
+            store=body.store,
         )
     return {"ok": removed, "enforced": False}
 
@@ -1223,4 +1523,7 @@ def _entry_json(e) -> dict:
         "mime": e.mime,
         "kind": e.kind,
         "durable": getattr(e, "durable", True),
+        # Reported by the store on every listing entry, so the Files surface can
+        # show WHO last changed a file without a request per row.
+        "author": getattr(e, "author", "") or "",
     }

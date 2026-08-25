@@ -2,6 +2,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown } from "lucide-react";
+import { SLIDING_MENU_PANEL } from "#/components/shared/sliding-menu";
 
 /**
  * The surface's one dropdown.
@@ -31,6 +32,18 @@ export interface MenuOption<T extends string> {
 }
 
 const MENU_WIDTH = 232;
+
+/**
+ * The layer above the conversation drawer.
+ *
+ * The drawer is `z-[1200]` and creates the stacking context this whole surface
+ * lives in. Anything portalled to `document.body` at a lower z-index renders
+ * BEHIND it — which is why every dropdown "did nothing" on click: the menus were
+ * mounting correctly, underneath an opaque drawer.
+ *
+ * One constant, exported, so popovers and dialogs cannot drift apart again.
+ */
+export const Z_ABOVE_DRAWER = 2000;
 
 export function PortalMenu({
   open,
@@ -106,8 +119,19 @@ export function PortalMenu({
     <div
       ref={ref}
       role="menu"
-      style={{ position: "fixed", top: pos.top, left: pos.left, width }}
-      className="z-[70] max-h-[220px] overflow-auto rounded-lg border border-[var(--cg-border-card)] bg-[var(--cg-bg-card,var(--cg-bg-page))] p-1 shadow-xl"
+      style={{
+        position: "fixed",
+        top: pos.top,
+        left: pos.left,
+        width,
+        zIndex: Z_ABOVE_DRAWER,
+      }}
+      // ONE MENU LOOK ACROSS THE PRODUCT. `SLIDING_MENU_PANEL` is the composer's
+      // model-picker panel, extracted in `shared/sliding-menu` — rounded, blurred,
+      // card-tinted. Every menu in the surface wearing it is what makes them read
+      // as one application rather than as several widgets that happen to be
+      // stacked in the same window.
+      className={`cg-surface-scroll max-h-[260px] overflow-auto ${SLIDING_MENU_PANEL}`}
     >
       {children}
     </div>,

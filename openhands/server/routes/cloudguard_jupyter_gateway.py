@@ -30,6 +30,7 @@ import json
 import logging
 import os
 import time
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -104,13 +105,41 @@ def verify_session(token: str, expect_cid: str | None = None) -> dict | None:
     return payload
 
 
+def _lab_landing(path: str) -> str:
+    """`analysis.ipynb` -> `/lab/tree/analysis.ipynb`, or "" for the launcher.
+
+    `..` segments are DROPPED, not rejected: this is a convenience parameter and
+    a malformed one should open the launcher, not fail the whole session mint.
+    They must not survive, though — `/lab/tree/../../etc` is a path the notebook
+    server would happily try to resolve.
+    """
+    clean = (path or "").strip().strip("/")
+    if not clean:
+        return ""
+    parts = [p for p in clean.split("/") if p and p not in (".", "..")]
+    if not parts:
+        return ""
+    return "/lab/tree/" + "/".join(parts)
+
+
 # ── endpoint ──────────────────────────────────────────────────────────────────
 @router.get("/session")
-async def jupyter_session(conversation_id: str, _p=Depends(require_principal)):
+async def jupyter_session(
+    conversation_id: str,
+    path: str = "",
+    _p=Depends(require_principal),
+):
     """Mint a gateway session for this conversation's Notebook (owner-gated).
 
     Returns {url, ttl} — `url` is the gateway auth-redirect URL the Notebook iframe
     loads. 404 if the runtime/Jupyter isn't up yet (caller falls back to the embed).
+
+    `path` opens ONE FILE instead of the launcher. It is a Jupyter-relative path
+    (`analysis.ipynb`, or `library/reports/x.ipynb` once the library contents
+    manager is mounted), and it is normalised here rather than trusted: the value
+    ends up in a redirect, and the gateway validates the landing route again on
+    its side. Two checks because this one knows what a file path is and that one
+    knows what its own routes are, and neither is a substitute for the other.
     """
     # Local imports so a missing dep never breaks module import / server start.
     from openhands.server.routes.jupyter_proxy import _discover
@@ -150,4 +179,66 @@ async def jupyter_session(conversation_id: str, _p=Depends(require_principal)):
         f"{_jlab_scheme()}://{conversation_id}.{_jlab_domain()}"
         f"/__auth?token={token}"
     )
+    landing = _lab_landing(path)
+    if landing:
+        # DOES JUPYTER ACTUALLY HAVE THIS FILE?
+        #
+        # JupyterLab does not error on a `/lab/tree/<missing>` route — it opens
+        # the LAUNCHER. So a path it cannot resolve produces a perfectly normal
+        # looking Jupyter with none of the file you asked for, and the caller has
+        # no way to tell that from success: the frame is cross-origin, so the
+        # browser cannot inspect what landed.
+        #
+        # That is exactly what happened with library paths before the runtime
+        # image carried `VfsContentsManager` — clicking a notebook opened the
+        # launcher and looked like a broken button. One contents-API call here
+        # turns a silent wrong answer into a specific message.
+        resolved = await _jupyter_has_path(target, path)
+        if resolved is False:
+            raise HTTPException(
+                status_code=404,
+                detail=(
+                    f"JupyterLab cannot see {path!r}. "
+                    "Library paths need the artifact-library mount "
+                    "(VfsContentsManager) in the sandbox's jupyter_server_config.py — "
+                    "rebuild the runtime image if this is a library/ path."
+                ),
+            )
+        # `None` means the probe itself could not run. Not a reason to refuse:
+        # the file may well be there, and a working open beaten by a failed
+        # health check is a worse outcome than an occasional launcher.
+        url += f"&next={quote(landing, safe='/')}"
     return {"url": url, "ttl": _SESSION_TTL}
+
+
+async def _jupyter_has_path(target: dict, path: str) -> "bool | None":
+    """True/False if Jupyter's contents API answered, None if the probe failed.
+
+    Deliberately three-valued. Collapsing "I asked and it is not there" into "I
+    could not ask" would either refuse valid opens whenever the probe is flaky,
+    or keep the silent-launcher bug whenever it is not.
+    """
+    clean = "/".join(p for p in (path or "").strip("/").split("/") if p and p not in (".", ".."))
+    if not clean:
+        return None
+    try:
+        import httpx
+
+        url = (
+            f"http://{target['host']}:{int(target['port'])}"
+            f"/api/contents/{quote(clean, safe='/')}"
+        )
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                url,
+                params={"content": "0"},
+                headers={"Authorization": f"token {target['token']}"},
+            )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("jupyter path probe failed for %s: %s", clean, exc)
+        return None
+    if r.status_code == 404:
+        return False
+    if r.status_code >= 400:
+        return None
+    return True

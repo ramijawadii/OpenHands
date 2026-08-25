@@ -1,0 +1,889 @@
+/*
+ * MDXEditor, themed to the console.
+ *
+ * The package ships a light-only stylesheet driven by its own `--` variables.
+ * Rather than override its rules one by one — which breaks on every upgrade —
+ * we remap ITS variables onto the product tokens. The editor then follows the
+ * app's theme, including dark, without patching its internals.
+ *
+ * This is also the fix for the bug that sent us here: the chat renderer painted
+ * a dark code surface on a light page. Colours come from one place now.
+ */
+
+/* The remap MUST land on `_editorRoot_`, not on an ancestor.
+ *
+ * MDXEditor declares all 126 of its colour variables ON `._editorRoot_` itself.
+ * That element is a DESCENDANT of `.cg-mdx`, so anything set on the wrapper was
+ * shadowed the moment the editor mounted — which is why inline code stayed
+ * light-on-light in dark mode while rules that set colours directly worked fine.
+ * The popup container carries the same class (it is built with
+ * `classList.add(..., styles.editorRoot, styles.popupContainer)`), so one
+ * selector covers the editor and every dialog it portals.
+ */
+.cg-mdx,
+.cg-mdx [class*="_editorRoot_"],
+.mdxeditor-popup-container,
+.mdxeditor-popup-container[class*="_editorRoot_"] {
+  /* MDXEditor drives EVERY colour through its own variables, so the whole
+     palette is remapped here rather than a guessed subset. The first attempt
+     mapped `--baseBg` and friends but missed `--baseBase`, which is what the
+     code-block toolbar paints with — so that one control stayed white on a dark
+     page. Mapping the full set is the only version of this that stays correct. */
+  --baseBase: var(--cg-bg-card, var(--cg-bg-page));
+  --basePageBg: var(--cg-bg-page);
+  --baseBg: var(--cg-bg-page);
+  --baseBgSubtle: var(--cg-bg-page);
+  --baseBgHover: var(--cg-bg-hover);
+  --baseBgActive: var(--cg-bg-active, var(--cg-bg-hover));
+  --baseBorder: var(--cg-border);
+  --baseBorderHover: var(--cg-border-card);
+  --baseLine: var(--cg-border);
+  --baseSolid: var(--cg-bg-hover);
+  --baseSolidHover: var(--cg-bg-active, var(--cg-bg-hover));
+  --baseText: var(--cg-text-nav);
+  --baseTextContrast: var(--cg-text-primary);
+
+  --accentBase: var(--cg-bg-hover);
+  --accentBg: var(--cg-bg-hover);
+  --accentBgActive: var(--cg-bg-active, var(--cg-bg-hover));
+  --accentBgHover: var(--cg-bg-active, var(--cg-bg-hover));
+  --accentBorder: var(--cg-border-card);
+  --accentLine: var(--cg-border-card);
+  --accentSolid: var(--cg-accent, #4c9aff);
+  --accentSolidHover: var(--cg-accent, #4c9aff);
+  --accentText: var(--cg-accent, #4c9aff);
+  --accentTextContrast: var(--cg-text-primary);
+
+  /* Admonitions inherit the page rather than their own light tints. */
+  --admonitionBg: var(--cg-bg-hover);
+  --admonitionBorder: var(--cg-border-card);
+  --admonitionInfoBg: var(--cg-bg-hover);
+  --admonitionInfoBorder: var(--cg-border-card);
+  --admonitionNoteBg: var(--cg-bg-hover);
+  --admonitionNoteBorder: var(--cg-border-card);
+  --admonitionTipBg: var(--cg-bg-hover);
+  --admonitionTipBorder: var(--cg-border-card);
+  --admonitionCautionBg: var(--cg-bg-hover);
+  --admonitionCautionBorder: var(--cg-border-card);
+  --admonitionDangerBg: var(--cg-bg-hover);
+  --admonitionDangerBorder: var(--cg-border-card);
+
+  color: var(--cg-text-nav);
+}
+
+/* Ground and size belong to the PANE only. The popup container is a viewport
+   overlay; giving it these would black out the app behind it. */
+.cg-mdx {
+  background: var(--cg-bg-page);
+  height: 100%;
+}
+
+/* The portalled popovers live outside `.cg-mdx`, so they need the same palette
+   on the body — otherwise a dark app opens a white menu. */
+body {
+  --cg-mdx-popover-bg: var(--cg-bg-card, var(--cg-bg-page));
+}
+
+/* The editor root stretches so a short document still fills the pane and the
+   click target for placing the caret is the whole area, not just the text. */
+.cg-mdx .mdxeditor {
+  height: 100%;
+  background: var(--cg-bg-page);
+}
+
+.cg-mdx .cg-mdx-content {
+  min-height: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 28px 64px;
+  color: var(--cg-text-nav);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+/* Headings carry the document, so they get the primary text colour and real
+   separation — the default inherits body colour and reads as bold paragraphs. */
+.cg-mdx .cg-mdx-content h1,
+.cg-mdx .cg-mdx-content h2,
+.cg-mdx .cg-mdx-content h3,
+.cg-mdx .cg-mdx-content h4 {
+  color: var(--cg-text-primary);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.4em 0 0.5em;
+}
+
+.cg-mdx .cg-mdx-content h1 {
+  font-size: 1.7em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--cg-border);
+}
+.cg-mdx .cg-mdx-content h2 {
+  font-size: 1.35em;
+}
+.cg-mdx .cg-mdx-content h3 {
+  font-size: 1.15em;
+}
+
+.cg-mdx .cg-mdx-content a {
+  color: var(--cg-accent, #4c9aff);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cg-mdx .cg-mdx-content blockquote {
+  margin: 1em 0;
+  padding: 0.2em 0 0.2em 1em;
+  border-left: 3px solid var(--cg-border-card);
+  color: var(--cg-text-muted);
+}
+
+/* Inline code sits INSIDE a sentence, so it takes a subtle tint rather than a
+   filled block — the slab treatment is what made the old renderer unreadable. */
+/* Inline code sits INSIDE a sentence, so it takes a subtle tint rather than a
+   filled block. `!important` because the package styles inline code through its
+   own variable chain at a higher specificity — without it this rule lost, and a
+   dark theme rendered a near-white pill with near-white text on it. */
+.cg-mdx .cg-mdx-content code,
+.cg-mdx [class*="_contentEditable_"] code {
+  background: var(--cg-bg-hover) !important;
+  color: var(--cg-text-nav) !important;
+  border: 1px solid var(--cg-border) !important;
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+  font-size: 0.9em;
+}
+
+.cg-mdx .cg-mdx-content pre,
+.cg-mdx .cg-mdx-content pre code {
+  background: var(--cg-bg-hover);
+  border: 1px solid var(--cg-border);
+  border-radius: 6px;
+  padding: 0;
+}
+
+.cg-mdx .cg-mdx-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+}
+.cg-mdx .cg-mdx-content th,
+.cg-mdx .cg-mdx-content td {
+  border: 1px solid var(--cg-border);
+  padding: 6px 10px;
+  text-align: left;
+}
+.cg-mdx .cg-mdx-content th {
+  background: var(--cg-bg-hover);
+  color: var(--cg-text-primary);
+  font-weight: 600;
+}
+
+.cg-mdx .cg-mdx-content hr {
+  border: 0;
+  border-top: 1px solid var(--cg-border);
+  margin: 1.8em 0;
+}
+
+/* Markers restored explicitly.
+ *
+ * Tailwind's preflight sets `list-style: none` on every ul/ol, so a bullet or
+ * numbered list inserted in the editor produced correctly structured markdown
+ * with NOTHING visible — the text just moved. The editor has to show the list as
+ * a list while you are writing it. */
+.cg-mdx .cg-mdx-content ul,
+.cg-mdx .cg-mdx-content ol {
+  padding-left: 1.6em;
+  margin: 0.6em 0;
+}
+.cg-mdx .cg-mdx-content ul {
+  list-style: disc outside;
+}
+.cg-mdx .cg-mdx-content ul ul {
+  list-style: circle outside;
+}
+.cg-mdx .cg-mdx-content ul ul ul {
+  list-style: square outside;
+}
+.cg-mdx .cg-mdx-content ol {
+  list-style: decimal outside;
+}
+.cg-mdx .cg-mdx-content li {
+  display: list-item;
+  margin: 0.15em 0;
+}
+.cg-mdx .cg-mdx-content li::marker {
+  color: var(--cg-text-muted);
+}
+
+/* Task lists keep their checkbox and must NOT also draw a bullet. */
+.cg-mdx .cg-mdx-content li[role="checkbox"],
+.cg-mdx .cg-mdx-content li[class*="_listItemChecked_"],
+.cg-mdx .cg-mdx-content li[class*="_listItemUnchecked_"] {
+  list-style: none;
+}
+
+/* Toolbar reads as app chrome rather than as part of the document. */
+.cg-mdx .mdxeditor-toolbar {
+  background: var(--cg-bg-page);
+  border-bottom: 1px solid var(--cg-border);
+  border-radius: 0;
+  gap: 2px;
+}
+
+/* CodeMirror inside fences follows the same ground as the rest of the page, so
+   a dark theme does not get a white rectangle mid-document (and vice versa). */
+.cg-mdx .cm-editor,
+.cg-mdx .cm-gutters {
+  background: var(--cg-bg-hover) !important;
+  color: var(--cg-text-nav) !important;
+}
+.cg-mdx .cm-gutters {
+  border-right: 1px solid var(--cg-border) !important;
+}
+.cg-mdx .cm-activeLine,
+.cg-mdx .cm-activeLineGutter {
+  background: transparent !important;
+}
+
+/* ── read-only: no editing affordances ──────────────────────────────────────
+ * MDXEditor still renders the per-code-block toolbar (language select + delete)
+ * when `readOnly` is set, and it is absolutely positioned, so it floated OUTSIDE
+ * the block and over the text. Offering a delete button on a document you cannot
+ * edit is worse than untidy, so the whole control is removed rather than styled.
+ *
+ * Targeted by ATTRIBUTE, not by the literal class: the package ships CSS modules
+ * with hashed names (`_codeMirrorToolbar_er3ed_408`), and pinning the hash would
+ * break silently on the next upgrade.
+ */
+.cg-mdx--readonly [class*="_codeMirrorToolbar_"],
+.cg-mdx--readonly [class*="_editImageToolbar_"],
+.cg-mdx--readonly [class*="_tableColumnEditorToolbar_"] {
+  display: none !important;
+}
+
+/* The read-only content area must not look like an input. */
+.cg-mdx--readonly [class*="_contentEditable_"] {
+  caret-color: transparent;
+}
+
+/* ── the edit toolbar has to be visibly THERE ───────────────────────────────
+ * It was inheriting the page background with no separation, so on a dark theme
+ * it read as empty space and the controls were effectively invisible. It now
+ * sits on the card colour, sticks to the top of the scroll container, and keeps
+ * a border — this is the strip that tells you the document is editable at all.
+ */
+
+/* Plain toolbar BUTTONS only. The select TRIGGERS used to be in this list and
+   were forced to a 4px radius here, which fought the pill rule further down —
+   two rules describing the same element differently is how a control ends up
+   looking like neither. Triggers are styled once, below. */
+.cg-mdx [class*="_toolbarButton_"] {
+  color: var(--cg-text-nav) !important;
+  background: transparent !important;
+  border-radius: 4px;
+}
+
+.cg-mdx [class*="_toolbarButton_"]:hover {
+  background: var(--cg-bg-hover) !important;
+}
+
+.cg-mdx [class*="_activeToolbarButton_"] {
+  color: var(--cg-accent, #4c9aff) !important;
+  background: var(--cg-bg-hover) !important;
+}
+
+/* Toolbar icons are currentColor SVGs; without this they stay near-black on a
+   dark toolbar, which is what made the strip look empty. */
+/* Shown only in edit mode now, but it paints with --baseBase, so it is pinned
+   explicitly as well as through the variable — this is the control that was
+   white-on-white in the report. */
+.cg-mdx [class*="_codeMirrorToolbar_"] {
+  background: var(--cg-bg-card, var(--cg-bg-page)) !important;
+  border: 1px solid var(--cg-border) !important;
+  color: var(--cg-text-nav) !important;
+}
+.cg-mdx [class*="_codeMirrorToolbar_"] svg {
+  color: var(--cg-text-nav) !important;
+  fill: var(--cg-text-nav) !important;
+}
+
+.cg-mdx [class*="_toolbarRoot_"] svg {
+  color: currentColor;
+  fill: currentColor;
+}
+
+/* Popover menus (block type, language) render in a portal OUTSIDE .cg-mdx, so
+   they are themed globally — otherwise a dark app opens a white menu. */
+/* Our mermaid block supplies its own frame, so the vendor's must go.
+   `_codeMirrorWrapper_` sets `border: 1px solid var(--baseLine)` and
+   `padding: 0.8rem` around EVERY custom code block — for a CodeMirror fence that
+   is the frame you want, for a block that already has a header, a body and a
+   border of its own it is a second box drawn around the first. Scoped with
+   `:has()` so only ours loses it. */
+.cg-mdx [class*="_codeMirrorWrapper_"]:has(.cg-mmd-block) {
+  border: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+/* Shaped like `SLIDING_MENU_PANEL` (shared/sliding-menu) — the composer's
+   model picker, which is the one menu look in this product. MDXEditor's own
+   classes are CSS-module hashes generated at ITS build time, so its menus
+   cannot simply be given that class; the geometry is restated here instead.
+   Values kept in step with the constant by hand, which is the cost of theming
+   a vendor component we do not compile. */
+[class*="_selectContainer_"],
+[class*="_toolbarCodeBlockLanguageSelectContent_"],
+[class*="_toolbarButtonDropdownContainer_"] {
+  background: color-mix(
+    in srgb,
+    var(--cg-bg-card, var(--cg-bg-page)) 95%,
+    transparent
+  ) !important;
+  border: 1px solid var(--cg-border-card) !important;
+  border-radius: 16px !important; /* rounded-2xl */
+  padding: 4px !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 8px 10px -6px rgb(0 0 0 / 0.2) !important;
+  backdrop-filter: blur(12px);
+  color: var(--cg-text-nav) !important;
+  z-index: 80;
+}
+
+/* Rows carry NO frame of their own: the panel is the surface, the row is a
+   highlight on it. A bordered row inside a bordered panel is the same doubling
+   as above, repeated once per option. */
+[class*="_selectItem_"] {
+  border: 0 !important;
+  border-radius: 12px !important; /* rounded-xl, as the shared rows are */
+  padding: 6px 10px !important;
+  color: var(--cg-text-nav) !important;
+  transition: background-color 0.15s ease;
+}
+[class*="_selectItem_"]:hover,
+[class*="_selectItem_"][data-highlighted] {
+  background: var(--cg-bg-hover) !important;
+}
+
+/* The TRIGGER too — a pill, not a boxed native select, so the language picker
+   beside a code block matches the pickers everywhere else. */
+.cg-mdx [class*="_toolbarCodeBlockLanguageSelectTrigger_"],
+.cg-mdx [class*="_toolbarButtonSelectTrigger_"],
+.cg-mdx [class*="_selectTrigger_"] {
+  border-radius: 999px !important;
+  border: 1px solid var(--cg-border-card) !important;
+  background: transparent !important;
+  color: var(--cg-text-nav) !important;
+  padding: 2px 10px !important;
+}
+.cg-mdx [class*="_toolbarCodeBlockLanguageSelectTrigger_"]:hover,
+.cg-mdx [class*="_toolbarButtonSelectTrigger_"]:hover,
+.cg-mdx [class*="_selectTrigger_"]:hover {
+  background: var(--cg-bg-hover) !important;
+}
+
+/* The toolbar is registered on every mount (see files-mdx.tsx for why it cannot
+   be added later), so read-only hides it here rather than by withholding the
+   plugin. Reading a document should not show editing controls at all — a
+   greyed-out strip is chrome that only ever says "not for you". */
+.cg-mdx--readonly [class*="_toolbarRoot_"] {
+  display: none !important;
+}
+
+/* ── above the drawer ───────────────────────────────────────────────────────
+ * MDXEditor's popovers (block type, language, link dialog, image dialog) are
+ * Radix portals to `document.body`. The conversation drawer is z-[1200] and owns
+ * the stacking context this pane sits in, so anything portalled below that
+ * renders BEHIND an opaque drawer — the menus were opening every time and were
+ * simply not visible. Kept in step with Z_ABOVE_DRAWER in files-menu.tsx.
+ */
+[class*="_selectContainer_"],
+[class*="_toolbarCodeBlockLanguageSelectContent_"],
+[class*="_toolbarButtonDropdownContainer_"],
+[class*="_dialogContent_"],
+[class*="_dialogOverlay_"],
+[class*="_popoverContent_"],
+[class*="_linkDialogPopoverContent_"],
+[class*="_tooltipContent_"],
+[data-radix-popper-content-wrapper] {
+  z-index: 2000 !important;
+}
+
+/* ── scrolling and popover clipping ────────────────────────────────────────
+ * ONE scroll container: `.cg-mdx` itself. The toolbar is sticky inside it.
+ *
+ * An earlier attempt made `.cg-mdx` `overflow: hidden` and pushed the scroll
+ * onto MDXEditor's inner content wrapper via `flex: 1`. That broke two things at
+ * once, and both were self-inflicted:
+ *
+ *  1. `RenderRecursiveWrappers` inserts a wrapper div per editor plugin between
+ *     the flex parent and the content wrapper, so `flex: 1` never reached it and
+ *     the document had no height to scroll — the pane froze.
+ *
+ *  2. The block-type and admonition menus are `RadixSelect.Portal` with
+ *     `container: editorRootElementRef` — they render INSIDE the editor, not on
+ *     document.body. `overflow: hidden` on an ancestor therefore CLIPS them, so
+ *     clicking a select appeared to do nothing.
+ *
+ * Anything that clips inside the editor breaks those menus, so nothing here
+ * does. `display: contents` keeps the plugin wrappers out of the layout instead
+ * of trying to size through them.
+ */
+.cg-mdx {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cg-border-card) transparent;
+}
+.cg-mdx::-webkit-scrollbar {
+  width: 10px;
+}
+.cg-mdx::-webkit-scrollbar-thumb {
+  background: var(--cg-border-card);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.cg-mdx::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* The toolbar rides the scroller. Sticky needs a NON-clipping ancestor chain,
+   which is exactly what the rules above preserve. */
+.cg-mdx [class*="_toolbarRoot_"] {
+  position: sticky;
+  top: 0;
+  /* A STACKING CONTEXT AND AN OPAQUE GROUND, or sticky is only half the job.
+     Without a z-index the document paints OVER the pinned bar as it scrolls
+     under it, and without a background you read the text through it — both of
+     which look exactly like a toolbar that failed to stick. */
+  z-index: 30;
+  background: var(--cg-bg-card, var(--cg-bg-page)) !important;
+}
+
+
+/* ── toolbar wraps instead of scrolling ─────────────────────────────────────
+ * MDXEditor's own rule is `overflow-x: auto`, so in a drawer-width pane the
+ * strip becomes a horizontal scroller and the controls past the fold are simply
+ * gone — which is why the row looked cut off mid-button. A formatting toolbar
+ * must show every control it has; wrapping onto a second line is the only
+ * version of that which fits a resizable panel.
+ */
+.cg-mdx [class*="_toolbarRoot_"] {
+  flex-wrap: wrap !important;
+  overflow-x: visible !important;
+  row-gap: 4px;
+}
+
+/* Separators are meaningless at a wrap point and leave a stray tick at the end
+   of a line. */
+.cg-mdx [class*="_toolbarRoot_"] > [role="separator"]:last-child {
+  display: none;
+}
+
+/* ── code-block toolbar must not sit ON the code ────────────────────────────
+ * It is `position: absolute; right: 0; top: 0`, so it lands on top of the first
+ * line — exactly where the code starts. Reserving a strip at the top of the
+ * block moves the code out from under it instead of hiding the control, which
+ * is still needed in edit mode for the language picker.
+ */
+.cg-mdx [class*="_codeMirrorToolbar_"] {
+  top: 4px !important;
+  right: 4px !important;
+  border-radius: 6px !important;
+}
+
+.cg-mdx [class*="_codeMirrorWrapper_"] .cm-editor,
+.cg-mdx [class*="_sandpackWrapper_"] .cm-editor {
+  padding-top: 34px;
+}
+
+.cg-mdx--readonly [class*="_codeMirrorWrapper_"] .cm-editor {
+  padding-top: 8px;
+}
+
+
+/* ── the popup container ────────────────────────────────────────────────────
+ * MDXEditor appends its popup container to whatever `overlayContainer` names —
+ * we hand it `.cg-mdx-overlay-host`, a zero-size positioned element inside the
+ * pane. Dialogs and menus therefore centre on the PANE rather than on the whole
+ * window, which is what made them appear beside the drawer, and they inherit the
+ * theme from `.cg-mdx` rather than needing a body-level override.
+ *
+ * The host is `fixed`-free and zero-size on purpose: it must not take part in
+ * layout, only give the popups something inside the pane to belong to.
+ */
+.cg-mdx-overlay-host {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  /*
+   * THIS TRANSFORM IS LOAD-BEARING, not a paint hint.
+   *
+   * MDXEditor's dialogs are Radix poppers, and Radix positions them
+   * `position: fixed` — which is resolved against the VIEWPORT, so handing
+   * MDXEditor an `overlayContainer` inside the pane was not enough on its own:
+   * the link dialog was still placed against the window and hung out of the
+   * drawer over the app behind it.
+   *
+   * An element with a transform becomes the containing block for its
+   * `position: fixed` descendants. Setting one here makes "fixed" mean "fixed
+   * within this pane", which is what a dialog belonging to this editor should
+   * have meant all along.
+   */
+  transform: translateZ(0);
+}
+
+/* Bounded as well as contained: a dialog wider than the drawer would be clipped
+   at the edge rather than shown. */
+.cg-mdx-overlay-host [class*="_linkDialogPopoverContent_"],
+.cg-mdx-overlay-host [class*="_popoverContent_"],
+.cg-mdx-overlay-host [class*="_dialogContent_"] {
+  max-width: min(360px, calc(100vw - 32px));
+}
+
+.cg-mdx-overlay-host > * {
+  pointer-events: auto;
+}
+
+.mdxeditor-popup-container {
+  position: absolute !important;
+  inset: 0;
+  background: transparent !important;
+  pointer-events: none;
+  color: var(--cg-text-nav);
+}
+
+.mdxeditor-popup-container > * {
+  pointer-events: auto;
+}
+
+/* ── dialog chrome ──────────────────────────────────────────────────────────
+ * The package ships a bare stack of labels and inputs. Given a real form — file
+ * picker, URL, alt, title — it needs structure or every field reads with equal
+ * weight and the primary action is lost among them.
+ */
+.mdxeditor-popup-container [class*="_dialogContent_"] {
+  background: var(--cg-bg-card, var(--cg-bg-page)) !important;
+  border: 1px solid var(--cg-border-card) !important;
+  color: var(--cg-text-nav) !important;
+  border-radius: 10px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  padding: 18px 20px !important;
+  min-width: 380px;
+  max-width: min(560px, 92%);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mdxeditor-popup-container [class*="_dialogTitle_"] {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cg-text-primary);
+  margin-bottom: 2px;
+}
+
+.mdxeditor-popup-container [class*="_dialogOverlay_"] {
+  position: absolute !important;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+
+.mdxeditor-popup-container label {
+  display: block;
+  font-size: 11px;
+  color: var(--cg-text-muted);
+  margin-bottom: 2px;
+}
+
+.mdxeditor-popup-container input,
+.mdxeditor-popup-container textarea,
+.mdxeditor-popup-container select {
+  width: 100%;
+  background: var(--cg-bg-page) !important;
+  color: var(--cg-text-nav) !important;
+  border: 1px solid var(--cg-border-card) !important;
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.mdxeditor-popup-container input[type="file"] {
+  padding: 4px;
+  font-size: 11px;
+  color: var(--cg-text-muted) !important;
+}
+
+/* An API URL is not something to read or edit by hand — it is the result of the
+   upload above. De-emphasised and monospaced so it reads as a value, not a
+   field someone is expected to compose. */
+.mdxeditor-popup-container input[value^="/api/"],
+.mdxeditor-popup-container input[placeholder*="url" i] {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--cg-text-muted) !important;
+}
+
+.mdxeditor-popup-container [class*="_primaryButton_"],
+.mdxeditor-popup-container button[type="submit"] {
+  background: var(--cg-accent, #4c9aff) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+.mdxeditor-popup-container [class*="_secondaryButton_"] {
+  background: transparent !important;
+  border: 1px solid var(--cg-border-card) !important;
+  color: var(--cg-text-nav) !important;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+
+/* THE SAME PANEL, portalled.
+   MDXEditor mounts its menus into `.mdxeditor-popup-container`, and that prefix
+   makes these selectors MORE SPECIFIC than the un-prefixed panel rule above — so
+   this block silently won and put the old 8px card back over the new one. Two
+   descriptions of one surface, and the more specific accident wins: the geometry
+   is therefore identical here rather than merely similar. */
+/* NOT `[data-radix-popper-content-wrapper]`. That element is Radix's POSITIONER
+   — it wraps the panel and carries the transform that places it. Painting a
+   border and a radius on it as well as on the panel inside produced the two
+   nested outlines: one box drawn immediately inside another, a couple of pixels
+   apart. The positioner stays invisible; only the panel is a surface. */
+.mdxeditor-popup-container [data-radix-popper-content-wrapper] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.mdxeditor-popup-container [class*="_selectContainer_"],
+.mdxeditor-popup-container [class*="_toolbarCodeBlockLanguageSelectContent_"],
+.mdxeditor-popup-container [class*="_linkDialogPopoverContent_"],
+.mdxeditor-popup-container [class*="_popoverContent_"] {
+  background: color-mix(
+    in srgb,
+    var(--cg-bg-card, var(--cg-bg-page)) 95%,
+    transparent
+  ) !important;
+  border: 1px solid var(--cg-border-card) !important;
+  color: var(--cg-text-nav) !important;
+  border-radius: 16px !important;
+  padding: 4px !important;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.25), 0 8px 10px -6px rgb(0 0 0 / 0.2) !important;
+  backdrop-filter: blur(12px);
+  z-index: 60;
+}
+
+.mdxeditor-popup-container [class*="_selectItem_"]:hover,
+.mdxeditor-popup-container [class*="_selectItem_"][data-highlighted] {
+  background: var(--cg-bg-hover) !important;
+}
+
+/* Inputs and buttons inside those dialogs, which otherwise keep the package's
+   light defaults on a dark surface. */
+.mdxeditor-popup-container input,
+.mdxeditor-popup-container textarea,
+.mdxeditor-popup-container select {
+  background: var(--cg-bg-page) !important;
+  color: var(--cg-text-nav) !important;
+  border: 1px solid var(--cg-border-card) !important;
+  border-radius: 6px;
+}
+
+.mdxeditor-popup-container button {
+  color: var(--cg-text-nav);
+}
+
+.mdxeditor-popup-container [class*="_selectItem_"]:hover,
+.mdxeditor-popup-container [class*="_selectItem_"][data-highlighted] {
+  background: var(--cg-bg-hover) !important;
+}
+
+
+/* ── table column alignment ─────────────────────────────────────────────────
+ * MDXEditor puts the alignment class on the `<col>` element. Per CSS, `<col>`
+ * only accepts a handful of properties — width, background, border, visibility —
+ * and `text-align` is NOT among them, so the setting was stored correctly in the
+ * markdown and had no visible effect in the editor. That is an upstream bug we
+ * cannot fix at the source, only compensate for.
+ *
+ * `:has()` reads the class off the column and applies the alignment to the cells
+ * in that position instead. Enumerated to 12 columns: a markdown table wider
+ * than that is unreadable long before alignment matters, and an unbounded
+ * generated rule set is worse than a stated limit.
+ */
+.cg-mdx table:has(col:nth-child(1)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(1) { text-align: left; }
+.cg-mdx table:has(col:nth-child(1)[class*="_centeredCell_"]) > * > tr > :nth-child(1) { text-align: center; }
+.cg-mdx table:has(col:nth-child(1)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(1) { text-align: right; }
+.cg-mdx table:has(col:nth-child(2)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(2) { text-align: left; }
+.cg-mdx table:has(col:nth-child(2)[class*="_centeredCell_"]) > * > tr > :nth-child(2) { text-align: center; }
+.cg-mdx table:has(col:nth-child(2)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(2) { text-align: right; }
+.cg-mdx table:has(col:nth-child(3)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(3) { text-align: left; }
+.cg-mdx table:has(col:nth-child(3)[class*="_centeredCell_"]) > * > tr > :nth-child(3) { text-align: center; }
+.cg-mdx table:has(col:nth-child(3)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(3) { text-align: right; }
+.cg-mdx table:has(col:nth-child(4)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(4) { text-align: left; }
+.cg-mdx table:has(col:nth-child(4)[class*="_centeredCell_"]) > * > tr > :nth-child(4) { text-align: center; }
+.cg-mdx table:has(col:nth-child(4)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(4) { text-align: right; }
+.cg-mdx table:has(col:nth-child(5)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(5) { text-align: left; }
+.cg-mdx table:has(col:nth-child(5)[class*="_centeredCell_"]) > * > tr > :nth-child(5) { text-align: center; }
+.cg-mdx table:has(col:nth-child(5)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(5) { text-align: right; }
+.cg-mdx table:has(col:nth-child(6)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(6) { text-align: left; }
+.cg-mdx table:has(col:nth-child(6)[class*="_centeredCell_"]) > * > tr > :nth-child(6) { text-align: center; }
+.cg-mdx table:has(col:nth-child(6)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(6) { text-align: right; }
+.cg-mdx table:has(col:nth-child(7)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(7) { text-align: left; }
+.cg-mdx table:has(col:nth-child(7)[class*="_centeredCell_"]) > * > tr > :nth-child(7) { text-align: center; }
+.cg-mdx table:has(col:nth-child(7)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(7) { text-align: right; }
+.cg-mdx table:has(col:nth-child(8)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(8) { text-align: left; }
+.cg-mdx table:has(col:nth-child(8)[class*="_centeredCell_"]) > * > tr > :nth-child(8) { text-align: center; }
+.cg-mdx table:has(col:nth-child(8)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(8) { text-align: right; }
+.cg-mdx table:has(col:nth-child(9)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(9) { text-align: left; }
+.cg-mdx table:has(col:nth-child(9)[class*="_centeredCell_"]) > * > tr > :nth-child(9) { text-align: center; }
+.cg-mdx table:has(col:nth-child(9)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(9) { text-align: right; }
+.cg-mdx table:has(col:nth-child(10)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(10) { text-align: left; }
+.cg-mdx table:has(col:nth-child(10)[class*="_centeredCell_"]) > * > tr > :nth-child(10) { text-align: center; }
+.cg-mdx table:has(col:nth-child(10)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(10) { text-align: right; }
+.cg-mdx table:has(col:nth-child(11)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(11) { text-align: left; }
+.cg-mdx table:has(col:nth-child(11)[class*="_centeredCell_"]) > * > tr > :nth-child(11) { text-align: center; }
+.cg-mdx table:has(col:nth-child(11)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(11) { text-align: right; }
+.cg-mdx table:has(col:nth-child(12)[class*="_leftAlignedCell_"]) > * > tr > :nth-child(12) { text-align: left; }
+.cg-mdx table:has(col:nth-child(12)[class*="_centeredCell_"]) > * > tr > :nth-child(12) { text-align: center; }
+.cg-mdx table:has(col:nth-child(12)[class*="_rightAlignedCell_"]) > * > tr > :nth-child(12) { text-align: right; }
+
+/* Highlighted text. The editor emits `<mark>`, whose UA default is black on
+   bright yellow — illegible on a dark page and jarring on a light one. Tinted to
+   the accent instead, so a highlight reads as emphasis rather than as a defect. */
+.cg-mdx .cg-mdx-content mark,
+.cg-mdx [class*="_contentEditable_"] mark {
+  background: var(--cg-accent-bg, rgba(76, 154, 255, 0.18)) !important;
+  color: var(--cg-text-primary) !important;
+  border-radius: 3px;
+  padding: 0.05em 0.2em;
+}
+
+/* Inline code, pinned directly as well as through the variable — this is the
+   element the shadowing bug showed up on, and it is worth not depending on
+   variable resolution alone. */
+.cg-mdx [class*="_contentEditable_"] [class*="_code_"],
+.cg-mdx [class*="_code_"]:not([class*="_codeMirror_"]):not(pre *) {
+  background: var(--cg-bg-hover) !important;
+  color: var(--cg-text-nav) !important;
+  border: 1px solid var(--cg-border) !important;
+  border-radius: 4px;
+  padding: 0.05em 0.3em;
+}
+
+/* Coloured runs are inline HTML spans; the editor must not strip or restyle
+   their inline colour. */
+.cg-mdx [class*="_contentEditable_"] span[style*="color"] {
+  border-radius: 3px;
+  padding: 0 0.1em;
+}
+
+/* ── dialog fields must not overflow their box ──────────────────────────────
+ * A pasted URL is routinely longer than the dialog is wide. The inputs were
+ * sized by content, so a long value pushed the field past the panel edge and the
+ * Save/Cancel row with it. Constraining the BOX and letting the value scroll
+ * inside keeps the form the size of the dialog whatever is typed into it.
+ */
+.mdxeditor-popup-container [class*="_dialogContent_"] {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.mdxeditor-popup-container [class*="_dialogContent_"] * {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mdxeditor-popup-container [class*="_dialogContent_"] input,
+.mdxeditor-popup-container [class*="_dialogContent_"] textarea {
+  width: 100%;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+/* The button row stays on one line and pinned right, so a long field above can
+   never push the primary action out of the dialog. */
+.mdxeditor-popup-container [class*="_dialogContent_"] [class*="_dialogButtonRow_"],
+.mdxeditor-popup-container [class*="_dialogContent_"] > div:last-child:has(button) {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+  width: 100%;
+}
+
+/* Any row that lays fields out horizontally must be allowed to shrink; without
+   min-width:0 a flex child refuses to go below its content width, which is what
+   produced the overflow rather than a scrollbar. */
+.mdxeditor-popup-container [class*="_dialogContent_"] form,
+.mdxeditor-popup-container [class*="_dialogContent_"] label {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Our own toolbar button, shaped like MDXEditor's.
+   The editor's button styling arrives through CSS-module class names hashed at
+   its build time (hence the [class*="_toolbarButton_"] selectors above), so a
+   button we add cannot simply wear the same class. These rules copy the shape
+   rather than the class, and inherit the same colour variables. */
+.cg-mdx .cg-mdx-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cg-text-nav) !important;
+  cursor: pointer;
+}
+.cg-mdx .cg-mdx-toolbar-btn:hover {
+  background: var(--cg-bg-hover);
+}
+.cg-mdx .cg-mdx-toolbar-btn svg {
+  color: currentColor;
+}
+
+/* The autosave signal.
+   A short fade-and-lift on the STATUS WORD, replayed by remounting the span with
+   a new key. It replaces a bar that appeared and disappeared — which moved the
+   document every few seconds while you were reading it. Nothing enters or leaves
+   the layout here; only opacity and a two-pixel rise. */
+@keyframes cg-autosave-flash {
+  0% {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cg-autosave-flash {
+  animation: cg-autosave-flash 0.4s ease-out;
+}
+
+/* Someone who has asked for less motion gets the state without the movement. */
+@media (prefers-reduced-motion: reduce) {
+  .cg-autosave-flash {
+    animation: none;
+  }
+}

@@ -63,6 +63,12 @@
   --cg-text-primary: #f7f7f2;
   --cg-text-nav: #bfbdb4;
   --cg-text-muted: #968f85;
+  /* Affirmative green — "verified", "allowed", "this is the active store".
+     A single token because the same green has to work on a near-black page and
+     on a cream one, and emerald-400 that reads well here is far too pale on
+     white. Defined per theme rather than picked per component. */
+  --cg-ok: #34d399;
+  --cg-ok-bg: rgba(16, 185, 129, 0.15);
   --cg-border: rgba(222, 220, 206, 0.15);
   --cg-border-card: #565656;
   --cg-accent: #2d86d4;
@@ -181,6 +187,69 @@
   scrollbar-width: thin;
   scrollbar-color: var(--cgx-scroll-thumb, rgba(255, 255, 255, 0.22))
     transparent;
+}
+
+/*
+ * Surface scrollbars (`.cg-surface-scroll`).
+ *
+ * `.cg-scroll` above is tuned for DARK chrome — its thumb is
+ * `rgba(255,255,255,.22)`, invisible on the Files surface, the artifact dialogs
+ * and anything else drawn on the light page, which left those panes with the raw
+ * Windows scrollbar: a wide grey trough with square arrow buttons.
+ *
+ * NOT DERIVED FROM `--cg-text-muted`. The first version mixed that token down
+ * with `color-mix`, on the reasoning that muted text is dark on light and light
+ * on dark. It is — but in the light theme it is `hsl(51deg …)`, and hue 51 is
+ * YELLOW. Desaturated enough to read as grey in text, it became a distinctly
+ * yellow bar once painted as a solid 10px block, which is what "the scrollbar
+ * glitches yellow" was. A scrollbar has no business inheriting a hue from a text
+ * colour; it is chrome, and chrome is neutral by definition.
+ *
+ * So the thumb is an explicit neutral per theme, matching what every other
+ * scrollbar in this file does. Applied to the element AND its descendants,
+ * because the scrolling box is usually an inner pane (a dialog body, a table
+ * wrapper) rather than the node the class sits on.
+ */
+.cg-surface-scroll,
+.cg-surface-scroll * {
+  --cgx-surface-thumb: rgba(255, 255, 255, 0.22);
+  --cgx-surface-thumb-hover: rgba(255, 255, 255, 0.34);
+}
+[data-theme="light"] .cg-surface-scroll,
+[data-theme="light"] .cg-surface-scroll * {
+  --cgx-surface-thumb: rgba(40, 38, 34, 0.26);
+  --cgx-surface-thumb-hover: rgba(40, 38, 34, 0.42);
+}
+.cg-surface-scroll::-webkit-scrollbar,
+.cg-surface-scroll *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.cg-surface-scroll::-webkit-scrollbar-track,
+.cg-surface-scroll *::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cg-surface-scroll::-webkit-scrollbar-thumb,
+.cg-surface-scroll *::-webkit-scrollbar-thumb {
+  background: var(--cgx-surface-thumb);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.cg-surface-scroll::-webkit-scrollbar-thumb:hover,
+.cg-surface-scroll *::-webkit-scrollbar-thumb:hover {
+  background: var(--cgx-surface-thumb-hover);
+  background-clip: content-box;
+}
+.cg-surface-scroll::-webkit-scrollbar-corner,
+.cg-surface-scroll *::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Firefox: no ::-webkit pseudo-elements, and `thin` is the closest match. */
+.cg-surface-scroll,
+.cg-surface-scroll * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cgx-surface-thumb) transparent;
 }
 
 /* Data grids (AG Grid) — every table uses the themed scrollbar, not the OS default. */
@@ -405,6 +474,9 @@
   --cg-text-primary: hsl(0deg, 0%, 7%);
   --cg-text-nav: hsl(60deg, 2.5%, 23.3%);
   --cg-text-muted: hsl(51deg, 3.1%, 43.7%);
+  /* Dark green on light: emerald-700. Same role, legible ground. */
+  --cg-ok: #047857;
+  --cg-ok-bg: rgba(4, 120, 87, 0.12);
   --cg-border: rgba(30, 20, 10, 0.12);
   --cg-border-card: rgba(30, 20, 10, 0.2);
   --cg-accent: hsl(210deg, 70.9%, 51.6%);
@@ -1302,4 +1374,50 @@ code {
   margin-left: auto !important;
   margin-right: auto !important;
   width: 100%;
+}
+
+/* ── Skeleton placeholder ───────────────────────────────────────────────────
+   One class for every loading placeholder in the console, so a surface that is
+   still loading looks the same wherever it is. Sized and positioned by the
+   element it is put on; this only supplies the surface and the motion.
+
+   Colour comes from the theme tokens rather than fixed greys, because these sit
+   on both the light document surfaces and the dark console chrome, and a fixed
+   grey is invisible on one of them.
+
+   The shimmer is a background-position animation on a gradient: it composites on
+   the GPU and touches neither layout nor paint of anything around it. Animating
+   opacity on a dozen rows instead is what makes a skeleton cost more than the
+   content it stands in for. */
+.cg-skel {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--cg-bg-hover, rgba(127, 127, 127, 0.14));
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(127, 127, 127, 0.16) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: cg-skel-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes cg-skel-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* A skeleton is decoration for a wait, and a wait is exactly when motion
+   sensitivity matters most. Reduced motion keeps the placeholder, drops the
+   animation. */
+@media (prefers-reduced-motion: reduce) {
+  .cg-skel {
+    animation: none;
+  }
 }

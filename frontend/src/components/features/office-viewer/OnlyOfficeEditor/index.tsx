@@ -122,7 +122,11 @@ function OnlyOfficeEditor({
         const message =
           err?.response?.data?.detail ||
           err?.message ||
-          "Failed to initialise the ONLYOFFICE editor.";
+          // Named for what it is to the reader — the document editor — not for
+          // the vendor behind it. An error is the worst place to leak an
+          // implementation detail: it is read by someone who already has a
+          // problem and does not need a second unfamiliar noun.
+          "The document editor could not be started.";
         // eslint-disable-next-line no-console
         console.error("[OnlyOfficeEditor] token fetch failed:", err);
         setState({ status: "error", message: String(message) });
@@ -141,6 +145,58 @@ function OnlyOfficeEditor({
     callbackUrl,
     store,
   ]);
+
+  // -- @-mentions ----------------------------------------------------------
+  // ONLYOFFICE owns no user directory. Typing "@" raises `onRequestUsers`, and
+  // the editor shows NOTHING until the host answers by calling setUsers on the
+  // editor instance - so without this handler the mention menu is simply empty
+  // and the feature looks broken rather than unconfigured.
+  const handleRequestUsers = React.useCallback(async () => {
+    const instance = (
+      window as unknown as {
+        DocEditor?: {
+          instances?: Record<string, { setUsers?: (a: object) => void }>;
+        };
+      }
+    ).DocEditor?.instances?.[editorId];
+    if (!instance?.setUsers) return;
+    try {
+      const res = await openHands.get<{
+        users: { id: string; name: string }[];
+      }>("/api/onlyoffice/collaborators");
+      // `c: "mention"` is required - the same callback serves protection and
+      // sharing lists, and an answer without it is discarded silently.
+      instance.setUsers({ c: "mention", users: res.data.users ?? [] });
+    } catch {
+      instance.setUsers({ c: "mention", users: [] });
+    }
+  }, [editorId]);
+
+  // Fired when a comment mentioning someone is posted. The editor has already
+  // stored the comment; this is only the notification, so a failure here must
+  // not surface as a document error.
+  const handleSendNotify = React.useCallback(
+    (event: {
+      data?: { emails?: string[]; actionLink?: object; message?: string };
+    }) => {
+      const data = event?.data ?? {};
+      openHands
+        .post("/api/onlyoffice/mention", {
+          conversationId,
+          filePath,
+          fileName,
+          store,
+          emails: data.emails ?? [],
+          actionLink: data.actionLink ?? null,
+          message: data.message ?? "",
+        })
+        .catch((err) => {
+          // eslint-disable-next-line no-console
+          console.error("[OnlyOfficeEditor] mention notify failed:", err);
+        });
+    },
+    [conversationId, filePath, fileName, store],
+  );
 
   if (state.status === "loading") {
     return (
@@ -174,11 +230,37 @@ function OnlyOfficeEditor({
   const serverUrl = browserReachableOrigin(ENV_SERVER_URL || documentServerUrl);
 
   // The DocumentEditor wants the full config WITH the signed token embedded.
+  //
+  // Events are declared HERE rather than through the wrapper's `events_on*`
+  // props, and that is not a style choice. The wrapper builds its own events
+  // object from the props it knows about and then does
+  // `Object.assign(itsObject, config)` — so a config carrying `events` replaces
+  // the wrapper's set outright. Splitting them would mean the half declared as
+  // props is silently discarded.
+  //
+  // It also has to be this way for mentions at all: this version of
+  // @onlyoffice/document-editor-react has no `events_onRequestSendNotify` prop,
+  // so the notify half of the mention flow can only be delivered through the
+  // config.
   const editorConfig: OnlyOfficeConfig = {
     ...config,
     token,
     width,
     height,
+    events: {
+      onDocumentReady: () => onDocumentReady(),
+      onDocumentStateChange: (event: unknown) => {
+        // event.data === true → the document has unsaved changes.
+        // eslint-disable-next-line no-console
+        console.log("[OnlyOfficeEditor] document state change:", event);
+      },
+      onError: (event: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error("[OnlyOfficeEditor] editor error:", event);
+      },
+      onRequestUsers: handleRequestUsers,
+      onRequestSendNotify: handleSendNotify,
+    },
   };
 
   return (
@@ -214,16 +296,6 @@ function OnlyOfficeEditor({
         id={editorId}
         documentServerUrl={serverUrl}
         config={editorConfig}
-        events_onDocumentReady={() => onDocumentReady()}
-        events_onDocumentStateChange={(event) => {
-          // event.data === true → the document has unsaved changes.
-          // eslint-disable-next-line no-console
-          console.log("[OnlyOfficeEditor] document state change:", event);
-        }}
-        events_onError={(event) => {
-          // eslint-disable-next-line no-console
-          console.error("[OnlyOfficeEditor] editor error:", event);
-        }}
         onLoadComponentError={(code, description) => {
           // eslint-disable-next-line no-console
           console.error("[OnlyOfficeEditor] load error:", code, description);

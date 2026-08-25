@@ -18,7 +18,7 @@ import {
   UserPlus,
 } from "lucide-react";
 
-import ConversationService from "#/api/conversation-service/conversation-service.api";
+import { saveReportToLibrary } from "./report-library";
 import { useConversationId } from "#/hooks/use-conversation-id";
 import { SideRailPanel } from "#/components/admin/admin-kit";
 import { APP_FONT } from "./theme";
@@ -830,19 +830,25 @@ export function EventReport({
   const current = { ...event, ticket, assignee };
 
   const onSave = async () => {
-    if (!conversationId) {
-      setSave("error");
-      return;
-    }
+    // NO conversation guard. The artifact library is a SHARED store, not
+    // per-conversation state — the id is threaded through only so the audit
+    // entry records which session a save came from when there is one. Refusing
+    // without it meant the button failed outright on any surface opened outside
+    // a conversation, which is most of Explore.
     setSave("saving");
     try {
       // Save what is on screen — a ticket raised or an assignment made in this
       // session is part of the record, not a detail the table happened to hold.
-      await ConversationService.uploadFiles(conversationId, [
-        new File([eventReportMarkdown(current)], eventReportFilename(event), {
-          type: "text/markdown",
-        }),
-      ]);
+      //
+      // Into the LIBRARY, not the sandbox: this used to upload into the agent's
+      // working directory, which is deleted with the conversation and is not the
+      // tree the Files tab shows. The report appeared to save and then was
+      // nowhere to be found.
+      await saveReportToLibrary(
+        eventReportFilename(event),
+        eventReportMarkdown(current),
+        conversationId ?? "",
+      );
       setSave("saved");
       onSaved();
     } catch {

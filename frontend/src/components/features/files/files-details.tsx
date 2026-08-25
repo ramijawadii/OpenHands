@@ -76,11 +76,26 @@ export function FilesDetailsPanel({
   const [perms, setPerms] = React.useState<PermissionMatrix | null>(null);
   const [permError, setPermError] = React.useState("");
 
+  const [fresh, setFresh] = React.useState<VfsEntry | null>(null);
+
   React.useEffect(() => {
     setMeta(null);
     setPerms(null);
     setPermError("");
+    setFresh(null);
     let cancelled = false;
+    // `stat` RE-DERIVES a missing sha256 from the bytes and writes it back to
+    // the sidecar; a listing never does, because hashing every row would mean
+    // downloading the folder. So files that entered the store outside the VFS —
+    // restored from trash, or a Seafile-side conflict copy — show no hash until
+    // something asks for one. Opening the panel is that ask, and it fixes the
+    // record permanently rather than just for this view.
+    if (entry.kind === "file") {
+      filesApi
+        .stat(entry.path, conversationId, store)
+        .then((e) => !cancelled && setFresh(e))
+        .catch(() => undefined);
+    }
     filesApi
       .metadata(entry.path, conversationId, store)
       .then((d) => !cancelled && setMeta(d))
@@ -98,6 +113,8 @@ export function FilesDetailsPanel({
   }, [entry.path, conversationId, store]);
 
   const isDir = entry.kind === "dir";
+  // Prefer the healed record over the listing row.
+  const shown = fresh ?? entry;
   const [contains, setContains] = React.useState<{
     files: number;
     dirs: number;
@@ -187,13 +204,13 @@ export function FilesDetailsPanel({
       <div className="min-h-0 flex-1 overflow-auto px-3 py-2">
         {tab === "details" && (
           <>
-            <Field label="Type" value={typeName(entry)} />
+            <Field label="Type" value={typeName(shown)} />
             {/* "Location" is the CONTAINING folder, as a properties dialog shows
                 it — the full path is already in the header tooltip, and
                 repeating it here wastes the most useful row in the panel. */}
             <Field
               label="Location"
-              value={parentOf(entry.path) || "the library root"}
+              value={parentOf(shown.path) || "the library root"}
             />
             <Field
               label="Size"
@@ -213,7 +230,11 @@ export function FilesDetailsPanel({
                 }
               />
             )}
-            <Field label="Modified" value={formatWhen(entry.mtime)} />
+            <Field
+              label="Author"
+              value={shown.author || entry.author || "not recorded"}
+            />
+            <Field label="Modified" value={formatWhen(shown.mtime)} />
             {/* Deliberately present and empty rather than omitted: a properties
                 panel that silently lacks a field people expect looks incomplete,
                 while one that says the store does not keep it is an answer. */}
@@ -222,7 +243,7 @@ export function FilesDetailsPanel({
               label="Version"
               value={
                 <span className="flex items-center gap-1.5">
-                  {entry.version ? `v${entry.version}` : "—"}
+                  {shown.version ? `v${shown.version}` : "—"}
                   {!isDir && (
                     <button
                       type="button"
@@ -245,7 +266,8 @@ export function FilesDetailsPanel({
               label="SHA-256"
               value={
                 <span className="font-mono">
-                  {entry.content_hash || "not recorded"}
+                  {shown.content_hash ||
+                    (fresh ? "not recorded by this store" : "computing…")}
                 </span>
               }
             />
@@ -355,7 +377,7 @@ export function FilesDetailsPanel({
                               title={cell?.reason || ""}
                               className={
                                 cell?.allow
-                                  ? "text-emerald-400"
+                                  ? "text-[var(--cg-ok)]"
                                   : "text-[var(--cg-text-muted)]"
                               }
                             >

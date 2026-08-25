@@ -80,6 +80,56 @@ async function readDiagram(
   return res.text();
 }
 
+/**
+ * Persist edited diagram XML back to whichever store it came from.
+ *
+ * The library goes through the VFS `/write` route — the same policed, evented,
+ * audited path everything else uses, which is what makes a saved diagram a
+ * versioned artifact rather than a blob that overwrote its own history. The
+ * sandbox keeps using the conversation upload path, which is what the runtime
+ * can see.
+ */
+async function writeDiagram(
+  store: "sandbox" | "artifacts",
+  conversationId: string,
+  filePath: string,
+  xml: string,
+): Promise<void> {
+  if (store === "artifacts") {
+    const res = await fetch("/api/cloudguard/vfs/write", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        path: filePath,
+        text: xml,
+        mime: "application/xml",
+        store: "artifacts",
+      }),
+    });
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}`;
+      try {
+        detail = (await res.json())?.detail ?? detail;
+      } catch {
+        /* a non-JSON error body is still an error */
+      }
+      throw new Error(detail);
+    }
+    return;
+  }
+  const file = new File([xml], filePath.slice(filePath.lastIndexOf("/") + 1), {
+    type: "application/xml",
+  });
+  await ConversationService.uploadFiles(conversationId, [file]);
+}
+
+/** Quiet period before a diagram change becomes a durable revision. Long enough
+ *  that a burst of edits is one version, short enough that a closed tab loses
+ *  at most a few seconds of work. */
+const AUTOSAVE_IDLE_MS = 6000;
+
 export default function DrawioViewer({
   conversationId,
   filePath,
@@ -89,7 +139,107 @@ export default function DrawioViewer({
   // The embed handle (react-drawio ref: .load({xml})) + the authoritative agent XML.
   // The live co-pilot mutates this copy and re-loads it into the open editor.
   const drawioRef = React.useRef<React.ElementRef<typeof DrawIoEmbed>>(null);
+  const [saving, setSaving] = React.useState<
+    | { kind: "idle" }
+    | { kind: "saving" }
+    | { kind: "saved" }
+    | { kind: "failed"; message: string }
+  >({ kind: "idle" });
+
   const xmlRef = React.useRef<string>("");
+
+  const onSave = React.useCallback(
+    async (evt: { xml?: string }) => {
+      const xml = evt?.xml;
+      // An empty payload means the editor had nothing to give us. Writing that
+      // would replace a real diagram with a blank file and burn a version doing
+      // it, so refuse rather than "succeed".
+      if (!xml || !xml.trimStart().startsWith("<")) {
+        setSaving({
+          kind: "failed",
+          message: "The editor returned no diagram.",
+        });
+        return;
+      }
+      setSaving({ kind: "saving" });
+      try {
+        await writeDiagram(store, conversationId, filePath, xml);
+        xmlRef.current = xml;
+        setSaving({ kind: "saved" });
+        window.setTimeout(
+          () =>
+            setSaving((s2) => (s2.kind === "saved" ? { kind: "idle" } : s2)),
+          2500,
+        );
+      } catch (err) {
+        // Surfaced, never swallowed. A save that silently failed is the worst
+        // outcome for an editor — the analyst closes the tab believing the work
+        // is stored.
+        setSaving({
+          kind: "failed",
+          message: err instanceof Error ? err.message : "Save failed.",
+        });
+      }
+    },
+    [store, conversationId, filePath],
+  );
+
+  /**
+   * Autosave, throttled into revisions rather than keystrokes.
+   *
+   * draw.io fires `autosave` on EVERY change — every drag, every resize, every
+   * character typed into a label. Writing each one would be correct in the sense
+   * that nothing is lost, and useless in the sense that the diagram's version
+   * history would become several hundred entries of one editing session.
+   *
+   * So the change is remembered immediately (free, in memory and in the draft)
+   * and the durable write happens after the editing pauses. The pending XML is
+   * held in a ref rather than state so the timer always writes the LATEST
+   * diagram, not the one that existed when the timer was set.
+   */
+  const pendingXml = React.useRef<string | null>(null);
+  const autosaveTimer = React.useRef<number | null>(null);
+
+  const flushAutosave = React.useCallback(() => {
+    const xml = pendingXml.current;
+    if (!xml || xml === xmlRef.current) return;
+    pendingXml.current = null;
+    onSave({ xml }).catch(() => {
+      /* onSave records the failure in its own state */
+    });
+  }, [onSave]);
+
+  const onAutoSave = React.useCallback(
+    (evt: { xml?: string }) => {
+      const xml = evt?.xml;
+      if (!xml || !xml.trimStart().startsWith("<")) return;
+      pendingXml.current = xml;
+      if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = window.setTimeout(
+        flushAutosave,
+        AUTOSAVE_IDLE_MS,
+      );
+    },
+    [flushAutosave],
+  );
+
+  // The last chance to write. `visibilitychange` and `pagehide` are the two the
+  // platform actually guarantees — `beforeunload` is skipped on tab discard and
+  // on mobile — and unmount covers closing the pane while the tab lives on.
+  React.useEffect(() => {
+    const onGone = () => flushAutosave();
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") flushAutosave();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", onGone);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", onGone);
+      if (autosaveTimer.current) window.clearTimeout(autosaveTimer.current);
+      flushAutosave();
+    };
+  }, [flushAutosave]);
 
   // Fetch the diagram file; returns its content (used both for the initial open and
   // for the live `reload` op, which picks up an agent-regenerated file in place).
@@ -160,6 +310,20 @@ export default function DrawioViewer({
 
   return (
     <div style={{ height: "100%", width: "100%", position: "relative" }}>
+      {saving.kind !== "idle" && (
+        <div
+          role="status"
+          className={`absolute left-3 top-3 z-10 rounded-full px-2.5 py-1 text-[11px] font-medium shadow-md ${
+            saving.kind === "failed"
+              ? "bg-amber-500 text-black"
+              : "bg-[var(--cg-accent,#4C9AFF)] text-white"
+          }`}
+        >
+          {saving.kind === "saving" && "Saving…"}
+          {saving.kind === "saved" && "Saved"}
+          {saving.kind === "failed" && `Not saved — ${saving.message}`}
+        </div>
+      )}
       {agentWorking && (
         <div
           className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full bg-[var(--cg-accent,#4C9AFF)] px-2.5 py-1 text-[11px] font-medium text-white shadow-md"
@@ -174,16 +338,22 @@ export default function DrawioViewer({
         onExport={onExport}
         baseUrl={DRAWIO_BASE_URL}
         xml={state.xml}
+        onSave={onSave}
+        // AUTOSAVE ON. draw.io emits `autosave` on every change; the handler
+        // below throttles it into a durable write so a diagram survives the tab
+        // closing without minting a revision per dragged shape.
+        autosave
+        onAutoSave={onAutoSave}
         // Same defaults as the Whiteboard: white (light) mode, grid OFF,
-        // page view OFF, de-branded chrome. Viewer-oriented: minimal chrome,
-        // no save button (save-back into the sandbox is a later step).
+        // page view OFF, de-branded chrome. The save button is now ON — edits
+        // persist through `onSave` to the store the diagram came from.
         configuration={DRAWIO_CONFIGURATION}
         urlParameters={{
           ui: "min",
           dark: false,
           grid: false,
           spin: false,
-          noSaveBtn: true,
+          noSaveBtn: false,
           noExitBtn: true,
         }}
       />
